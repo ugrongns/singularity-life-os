@@ -13,7 +13,7 @@ export async function GET() {
     const records = userId ? await db.select().from(homeMaintenanceRecords).where(eq(homeMaintenanceRecords.user_id, userId)).all() : [];
     const today = new Date();
 
-    const processedMaintenance = records.map(rec => {
+    const processedMaintenance = (records as any[]).map((rec: any) => {
       const dueDate = new Date(rec.next_due_date);
       const daysLeft = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       const status = daysLeft <= 7 ? 'urgent' : daysLeft <= 30 ? 'warning' : 'ok';
@@ -27,7 +27,7 @@ export async function GET() {
 
     // Ev Demirbaşları & Garanti Süreleri
     const appliances = userId ? await db.select().from(homeAppliances).where(eq(homeAppliances.user_id, userId)).all() : [];
-    const processedAppliances = appliances.map(app => {
+    const processedAppliances = (appliances as any[]).map((app: any) => {
       let daysLeftWarranty = null;
       let isWarrantyActive = false;
 

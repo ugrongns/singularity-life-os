@@ -18,7 +18,7 @@ export async function GET() {
     const pets = userId ? await db.select().from(petRecords).where(eq(petRecords.user_id, userId)).all() : [];
 
     // Yaklaşan bitiş uyarıları ve Vize (6 ay) uyarısı hesapla
-    const vaultWithAlerts = vaultItems.map(item => {
+    const vaultWithAlerts = (vaultItems as any[]).map((item: any) => {
       let daysLeft: number | null = null;
       let alertLevel: 'ok' | 'warning' | 'critical' = 'ok';
       let visaWarning = false;
@@ -49,7 +49,7 @@ export async function GET() {
     });
 
     // Önemli günler — bu yıl veya gelecek yıl için gün farkı
-    const datesWithCountdown = dates.map(d => {
+    const datesWithCountdown = (dates as any[]).map((d: any) => {
       const parts = d.event_date.split('-');
       const mm = parseInt(parts[0] || '1', 10);
       const dd = parseInt(parts[1] || '1', 10);

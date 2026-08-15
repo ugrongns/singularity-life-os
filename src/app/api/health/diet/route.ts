@@ -7,7 +7,7 @@ export async function GET() {
   try {
     initDatabase();
     const options = await db.select().from(dietMealOptions).all();
-    const parsedOptions = options.map(opt => ({
+    const parsedOptions = (options as any[]).map((opt: any) => ({
       ...opt,
       checklist: JSON.parse(opt.items_checklist || '[]')
     }));

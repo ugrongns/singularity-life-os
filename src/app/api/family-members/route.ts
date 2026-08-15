@@ -32,12 +32,12 @@ export async function GET() {
     }
 
     // Her üyenin toplam harcama adedini ve son harcama tarihini hesapla
-    const membersWithStats = await Promise.all(members.map(async m => {
+    const membersWithStats = await Promise.all((members as any[]).map(async (m: any) => {
       const memberTxs = await db.select().from(transactions).where(eq(transactions.member_id, m.id)).all();
       return {
         ...m,
         transaction_count: memberTxs.length,
-        total_spent: memberTxs.reduce((sum, t) => sum + (t.amount || 0), 0)
+        total_spent: (memberTxs as any[]).reduce((sum: number, t: any) => sum + (t.amount || 0), 0)
       };
     }));
 

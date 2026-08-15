@@ -17,7 +17,7 @@ export async function GET() {
     const currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
 
     // Her mülk için kira getirisi, amortisman süresi ve bu ayki tahsilat durumu
-    const processedProperties = await Promise.all(properties.map(async prop => {
+    const processedProperties = await Promise.all((properties as any[]).map(async (prop: any) => {
       const annualRent = prop.monthly_rent_income * 12;
       const rentalYield = prop.estimated_market_value > 0 ? ((annualRent / prop.estimated_market_value) * 100) : 0;
       const amortizationYears = annualRent > 0 ? (prop.estimated_market_value / annualRent) : 0;
@@ -27,7 +27,7 @@ export async function GET() {
         .from(realEstateCashflows)
         .where(eq(realEstateCashflows.property_id, prop.id))
         .all();
-      const collectedThisMonth = cashflows.some(cf => cf.type === 'rent_collection' && cf.date.startsWith(currentMonth));
+      const collectedThisMonth = (cashflows as any[]).some((cf: any) => cf.type === 'rent_collection' && cf.date.startsWith(currentMonth));
 
       return {
         ...prop,
@@ -38,8 +38,8 @@ export async function GET() {
       };
     }));
 
-    const totalRealEstateValue = properties.reduce((sum, p) => sum + p.estimated_market_value, 0);
-    const totalMonthlyRentIncome = properties.reduce((sum, p) => sum + p.monthly_rent_income, 0);
+    const totalRealEstateValue = (properties as any[]).reduce((sum: number, p: any) => sum + p.estimated_market_value, 0);
+    const totalMonthlyRentIncome = (properties as any[]).reduce((sum: number, p: any) => sum + p.monthly_rent_income, 0);
 
     return NextResponse.json({
       success: true,

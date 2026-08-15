@@ -13,12 +13,12 @@ export async function GET() {
     const items = userId ? await db.select().from(shoppingListItems).where(eq(shoppingListItems.user_id, userId)).all() : [];
     const wallets = userId ? await db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))).all() : [];
 
-    const unchecked = items.filter(i => i.is_checked === 0);
-    const checked   = items.filter(i => i.is_checked === 1);
+    const unchecked = (items as any[]).filter((i: any) => i.is_checked === 0);
+    const checked   = (items as any[]).filter((i: any) => i.is_checked === 1);
 
-    const totalEstimated = items.reduce((sum, i) => sum + (i.estimated_price || 0), 0);
-    const remainingEstimated = unchecked.reduce((sum, i) => sum + (i.estimated_price || 0), 0);
-    const checkedEstimated = checked.reduce((sum, i) => sum + (i.estimated_price || 0), 0);
+    const totalEstimated = (items as any[]).reduce((sum: number, i: any) => sum + (i.estimated_price || 0), 0);
+    const remainingEstimated = (unchecked as any[]).reduce((sum: number, i: any) => sum + (i.estimated_price || 0), 0);
+    const checkedEstimated = (checked as any[]).reduce((sum: number, i: any) => sum + (i.estimated_price || 0), 0);
 
     // Kategorilere göre grupla ve kategori tutarlarını hesapla
     const byCategory: Record<string, typeof items> = {};
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
 
     if (action === 'add') {
       const nameTrimmed = (data.name || '').trim();
-      const existing = currentItems.find(i => i.name.toLowerCase() === nameTrimmed.toLowerCase());
+      const existing = (currentItems as any[]).find((i: any) => i.name.toLowerCase() === nameTrimmed.toLowerCase());
 
       if (existing) {
         // Çift ürün eklemek yerine var olanı güncelle ve unchecked yap
@@ -174,7 +174,7 @@ export async function POST(request: Request) {
 
       for (const item of presetItems) {
         const itemLower = item.name.toLowerCase();
-        const existing = currentItems.find(i => i.name.toLowerCase() === itemLower);
+        const existing = (currentItems as any[]).find((i: any) => i.name.toLowerCase() === itemLower);
 
         if (existing) {
           // Zaten varsa duplicate oluşturma, sadece is_checked=0 yap
@@ -216,7 +216,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'Lütfen harcama yapılacak cüzdanı seçin.' }, { status: 400 });
       }
 
-      const totalAmount = checkedItems.reduce((sum, i) => sum + (i.estimated_price || 0), 0);
+      const totalAmount = (checkedItems as any[]).reduce((sum: number, i: any) => sum + (i.estimated_price || 0), 0);
       if (totalAmount <= 0) {
         return NextResponse.json({ success: false, error: 'Alınan ürün tutarı 0 TL. Harcama kaydedilemedi.' }, { status: 400 });
       }
@@ -232,7 +232,7 @@ export async function POST(request: Request) {
 
       // Harcama işlemi kaydet (transactions)
       const txId = `tx-shop-${Date.now()}`;
-      const itemNames = checkedItems.map(i => i.name).join(', ');
+      const itemNames = (checkedItems as any[]).map((i: any) => i.name).join(', ');
       db.insert(transactions).values({
         id: txId,
         wallet_id: walletId,

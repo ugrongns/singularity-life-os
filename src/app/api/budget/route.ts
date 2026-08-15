@@ -33,11 +33,11 @@ export async function GET(req: Request) {
       : [];
 
     // Yatırım hesapları için bağlı varlıkların canlı TL değerini ve özetini hesapla
-    const accounts = rawAccounts.map(acc => {
+    const accounts = (rawAccounts as any[]).map((acc: any) => {
       const isInvAcc = ['brokerage', 'crypto_exchange', 'crypto_wallet'].includes(acc.type);
       if (!isInvAcc) return acc;
 
-      const linkedAssets = assets.filter(a => a.account_id === acc.id);
+      const linkedAssets = (assets as any[]).filter((a: any) => a.account_id === acc.id);
       let calculatedBalanceTRY = 0;
       const summaries: string[] = [];
 
@@ -61,7 +61,7 @@ export async function GET(req: Request) {
 
     // 2. Kategoriler
     const allCategories = await db.select().from(categories).all();
-    const categoryMap = new Map(allCategories.map(c => [c.id, c]));
+    const categoryMap = new Map((allCategories as any[]).map((c: any) => [c.id, c]));
 
     // 3. Son 5 Harcama (Geçmiş İşlemler)
     // Taksitli işlemlerden sadece 1. dilimi göster (sonraki dilimler kredi kartı borcu olarak zaten takip ediliyor)
@@ -76,11 +76,11 @@ export async function GET(req: Request) {
 
     // 2.5. Aile Üyeleri Haritası
     const allFamilyMembers = await db.select().from(familyMembers).all();
-    const familyMap = new Map(allFamilyMembers.map(fm => [fm.id, fm]));
+    const familyMap = new Map((allFamilyMembers as any[]).map((fm: any) => [fm.id, fm]));
 
     // Gelir ve Transfer/Ödeme olan tüm işlemleri harcamalar listesinden çıkar (Sadece gerçek 3. şahıs giderleri görünsün)
-    const recentTx = allRecentTx
-      .filter(tx => {
+    const recentTx = (allRecentTx as any[])
+      .filter((tx: any) => {
         const cat = tx.category_id ? categoryMap.get(tx.category_id) : null;
         const isIncome = (cat && cat.type === 'income') ||
           tx.merchant?.toLowerCase().includes('kira geliri') ||
@@ -99,7 +99,7 @@ export async function GET(req: Request) {
         return !isIncome && !isTransfer && (!tx.is_installment || tx.installment_number === 1);
       })
       .slice(0, 6)
-      .map(tx => {
+      .map((tx: any) => {
         const fm = tx.member_id ? familyMap.get(tx.member_id) : null;
         return {
           ...tx,
@@ -135,12 +135,12 @@ export async function GET(req: Request) {
         // Bu kartın bu ayki net ekstre borcunu hesapla
         const cardTx = await db.select().from(transactions).where(eq(transactions.wallet_id, acc.id)).all();
 
-        const singleTotal = cardTx
-          .filter(t => (!t.is_installment || t.is_installment === 0) && t.transaction_date.startsWith(currentMonthStr))
-          .reduce((sum, t) => sum + t.amount, 0);
+        const singleTotal = (cardTx as any[])
+          .filter((t: any) => (!t.is_installment || t.is_installment === 0) && t.transaction_date.startsWith(currentMonthStr))
+          .reduce((sum: number, t: any) => sum + t.amount, 0);
 
         const instMap = new Map<string, number>();
-        for (const t of cardTx) {
+        for (const t of (cardTx as any[])) {
           if (t.is_installment === 1) {
             const key = t.parent_transaction_id || `${t.merchant}-${t.total_installments}`;
             instMap.set(key, t.amount);
@@ -226,7 +226,7 @@ export async function GET(req: Request) {
       }
     }
 
-    const categoriesWithSpending = allCategories.map(cat => ({
+    const categoriesWithSpending = (allCategories as any[]).map((cat: any) => ({
       ...cat,
       spent_this_month: categorySpending[cat.id] || 0,
       percentage: cat.monthly_budget_limit ? Math.min(Math.round(((categorySpending[cat.id] || 0) / cat.monthly_budget_limit) * 100), 100) : 0
@@ -252,12 +252,12 @@ export async function GET(req: Request) {
           ? await db.select().from(transactions)
               .where(and(or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)), sql`substr(${transactions.transaction_date}, 1, 7) = ${pastMonth}`)).all()
           : [];
-        const pastIncome = pastTxs
-          .filter(t => {
+        const pastIncome = (pastTxs as any[])
+          .filter((t: any) => {
             const c = t.category_id ? categoryMap.get(t.category_id) : null;
             return c ? c.type === 'income' : (t.merchant?.toLowerCase().includes('maaş') || t.merchant?.toLowerCase().includes('kira geliri'));
           })
-          .reduce((s, t) => s + t.amount, 0);
+          .reduce((s: number, t: any) => s + t.amount, 0);
         if (pastIncome > 0) { incomeSum += pastIncome; incomeMonths++; }
       }
       effectiveIncome = incomeMonths > 0 ? Math.round(incomeSum / incomeMonths) : 0;
@@ -268,8 +268,8 @@ export async function GET(req: Request) {
     let plannedWants = 0;
     let plannedSavings = 0;
 
-    const expenseCategoriesOnly = categoriesWithSpending.filter(c => c.type !== 'income');
-    const totalBudgetLimitSum = expenseCategoriesOnly.reduce((sum, c) => sum + (c.monthly_budget_limit || 0), 0);
+    const expenseCategoriesOnly = (categoriesWithSpending as any[]).filter((c: any) => c.type !== 'income');
+    const totalBudgetLimitSum = (expenseCategoriesOnly as any[]).reduce((sum: number, c: any) => sum + (c.monthly_budget_limit || 0), 0);
 
     for (const cat of expenseCategoriesOnly) {
       const group = (cat as any).group_50_30_20 || 'needs';
@@ -361,11 +361,11 @@ export async function GET(req: Request) {
 
     // BES Fon Büyüklüğü
     const besList = userId ? await db.select().from(besContracts).where(or(eq(besContracts.user_id, userId), eq(besContracts.is_family_shared, 1))).all() : [];
-    const totalBesTRY = besList.reduce((sum, b) => sum + b.current_fund_value, 0);
+    const totalBesTRY = (besList as any[]).reduce((sum: number, b: any) => sum + b.current_fund_value, 0);
 
     // Gayrimenkul Rayiç Değeri
     const properties = userId ? await db.select().from(realEstateProperties).where(or(eq(realEstateProperties.user_id, userId), eq(realEstateProperties.is_family_shared, 1))).all() : [];
-    const totalRealEstateTRY = properties.reduce((sum, p) => sum + p.estimated_market_value, 0);
+    const totalRealEstateTRY = (properties as any[]).reduce((sum: number, p: any) => sum + p.estimated_market_value, 0);
 
     const netWorthTRY = totalCashAssetsTRY + totalInvestmentsTRY + totalBesTRY + totalRealEstateTRY - totalDebtsTRY;
 
@@ -412,13 +412,13 @@ export async function GET(req: Request) {
             .all()
         : [];
 
-      const installmentTxs = monthTxs.filter(t => t.is_installment === 1);
-      const committedAmount = installmentTxs.reduce((sum, t) => sum + t.amount, 0);
+      const installmentTxs = (monthTxs as any[]).filter((t: any) => t.is_installment === 1);
+      const committedAmount = (installmentTxs as any[]).reduce((sum: number, t: any) => sum + t.amount, 0);
 
       // O aya ait toplam harcama (transfer/kart ödemeleri hariç)
       let fTotalExpense = 0;
       let fTotalIncome = 0;
-      for (const t of monthTxs) {
+      for (const t of (monthTxs as any[])) {
         const tCat = t.category_id ? categoryMap.get(t.category_id) : null;
         const tIsIncome = tCat ? tCat.type === 'income' : (t.merchant?.toLowerCase().includes('maaş') || t.merchant?.toLowerCase().includes('kira geliri') || t.merchant?.toLowerCase().includes('temettü'));
         const tIsTransfer = (t.merchant?.startsWith('💳 Kart Ödemesi:') || t.merchant?.startsWith('🔄 Transfer:') || t.notes?.toLowerCase().includes('borç ödemesi') || t.notes?.toLowerCase().includes('transfer'));

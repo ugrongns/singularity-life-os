@@ -24,7 +24,7 @@ export async function GET(req: Request) {
 
     // Hesap isimlerini haritalamak için cüzdanları al
     const wallets = await db.select().from(walletsAccounts).all();
-    const walletMap = new Map(wallets.map(w => [w.id, w.name]));
+    const walletMap = new Map((wallets as any[]).map((w: any) => [w.id, w.name]));
 
     // Bu kategoriye ve seçili aya ait tüm işlemler
     const txList = await db.select()
@@ -35,12 +35,12 @@ export async function GET(req: Request) {
       .orderBy(desc(transactions.transaction_date), desc(transactions.created_at))
       .all();
 
-    const formattedTxList = txList.map(tx => ({
+    const formattedTxList = (txList as any[]).map((tx: any) => ({
       ...tx,
       wallet_name: walletMap.get(tx.wallet_id) || 'Bilinmeyen Hesap'
     }));
 
-    const totalSpent = txList.reduce((sum, t) => sum + t.amount, 0);
+    const totalSpent = (txList as any[]).reduce((sum: number, t: any) => sum + t.amount, 0);
 
     return NextResponse.json({
       success: true,

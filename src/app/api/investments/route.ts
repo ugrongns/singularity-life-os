@@ -23,7 +23,7 @@ export async function GET() {
     const accounts = userId
       ? await db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))).all()
       : [];
-    const accountMap = new Map(accounts.map(a => [a.id, a.name]));
+    const accountMap = new Map((accounts as any[]).map((a: any) => [a.id, a.name]));
 
     let totalStockTRY = 0;
     let totalStockCostTRY = 0;
@@ -34,7 +34,7 @@ export async function GET() {
     let totalCashTRY = 0;
     let totalCashCostTRY = 0;
 
-    const processedAssets = assets.map(asset => {
+    const processedAssets = (assets as any[]).map((asset: any) => {
       const isUSD = asset.current_price_currency === 'USD';
       const isEUR = asset.current_price_currency === 'EUR';
       const rate = isUSD ? USD_RATE : isEUR ? EUR_RATE : 1.0;
@@ -72,9 +72,9 @@ export async function GET() {
       };
     });
 
-    const totalBesFundTRY = besList.reduce((sum, b) => sum + b.current_fund_value, 0);
-    const totalBesPrincipalTRY = besList.reduce((sum, b) => sum + b.total_principal, 0);
-    const totalBesStateContributionTRY = besList.reduce((sum, b) => sum + b.state_contribution_amount, 0);
+    const totalBesFundTRY = (besList as any[]).reduce((sum: number, b: any) => sum + b.current_fund_value, 0);
+    const totalBesPrincipalTRY = (besList as any[]).reduce((sum: number, b: any) => sum + b.total_principal, 0);
+    const totalBesStateContributionTRY = (besList as any[]).reduce((sum: number, b: any) => sum + b.state_contribution_amount, 0);
 
     const totalPortfolioTRY = totalStockTRY + totalGoldTRY + totalCryptoTRY + totalCashTRY + totalBesFundTRY;
     const totalPortfolioCostTRY = totalStockCostTRY + totalGoldCostTRY + totalCryptoCostTRY + totalCashCostTRY + totalBesPrincipalTRY;
@@ -82,7 +82,7 @@ export async function GET() {
     const totalPortfolioPLPercent = totalPortfolioCostTRY > 0 ? ((totalPortfolioPLTRY / totalPortfolioCostTRY) * 100) : 0;
 
     const investmentAccountTypes = ['brokerage', 'crypto_exchange', 'crypto_wallet'];
-    const investmentAccountsList = accounts.filter(a => investmentAccountTypes.includes(a.type));
+    const investmentAccountsList = (accounts as any[]).filter((a: any) => investmentAccountTypes.includes(a.type));
 
     const allocation = {
       stocks: totalPortfolioTRY > 0 ? Math.round((totalStockTRY / totalPortfolioTRY) * 100) : 0,

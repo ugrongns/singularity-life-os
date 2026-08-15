@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     for (const receiptItem of parsedReceipt.items || []) {
       const rNameLower = receiptItem.name.toLowerCase();
       
-      const matched = currentItems.find(i => {
+      const matched = (currentItems as any[]).find((i: any) => {
         const iNameLower = i.name.toLowerCase();
         return iNameLower.includes(rNameLower) || rNameLower.includes(iNameLower);
       });

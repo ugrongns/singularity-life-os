@@ -48,17 +48,17 @@ export async function GET() {
     const scaleLogs = db.select().from(smartScaleLogs)
       .orderBy(desc(smartScaleLogs.measurement_date)).all();
 
-    const morningSupps = supplements.filter(s => s.timing === 'morning');
-    const eveningSupps = supplements.filter(s => s.timing === 'evening');
-    const mealSupps    = supplements.filter(s => s.timing === 'with_meal');
+    const morningSupps = (supplements as any[]).filter((s: any) => s.timing === 'morning');
+    const eveningSupps = (supplements as any[]).filter((s: any) => s.timing === 'evening');
+    const mealSupps    = (supplements as any[]).filter((s: any) => s.timing === 'with_meal');
 
     const totalSupps   = supplements.length;
-    const takenSupps   = supplements.filter(s => s.is_taken_today === 1).length;
+    const takenSupps   = (supplements as any[]).filter((s: any) => s.is_taken_today === 1).length;
 
     // AI Sağlık Çıkarım Hesaplaması
     let aiInsight = 'Günlük su ve uyku takibinizi düzenli yaparak haftalık canlı AI sağlık analinizi oluşturabilirsiniz!';
     if (sleepHistory.length > 0) {
-      const avgSleep = sleepHistory.reduce((acc, s) => acc + s.duration_hours, 0) / sleepHistory.length;
+      const avgSleep = (sleepHistory as any[]).reduce((acc: number, s: any) => acc + s.duration_hours, 0) / sleepHistory.length;
       if (avgSleep >= 7.5) {
         aiInsight = `✨ Mükemmel! Son 7 gündür ortalama ${avgSleep.toFixed(1)} saat uyuyorsunuz. Bu düzen zihinsel odaklanma ve bağışıklık sisteminizi %30 daha güçlü tutuyor.`;
       } else {

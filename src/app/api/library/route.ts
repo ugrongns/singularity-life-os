@@ -20,14 +20,14 @@ export async function GET() {
       avg_seconds_per_page: 0
     };
 
-    const completedBooks = allBooks.filter(b => b.status === 'completed');
+    const completedBooks = (allBooks as any[]).filter((b: any) => b.status === 'completed');
 
     // Her kitap için özel okuma seansları, hız (WPM) ve süre hesabı
-    const booksWithStats = allBooks.map(b => {
-      const bookSessions = allSessions.filter(s => s.book_id === b.id);
+    const booksWithStats = (allBooks as any[]).map((b: any) => {
+      const bookSessions = (allSessions as any[]).filter((s: any) => s.book_id === b.id);
       const sessionCount = bookSessions.length;
-      const totalPagesRead = bookSessions.reduce((acc, s) => acc + (s.pages_read || 0), 0);
-      const totalDurationMinutes = bookSessions.reduce((acc, s) => acc + (s.duration_minutes || 0), 0);
+      const totalPagesRead = (bookSessions as any[]).reduce((acc: number, s: any) => acc + (s.pages_read || 0), 0);
+      const totalDurationMinutes = (bookSessions as any[]).reduce((acc: number, s: any) => acc + (s.duration_minutes || 0), 0);
       
       const wordsPerPage = b.words_per_page || 250;
       const totalWordsRead = totalPagesRead * wordsPerPage;

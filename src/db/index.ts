@@ -1,31 +1,44 @@
 import { createClient } from '@libsql/client';
-import { drizzle } from 'drizzle-orm/libsql';
+import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql';
+import { drizzle as drizzlePg } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import * as schema from './schema';
 import path from 'path';
 
-const isVercel = Boolean(process.env.VERCEL) || process.env.NODE_ENV === 'production';
-const tursoUrl = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL;
-const tursoToken = process.env.TURSO_AUTH_TOKEN;
+const databaseUrl = process.env.DATABASE_URL || process.env.TURSO_DATABASE_URL;
+const isPg = Boolean(databaseUrl && (databaseUrl.startsWith('postgres://') || databaseUrl.startsWith('postgresql://')));
 
-let clientUrl = tursoUrl;
+let dbInstance: any;
+let clientInstance: any;
+let pgClientInstance: any = null;
+let libsqlClientInstance: any = null;
 
-if (!clientUrl || clientUrl.startsWith('postgresql://') || clientUrl.startsWith('postgres://')) {
-  // Turso / LibSQL URL yoksa geçici local dosya veya Turso fallback
-  const localDbPath = path.join(process.cwd(), 'singularity.db');
-  clientUrl = `file:${localDbPath}`;
+if (isPg) {
+  const pgUrl = databaseUrl!;
+  pgClientInstance = postgres(pgUrl, { ssl: 'require' });
+  dbInstance = drizzlePg(pgClientInstance, { schema: schema as any });
+  clientInstance = pgClientInstance;
+} else {
+  let clientUrl = databaseUrl;
+  if (!clientUrl) {
+    const localDbPath = path.join(process.cwd(), 'singularity.db');
+    clientUrl = `file:${localDbPath}`;
+  }
+  libsqlClientInstance = createClient({
+    url: clientUrl,
+    authToken: process.env.TURSO_AUTH_TOKEN,
+  });
+  dbInstance = drizzleLibsql(libsqlClientInstance, { schema: schema as any });
+  clientInstance = libsqlClientInstance;
 }
 
-export const client = createClient({
-  url: clientUrl,
-  authToken: tursoToken,
-});
-
-export const db = drizzle(client, { schema });
-export const sqlite = client;
+export const db = dbInstance;
+export const client = clientInstance;
+export const sqlite = clientInstance;
 
 export async function initDatabase() {
   try {
-    await client.executeMultiple(`
+    const createTablesSQL = `
       CREATE TABLE IF NOT EXISTS family_members (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -71,7 +84,33 @@ export async function initDatabase() {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'synced',
-        device_id TEXT DEFAULT 'mac-local'
+        device_id TEXT DEFAULT 'mac-local',
+        maturity_date TEXT,
+        interest_rate REAL,
+        interest_type TEXT,
+        interest_rate_contractual REAL DEFAULT 4.25,
+        interest_rate_late REAL DEFAULT 4.55,
+        min_payment_percent REAL DEFAULT 20,
+        overdraft_limit REAL DEFAULT 0,
+        user_id TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS personal_debts_receivables (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        person_name TEXT NOT NULL,
+        description TEXT,
+        index_type TEXT NOT NULL DEFAULT 'TRY',
+        index_amount REAL NOT NULL DEFAULT 0,
+        interest_rate REAL DEFAULT 0,
+        interest_period TEXT DEFAULT 'yearly',
+        due_date TEXT,
+        connected_wallet_id TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        paid_amount REAL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS categories (
@@ -79,6 +118,7 @@ export async function initDatabase() {
         name TEXT NOT NULL,
         type TEXT NOT NULL,
         monthly_budget_limit REAL DEFAULT 0,
+        group_50_30_20 TEXT DEFAULT 'needs',
         icon TEXT DEFAULT '🏷️',
         color TEXT DEFAULT '#10B981',
         is_family_shared INTEGER NOT NULL DEFAULT 1,
@@ -208,7 +248,8 @@ export async function initDatabase() {
         cost_estimate REAL DEFAULT 0,
         status TEXT NOT NULL DEFAULT 'ok',
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS home_appliances (
@@ -223,7 +264,8 @@ export async function initDatabase() {
         receipt_url TEXT,
         notes TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS investment_assets (
@@ -244,7 +286,8 @@ export async function initDatabase() {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'synced',
-        device_id TEXT DEFAULT 'mac-local'
+        device_id TEXT DEFAULT 'mac-local',
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS investment_dividends (
@@ -258,7 +301,8 @@ export async function initDatabase() {
         reinvested_quantity REAL DEFAULT 0,
         is_family_shared INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS bes_contracts (
@@ -274,7 +318,8 @@ export async function initDatabase() {
         monthly_payment REAL DEFAULT 0,
         is_family_shared INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS real_estate_properties (
@@ -295,7 +340,8 @@ export async function initDatabase() {
         is_occupied INTEGER NOT NULL DEFAULT 1,
         is_family_shared INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS real_estate_cashflows (
@@ -307,7 +353,8 @@ export async function initDatabase() {
         date TEXT NOT NULL,
         notes TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS books (
@@ -336,7 +383,8 @@ export async function initDatabase() {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'synced',
-        device_id TEXT DEFAULT 'mac-local'
+        device_id TEXT DEFAULT 'mac-local',
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS reading_sessions (
@@ -348,7 +396,8 @@ export async function initDatabase() {
         duration_minutes REAL NOT NULL,
         session_date TEXT NOT NULL,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS book_quotes (
@@ -359,7 +408,8 @@ export async function initDatabase() {
         reflection_note TEXT,
         is_favorite INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS user_reading_profile (
@@ -369,7 +419,8 @@ export async function initDatabase() {
         calibrated_avg_wpm REAL NOT NULL DEFAULT 220,
         avg_seconds_per_page REAL NOT NULL DEFAULT 84,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS nutrition_meals (
@@ -389,7 +440,8 @@ export async function initDatabase() {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'synced',
-        device_id TEXT DEFAULT 'mac-local'
+        device_id TEXT DEFAULT 'mac-local',
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS nutrition_meal_items (
@@ -415,7 +467,8 @@ export async function initDatabase() {
         is_active INTEGER NOT NULL DEFAULT 1,
         notes TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS packaged_food_scans (
@@ -431,7 +484,8 @@ export async function initDatabase() {
         decision TEXT DEFAULT 'pending',
         image_url TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS diet_meal_options (
@@ -460,7 +514,8 @@ export async function initDatabase() {
         consumed_water_ml REAL NOT NULL DEFAULT 1250,
         active_fasting_protocol TEXT NOT NULL DEFAULT '16:8',
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS digital_vault_items (
@@ -477,7 +532,8 @@ export async function initDatabase() {
         notes TEXT,
         is_family_shared INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS important_dates (
@@ -491,7 +547,8 @@ export async function initDatabase() {
         gift_ideas TEXT,
         notes TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS pet_records (
@@ -507,7 +564,8 @@ export async function initDatabase() {
         vet_next_date TEXT,
         notes TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS supplement_routines (
@@ -524,7 +582,8 @@ export async function initDatabase() {
         notes TEXT,
         is_active INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS sleep_logs (
@@ -537,7 +596,8 @@ export async function initDatabase() {
         notes TEXT,
         date TEXT NOT NULL,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS mood_logs (
@@ -550,7 +610,8 @@ export async function initDatabase() {
         note TEXT,
         date TEXT NOT NULL,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS water_intake_logs (
@@ -560,7 +621,8 @@ export async function initDatabase() {
         amount_ml INTEGER NOT NULL DEFAULT 0,
         goal_ml INTEGER NOT NULL DEFAULT 2500,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS biometrics (
@@ -575,7 +637,8 @@ export async function initDatabase() {
         date TEXT NOT NULL,
         notes TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS smart_scale_logs (
@@ -619,7 +682,8 @@ export async function initDatabase() {
         estimated_price REAL DEFAULT 0,
         notes TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS app_settings (
@@ -650,7 +714,13 @@ export async function initDatabase() {
         device_name TEXT DEFAULT 'web-client',
         created_at TEXT NOT NULL
       );
-    `);
+    `;
+
+    if (isPg && pgClientInstance) {
+      await pgClientInstance.unsafe(createTablesSQL);
+    } else if (libsqlClientInstance) {
+      await libsqlClientInstance.executeMultiple(createTablesSQL);
+    }
   } catch (err) {
     console.warn('initDatabase notice:', err);
   }

@@ -56,9 +56,9 @@ export async function GET() {
     const wallets = userId
       ? await db.select().from(walletsAccounts).where(or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1))).all()
       : [];
-    const walletMap = new Map(wallets.map(w => [w.id, w.name]));
+    const walletMap = new Map((wallets as any[]).map((w: any) => [w.id, w.name]));
 
-    const enriched = records.map(r => {
+    const enriched = (records as any[]).map((r: any) => {
       const currentTL = calcCurrentTLValue(r.index_type, r.index_amount);
       const maturityTL = calcMaturityValue(
         r.index_type, r.index_amount,

@@ -27,16 +27,16 @@ export async function GET(req: Request) {
 
     // Kategorileri çek
     const allCategories = await db.select().from(categories).all();
-    const categoryMap = new Map(allCategories.map(c => [c.id, c.name]));
+    const categoryMap = new Map((allCategories as any[]).map((c: any) => [c.id, c.name]));
 
     const today = new Date();
     const todayISO = today.toISOString().split('T')[0];
     const currentMonthStr = todayISO.slice(0, 7);
 
     // 1. Bu Ayki Tek Çekim Harcamalar (is_installment === 0)
-    const singleTransactions = allCardTx
-      .filter(tx => (!tx.is_installment || tx.is_installment === 0))
-      .map(tx => ({
+    const singleTransactions = (allCardTx as any[])
+      .filter((tx: any) => (!tx.is_installment || tx.is_installment === 0))
+      .map((tx: any) => ({
         ...tx,
         category_name: tx.category_id ? categoryMap.get(tx.category_id) || 'Genel' : 'Genel'
       }));
@@ -45,7 +45,7 @@ export async function GET(req: Request) {
     // Taksit gruplarını parent_transaction_id veya merchant'a göre grupla
     const installmentGroupMap = new Map<string, any>();
 
-    for (const tx of allCardTx) {
+    for (const tx of (allCardTx as any[])) {
       if (tx.is_installment === 1) {
         const groupKey = tx.parent_transaction_id || `${tx.merchant}-${tx.total_installments}`;
         if (!installmentGroupMap.has(groupKey)) {
@@ -64,7 +64,7 @@ export async function GET(req: Request) {
 
     // Gerçekleşen taksit sayısını (vadesi bugün veya geçmiş tarihe denk gelen taksitler) hesapla
     const activeInstallments = Array.from(installmentGroupMap.values()).map(inst => {
-      const dueCount = allCardTx.filter(tx => 
+      const dueCount = (allCardTx as any[]).filter((tx: any) => 
         (tx.parent_transaction_id === inst.parent_id || (tx.merchant === inst.merchant && tx.total_installments === inst.total_installments)) &&
         tx.is_installment === 1 &&
         tx.transaction_date <= todayISO
