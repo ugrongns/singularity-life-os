@@ -1,0 +1,520 @@
+'use client';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+const AVATAR_LIST = ['👑', '👤', '🚀', '🦁', '🦉', '⚡', '🌟', '🧘‍♂️', '💻', '🏎️', '💎', '🛡️'];
+
+export default function SecuritySettingsCard() {
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'pin'>('profile');
+
+  // Profil State
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [avatarEmoji, setAvatarEmoji] = useState('👑');
+
+  // Parola Değiştirme State
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+
+  // PIN Değiştirme State
+  const [currentPin, setCurrentPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [pinMasterAuth, setPinMasterAuth] = useState('');
+
+  // Status message
+  const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const fetchSession = async () => {
+    try {
+      const res = await fetch('/api/auth/session');
+      const json = await res.json();
+      if (json.success && json.data?.user) {
+        const u = json.data.user;
+        setCurrentUser(u);
+        setFullName(u.full_name || '');
+        setEmail(u.email || '');
+        setAvatarEmoji(u.avatar_emoji || '👑');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSession();
+  }, []);
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fullName.trim()) {
+      setStatusMsg({ text: 'Ad Soyad alanı boş bırakılamaz.', type: 'error' });
+      return;
+    }
+    setSaving(true);
+    setStatusMsg(null);
+    try {
+      const res = await fetch('/api/auth/update-security', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_profile',
+          full_name: fullName,
+          email,
+          avatar_emoji: avatarEmoji
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setStatusMsg({ text: '✅ ' + json.message, type: 'success' });
+        fetchSession();
+      } else {
+        setStatusMsg({ text: '❌ ' + json.error, type: 'error' });
+      }
+    } catch (err: any) {
+      setStatusMsg({ text: '❌ Bağlantı hatası.', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword || !newPassword) {
+      setStatusMsg({ text: 'Mevcut ve yeni parola zorunludur.', type: 'error' });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setStatusMsg({ text: 'Yeni parola en az 6 karakter olmalıdır.', type: 'error' });
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setStatusMsg({ text: 'Yeni parolalar birbiriyle eşleşmiyor.', type: 'error' });
+      return;
+    }
+    setSaving(true);
+    setStatusMsg(null);
+    try {
+      const res = await fetch('/api/auth/update-security', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'change_password',
+          current_password: currentPassword,
+          new_password: newPassword
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setStatusMsg({ text: '✅ ' + json.message, type: 'success' });
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+      } else {
+        setStatusMsg({ text: '❌ ' + json.error, type: 'error' });
+      }
+    } catch (err: any) {
+      setStatusMsg({ text: '❌ Bağlantı hatası.', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleChangePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPin || newPin.length !== 6 || !/^\d{6}$/.test(newPin)) {
+      setStatusMsg({ text: 'Yeni PIN tam olarak 6 haneli rakamlardan oluşmalıdır.', type: 'error' });
+      return;
+    }
+    if (pinMasterAuth && newPin.trim() === pinMasterAuth.trim()) {
+      setStatusMsg({ text: 'Yeni 6 Haneli PIN, Master Parolanızla aynı olamaz!', type: 'error' });
+      return;
+    }
+    setSaving(true);
+    setStatusMsg(null);
+    try {
+      const res = await fetch('/api/auth/update-security', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'change_pin',
+          current_pin: currentPin || undefined,
+          master_password: pinMasterAuth || undefined,
+          new_pin: newPin
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setStatusMsg({ text: '✅ ' + json.message, type: 'success' });
+        setCurrentPin('');
+        setPinMasterAuth('');
+        setNewPin('');
+      } else {
+        setStatusMsg({ text: '❌ ' + json.error, type: 'error' });
+      }
+    } catch (err: any) {
+      setStatusMsg({ text: '❌ Bağlantı hatası.', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (confirm('Oturumunuz kapatılacak ve ana tanıtım sayfasına yönlendirileceksiniz. Onaylıyor musunuz?')) {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        window.location.href = '/';
+      } catch (err) {
+        window.location.href = '/';
+      }
+    }
+  };
+
+  const handleLock = async () => {
+    window.location.href = '/';
+  };
+
+  const handleResetData = async () => {
+    if (confirm('⚠️ DİKKAT: Hesabınıza ait tüm cüzdanlar, yatırımlar, harcamalar, araçlar, belgeler ve sağlık kayıtları KALICI OLARAK SİLİNECEKTİR!\n\nBu işlem geri alınamaz. Devam etmek istiyor musunuz?')) {
+      if (confirm('Son onay: Tüm kişisel verilerinizi sıfırlamayı ve temizlemeyi onaylıyor musunuz?')) {
+        try {
+          setSaving(true);
+          const res = await fetch('/api/auth/reset-user-data', { method: 'POST' });
+          const json = await res.json();
+          if (json.success) {
+            alert(json.message);
+            window.location.reload();
+          } else {
+            alert('❌ Hata: ' + (json.error || 'Sıfırlama başarısız.'));
+          }
+        } catch (err) {
+          alert('❌ Bağlantı hatası.');
+        } finally {
+          setSaving(false);
+        }
+      }
+    }
+  };
+
+  const handleLoadSampleData = async () => {
+    if (confirm('Hesabınıza test ve görünüm amaçlı örnek demo veriler (Cüzdan, Harcama, Kitap, Alıntı, Mülk) yüklensin mi?')) {
+      try {
+        setSaving(true);
+        const res = await fetch('/api/auth/load-sample-data', { method: 'POST' });
+        const json = await res.json();
+        if (json.success) {
+          alert(json.message);
+          window.location.reload();
+        } else {
+          alert('❌ Hata: ' + (json.error || 'Örnek veri yükleme başarısız.'));
+        }
+      } catch (err) {
+        alert('❌ Bağlantı hatası.');
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
+  if (loading) {
+    return <div className="card" style={{ padding: '20px', textAlign: 'center' }}>Güvenlik ayarları yükleniyor...</div>;
+  }
+
+  return (
+    <div className="card">
+      <div className="card-title-row">
+        <div className="card-title">
+          <span>🔐</span>
+          <span>Kullanıcı Güvenliği & Profil</span>
+        </div>
+      </div>
+
+      {currentUser && (
+        <div className="card-action-bar">
+          <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--radius-full)', background: 'var(--emerald-bg)', color: 'var(--emerald)' }}>
+            ● {currentUser.role === 'admin' ? 'Master Yönetici' : 'Kullanıcı'}
+          </span>
+        </div>
+      )}
+
+      {/* Kullanıcı Rozeti */}
+      {currentUser && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: 'var(--surface-subtle)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)', padding: '14px 16px', marginBottom: '16px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '44px', height: '44px', borderRadius: '14px', fontSize: '24px',
+              background: 'white', border: '1px solid var(--border)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+            }}>
+              {currentUser.avatar_emoji || '👑'}
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)' }}>
+                {currentUser.full_name}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                @{currentUser.username} • {currentUser.email || 'E-posta eklenmedi'}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleLoadSampleData}
+              title="Hesabınıza görünüm amaçlı örnek veriler ekler"
+              style={{
+                padding: '6px 12px', fontSize: '11px', fontWeight: 800,
+                background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#2563EB',
+                borderRadius: 'var(--radius-md)', cursor: 'pointer'
+              }}
+            >
+              🚀 Örnek Verileri Yükle
+            </button>
+            <button
+              type="button"
+              onClick={handleResetData}
+              title="Hesabınızdaki tüm cüzdan, harcama ve kişisel verileri sıfırlar"
+              style={{
+                padding: '6px 12px', fontSize: '11px', fontWeight: 800,
+                background: '#FFF1F2', border: '1px solid #FECDD3', color: '#E11D48',
+                borderRadius: 'var(--radius-md)', cursor: 'pointer'
+              }}
+            >
+              🗑️ Verilerimi Sıfırla
+            </button>
+            <button
+              type="button"
+              onClick={handleLock}
+              className="btn-subtle"
+              style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 700, border: '1px solid var(--border)' }}
+            >
+              🔒 Kilitle
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                padding: '6px 12px', fontSize: '11px', fontWeight: 800,
+                background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626',
+                borderRadius: 'var(--radius-md)', cursor: 'pointer'
+              }}
+            >
+              🚪 Çıkış Yap
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Alt Sekmeler */}
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
+        <button
+          type="button"
+          onClick={() => { setActiveTab('profile'); setStatusMsg(null); }}
+          style={{
+            padding: '6px 12px', fontSize: '12px', fontWeight: 700, borderRadius: 'var(--radius-md)', border: 'none',
+            background: activeTab === 'profile' ? 'var(--text-main)' : 'transparent',
+            color: activeTab === 'profile' ? 'white' : 'var(--text-muted)', cursor: 'pointer'
+          }}
+        >
+          👤 Profil Bilgileri
+        </button>
+        <button
+          type="button"
+          onClick={() => { setActiveTab('password'); setStatusMsg(null); }}
+          style={{
+            padding: '6px 12px', fontSize: '12px', fontWeight: 700, borderRadius: 'var(--radius-md)', border: 'none',
+            background: activeTab === 'password' ? 'var(--text-main)' : 'transparent',
+            color: activeTab === 'password' ? 'white' : 'var(--text-muted)', cursor: 'pointer'
+          }}
+        >
+          🔑 Master Parola Değiştir
+        </button>
+        <button
+          type="button"
+          onClick={() => { setActiveTab('pin'); setStatusMsg(null); }}
+          style={{
+            padding: '6px 12px', fontSize: '12px', fontWeight: 700, borderRadius: 'var(--radius-md)', border: 'none',
+            background: activeTab === 'pin' ? 'var(--text-main)' : 'transparent',
+            color: activeTab === 'pin' ? 'white' : 'var(--text-muted)', cursor: 'pointer'
+          }}
+        >
+          🔢 6 Haneli PIN Değiştir
+        </button>
+      </div>
+
+      {statusMsg && (
+        <div style={{
+          padding: '10px 12px', borderRadius: 'var(--radius-md)', fontSize: '12px', fontWeight: 600, marginBottom: '14px',
+          background: statusMsg.type === 'success' ? '#ECFDF5' : '#FEF2F2',
+          border: `1px solid ${statusMsg.type === 'success' ? '#A7F3D0' : '#FECACA'}`,
+          color: statusMsg.type === 'success' ? '#065F46' : '#991B1B'
+        }}>
+          {statusMsg.text}
+        </div>
+      )}
+
+      {/* TAB 1: PROFİL BİLGİLERİ */}
+      {activeTab === 'profile' && (
+        <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>AD SOYAD</label>
+            <input
+              type="text"
+              required
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>E-POSTA ADRESİ</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>AVATAR EMOJİSİ</label>
+            <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+              {AVATAR_LIST.map(emo => (
+                <button
+                  key={emo}
+                  type="button"
+                  onClick={() => setAvatarEmoji(emo)}
+                  style={{
+                    width: '36px', height: '36px', borderRadius: '10px', fontSize: '18px',
+                    border: avatarEmoji === emo ? '2px solid var(--emerald)' : '1px solid var(--border)',
+                    background: avatarEmoji === emo ? 'var(--emerald-bg)' : 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {emo}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="btn-primary"
+            style={{ marginTop: '8px', padding: '10px', fontSize: '13px', fontWeight: 700 }}
+          >
+            {saving ? 'Kaydediliyor...' : '💾 Profil Bilgilerini Kaydet'}
+          </button>
+        </form>
+      )}
+
+      {/* TAB 2: MASTER PAROLA DEĞİŞTİRME */}
+      {activeTab === 'password' && (
+        <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>MEVCUT MASTER PAROLA *</label>
+            <input
+              type="password"
+              required
+              placeholder="••••••••"
+              value={currentPassword}
+              onChange={e => setCurrentPassword(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>YENİ MASTER PAROLA *</label>
+            <input
+              type="password"
+              required
+              placeholder="En az 6 karakter"
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>YENİ MASTER PAROLA TEKRAR *</label>
+            <input
+              type="password"
+              required
+              placeholder="Yeni parolayı tekrar girin"
+              value={confirmNewPassword}
+              onChange={e => setConfirmNewPassword(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="btn-primary"
+            style={{ marginTop: '8px', padding: '10px', fontSize: '13px', fontWeight: 700, background: 'var(--emerald)' }}
+          >
+            {saving ? 'Güncelleniyor...' : '🔑 Master Parolayı Güncelle'}
+          </button>
+        </form>
+      )}
+
+      {/* TAB 3: 6 HANELİ PIN DEĞİŞTİRME */}
+      {activeTab === 'pin' && (
+        <form onSubmit={handleChangePin} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>MEVCUT 6 HANELİ PIN (VEYA MASTER PAROLA) *</label>
+            <input
+              type="password"
+              placeholder="Mevcut PIN kodunuz veya Master Parolanız"
+              value={currentPin}
+              onChange={e => setCurrentPin(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
+            />
+          </div>
+
+          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 'var(--radius-md)', padding: '12px', textAlign: 'center' }}>
+            <label style={{ fontSize: '11px', fontWeight: 800, color: '#0F172A' }}>🔢 YENİ 6 HANELİ HIZLI PIN *</label>
+            <input
+              type="password"
+              maxLength={6}
+              required
+              placeholder="••••••"
+              value={newPin}
+              onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))}
+              style={{
+                width: '100%', padding: '10px', fontSize: '20px', letterSpacing: '8px',
+                textAlign: 'center', fontWeight: 800, border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)', marginTop: '6px', background: 'white'
+              }}
+            />
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              Ekran kilitlendiğinde 1 saniyede açmak için bu yeni PIN kullanılacaktır.
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="btn-primary"
+            style={{ marginTop: '8px', padding: '10px', fontSize: '13px', fontWeight: 700, background: 'var(--emerald)' }}
+          >
+            {saving ? 'Güncelleniyor...' : '🔢 6 Haneli PIN Kodunu Güncelle'}
+          </button>
+        </form>
+      )}
+
+    </div>
+  );
+}

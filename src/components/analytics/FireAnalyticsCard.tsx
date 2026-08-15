@@ -1,0 +1,129 @@
+'use client';
+
+interface Props {
+  fireMetrics: {
+    monthlyPassiveIncome: number;
+    monthlyLivingExpense: number;
+    passiveCoveragePercent: number;
+    fireTargetNumber: number;
+    totalNetWorth: number;
+    fireProgressPercent: number;
+    yearsToFire: number;
+    isHalfway: boolean;
+  };
+  inflationMetrics: {
+    personalInflationRate: number;
+    officialTuikRate: number;
+    savingVsOfficialTuikPercent: number;
+    basketSummary: string;
+  };
+}
+
+export default function FireAnalyticsCard({ fireMetrics, inflationMetrics }: Props) {
+  const {
+    monthlyPassiveIncome,
+    monthlyLivingExpense,
+    passiveCoveragePercent,
+    fireTargetNumber,
+    totalNetWorth,
+    fireProgressPercent,
+    yearsToFire
+  } = fireMetrics;
+
+  const { personalInflationRate, officialTuikRate, savingVsOfficialTuikPercent } = inflationMetrics;
+
+  return (
+    <div className="card">
+      <div className="card-title-row">
+        <div className="card-title">
+          <span>🎯</span>
+          <span>Finansal Özgürlük (FIRE) & Enflasyon Analitiği</span>
+        </div>
+        <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: '#EEF2FF', color: '#4F46E5' }}>
+          %4 Kuralı Modeli
+        </span>
+      </div>
+
+      {/* 1. Pasif Gelir Karşılama Oranı */}
+      <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>PASİF GELİR KARŞILAMA ORANI</div>
+            <div style={{ fontSize: '16px', fontWeight: 800, marginTop: '2px' }}>
+              ₺{monthlyPassiveIncome.toLocaleString('tr-TR')} / ₺{monthlyLivingExpense.toLocaleString('tr-TR')} Aylık
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <span style={{ fontSize: '24px', fontWeight: 900, color: '#10B981' }}>
+              %{passiveCoveragePercent}
+            </span>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Yaşam Masrafı Karşılandı</div>
+          </div>
+        </div>
+
+        <div className="budget-bar-track" style={{ height: '8px', marginTop: '6px' }}>
+          <div className="budget-bar-fill" style={{ width: `${Math.min(100, passiveCoveragePercent)}%`, backgroundColor: '#10B981' }} />
+        </div>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+          Kira ve temettü gelirleriniz aylık zorunlu yaşam giderinizin <strong>%{passiveCoveragePercent}</strong>'ini tamamen pasif karşılıyor.
+        </div>
+      </div>
+
+      {/* 2. FIRE Hedefine İlerleme */}
+      <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>FIRE HEDEFİ (25X YILLIK GİDER)</div>
+            <div style={{ fontSize: '15px', fontWeight: 800, marginTop: '2px' }}>
+              ₺{totalNetWorth.toLocaleString('tr-TR')} / ₺{fireTargetNumber.toLocaleString('tr-TR')}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <span style={{ fontSize: '20px', fontWeight: 800, color: '#4F46E5' }}>
+              %{fireProgressPercent}
+            </span>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Tam Bağımsızlık Hedefi</div>
+          </div>
+        </div>
+
+        <div className="budget-bar-track" style={{ height: '8px', marginTop: '6px' }}>
+          <div className="budget-bar-fill" style={{ width: `${fireProgressPercent}%`, backgroundColor: '#4F46E5' }} />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', fontSize: '11px' }}>
+          <span style={{ color: 'var(--text-muted)' }}>Mevcut tasarruf ve pasif getiri hızıyla:</span>
+          <span style={{ fontWeight: 800, color: '#4F46E5', background: '#EEF2FF', padding: '2px 8px', borderRadius: '4px' }}>
+            ~{yearsToFire} Yıl Sonra FIRE
+          </span>
+        </div>
+      </div>
+
+      {/* 3. Kişisel Enflasyon Endeksi */}
+      <div style={{ background: '#FFFBEB', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: 'var(--radius-lg)', padding: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+          <div style={{ fontSize: '12px', fontWeight: 800, color: '#B45309' }}>
+            📊 Kişisel Enflasyon vs Resmi TÜFE
+          </div>
+          <span style={{ fontSize: '11px', background: '#FEF3C7', color: '#92400E', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+            Reel Sepet
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '8px', textAlign: 'center' }}>
+          <div style={{ background: 'white', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Kişisel Enflasyon</div>
+            <div style={{ fontSize: '15px', fontWeight: 900, color: '#D97706', marginTop: '2px' }}>%{personalInflationRate}</div>
+          </div>
+          <div style={{ background: 'white', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Resmi TÜİK TÜFE</div>
+            <div style={{ fontSize: '15px', fontWeight: 900, color: '#6B7280', marginTop: '2px' }}>%{officialTuikRate}</div>
+          </div>
+          <div style={{ background: 'white', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+            <div style={{ fontSize: '10px', color: 'var(--emerald)' }}>Reel Avantaj</div>
+            <div style={{ fontSize: '15px', fontWeight: 900, color: '#059669', marginTop: '2px' }}>+%{savingVsOfficialTuikPercent}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

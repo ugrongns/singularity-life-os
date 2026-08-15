@@ -1,0 +1,65 @@
+{
+  "name": "Singularity Life OS",
+  "short_name": "Singularity",
+  "description": "Kişisel & Aile Yaşam İşletim Sistemi — Finans, Sağlık, Araç, Ev, Kütüphane & Wellness",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#F8F9FA",
+  "theme_color": "#111827",
+  "orientation": "portrait-primary",
+  "lang": "tr",
+  "dir": "ltr",
+  "scope": "/",
+  "categories": ["finance", "productivity", "lifestyle", "health"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Fiş Tara",
+      "short_name": "Fiş Tara",
+      "description": "Kamerayla fiş veya fatura tara",
+      "url": "/budget",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Sesli Komut",
+      "short_name": "Sesli Komut",
+      "description": "Sesli çoklu işlem girişi",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Finans & Bütçe",
+      "short_name": "Bütçe",
+      "description": "Hesaplar ve harcama takibi",
+      "url": "/budget",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Sağlık & Beslenme",
+      "short_name": "Sağlık",
+      "description": "Makro, su ve oruç sayacı",
+      "url": "/health",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

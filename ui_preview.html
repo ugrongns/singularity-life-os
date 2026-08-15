@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Singularity Life OS - Apple & Notion Minimalist UI Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F8F9FA;
+      --card-bg: #FFFFFF;
+      --border: #E5E7EB;
+      --border-subtle: #F3F4F6;
+      --text-main: #111827;
+      --text-muted: #6B7280;
+      --text-subtle: #9CA3AF;
+      --accent: #111827;
+      --success: #10B981;
+      --success-bg: #ECFDF5;
+      --warning: #F59E0B;
+      --warning-bg: #FFFBEB;
+      --danger: #EF4444;
+      --danger-bg: #FEF2F2;
+      --purple: #6366F1;
+      --purple-bg: #EEF2FF;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-full: 9999px;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05);
+      --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background-color: #E5E7EB;
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    /* Device / View Switcher Toolbar */
+    .view-switcher-bar {
+      background: white;
+      padding: 6px;
+      border-radius: var(--radius-full);
+      box-shadow: var(--shadow-md);
+      display: flex;
+      gap: 6px;
+      margin-bottom: 24px;
+      position: sticky;
+      top: 12px;
+      z-index: 100;
+      border: 1px solid var(--border);
+    }
+
+    .view-btn {
+      border: none;
+      background: transparent;
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .view-btn.active {
+      background: var(--text-main);
+      color: white;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Device Mockup Shell */
+    .device-container {
+      width: 100%;
+      max-width: 1100px;
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .device-container.mobile-mode {
+      max-width: 410px;
+      height: 840px;
+      border-radius: 44px;
+      border: 10px solid #1F2937;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .app-viewport {
+      background-color: var(--bg);
+      width: 100%;
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .device-container.mobile-mode .app-viewport {
+      height: 100%;
+      overflow-y: auto;
+      padding-bottom: 90px;
+    }
+
+    /* App Header */
+    .app-header {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-logo {
+      width: 28px;
+      height: 28px;
+      background: var(--text-main);
+      color: white;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    .header-pill {
+      background: var(--border-subtle);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Main Content Layout */
+    .app-main {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      flex: 1;
+    }
+
+    /* Multi-Currency Net Worth Hero Banner */
+    .hero-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .hero-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .hero-value {
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      color: var(--text-main);
+      margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .badge-growth {
+      background: var(--success-bg);
+      color: var(--success);
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .currency-pills-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-top: 4px;
+    }
+
+    .currency-pill {
+      background: var(--border-subtle);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-main);
+      white-space: nowrap;
+      display: flex;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .currency-pill:hover, .currency-pill.active {
+      background: var(--text-main);
+      color: white;
+      border-color: var(--text-main);
+    }
+
+    /* Grid Layout for Modules */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+    }
+
+    .device-container.mobile-mode .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .module-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .module-card:hover {
+      border-color: #D1D5DB;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-main);
+    }
+
+    .card-action-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .card-action-btn:hover {
+      color: var(--text-main);
+    }
+
+    /* Progress & Metric Bars */
+    .progress-bar-container {
+      width: 100%;
+      height: 8px;
+      background: var(--border-subtle);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      margin: 8px 0;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--success);
+      border-radius: var(--radius-full);
+      transition: width 0.5s ease;
+    }
+
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .progress-info strong {
+      color: var(--text-main);
+    }
+
+    /* Fasting Circular Widget */
+    .fasting-box {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      background: var(--warning-bg);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+    }
+
+    .fasting-ring {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: conic-gradient(var(--warning) 87%, #FDE68A 0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .fasting-ring-inner {
+      width: 40px;
+      height: 40px;
+      background: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--warning);
+    }
+
+    .fasting-text h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .fasting-text p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Reading Card Specifics */
+    .book-meta-box {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      background: var(--purple-bg);
+      border: 1px solid rgba(99, 102, 241, 0.15);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+    }
+
+    .book-thumb {
+      width: 38px;
+      height: 52px;
+      background: var(--purple);
+      color: white;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .book-details h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .book-details p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .wpm-tag {
+      display: inline-block;
+      margin-top: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      background: white;
+      color: var(--purple);
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+    }
+
+    /* Bottom Navigation Bar (Mobile / PWA Dock) */
+    .bottom-dock {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border);
+      padding: 8px 16px 16px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      z-index: 80;
+    }
+
+    .device-container.mobile-mode .bottom-dock {
+      position: absolute;
+      border-radius: 0 0 34px 34px;
+    }
+
+    .dock-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      background: none;
+      border: none;
+    }
+
+    .dock-item.active {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .dock-item svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    /* Center Prominent Scan Button */
+    .scan-action-btn {
+      background: var(--text-main);
+      color: white;
+      border: none;
+      border-radius: var(--radius-full);
+      padding: 10px 18px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+      cursor: pointer;
+      transform: translateY(-8px);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .scan-action-btn:hover {
+      transform: translateY(-10px) scale(1.03);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.24);
+    }
+
+    /* Interactive Bottom Sheet (Modal Simulation) */
+    .modal-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .bottom-sheet {
+      background: white;
+      width: 100%;
+      max-width: 500px;
+      border-radius: 24px 24px 0 0;
+      padding: 24px;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+
+    .sheet-handle {
+      width: 40px;
+      height: 4px;
+      background: var(--border);
+      border-radius: var(--radius-full);
+      align-self: center;
+      margin-bottom: 6px;
+    }
+
+    .sheet-title {
+      font-size: 17px;
+      font-weight: 600;
+    }
+
+    .receipt-detected-card {
+      background: var(--border-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .btn-group {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .choice-btn {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .choice-btn:hover, .choice-btn.selected {
+      background: var(--text-main);
+      color: white;
+      border-color: var(--text-main);
+    }
+
+    .primary-confirm-btn {
+      background: var(--text-main);
+      color: white;
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 14px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+
+    .demo-toast {
+      position: fixed;
+      top: 24px;
+      background: #111827;
+      color: white;
+      padding: 10px 20px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      z-index: 999;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating View Switcher Bar -->
+  <div class="view-switcher-bar">
+    <button class="view-btn active" id="btn-desktop" onclick="setMode('desktop')">💻 Masaüstü Görünümü</button>
+    <button class="view-btn" id="btn-mobile" onclick="setMode('mobile')">📱 Mobil PWA Görünümü</button>
+  </div>
+
+  <div class="demo-toast" id="toast">✅ Fiş başarıyla işlendi ve bütçeye kaydedildi!</div>
+
+  <!-- Device Frame -->
+  <div class="device-container" id="device-shell">
+    <div class="app-viewport">
+      
+      <!-- App Header -->
+      <header class="app-header">
+        <div class="brand-group">
+          <div class="brand-logo">S</div>
+          <div>
+            <div class="brand-title">Singularity Life OS</div>
+          </div>
+        </div>
+        <div class="header-pill">
+          <span>🟢 Yerel Windows Sunucu</span>
+          <span>•</span>
+          <span>08 Ağu 2026</span>
+        </div>
+      </header>
+
+      <!-- Main App Content -->
+      <main class="app-main">
+
+        <!-- Multi-Currency Net Worth Hero -->
+        <section class="hero-card">
+          <div class="hero-top">
+            <div>
+              <div class="hero-label">Toplam Net Değer (Net Worth)</div>
+              <div class="hero-value" id="networth-display">15.420.000 ₺</div>
+            </div>
+            <div class="badge-growth">
+              <span>▲ %3.8 Reel Büyüme</span>
+            </div>
+          </div>
+
+          <div class="currency-pills-row">
+            <button class="currency-pill active" onclick="switchCurrency('15.420.000 ₺', this)">₺ Türk Lirası</button>
+            <button class="currency-pill" onclick="switchCurrency('$422,500', this)">$ USD Dolar</button>
+            <button class="currency-pill" onclick="switchCurrency('€388,400', this)">€ Euro</button>
+            <button class="currency-pill" onclick="switchCurrency('4.850 gr', this)">🥇 Gram Altın</button>
+            <button class="currency-pill" onclick="switchCurrency('6.21 ₿', this)">₿ Bitcoin</button>
+          </div>
+        </section>
+
+        <!-- Dashboard Grid of Modules -->
+        <div class="dashboard-grid">
+
+          <!-- 1. Ev & Aile Bütçesi -->
+          <div class="module-card">
+            <div class="card-header">
+              <div class="card-title">💰 Ağustos Aile Bütçesi</div>
+              <button class="card-action-btn">Detay</button>
+            </div>
+            <div class="progress-info">
+              <span>Harcanan: <strong>24.500 TL</strong></span>
+              <span>Limit: 40.000 TL</span>
+            </div>
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" style="width: 61%;"></div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between;">
+              <span>💳 Garanti: 14.200 TL (3 Taksit aktif)</span>
+              <span style="color: var(--success); font-weight: 600;">%39 Kalan Bütçe</span>
+            </div>
+          </div>
+
+          <!-- 2. Aralıklı Oruç & Sağlık -->
+          <div class="module-card">
+            <div class="card-header">
+              <div class="card-title">🧬 Bütünsel Sağlık & Oruç</div>
+              <span style="font-size: 12px; color: var(--warning); font-weight: 600;">16:8 Protokolü</span>
+            </div>
+            <div class="fasting-box">
+              <div class="fasting-ring">
+                <div class="fasting-ring-inner">14s</div>
+              </div>
+              <div class="fasting-text">
+                <h4>Oruç devam ediyor</h4>
+                <p>İlk öğün penceresine <strong>1s 45dk</strong> kaldı</p>
+              </div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between;">
+              <span>💧 Su: 2.2 / 3.0 L</span>
+              <span>🥗 Diyet Menü: 1.850 kcal</span>
+            </div>
+          </div>
+
+          <!-- 3. Kütüphane & Okuma Hızı -->
+          <div class="module-card">
+            <div class="card-header">
+              <div class="card-title">📚 Kütüphane & İkinci Beyin</div>
+              <span style="font-size: 12px; color: var(--purple); font-weight: 600;">Hedef: 30 Kitap</span>
+            </div>
+            <div class="book-meta-box">
+              <div class="book-thumb">📖</div>
+              <div class="book-details">
+                <h4>Hukuk - Frédéric Bastiat</h4>
+                <p>Kaldığınız yer: Sayfa 45 / 80 (%56)</p>
+                <div class="wpm-tag">⚡ 213 WPM • Kalan Süre: ~49 dk</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Araç Filosu & Periyodik Bakım -->
+          <div class="module-card">
+            <div class="card-header">
+              <div class="card-title">🚗 Araç Operasyonları (34 SG 2026)</div>
+              <span style="font-size: 12px; color: var(--text-muted);">64.500 KM</span>
+            </div>
+            <div class="progress-info">
+              <span>Periyodik Bakım: <strong>75.000 KM</strong></span>
+              <span>10.500 KM kaldı</span>
+            </div>
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" style="width: 30%; background: #3B82F6;"></div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between;">
+              <span>🛡️ TÜVTÜRK: 4 ay var</span>
+              <span>⛽ Ort. Tüketim: 6.2 L / 100km</span>
+            </div>
+          </div>
+
+        </div>
+
+      </main>
+
+      <!-- Bottom Navigation Dock -->
+      <nav class="bottom-dock">
+        <button class="dock-item active">
+          <span>📊</span>
+          <span>Özet</span>
+        </button>
+        <button class="dock-item">
+          <span>💰</span>
+          <span>Bütçe</span>
+        </button>
+
+        <!-- Prominent Scan Action Button -->
+        <button class="scan-action-btn" onclick="openScanModal()">
+          <span>📸</span>
+          <span>HIZLI TARA</span>
+        </button>
+
+        <button class="dock-item">
+          <span>🚗</span>
+          <span>Araç/Ev</span>
+        </button>
+        <button class="dock-item">
+          <span>🧬</span>
+          <span>Sağlık</span>
+        </button>
+      </nav>
+
+      <!-- Interactive Slide-Up Bottom Sheet Modal -->
+      <div class="modal-overlay" id="scan-modal" onclick="closeModalOnOutside(event)">
+        <div class="bottom-sheet" onclick="event.stopPropagation()">
+          <div class="sheet-handle"></div>
+          <div class="sheet-title">🧾 AI Fiş Tarama Simülasyonu</div>
+
+          <div class="receipt-detected-card">
+            <div>
+              <div style="font-weight: 600; font-size: 14px;">Migros Ticaret A.Ş.</div>
+              <div style="font-size: 12px; color: var(--text-muted);">08.08.2026 • Market & Gıda</div>
+            </div>
+            <div style="font-size: 18px; font-weight: 700; color: var(--text-main);">1.485,50 ₺</div>
+          </div>
+
+          <div style="font-size: 13px; font-weight: 500; color: var(--text-muted);">Ödeme Yöntemi:</div>
+          <div class="btn-group">
+            <button class="choice-btn selected" onclick="selectChoice(this)">💳 Garanti Bonus</button>
+            <button class="choice-btn" onclick="selectChoice(this)">💳 İş Bankası</button>
+            <button class="choice-btn" onclick="selectChoice(this)">💵 Nakit Cüzdan</button>
+            <button class="choice-btn" onclick="selectChoice(this)">🏦 Vadesiz Hesap</button>
+          </div>
+
+          <div style="font-size: 13px; font-weight: 500; color: var(--text-muted);">Taksit Seçimi:</div>
+          <div class="btn-group">
+            <button class="choice-btn selected" onclick="selectChoice(this)">⚡ Tek Çekim (Peşin)</button>
+            <button class="choice-btn" onclick="selectChoice(this)">3️⃣ 3 Taksit (495 TL/ay)</button>
+          </div>
+
+          <button class="primary-confirm-btn" onclick="confirmScan()">✅ Bu Şekilde Kaydet ve Bütçeye İşle</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    function setMode(mode) {
+      const shell = document.getElementById('device-shell');
+      const btnDesktop = document.getElementById('btn-desktop');
+      const btnMobile = document.getElementById('btn-mobile');
+
+      if (mode === 'mobile') {
+        shell.classList.add('mobile-mode');
+        btnMobile.classList.add('active');
+        btnDesktop.classList.remove('active');
+      } else {
+        shell.classList.remove('mobile-mode');
+        btnDesktop.classList.add('active');
+        btnMobile.classList.remove('active');
+      }
+    }
+
+    function switchCurrency(value, element) {
+      document.getElementById('networth-display').innerText = value;
+      document.querySelectorAll('.currency-pill').forEach(btn => btn.classList.remove('active'));
+      element.classList.add('active');
+    }
+
+    function openScanModal() {
+      document.getElementById('scan-modal').classList.add('open');
+    }
+
+    function closeModalOnOutside(e) {
+      document.getElementById('scan-modal').classList.remove('open');
+    }
+
+    function selectChoice(btn) {
+      const parent = btn.parentElement;
+      parent.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    }
+
+    function confirmScan() {
+      document.getElementById('scan-modal').classList.remove('open');
+      const toast = document.getElementById('toast');
+      toast.style.display = 'block';
+      setTimeout(() => {
+        toast.style.display = 'none';
+      }, 3500);
+    }
+  </script>
+</body>
+</html>
