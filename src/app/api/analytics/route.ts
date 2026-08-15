@@ -33,7 +33,7 @@ export async function GET() {
     let ccDebt = 0;
     try {
       const wallets = userId
-        ? db.select().from(walletsAccounts).where(or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1))).all()
+        ? await db.select().from(walletsAccounts).where(or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1))).all()
         : [];
       liquidBalance = wallets.reduce((sum, w) => sum + (w.type !== 'credit_card' ? (w.balance || 0) : 0), 0);
       ccDebt = wallets.reduce((sum, w) => sum + (w.type === 'credit_card' ? Math.abs(w.balance || 0) : 0), 0);
@@ -41,14 +41,14 @@ export async function GET() {
 
     let totalBudgetLimit = 0;
     try {
-      const allCategories = db.select().from(categories).all() || [];
+      const allCategories = (await db.select().from(categories).all()) || [];
       totalBudgetLimit = allCategories.reduce((sum, c) => sum + (c.monthly_budget_limit || 0), 0);
     } catch (e) {}
 
     let totalSpentThisMonth = 0;
     try {
       const allTxs = userId
-        ? db.select().from(transactions).where(or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1))).all()
+        ? await db.select().from(transactions).where(or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1))).all()
         : [];
       totalSpentThisMonth = allTxs
         .filter(tx => tx?.transaction_date && String(tx.transaction_date).startsWith(currentMonth))
@@ -70,12 +70,12 @@ export async function GET() {
     let healthScore = 0;
     try {
       const health = userId
-        ? db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1).get()
+        ? await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1).get()
         : null;
       if (health) {
         const waterRatio = (health.consumed_water_ml || 0) / (health.daily_water_target_ml || 2500);
         const activeFasting = userId
-          ? db.select().from(fastingSessions).where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, userId))).limit(1).get()
+          ? await db.select().from(fastingSessions).where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, userId))).limit(1).get()
           : null;
         healthScore = 18;
         if (waterRatio >= 0.9) healthScore += 5;
@@ -91,7 +91,7 @@ export async function GET() {
     let wellnessScore = 0;
     try {
       const supplements = userId
-        ? db.select().from(supplementRoutines).where(eq(supplementRoutines.user_id, userId)).all()
+        ? await db.select().from(supplementRoutines).where(eq(supplementRoutines.user_id, userId)).all()
         : [];
       if (supplements.length > 0) {
         const takenSupps = supplements.filter(s => s.is_taken_today === 1).length;
@@ -107,7 +107,7 @@ export async function GET() {
     let mindScore = 0;
     try {
       const allBooks = userId
-        ? db.select().from(books).where(or(eq(books.user_id, userId), eq(books.is_family_shared, 1))).all()
+        ? await db.select().from(books).where(or(eq(books.user_id, userId), eq(books.is_family_shared, 1))).all()
         : [];
       if (allBooks.length > 0) {
         const activeBook = allBooks.find(b => b.status === 'reading');
@@ -129,7 +129,7 @@ export async function GET() {
     let propertyValue = 0;
     try {
       const properties = userId
-        ? db.select().from(realEstateProperties).where(or(eq(realEstateProperties.user_id, userId), eq(realEstateProperties.is_family_shared, 1))).all()
+        ? await db.select().from(realEstateProperties).where(or(eq(realEstateProperties.user_id, userId), eq(realEstateProperties.is_family_shared, 1))).all()
         : [];
       if (properties.length > 0) {
         monthlyRentIncome = properties.reduce((sum, p) => sum + (Number(p.monthly_rent_income) || 0), 0);
@@ -141,7 +141,7 @@ export async function GET() {
     let liquidAssetValue = 0;
     try {
       const assets = userId
-        ? db.select().from(investmentAssets).where(or(eq(investmentAssets.user_id, userId), eq(investmentAssets.is_family_shared, 1))).all()
+        ? await db.select().from(investmentAssets).where(or(eq(investmentAssets.user_id, userId), eq(investmentAssets.is_family_shared, 1))).all()
         : [];
       if (assets.length > 0) {
         liquidAssetValue = assets.reduce((sum, a) => sum + ((Number(a.quantity) || 0) * (Number(a.current_price) || 0)), 0);

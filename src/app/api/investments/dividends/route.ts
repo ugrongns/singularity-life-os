@@ -17,7 +17,7 @@ export async function POST(req: Request) {
       wallet_id = 'wallet-isbank'
     } = body;
 
-    const asset = db.select().from(investmentAssets).where(eq(investmentAssets.id, asset_id)).get();
+    const asset = await db.select().from(investmentAssets).where(eq(investmentAssets.id, asset_id)).get();
     if (!asset) {
       return NextResponse.json({ success: false, error: 'Varlık bulunamadı.' }, { status: 404 });
     }
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
         device_id: 'mac-local'
       }).run();
 
-      const wallet = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)).get();
+      const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)).get();
       if (wallet) {
         db.update(walletsAccounts)
           .set({ balance: wallet.balance + total_amount, updated_at: now })

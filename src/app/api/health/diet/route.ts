@@ -6,7 +6,7 @@ import { desc , or } from 'drizzle-orm';
 export async function GET() {
   try {
     initDatabase();
-    const options = db.select().from(dietMealOptions).all();
+    const options = await db.select().from(dietMealOptions).all();
     const parsedOptions = options.map(opt => ({
       ...opt,
       checklist: JSON.parse(opt.items_checklist || '[]')

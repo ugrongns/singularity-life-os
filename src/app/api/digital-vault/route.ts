@@ -12,10 +12,10 @@ export async function GET() {
 
     const today = new Date();
     const vaultItems = userId
-      ? db.select().from(digitalVaultItems).where(or(eq(digitalVaultItems.user_id, userId), eq(digitalVaultItems.is_family_shared, 1))).orderBy(desc(digitalVaultItems.created_at)).all()
+      ? await db.select().from(digitalVaultItems).where(or(eq(digitalVaultItems.user_id, userId), eq(digitalVaultItems.is_family_shared, 1))).orderBy(desc(digitalVaultItems.created_at)).all()
       : [];
-    const dates = userId ? db.select().from(importantDates).where(eq(importantDates.user_id, userId)).all() : [];
-    const pets = userId ? db.select().from(petRecords).where(eq(petRecords.user_id, userId)).all() : [];
+    const dates = userId ? await db.select().from(importantDates).where(eq(importantDates.user_id, userId)).all() : [];
+    const pets = userId ? await db.select().from(petRecords).where(eq(petRecords.user_id, userId)).all() : [];
 
     // Yaklaşan bitiş uyarıları ve Vize (6 ay) uyarısı hesapla
     const vaultWithAlerts = vaultItems.map(item => {

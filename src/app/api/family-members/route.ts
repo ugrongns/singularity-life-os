@@ -10,7 +10,7 @@ export async function GET() {
     const user = await getAuthUser();
     
     // Aktif üyeleri getir
-    let members = db.select().from(familyMembers).where(eq(familyMembers.is_active, 1)).all();
+    let members = await db.select().from(familyMembers).where(eq(familyMembers.is_active, 1)).all();
 
     // Veritabanında henüz aile üyesi yoksa ana kullanıcıyı otomatik 1. üye olarak ekle (Auto-Seed)
     if (members.length === 0) {
@@ -28,18 +28,18 @@ export async function GET() {
         updated_at: now
       }).run();
 
-      members = db.select().from(familyMembers).where(eq(familyMembers.is_active, 1)).all();
+      members = await db.select().from(familyMembers).where(eq(familyMembers.is_active, 1)).all();
     }
 
     // Her üyenin toplam harcama adedini ve son harcama tarihini hesapla
-    const membersWithStats = members.map(m => {
-      const memberTxs = db.select().from(transactions).where(eq(transactions.member_id, m.id)).all();
+    const membersWithStats = await Promise.all(members.map(async m => {
+      const memberTxs = await db.select().from(transactions).where(eq(transactions.member_id, m.id)).all();
       return {
         ...m,
         transaction_count: memberTxs.length,
         total_spent: memberTxs.reduce((sum, t) => sum + (t.amount || 0), 0)
       };
-    });
+    }));
 
     return NextResponse.json({
       success: true,

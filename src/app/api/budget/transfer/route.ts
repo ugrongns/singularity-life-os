@@ -19,8 +19,8 @@ export async function POST(req: Request) {
     }
 
     const numAmount = Number(amount);
-    const fromAcc = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, from_account_id)).get();
-    const toAcc = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, to_account_id)).get();
+    const fromAcc = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, from_account_id)).get();
+    const toAcc = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, to_account_id)).get();
 
     if (!fromAcc || !toAcc) {
       return NextResponse.json({ success: false, error: 'Hesaplardan biri bulunamadı.' }, { status: 404 });

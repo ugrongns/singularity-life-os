@@ -79,7 +79,7 @@ export async function POST(req: Request) {
 
         // 1. Nakit Paranın Seçilen Vadesiz Banka Hesabına Yatırılması
         if (deposited_account_id && origAmt > 0) {
-          const bankAcc = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)).get();
+          const bankAcc = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)).get();
           if (bankAcc) {
             db.update(walletsAccounts)
               .set({ balance: bankAcc.balance + origAmt, updated_at: nowISO })
@@ -147,7 +147,7 @@ export async function POST(req: Request) {
       if (type === 'time_deposit') {
         const principal = Number(balance) || 0;
         if (deposited_account_id && principal > 0) {
-          const bankAcc = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)).get();
+          const bankAcc = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)).get();
           if (bankAcc) {
             db.update(walletsAccounts)
               .set({ balance: bankAcc.balance - principal, updated_at: nowISO })

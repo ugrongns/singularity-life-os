@@ -15,13 +15,13 @@ export async function GET() {
     const GOLD_GRAM_RATE = 3180;
 
     const assets = userId
-      ? db.select().from(investmentAssets).where(and(eq(investmentAssets.is_active, 1), or(eq(investmentAssets.user_id, userId), eq(investmentAssets.is_family_shared, 1)))).orderBy(desc(investmentAssets.created_at)).all()
+      ? await db.select().from(investmentAssets).where(and(eq(investmentAssets.is_active, 1), or(eq(investmentAssets.user_id, userId), eq(investmentAssets.is_family_shared, 1)))).orderBy(desc(investmentAssets.created_at)).all()
       : [];
     const besList = userId
-      ? db.select().from(besContracts).where(or(eq(besContracts.user_id, userId), eq(besContracts.is_family_shared, 1))).orderBy(desc(besContracts.created_at)).all()
+      ? await db.select().from(besContracts).where(or(eq(besContracts.user_id, userId), eq(besContracts.is_family_shared, 1))).orderBy(desc(besContracts.created_at)).all()
       : [];
     const accounts = userId
-      ? db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))).all()
+      ? await db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))).all()
       : [];
     const accountMap = new Map(accounts.map(a => [a.id, a.name]));
 

@@ -13,7 +13,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesap ID zorunludur.' }, { status: 400 });
     }
 
-    const account = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, id)).get();
+    const account = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, id)).get();
     if (!account || account.type !== 'time_deposit') {
       return NextResponse.json({ success: false, error: 'Vadeli mevduat hesabı bulunamadı.' }, { status: 404 });
     }
@@ -62,12 +62,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesap ID ve Hedef Hesap ID zorunludur.' }, { status: 400 });
     }
 
-    const depositAcc = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).get();
+    const depositAcc = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).get();
     if (!depositAcc || depositAcc.type !== 'time_deposit') {
       return NextResponse.json({ success: false, error: 'Vadeli mevduat hesabı bulunamadı.' }, { status: 404 });
     }
 
-    const targetAcc = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetAccountId)).get();
+    const targetAcc = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetAccountId)).get();
     if (!targetAcc) {
       return NextResponse.json({ success: false, error: 'Hedef vadesiz hesap bulunamadı.' }, { status: 404 });
     }

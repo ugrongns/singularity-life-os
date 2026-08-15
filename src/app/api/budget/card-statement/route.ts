@@ -13,20 +13,20 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesap ID zorunludur.' }, { status: 400 });
     }
 
-    const cardAccount = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).get();
+    const cardAccount = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).get();
     if (!cardAccount) {
       return NextResponse.json({ success: false, error: 'Kredi kartı hesabı bulunamadı.' }, { status: 404 });
     }
 
     // Bu karta ait tüm işlemleri getir
-    const allCardTx = db.select()
+    const allCardTx = await db.select()
       .from(transactions)
       .where(eq(transactions.wallet_id, accountId))
       .orderBy(desc(transactions.transaction_date))
       .all();
 
     // Kategorileri çek
-    const allCategories = db.select().from(categories).all();
+    const allCategories = await db.select().from(categories).all();
     const categoryMap = new Map(allCategories.map(c => [c.id, c.name]));
 
     const today = new Date();

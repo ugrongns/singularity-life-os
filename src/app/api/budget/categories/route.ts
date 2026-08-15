@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     const targetLimit = Number(monthly_budget_limit) || 0;
 
     // 1. Maksimum Bütçe Tavanı Kontrolü (Aylık Toplam Gelir + Kredi Kartı Limitleri Toplamı)
-    const accounts = db.select().from(walletsAccounts).where(eq(walletsAccounts.is_active, 1)).all();
+    const accounts = await db.select().from(walletsAccounts).where(eq(walletsAccounts.is_active, 1)).all();
     let totalCreditCardLimits = 0;
     for (const acc of accounts) {
       if (acc.type === 'credit_card') {
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     const defaultIncome = 94000;
     const maxAllowedCap = defaultIncome + totalCreditCardLimits;
 
-    const allCategories = db.select().from(categories).all();
+    const allCategories = await db.select().from(categories).all();
     let currentTotalLimitExceptTarget = 0;
 
     for (const cat of allCategories) {

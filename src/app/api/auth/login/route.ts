@@ -18,7 +18,7 @@ export async function POST(req: Request) {
       const identifier = (email || username || body.identifier || '').toLowerCase().trim();
 
       // Hem email hem username ile ara
-      targetUser = db.select().from(users)
+      targetUser = await db.select().from(users)
         .where(or(eq(users.email, identifier), eq(users.username, identifier)))
         .limit(1)
         .get();
@@ -42,9 +42,9 @@ export async function POST(req: Request) {
     else if (pin && action === 'unlock') {
       const targetUserId = body.user_id;
       if (targetUserId) {
-        targetUser = db.select().from(users).where(eq(users.id, targetUserId)).limit(1).get();
+        targetUser = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1).get();
       } else {
-        targetUser = db.select().from(users).where(eq(users.is_master_account, 1)).limit(1).get() || db.select().from(users).limit(1).get();
+        targetUser = (await db.select().from(users).where(eq(users.is_master_account, 1)).limit(1).get()) || (await db.select().from(users).limit(1).get());
       }
 
       if (!targetUser) {

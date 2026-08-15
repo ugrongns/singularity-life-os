@@ -17,17 +17,17 @@ export async function GET(req: Request) {
     const currentMonthStr = monthParam || new Date().toISOString().slice(0, 7);
 
     // Kategori Detayı
-    const category = db.select().from(categories).where(eq(categories.id, categoryId)).get();
+    const category = await db.select().from(categories).where(eq(categories.id, categoryId)).get();
     if (!category) {
       return NextResponse.json({ success: false, error: 'Kategori bulunamadı.' }, { status: 404 });
     }
 
     // Hesap isimlerini haritalamak için cüzdanları al
-    const wallets = db.select().from(walletsAccounts).all();
+    const wallets = await db.select().from(walletsAccounts).all();
     const walletMap = new Map(wallets.map(w => [w.id, w.name]));
 
     // Bu kategoriye ve seçili aya ait tüm işlemler
-    const txList = db.select()
+    const txList = await db.select()
       .from(transactions)
       .where(
         sql`${transactions.category_id} = ${categoryId} AND substr(${transactions.transaction_date}, 1, 7) = ${currentMonthStr}`

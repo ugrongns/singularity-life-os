@@ -26,13 +26,13 @@ export async function POST(req: Request) {
     }
 
     const numAmount = Number(amount);
-    const wallet = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)).get();
+    const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)).get();
     if (!wallet) {
       return NextResponse.json({ success: false, error: 'Seçilen hesap bulunamadı.' }, { status: 404 });
     }
 
     // 1. İşlemin Gelir mi Gider mi Olduğunu Belirle
-    const category = category_id ? db.select().from(categories).where(eq(categories.id, category_id)).get() : null;
+    const category = category_id ? await db.select().from(categories).where(eq(categories.id, category_id)).get() : null;
     const finalCategoryId = category ? category.id : null;
     const isIncome = (category && category.type === 'income') || body.type === 'income';
 
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
 
     let memberId = body.member_id || null;
     if (!memberId) {
-      const member = db.select().from(familyMembers).where(eq(familyMembers.is_active, 1)).get();
+      const member = await db.select().from(familyMembers).where(eq(familyMembers.is_active, 1)).get();
       memberId = member?.id || null;
     }
 
@@ -170,11 +170,11 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Harcama ID zorunludur.' }, { status: 400 });
     }
 
-    const tx = db.select().from(transactions).where(eq(transactions.id, id)).get();
+    const tx = await db.select().from(transactions).where(eq(transactions.id, id)).get();
     if (tx) {
       // Bakiye İadesi
       if (tx.wallet_id) {
-        const wallet = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, tx.wallet_id)).get();
+        const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, tx.wallet_id)).get();
         if (wallet) {
           const newBalance = wallet.type === 'credit_card'
             ? wallet.balance - tx.amount

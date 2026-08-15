@@ -11,10 +11,10 @@ export async function GET() {
     const userId = user?.id;
 
     const allBooks = userId
-      ? db.select().from(books).where(or(eq(books.user_id, userId), eq(books.is_family_shared, 1))).orderBy(desc(books.created_at)).all()
+      ? await db.select().from(books).where(or(eq(books.user_id, userId), eq(books.is_family_shared, 1))).orderBy(desc(books.created_at)).all()
       : [];
-    const allSessions = db.select().from(readingSessions).all();
-    const profile = (userId ? db.select().from(userReadingProfile).where(eq(userReadingProfile.user_id, userId)).limit(1).get() : null) || {
+    const allSessions = await db.select().from(readingSessions).all();
+    const profile = (userId ? await db.select().from(userReadingProfile).where(eq(userReadingProfile.user_id, userId)).limit(1).get() : null) || {
       yearly_target_books: allBooks.length > 0 ? 24 : 0,
       calibrated_avg_wpm: 0,
       avg_seconds_per_page: 0
@@ -243,7 +243,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Kitap ID ve sayfa sayısı gereklidir.' }, { status: 400 });
     }
 
-    const targetBook = db.select().from(books).where(eq(books.id, book_id)).get();
+    const targetBook = await db.select().from(books).where(eq(books.id, book_id)).get();
     if (!targetBook) {
       return NextResponse.json({ success: false, error: 'Kitap bulunamadı.' }, { status: 404 });
     }

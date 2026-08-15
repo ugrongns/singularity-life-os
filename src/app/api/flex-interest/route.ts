@@ -14,16 +14,16 @@ export async function GET(req: Request) {
     }
 
     // 1. Hesap bilgilerini al
-    const account = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).get();
+    const account = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).get();
     if (!account) {
       return NextResponse.json({ success: false, error: 'Hesap bulunamadı.' }, { status: 404 });
     }
 
     // 2. Nema/Faiz durumunu al
-    let flexConfig = db.select().from(flexInterestAccounts).where(eq(flexInterestAccounts.account_id, accountId)).get();
+    let flexConfig = await db.select().from(flexInterestAccounts).where(eq(flexInterestAccounts.account_id, accountId)).get();
 
     // 3. Kazanç geçmişini al
-    const earnings = db.select()
+    const earnings = await db.select()
       .from(flexInterestEarnings)
       .where(eq(flexInterestEarnings.wallet_account_id, accountId))
       .orderBy(desc(flexInterestEarnings.created_at))
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesap ID zorunludur.' }, { status: 400 });
     }
 
-    const account = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).get();
+    const account = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).get();
     if (!account) {
       return NextResponse.json({ success: false, error: 'Hesap bulunamadı.' }, { status: 404 });
     }
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
       const rateVal = Number(annualRate) || 0;
 
       // Kayıt var mı kontrol et
-      const existing = db.select().from(flexInterestAccounts).where(eq(flexInterestAccounts.account_id, accountId)).get();
+      const existing = await db.select().from(flexInterestAccounts).where(eq(flexInterestAccounts.account_id, accountId)).get();
 
       if (existing) {
         db.update(flexInterestAccounts)
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
       // Tahmini faizi hesapla
       const calculatedEarned = Math.round(principal * (rate / 100) * (days / 365) * 100) / 100;
 
-      const flexConfig = db.select().from(flexInterestAccounts).where(eq(flexInterestAccounts.account_id, accountId)).get();
+      const flexConfig = await db.select().from(flexInterestAccounts).where(eq(flexInterestAccounts.account_id, accountId)).get();
 
       // 1. Kazancı veritabanına kaydet
       db.insert(flexInterestEarnings).values({

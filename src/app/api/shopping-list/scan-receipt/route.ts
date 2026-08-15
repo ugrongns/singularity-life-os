@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     const parsedReceipt = await parseReceiptImage(base64Image, mimeType);
 
     // Mevcut alışveriş listesindeki ürünleri al
-    const currentItems = db.select().from(shoppingListItems).all();
+    const currentItems = await db.select().from(shoppingListItems).all();
     const now = new Date().toISOString();
     let matchedCount = 0;
     const matchedNames: string[] = [];

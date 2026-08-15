@@ -51,10 +51,10 @@ export async function GET() {
     const userId = user?.id;
 
     const records = userId
-      ? db.select().from(personalDebtsReceivables).where(eq(personalDebtsReceivables.user_id, userId)).all()
+      ? await db.select().from(personalDebtsReceivables).where(eq(personalDebtsReceivables.user_id, userId)).all()
       : [];
     const wallets = userId
-      ? db.select().from(walletsAccounts).where(or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1))).all()
+      ? await db.select().from(walletsAccounts).where(or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1))).all()
       : [];
     const walletMap = new Map(wallets.map(w => [w.id, w.name]));
 
@@ -140,7 +140,7 @@ export async function POST(req: Request) {
 
     // Bağlı hesabın bakiyesini güncelle
     if (connected_wallet_id && origTL > 0) {
-      const wallet = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, connected_wallet_id)).get();
+      const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, connected_wallet_id)).get();
       if (wallet) {
         const newBalance = type === 'debt'
           ? wallet.balance + origTL   // Borç aldım → para geldi
@@ -193,7 +193,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ success: false, error: 'ID ve ödeme tutarı zorunludur.' }, { status: 400 });
     }
 
-    const record = db.select().from(personalDebtsReceivables).where(eq(personalDebtsReceivables.id, id)).get();
+    const record = await db.select().from(personalDebtsReceivables).where(eq(personalDebtsReceivables.id, id)).get();
     if (!record) {
       return NextResponse.json({ success: false, error: 'Kayıt bulunamadı.' }, { status: 404 });
     }
@@ -217,7 +217,7 @@ export async function PATCH(req: Request) {
 
     // Bağlı hesap bakiyesi güncelle
     if (record.connected_wallet_id) {
-      const wallet = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, record.connected_wallet_id)).get();
+      const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, record.connected_wallet_id)).get();
       if (wallet) {
         const newBalance = record.type === 'debt'
           ? wallet.balance - payAmt   // Borcumu ödedim → para gitti

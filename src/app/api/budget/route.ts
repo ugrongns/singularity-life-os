@@ -26,10 +26,10 @@ export async function GET(req: Request) {
 
     // 1. Hesaplar & Cüzdanlar ve Yatırımlar
     const rawAccounts = userId
-      ? db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))).all()
+      ? await db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))).all()
       : [];
     const assets = userId
-      ? db.select().from(investmentAssets).where(and(eq(investmentAssets.is_active, 1), or(eq(investmentAssets.user_id, userId), eq(investmentAssets.is_family_shared, 1)))).all()
+      ? await db.select().from(investmentAssets).where(and(eq(investmentAssets.is_active, 1), or(eq(investmentAssets.user_id, userId), eq(investmentAssets.is_family_shared, 1)))).all()
       : [];
 
     // Yatırım hesapları için bağlı varlıkların canlı TL değerini ve özetini hesapla
@@ -60,13 +60,13 @@ export async function GET(req: Request) {
     });
 
     // 2. Kategoriler
-    const allCategories = db.select().from(categories).all();
+    const allCategories = await db.select().from(categories).all();
     const categoryMap = new Map(allCategories.map(c => [c.id, c]));
 
     // 3. Son 5 Harcama (Geçmiş İşlemler)
     // Taksitli işlemlerden sadece 1. dilimi göster (sonraki dilimler kredi kartı borcu olarak zaten takip ediliyor)
     const allRecentTx = userId
-      ? db.select()
+      ? await db.select()
           .from(transactions)
           .where(or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)))
           .orderBy(desc(transactions.transaction_date), desc(transactions.created_at))
@@ -75,7 +75,7 @@ export async function GET(req: Request) {
       : [];
 
     // 2.5. Aile Üyeleri Haritası
-    const allFamilyMembers = db.select().from(familyMembers).all();
+    const allFamilyMembers = await db.select().from(familyMembers).all();
     const familyMap = new Map(allFamilyMembers.map(fm => [fm.id, fm]));
 
     // Gelir ve Transfer/Ödeme olan tüm işlemleri harcamalar listesinden çıkar (Sadece gerçek 3. şahıs giderleri görünsün)
@@ -133,7 +133,7 @@ export async function GET(req: Request) {
         const dueDateStr = localYYYYMMDD(cardDueDate); // ✅ Timezone-safe
 
         // Bu kartın bu ayki net ekstre borcunu hesapla
-        const cardTx = db.select().from(transactions).where(eq(transactions.wallet_id, acc.id)).all();
+        const cardTx = await db.select().from(transactions).where(eq(transactions.wallet_id, acc.id)).all();
 
         const singleTotal = cardTx
           .filter(t => (!t.is_installment || t.is_installment === 0) && t.transaction_date.startsWith(currentMonthStr))
@@ -163,7 +163,7 @@ export async function GET(req: Request) {
     }
 
     // C. Araç Yasal & Muayene Hatırlatıcıları
-    const legalReminders = db.select().from(vehicleLegalReminders).where(eq(vehicleLegalReminders.is_completed, 0)).all();
+    const legalReminders = await db.select().from(vehicleLegalReminders).where(eq(vehicleLegalReminders.is_completed, 0)).all();
     for (const leg of legalReminders) {
       const legDate = new Date(leg.due_date);
       const diffDays = Math.ceil((legDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -191,7 +191,7 @@ export async function GET(req: Request) {
     let totalMonthlyIncome = 0;
 
     const monthlyTx = userId
-      ? db.select().from(transactions).where(
+      ? await db.select().from(transactions).where(
           and(
             or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)),
             sql`substr(${transactions.transaction_date}, 1, 7) = ${currentMonthStr}`
@@ -249,7 +249,7 @@ export async function GET(req: Request) {
         const pastDate = new Date(today.getFullYear(), today.getMonth() - back, 1);
         const pastMonth = localYYYYMM(pastDate);
         const pastTxs = userId
-          ? db.select().from(transactions)
+          ? await db.select().from(transactions)
               .where(and(or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)), sql`substr(${transactions.transaction_date}, 1, 7) = ${pastMonth}`)).all()
           : [];
         const pastIncome = pastTxs
@@ -360,11 +360,11 @@ export async function GET(req: Request) {
     }
 
     // BES Fon Büyüklüğü
-    const besList = userId ? db.select().from(besContracts).where(or(eq(besContracts.user_id, userId), eq(besContracts.is_family_shared, 1))).all() : [];
+    const besList = userId ? await db.select().from(besContracts).where(or(eq(besContracts.user_id, userId), eq(besContracts.is_family_shared, 1))).all() : [];
     const totalBesTRY = besList.reduce((sum, b) => sum + b.current_fund_value, 0);
 
     // Gayrimenkul Rayiç Değeri
-    const properties = userId ? db.select().from(realEstateProperties).where(or(eq(realEstateProperties.user_id, userId), eq(realEstateProperties.is_family_shared, 1))).all() : [];
+    const properties = userId ? await db.select().from(realEstateProperties).where(or(eq(realEstateProperties.user_id, userId), eq(realEstateProperties.is_family_shared, 1))).all() : [];
     const totalRealEstateTRY = properties.reduce((sum, p) => sum + p.estimated_market_value, 0);
 
     const netWorthTRY = totalCashAssetsTRY + totalInvestmentsTRY + totalBesTRY + totalRealEstateTRY - totalDebtsTRY;
@@ -406,7 +406,7 @@ export async function GET(req: Request) {
       const fMonthName = new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric' }).format(fDate);
 
       const monthTxs = userId
-        ? db.select()
+        ? await db.select()
             .from(transactions)
             .where(and(or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)), sql`substr(${transactions.transaction_date}, 1, 7) = ${fMonthStr}`))
             .all()

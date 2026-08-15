@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
     // 0. VERİTABANINDA MEVCUT KİTAP KONTROLÜ (ISBN İle)
     if (rawIsbn) {
-      const existingByIsbn = db.select().from(books).where(eq(books.isbn, rawIsbn)).get();
+      const existingByIsbn = await db.select().from(books).where(eq(books.isbn, rawIsbn)).get();
       if (existingByIsbn) {
         return NextResponse.json({
           success: true,
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       const visionResult = await parseBookCoverOrISBNImage(image_base64, mime_type || 'image/jpeg');
 
       if (visionResult.title) {
-        const existingByTitle = db.select().from(books).where(like(books.title, `%${visionResult.title.trim()}%`)).get();
+        const existingByTitle = await db.select().from(books).where(like(books.title, `%${visionResult.title.trim()}%`)).get();
         if (existingByTitle) {
           return NextResponse.json({
             success: true,

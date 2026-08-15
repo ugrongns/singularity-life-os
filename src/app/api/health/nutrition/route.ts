@@ -12,7 +12,7 @@ export async function GET() {
     const today = new Date().toISOString().split('T')[0];
 
     let profile = userId
-      ? db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1).get()
+      ? await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1).get()
       : null;
     
     if (!profile) {
@@ -32,7 +32,7 @@ export async function GET() {
     }
 
     const todayMeals = userId
-      ? db.select()
+      ? await db.select()
           .from(nutritionMeals)
           .where(and(eq(nutritionMeals.date, today), or(eq(nutritionMeals.user_id, userId), eq(nutritionMeals.is_family_shared, 1))))
           .orderBy(desc(nutritionMeals.created_at))
@@ -96,7 +96,7 @@ export async function POST(req: Request) {
 
     // Günlük Makro Hedeflerini Güncelleme
     if (action === 'update_profile') {
-      const existing = db.select().from(userHealthProfile).limit(1).get();
+      const existing = await db.select().from(userHealthProfile).limit(1).get();
 
       if (existing) {
         db.update(userHealthProfile).set({

@@ -23,15 +23,15 @@ export async function POST() {
       'biometrics', 'shopping_list_items', 'app_settings', 'flex_interest_accounts', 'flex_interest_earnings'
     ];
 
-    sqlite.pragma('foreign_keys = OFF;');
+    await sqlite.execute('PRAGMA foreign_keys = OFF;');
     for (const table of allTables) {
       try {
-        sqlite.exec(`DELETE FROM ${table};`);
+        await sqlite.execute(`DELETE FROM ${table};`);
       } catch (err) {
         console.error(`Error deleting from ${table}:`, err);
       }
     }
-    sqlite.pragma('foreign_keys = ON;');
+    await sqlite.execute('PRAGMA foreign_keys = ON;');
 
     return NextResponse.json({
       success: true,

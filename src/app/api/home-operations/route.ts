@@ -10,7 +10,7 @@ export async function GET() {
     const user = await getAuthUser();
     const userId = user?.id;
     
-    const records = userId ? db.select().from(homeMaintenanceRecords).where(eq(homeMaintenanceRecords.user_id, userId)).all() : [];
+    const records = userId ? await db.select().from(homeMaintenanceRecords).where(eq(homeMaintenanceRecords.user_id, userId)).all() : [];
     const today = new Date();
 
     const processedMaintenance = records.map(rec => {
@@ -26,7 +26,7 @@ export async function GET() {
     });
 
     // Ev Demirbaşları & Garanti Süreleri
-    const appliances = userId ? db.select().from(homeAppliances).where(eq(homeAppliances.user_id, userId)).all() : [];
+    const appliances = userId ? await db.select().from(homeAppliances).where(eq(homeAppliances.user_id, userId)).all() : [];
     const processedAppliances = appliances.map(app => {
       let daysLeftWarranty = null;
       let isWarrantyActive = false;

@@ -11,9 +11,9 @@ export async function GET() {
     const userId = user?.id;
 
     const allVehicles = userId
-      ? db.select().from(vehicles).where(and(eq(vehicles.is_active, 1), or(eq(vehicles.user_id, userId), eq(vehicles.is_family_shared, 1)))).all()
+      ? await db.select().from(vehicles).where(and(eq(vehicles.is_active, 1), or(eq(vehicles.user_id, userId), eq(vehicles.is_family_shared, 1)))).all()
       : [];
-    const wallets = db.select().from(walletsAccounts).where(eq(walletsAccounts.is_active, 1)).all();
+    const wallets = await db.select().from(walletsAccounts).where(eq(walletsAccounts.is_active, 1)).all();
 
     if (allVehicles.length === 0) {
       return NextResponse.json({
@@ -34,7 +34,7 @@ export async function GET() {
     const currentKm = primaryVehicle.current_km;
 
     // Güncel KM'den küçük veya eşit en son tamamlanan periyodik bakım
-    const lastCompletedService = db.select()
+    const lastCompletedService = await db.select()
       .from(vehicleMaintenanceRecords)
       .where(
         and(
@@ -61,7 +61,7 @@ export async function GET() {
     const kmProgressPercentage = Math.max(0, Math.min(100, Math.round((drivenInCycle / cycleTotalDistance) * 100)));
 
     // Yakıt Kayıtları
-    const recentFuels = db.select()
+    const recentFuels = await db.select()
       .from(vehicleFuelLogs)
       .where(eq(vehicleFuelLogs.vehicle_id, primaryVehicle.id))
       .orderBy(desc(vehicleFuelLogs.fuel_date))
@@ -69,14 +69,14 @@ export async function GET() {
       .all();
 
     // Servis Kayıtları
-    const maintenanceHistory = db.select()
+    const maintenanceHistory = await db.select()
       .from(vehicleMaintenanceRecords)
       .where(eq(vehicleMaintenanceRecords.vehicle_id, primaryVehicle.id))
       .orderBy(desc(vehicleMaintenanceRecords.service_date))
       .all();
 
     // Yasal Hatırlatıcılar
-    const legalReminders = db.select()
+    const legalReminders = await db.select()
       .from(vehicleLegalReminders)
       .where(eq(vehicleLegalReminders.vehicle_id, primaryVehicle.id))
       .all();
@@ -191,14 +191,14 @@ export async function POST(req: Request) {
       }).run();
 
       // Araç KM güncelle
-      const veh = db.select().from(vehicles).where(eq(vehicles.id, vehicleId)).all()[0];
+      const veh = await db.select().from(vehicles).where(eq(vehicles.id, vehicleId)).limit(1).get();
       if (veh && km > veh.current_km) {
         db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId)).run();
       }
 
       // Cüzdandan düş & harcama kaydet
       if (walletId) {
-        const wallet = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).all()[0];
+        const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).limit(1).get();
         if (wallet) {
           db.update(walletsAccounts).set({
             balance: (wallet.balance || 0) - totalAmount,

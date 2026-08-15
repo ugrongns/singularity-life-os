@@ -10,8 +10,8 @@ export async function GET() {
     const user = await getAuthUser();
     const userId = user?.id;
 
-    const items = userId ? db.select().from(shoppingListItems).where(eq(shoppingListItems.user_id, userId)).all() : [];
-    const wallets = userId ? db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))).all() : [];
+    const items = userId ? await db.select().from(shoppingListItems).where(eq(shoppingListItems.user_id, userId)).all() : [];
+    const wallets = userId ? await db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))).all() : [];
 
     const unchecked = items.filter(i => i.is_checked === 0);
     const checked   = items.filter(i => i.is_checked === 1);
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     const today = now.split('T')[0];
 
-    const currentItems = db.select().from(shoppingListItems).all();
+    const currentItems = await db.select().from(shoppingListItems).all();
 
     if (action === 'add') {
       const nameTrimmed = (data.name || '').trim();
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
     }
 
     if (action === 'toggle') {
-      const item = db.select().from(shoppingListItems).where(eq(shoppingListItems.id, data.id)).all()[0];
+      const item = await db.select().from(shoppingListItems).where(eq(shoppingListItems.id, data.id)).limit(1).get();
       if (item) {
         db.update(shoppingListItems).set({
           is_checked: item.is_checked === 1 ? 0 : 1,
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
     }
 
     if (action === 'clear_checked') {
-      const checked = db.select().from(shoppingListItems).where(eq(shoppingListItems.is_checked, 1)).all();
+      const checked = await db.select().from(shoppingListItems).where(eq(shoppingListItems.is_checked, 1)).all();
       for (const item of checked) {
         db.delete(shoppingListItems).where(eq(shoppingListItems.id, item.id)).run();
       }
@@ -210,7 +210,7 @@ export async function POST(request: Request) {
     // Alışverişi Bitir & Cüzdana Harcama Olarak İşle
     if (action === 'checkout_to_wallet') {
       const walletId = data.wallet_id;
-      const checkedItems = db.select().from(shoppingListItems).where(eq(shoppingListItems.is_checked, 1)).all();
+      const checkedItems = await db.select().from(shoppingListItems).where(eq(shoppingListItems.is_checked, 1)).all();
       
       if (!walletId) {
         return NextResponse.json({ success: false, error: 'Lütfen harcama yapılacak cüzdanı seçin.' }, { status: 400 });
@@ -222,7 +222,7 @@ export async function POST(request: Request) {
       }
 
       // Cüzdanı al ve bakiyesini güncelle
-      const wallet = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).all()[0];
+      const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).limit(1).get();
       if (wallet) {
         db.update(walletsAccounts).set({
           balance: (wallet.balance || 0) - totalAmount,

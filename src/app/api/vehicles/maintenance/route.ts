@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     }).run();
 
     // Aracın güncel KM'sini de güncelle (servis KM'sinden küçükse)
-    const veh = db.select().from(vehicles).where(eq(vehicles.id, vehicle_id)).get();
+    const veh = await db.select().from(vehicles).where(eq(vehicles.id, vehicle_id)).get();
     if (veh && veh.current_km < km) {
       db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicle_id)).run();
     }

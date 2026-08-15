@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     }
 
     // 2. KULLANICI ADI KONTROLÜ
-    const existingUser = db.select().from(users).where(eq(users.username, username.toLowerCase().trim())).limit(1).get();
+    const existingUser = await db.select().from(users).where(eq(users.username, username.toLowerCase().trim())).limit(1).get();
     if (existingUser) {
       return NextResponse.json({
         success: false,
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
 
     // 3. KAYITLI E-POSTA ADRESİ KONTROLÜ
     if (email && email.trim()) {
-      const existingEmail = db.select().from(users).where(eq(users.email, email.toLowerCase().trim())).limit(1).get();
+      const existingEmail = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim())).limit(1).get();
       if (existingEmail) {
         return NextResponse.json({
           success: false,
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     let validInvite: any = null;
     if (invite_code && String(invite_code).trim()) {
       const cleanCode = String(invite_code).trim().toUpperCase();
-      validInvite = db.select()
+      validInvite = await db.select()
         .from(familyInvites)
         .where(
           and(
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const allUsers = db.select().from(users).all();
+    const allUsers = await db.select().from(users).all();
     const isFirstUser = allUsers.length === 0;
 
     // Hash password & PIN
@@ -141,7 +141,7 @@ export async function POST(req: Request) {
       }).run();
     } else {
       // İlk kullanıcı ise kendisini Aile Lideri olarak ekle
-      const existingMembers = db.select().from(familyMembers).all();
+      const existingMembers = await db.select().from(familyMembers).all();
       if (existingMembers.length === 0 || isFirstUser) {
         db.insert(familyMembers).values({
           id: `fm-${userId}`,

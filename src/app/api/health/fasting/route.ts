@@ -11,7 +11,7 @@ export async function GET() {
     const userId = user?.id;
 
     const activeSession = userId
-      ? db.select()
+      ? await db.select()
           .from(fastingSessions)
           .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, userId)))
           .orderBy(desc(fastingSessions.created_at))

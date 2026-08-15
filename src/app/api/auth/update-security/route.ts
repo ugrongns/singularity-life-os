@@ -15,7 +15,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Oturum bulunamadı. Lütfen giriş yapın.' }, { status: 401 });
     }
 
-    const session = db.select().from(authSessions)
+    const session = await db.select().from(authSessions)
       .where(eq(authSessions.token, sessionToken))
       .limit(1)
       .get();
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Geçersiz oturum.' }, { status: 401 });
     }
 
-    const user = db.select().from(users).where(eq(users.id, session.user_id)).limit(1).get();
+    const user = await db.select().from(users).where(eq(users.id, session.user_id)).limit(1).get();
     if (!user) {
       return NextResponse.json({ success: false, error: 'Kullanıcı bulunamadı.' }, { status: 404 });
     }
@@ -130,7 +130,7 @@ export async function POST(req: Request) {
 
       // E-posta benzersizlik kontrolü
       if (email && email.trim()) {
-        const existingEmailUser = db.select().from(users).where(eq(users.email, email.toLowerCase().trim())).limit(1).get();
+        const existingEmailUser = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim())).limit(1).get();
         if (existingEmailUser && existingEmailUser.id !== user.id) {
           return NextResponse.json({
             success: false,
