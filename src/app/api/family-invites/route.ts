@@ -24,7 +24,7 @@ export async function GET() {
     const nowISO = new Date().toISOString();
 
     // Aktif ve süresi dolmamış davet kodlarını çek
-    const activeInvites = db.select()
+    const activeInvites = await db.select()
       .from(familyInvites)
       .where(
         and(

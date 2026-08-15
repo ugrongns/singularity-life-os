@@ -7,7 +7,7 @@ import { eventBus, EVENTS } from '@/lib/events';
 export async function GET(req: Request) {
   try {
     initDatabase();
-    const records = db.select()
+    const records = await db.select()
       .from(vehicleMaintenanceRecords)
       .orderBy(desc(vehicleMaintenanceRecords.km_at_service), desc(vehicleMaintenanceRecords.service_date))
       .all();

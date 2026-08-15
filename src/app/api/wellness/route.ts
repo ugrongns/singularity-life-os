@@ -13,39 +13,39 @@ export async function GET() {
     const today = new Date().toISOString().split('T')[0];
 
     const supplements = userId
-      ? db.select().from(supplementRoutines).where(and(eq(supplementRoutines.is_active, 1), eq(supplementRoutines.user_id, userId))).all()
+      ? await db.select().from(supplementRoutines).where(and(eq(supplementRoutines.is_active, 1), eq(supplementRoutines.user_id, userId))).all()
       : [];
 
-    const todayMood = db.select().from(moodLogs)
+    const todayMood = await db.select().from(moodLogs)
       .where(eq(moodLogs.date, today)).all();
 
-    const todaySleep = db.select().from(sleepLogs)
+    const todaySleep = await db.select().from(sleepLogs)
       .where(eq(sleepLogs.date, today)).all();
 
-    const todayWaterList = db.select().from(waterIntakeLogs)
+    const todayWaterList = await db.select().from(waterIntakeLogs)
       .where(eq(waterIntakeLogs.date, today)).all();
 
     const todayWater = todayWaterList[0] || { amount_ml: 0, goal_ml: 2500 };
 
     // Son 7 gün trendler
     const last7Days = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
-    const moodHistory = db.select().from(moodLogs)
+    const moodHistory = await db.select().from(moodLogs)
       .where(sql`${moodLogs.date} >= ${last7Days}`)
       .orderBy(desc(moodLogs.date)).all();
 
-    const sleepHistory = db.select().from(sleepLogs)
+    const sleepHistory = await db.select().from(sleepLogs)
       .where(sql`${sleepLogs.date} >= ${last7Days}`)
       .orderBy(desc(sleepLogs.date)).all();
 
-    const waterHistory = db.select().from(waterIntakeLogs)
+    const waterHistory = await db.select().from(waterIntakeLogs)
       .where(sql`${waterIntakeLogs.date} >= ${last7Days}`)
       .orderBy(desc(waterIntakeLogs.date)).all();
 
     // Son biyometri
-    const latestBiometric = db.select().from(biometrics)
+    const latestBiometric = await db.select().from(biometrics)
       .orderBy(desc(biometrics.date)).limit(1).all();
 
-    const scaleLogs = db.select().from(smartScaleLogs)
+    const scaleLogs = await db.select().from(smartScaleLogs)
       .orderBy(desc(smartScaleLogs.measurement_date)).all();
 
     const morningSupps = (supplements as any[]).filter((s: any) => s.timing === 'morning');
@@ -95,7 +95,8 @@ export async function POST(request: Request) {
     const today = now.split('T')[0];
 
     if (action === 'take_supplement') {
-      const supp = db.select().from(supplementRoutines).where(eq(supplementRoutines.id, data.id)).all()[0];
+      const suppList = await db.select().from(supplementRoutines).where(eq(supplementRoutines.id, data.id)).all();
+      const supp = suppList[0];
       if (supp) {
         const lastDate = supp.last_taken_date;
         const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
           ? Math.max(0, supp.remaining_pills - 1) 
           : null;
 
-        db.update(supplementRoutines).set({
+        await db.update(supplementRoutines).set({
           is_taken_today: 1,
           streak_days: newStreak,
           remaining_pills: newRemaining,
@@ -116,7 +117,8 @@ export async function POST(request: Request) {
     }
 
     if (action === 'log_water') {
-      const existing = db.select().from(waterIntakeLogs).where(eq(waterIntakeLogs.date, today)).all()[0];
+      const existingList = await db.select().from(waterIntakeLogs).where(eq(waterIntakeLogs.date, today)).all();
+      const existing = existingList[0];
       const newAmount = Math.max(0, Number(data.amount_ml) || 0);
       const goal = Number(data.goal_ml) || 2500;
 

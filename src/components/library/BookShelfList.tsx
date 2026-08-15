@@ -118,9 +118,16 @@ export default function BookShelfList({ books, onQuickPageUpdate, onOpenAddBookM
 
       {/* Kitap Listesi */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px' }}>
-        {currentList.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '13px' }}>
-            Bu sekmede kayıtlı kitap bulunmuyor.
+        {(!Array.isArray(currentList) || currentList.length === 0) ? (
+          <div style={{ textAlign: 'center', padding: '28px 16px', background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '32px', marginBottom: '8px' }}>📚</div>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)' }}>Kütüphanenizde Henüz Kitap Bulunmuyor</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '14px' }}>
+              ISBN barkodunu kamerayla okutarak veya elle girerek ilk kitabınızı ekleyebilir, okuma hızınızı ve kalan sürelerinizi (ETA) takip edebilirsiniz.
+            </div>
+            <button className="btn-primary" onClick={onOpenAddBookModal} style={{ fontSize: '12px', padding: '8px 16px' }}>
+              + 📷 Kitap Tara / Ekle
+            </button>
           </div>
         ) : (
           currentList.map(book => {

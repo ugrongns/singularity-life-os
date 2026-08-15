@@ -14,7 +14,7 @@ export async function GET() {
       return NextResponse.json({ success: true, data: [] });
     }
 
-    const quotes = db.select({
+    const quotes = await db.select({
       id: bookQuotes.id,
       book_id: bookQuotes.book_id,
       book_title: books.title,

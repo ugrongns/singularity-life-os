@@ -75,7 +75,7 @@ export default function LibraryHeroCard({ profile, activeBook, onOpenSession, on
       </div>
 
       {/* Şu An Okunan Kitap Odağı & Akıllı Bitiş Süresi (ETA) */}
-      {activeBook && (
+      {activeBook ? (
         <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div 
@@ -123,6 +123,21 @@ export default function LibraryHeroCard({ profile, activeBook, onOpenSession, on
           >
             <span>⏱️</span>
             <span>Okuma Seansı Kaydet (+Sayfa / Kalibre Et)</span>
+          </button>
+        </div>
+      ) : (
+        <div style={{ border: '1px border-dashed var(--border)', borderRadius: 'var(--radius-md)', padding: '16px', background: 'var(--surface-subtle)', textAlign: 'center' }}>
+          <div style={{ fontSize: '24px', marginBottom: '4px' }}>📖</div>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>Aktif Okunan Kitap Yok</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', marginBottom: '10px' }}>
+            Okumakta olduğunuz kitabı seçerek okuma seanslarınızı ve kalan süre (ETA) tahmininizi takip edin.
+          </div>
+          <button 
+            className="btn-secondary" 
+            onClick={onOpenSession}
+            style={{ fontSize: '12px', padding: '6px 12px', margin: '0 auto' }}
+          >
+            ⏱️ Okuma Seansı Başlat
           </button>
         </div>
       )}

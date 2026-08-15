@@ -7,7 +7,7 @@ import { desc } from 'drizzle-orm';
 export async function GET() {
   try {
     initDatabase();
-    const logs = db.select().from(smartScaleLogs).orderBy(desc(smartScaleLogs.measurement_date)).all();
+    const logs = await db.select().from(smartScaleLogs).orderBy(desc(smartScaleLogs.measurement_date)).all();
     return NextResponse.json({ success: true, data: logs });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
