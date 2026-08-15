@@ -18,6 +18,38 @@ if (isPg) {
   pgClientInstance = postgres(pgUrl, { ssl: 'require' });
   dbInstance = drizzlePg(pgClientInstance, { schema: schema as any });
   clientInstance = pgClientInstance;
+
+  // Polyfill .get(), .all(), .run() for Drizzle Postgres query builders to maintain full API compatibility with LibSQL
+  try {
+    const dummyQuery = dbInstance.select().from(schema.users);
+    const protos = [
+      Object.getPrototypeOf(dummyQuery),
+      Object.getPrototypeOf(dbInstance.insert(schema.users).values({ id: '_temp' })),
+      Object.getPrototypeOf(dbInstance.update(schema.users).set({ full_name: '_temp' })),
+      Object.getPrototypeOf(dbInstance.delete(schema.users))
+    ];
+    protos.forEach((p: any) => {
+      if (p && !p.get) {
+        p.get = async function() {
+          const res = await this;
+          return Array.isArray(res) ? res[0] : res;
+        };
+      }
+      if (p && !p.all) {
+        p.all = async function() {
+          const res = await this;
+          return Array.isArray(res) ? res : (res ? [res] : []);
+        };
+      }
+      if (p && !p.run) {
+        p.run = async function() {
+          return await this;
+        };
+      }
+    });
+  } catch (e) {
+    console.warn('Postgres query builder polyfill warning:', e);
+  }
 } else {
   let clientUrl = databaseUrl;
   if (!clientUrl) {
