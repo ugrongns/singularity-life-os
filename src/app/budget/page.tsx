@@ -120,53 +120,43 @@ export default function BudgetPage() {
         </div>
       </div>
 
-      {data?.netWorth && <NetWorthHero netWorth={data.netWorth} />}
+      <NetWorthHero netWorth={data?.netWorth || { totalNetWorthTRY: 0, totalNetWorthUSD: 0, totalNetWorthEUR: 0, currencyBreakdown: { TRY: 0, USD: 0, EUR: 0, Gold: 0, BTC: 0 } }} />
 
       <div className="dashboard-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {data?.accounts && (
-            <BudgetRiskCard
-              accounts={data.accounts}
-              onUpdate={handleUpdate}
-            />
-          )}
-          {data?.accounts && (
-            <AccountsCard
-              accounts={data.accounts}
-              onUpdate={handleUpdate}
-              onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
-            />
-          )}
-          {data?.recentTransactions && (
-            <RecentTxCard
-              transactions={data.recentTransactions}
-              upcomingPayments={data.upcomingPayments}
-              onUpdate={handleUpdate}
-              onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
-            />
-          )}
+          <BudgetRiskCard
+            accounts={data?.accounts || []}
+            onUpdate={handleUpdate}
+          />
+          <AccountsCard
+            accounts={data?.accounts || []}
+            onUpdate={handleUpdate}
+            onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
+          />
+          <RecentTxCard
+            transactions={data?.recentTransactions || []}
+            upcomingPayments={data?.upcomingPayments || []}
+            onUpdate={handleUpdate}
+            onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
+          />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {data?.categories && data?.monthlySummary && (
-            <BudgetLimitsCard
-              categories={data.categories}
-              monthlySummary={data.monthlySummary}
-              onUpdate={handleUpdate}
-              onMonthChange={handleMonthChange}
-              onOpenCategoryDetail={(catId, catName) => setCategoryDetail({ catId, catName })}
-            />
-          )}
+          <BudgetLimitsCard
+            categories={data?.categories || []}
+            monthlySummary={data?.monthlySummary || { totalIncome: 0, totalExpenses: 0, netCashFlow: 0, categories: [] }}
+            onUpdate={handleUpdate}
+            onMonthChange={handleMonthChange}
+            onOpenCategoryDetail={(catId, catName) => setCategoryDetail({ catId, catName })}
+          />
         </div>
       </div>
 
       {/* Gelecek 6 Ay Bütçe & Taksit Projeksiyon Kartı */}
-      {data?.monthlySummary?.futureForecast && (
-        <FutureForecastCard
-          forecast={data.monthlySummary.futureForecast}
-          selectedMonth={selectedMonth}
-          onSelectMonth={handleMonthChange}
-        />
-      )}
+      <FutureForecastCard
+        forecast={data?.monthlySummary?.futureForecast || []}
+        selectedMonth={selectedMonth}
+        onSelectMonth={handleMonthChange}
+      />
 
       {/* Kişisel Borç & Alacak Takibi */}
       <PersonalDebtsCard

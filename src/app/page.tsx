@@ -124,81 +124,67 @@ export default function HomePage() {
   return (
     <SharedLayout notifications={notifData}>
       {/* Net Worth Hero — her zaman en üstte */}
-      {Boolean(budgetData?.netWorth) && <NetWorthHero netWorth={budgetData.netWorth} />}
+      <NetWorthHero netWorth={budgetData?.netWorth || { totalNetWorthTRY: 0, totalNetWorthUSD: 0, totalNetWorthEUR: 0, currencyBreakdown: { TRY: 0, USD: 0, EUR: 0, Gold: 0, BTC: 0 } }} />
 
       {/* Dashboard Grid */}
       <div className="dashboard-grid">
         {/* Sol Sütun */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {/* 📈 Portföy Özeti */}
-          {investData && (
-            <PortfolioHeroCard
-              summary={investData.summary}
-              allocation={investData.allocation}
-              onOpenDividendModal={() => setIsDividendOpen(true)}
-              onOpenAddAssetModal={() => {}}
-            />
-          )}
+          <PortfolioHeroCard
+            summary={investData?.summary || { totalPortfolioValueTRY: 0, unreleasedPlTRY: 0, unreleasedPlPercent: 0 }}
+            allocation={investData?.allocation || []}
+            onOpenDividendModal={() => setIsDividendOpen(true)}
+            onOpenAddAssetModal={() => {}}
+          />
 
           {/* ⏱️ Aralıklı Oruç Sayacı */}
-          {fastingData && (
-            <FastingTimerCard
-              fastingData={fastingData}
-              onToggleFasting={handleToggleFasting}
-            />
-          )}
+          <FastingTimerCard
+            fastingData={fastingData || { is_active: false, protocol: '16:8' }}
+            onToggleFasting={handleToggleFasting}
+          />
 
           {/* 📚 Aktif Kitap & WPM */}
-          {libraryData && (
-            <LibraryHeroCard
-              profile={libraryData.profile || { yearly_target_books: 24, completedBooksCount: 0, targetProgressPercent: 0, calibrated_avg_wpm: 220, avgMinutesPerPage: '1.4' }}
-              activeBook={libraryData.activeReadingBook}
-              onOpenSession={() => setIsSessionOpen(true)}
-              onOpenQuotes={() => {}}
-            />
-          )}
+          <LibraryHeroCard
+            profile={libraryData?.profile || { yearly_target_books: 24, completedBooksCount: 0, targetProgressPercent: 0, calibrated_avg_wpm: 220, avgMinutesPerPage: '1.4' }}
+            activeBook={libraryData?.activeReadingBook}
+            onOpenSession={() => setIsSessionOpen(true)}
+            onOpenQuotes={() => {}}
+          />
 
           {/* 💊 Takviye Rutini */}
-          {wellnessData && (
-            <WellnessCard
-              supplements={wellnessData.supplements || { morning: [], evening: [], with_meal: [], total: 0, taken: 0 }}
-              todayMood={wellnessData.todayMood}
-              todaySleep={wellnessData.todaySleep}
-              moodHistory={wellnessData.moodHistory || []}
-              sleepHistory={wellnessData.sleepHistory || []}
-            />
-          )}
+          <WellnessCard
+            supplements={wellnessData?.supplements || { morning: [], evening: [], with_meal: [], total: 0, taken: 0 }}
+            todayMood={wellnessData?.todayMood}
+            todaySleep={wellnessData?.todaySleep}
+            moodHistory={wellnessData?.moodHistory || []}
+            sleepHistory={wellnessData?.sleepHistory || []}
+          />
         </div>
 
         {/* Sağ Sütun */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {/* 🚗 Araç Filosu */}
-          {vehicleData && (
-            <VehicleFleetCard
-              data={vehicleData}
-              onOpenHistory={() => setIsMaintHistOpen(true)}
-              onOpenFuelModal={() => setIsFuelOpen(true)}
-              onOpenServiceModal={() => setIsServiceOpen(true)}
-              onRefresh={handleUpdate}
-            />
-          )}
+          <VehicleFleetCard
+            data={vehicleData || { vehicles: [], maintenanceRecords: [] }}
+            onOpenHistory={() => setIsMaintHistOpen(true)}
+            onOpenFuelModal={() => setIsFuelOpen(true)}
+            onOpenServiceModal={() => setIsServiceOpen(true)}
+            onRefresh={handleUpdate}
+          />
 
           {/* 💰 Son Harcamalar & Yaklaşan Ödemeler */}
-          {Boolean(budgetData) && (
-            <RecentTxCard
-              transactions={budgetData?.recentTransactions || []}
-              upcomingPayments={budgetData?.upcomingPayments || []}
-            />
-          )}
+          <RecentTxCard
+            transactions={budgetData?.recentTransactions || []}
+            upcomingPayments={budgetData?.upcomingPayments || []}
+          />
 
           {/* 🛒 Market Listesi */}
-          {shoppingData && (
-            <ShoppingListCard
-              items={shoppingData.items || []}
-              summary={shoppingData.summary || { total: 0, remaining: 0, done: 0, totalEstimated: 0, remainingEstimated: 0 }}
-              byCategory={shoppingData.byCategory || {}}
-            />
-          )}
+          <ShoppingListCard
+            items={shoppingData?.items || []}
+            summary={shoppingData?.summary || { total: 0, remaining: 0, done: 0, totalEstimated: 0, remainingEstimated: 0 }}
+            byCategory={shoppingData?.byCategory || {}}
+          />
         </div>
       </div>
 

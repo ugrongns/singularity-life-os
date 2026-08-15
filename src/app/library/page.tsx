@@ -61,26 +61,22 @@ export default function LibraryPage() {
 
       <div className="dashboard-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {data && (
-            <LibraryHeroCard
-              profile={data.profile || { yearly_target_books: 24, completedBooksCount: 0, targetProgressPercent: 0, calibrated_avg_wpm: 220, avgMinutesPerPage: '1.4' }}
-              activeBook={data.activeReadingBook}
-              onOpenSession={() => handleOpenSessionForBook(data.activeReadingBook?.id)}
-              onOpenQuotes={() => setIsQuotesOpen(true)}
-              onOpenBookDetail={(b) => setSelectedBookDetail(b)}
-            />
-          )}
+          <LibraryHeroCard
+            profile={data?.profile || { yearly_target_books: 24, completedBooksCount: 0, targetProgressPercent: 0, calibrated_avg_wpm: 220, avgMinutesPerPage: '1.4' }}
+            activeBook={data?.activeReadingBook}
+            onOpenSession={() => handleOpenSessionForBook(data?.activeReadingBook?.id)}
+            onOpenQuotes={() => setIsQuotesOpen(true)}
+            onOpenBookDetail={(b) => setSelectedBookDetail(b)}
+          />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {data && (
-            <BookShelfList
-              books={data.books || []}
-              onQuickPageUpdate={handleQuickPageUpdate}
-              onOpenAddBookModal={() => setIsAddBookOpen(true)}
-              onOpenSessionForBook={(bId) => handleOpenSessionForBook(bId)}
-              onUpdate={handleUpdate}
-            />
-          )}
+          <BookShelfList
+            books={data?.books || []}
+            onQuickPageUpdate={handleQuickPageUpdate}
+            onOpenAddBookModal={() => setIsAddBookOpen(true)}
+            onOpenSessionForBook={(bId) => handleOpenSessionForBook(bId)}
+            onUpdate={handleUpdate}
+          />
         </div>
       </div>
 

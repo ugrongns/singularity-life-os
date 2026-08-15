@@ -50,26 +50,23 @@ export default function InvestmentsPage() {
 
       <div className="dashboard-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {data && (
-            <PortfolioHeroCard
-              summary={data.summary} allocation={data.allocation}
-              onOpenDividendModal={() => setIsDividendOpen(true)}
-              onOpenAddAssetModal={() => setIsAddAssetOpen(true)}
-            />
-          )}
-          {data && <StockGoldList assets={data.assets} besContracts={data.besContracts} />}
+          <PortfolioHeroCard
+            summary={data?.summary || { totalPortfolioValueTRY: 0, unreleasedPlTRY: 0, unreleasedPlPercent: 0 }}
+            allocation={data?.allocation || []}
+            onOpenDividendModal={() => setIsDividendOpen(true)}
+            onOpenAddAssetModal={() => setIsAddAssetOpen(true)}
+          />
+          <StockGoldList assets={data?.assets || []} besContracts={data?.besContracts || []} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <InvestmentAccountsCard
             accounts={budgetData?.accounts || []}
             onUpdate={(msg) => handleUpdate(msg)}
           />
-          {data?.properties && (
-            <RealEstateCard
-              properties={data.properties}
-              onRentCollectedSuccess={() => handleUpdate('💰 Kira tahsil edildi!')}
-            />
-          )}
+          <RealEstateCard
+            properties={data?.properties || []}
+            onRentCollectedSuccess={() => handleUpdate('💰 Kira tahsil edildi!')}
+          />
         </div>
       </div>
 

@@ -85,15 +85,13 @@ export default function VehiclesPage() {
       <div className="dashboard-grid">
         {/* Sol Kolon: Araç Filosu */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {vehicleData && (
-            <VehicleFleetCard
-              data={vehicleData}
-              onOpenHistory={() => setIsMaintHistOpen(true)}
-              onOpenFuelModal={() => setIsFuelModalOpen(true)}
-              onOpenServiceModal={() => setIsServiceModalOpen(true)}
-              onRefresh={fetchData}
-            />
-          )}
+          <VehicleFleetCard
+            data={vehicleData || { vehicles: [], maintenanceRecords: [] }}
+            onOpenHistory={() => setIsMaintHistOpen(true)}
+            onOpenFuelModal={() => setIsFuelModalOpen(true)}
+            onOpenServiceModal={() => setIsServiceModalOpen(true)}
+            onRefresh={fetchData}
+          />
         </div>
 
         {/* Sağ Kolon: Ev Operasyonları */}

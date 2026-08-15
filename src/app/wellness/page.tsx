@@ -81,32 +81,28 @@ export default function WellnessPage() {
 
       <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {/* Akıllı Tartı & Biyo-İmpedans Değişim Grafikleri */}
-        {data && (
-          <SmartScaleTrendDashboard 
-            logs={data.scaleLogs || []} 
-            onOpenScanModal={() => setIsScaleModalOpen(true)} 
-          />
-        )}
+        <SmartScaleTrendDashboard 
+          logs={data?.scaleLogs || []} 
+          onOpenScanModal={() => setIsScaleModalOpen(true)} 
+        />
 
         <div className="dashboard-grid">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {data && (
-              <WellnessCard
-                supplements={data.supplements || { morning: [], evening: [], with_meal: [], total: 0, taken: 0, all: [] }}
-                todayMood={data.todayMood}
-                todaySleep={data.todaySleep}
-                todayWater={data.todayWater || { amount_ml: 0, goal_ml: 2500 }}
-                moodHistory={data.moodHistory || []}
-                sleepHistory={data.sleepHistory || []}
-                waterHistory={data.waterHistory || []}
-                aiInsight={data.aiInsight}
-                onOpenAddSupplement={(item) => {
-                  setSuppEditItem(item || null);
-                  setIsSuppOpen(true);
-                }}
-                onRefresh={fetchData}
-              />
-            )}
+            <WellnessCard
+              supplements={data?.supplements || { morning: [], evening: [], with_meal: [], total: 0, taken: 0, all: [] }}
+              todayMood={data?.todayMood}
+              todaySleep={data?.todaySleep}
+              todayWater={data?.todayWater || { amount_ml: 0, goal_ml: 2500 }}
+              moodHistory={data?.moodHistory || []}
+              sleepHistory={data?.sleepHistory || []}
+              waterHistory={data?.waterHistory || []}
+              aiInsight={data?.aiInsight}
+              onOpenAddSupplement={(item) => {
+                setSuppEditItem(item || null);
+                setIsSuppOpen(true);
+              }}
+              onRefresh={fetchData}
+            />
           </div>
         </div>
       </div>
