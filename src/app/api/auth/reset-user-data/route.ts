@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server';
-import { sqlite, initDatabase } from '@/db';
+import { db, initDatabase } from '@/db';
 import { getAuthUser } from '@/lib/auth';
+import {
+  familyMembers, walletsAccounts, personalDebtsReceivables, categories,
+  transactions, sinkingFunds, syncQueue, vehicles, vehicleMaintenanceRecords,
+  vehicleFuelLogs, vehicleLegalReminders, homeMaintenanceRecords, homeAppliances,
+  investmentAssets, investmentDividends, besContracts, realEstateProperties,
+  realEstateCashflows, books, readingSessions, bookQuotes, userReadingProfile,
+  nutritionMeals, nutritionMealItems, fastingSessions, packagedFoodScans,
+  dietMealOptions, userHealthProfile, digitalVaultItems, importantDates,
+  petRecords, supplementRoutines, sleepLogs, moodLogs, waterIntakeLogs,
+  biometrics, shoppingListItems, appSettings, flexInterestAccounts, flexInterestEarnings
+} from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function POST() {
   try {
@@ -11,27 +23,31 @@ export async function POST() {
       return NextResponse.json({ success: false, error: 'Oturum bulunamadı. Lütfen giriş yapın.' }, { status: 401 });
     }
 
-    const allTables = [
-      'family_members', 'wallets_accounts', 'personal_debts_receivables', 'categories',
-      'transactions', 'sinking_funds', 'sync_queue', 'vehicles', 'vehicle_maintenance_records',
-      'vehicle_fuel_logs', 'vehicle_legal_reminders', 'home_maintenance_records', 'home_appliances',
-      'investment_assets', 'investment_dividends', 'bes_contracts', 'real_estate_properties',
-      'real_estate_cashflows', 'books', 'reading_sessions', 'book_quotes', 'user_reading_profile',
-      'nutrition_meals', 'nutrition_meal_items', 'fasting_sessions', 'packaged_food_scans',
-      'diet_meal_options', 'user_health_profile', 'digital_vault_items', 'important_dates',
-      'pet_records', 'supplement_routines', 'sleep_logs', 'mood_logs', 'water_intake_logs',
-      'biometrics', 'shopping_list_items', 'app_settings', 'flex_interest_accounts', 'flex_interest_earnings'
+    const userId = user.id;
+
+    const userTables = [
+      transactions, walletsAccounts, personalDebtsReceivables, familyMembers,
+      sinkingFunds, syncQueue, vehicleMaintenanceRecords, vehicleFuelLogs,
+      vehicleLegalReminders, vehicles, homeMaintenanceRecords, homeAppliances,
+      investmentDividends, investmentAssets, besContracts, realEstateCashflows,
+      realEstateProperties, readingSessions, bookQuotes, books, userReadingProfile,
+      nutritionMealItems, nutritionMeals, fastingSessions, packagedFoodScans,
+      dietMealOptions, userHealthProfile, digitalVaultItems, importantDates,
+      petRecords, supplementRoutines, sleepLogs, moodLogs, waterIntakeLogs,
+      biometrics, shoppingListItems, appSettings, flexInterestEarnings, flexInterestAccounts
     ];
 
-    await sqlite.execute('PRAGMA foreign_keys = OFF;');
-    for (const table of allTables) {
+    for (const table of userTables) {
       try {
-        await sqlite.execute(`DELETE FROM ${table};`);
+        await db.delete(table).where(eq((table as any).user_id, userId)).run();
       } catch (err) {
-        console.error(`Error deleting from ${table}:`, err);
+        try {
+          await db.delete(table).run();
+        } catch (innerErr) {
+          console.warn('Error clearing table:', innerErr);
+        }
       }
     }
-    await sqlite.execute('PRAGMA foreign_keys = ON;');
 
     return NextResponse.json({
       success: true,
