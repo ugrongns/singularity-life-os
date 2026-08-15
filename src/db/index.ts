@@ -2,12 +2,21 @@ import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from './schema';
 import path from 'path';
+import os from 'os';
 
-const DB_PATH = path.join(process.cwd(), 'singularity.db');
+// Vercel / Serverless ortamlarda sadece geçici /tmp klasörüne yazılabilir
+const isServerless = Boolean(process.env.VERCEL) || process.env.NODE_ENV === 'production';
+const DB_PATH = isServerless 
+  ? path.join(os.tmpdir(), 'singularity.db') 
+  : path.join(process.cwd(), 'singularity.db');
 
 export const sqlite = new Database(DB_PATH);
-sqlite.pragma('journal_mode = WAL');
-sqlite.pragma('foreign_keys = ON');
+try {
+  sqlite.pragma('journal_mode = WAL');
+  sqlite.pragma('foreign_keys = ON');
+} catch (e) {
+  console.warn('Pragma warning:', e);
+}
 
 export const db = drizzle(sqlite, { schema });
 
