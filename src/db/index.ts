@@ -748,10 +748,26 @@ export async function initDatabase() {
       );
     `;
 
+    const seedCategoriesSQL = `
+      INSERT INTO categories (id, name, type, monthly_budget_limit, group_50_30_20, icon, color, is_family_shared, created_at, updated_at)
+      VALUES 
+        ('cat-maas', 'Maaş & Gelir', 'income', 0, 'income', '💰', '#10B981', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('cat-market', 'Market & Gıda', 'expense', 15000, 'needs', '🛒', '#F59E0B', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('cat-kira', 'Kira & Konut', 'expense', 20000, 'needs', '🏠', '#EF4444', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('cat-fatura', 'Faturalar & Abonelikler', 'expense', 5000, 'needs', '⚡', '#3B82F6', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('cat-ulasim', 'Ulaşım & Yakıt', 'expense', 7500, 'needs', '🚗', '#8B5CF6', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('cat-eeglence', 'Eğlence & Dışarıda Yeme', 'expense', 6000, 'wants', '🍔', '#EC4899', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('cat-saglik', 'Sağlık & Kişisel Bakım', 'expense', 4000, 'needs', '💊', '#06B6D4', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('cat-diger', 'Diğer Harcamalar', 'expense', 5000, 'wants', '🏷️', '#6B7280', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')
+      ON CONFLICT (id) DO NOTHING;
+    `;
+
     if (isPg && pgClientInstance) {
       await pgClientInstance.unsafe(createTablesSQL);
+      await pgClientInstance.unsafe(seedCategoriesSQL);
     } else if (libsqlClientInstance) {
       await libsqlClientInstance.executeMultiple(createTablesSQL);
+      await libsqlClientInstance.executeMultiple(seedCategoriesSQL);
     }
   } catch (err) {
     console.warn('initDatabase notice:', err);

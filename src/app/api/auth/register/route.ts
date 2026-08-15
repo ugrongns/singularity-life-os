@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { users, authSessions, appSettings, userHealthProfile, familyInvites, familyMembers } from '@/db/schema';
+import { users, authSessions, appSettings, userHealthProfile, userReadingProfile, walletsAccounts, familyInvites, familyMembers } from '@/db/schema';
 import { hashPassword, hashPin, generateSessionToken } from '@/lib/auth';
 import { eq, and, gt } from 'drizzle-orm';
 import { cookies } from 'next/headers';
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
     const userId = `user-${Date.now()}`;
 
     // Insert user
-    db.insert(users).values({
+    await db.insert(users).values({
       id: userId,
       username: username.toLowerCase().trim(),
       full_name: full_name.trim(),
@@ -125,12 +125,12 @@ export async function POST(req: Request) {
 
     // Davet Kodu Kullanıldıysa İşaretle ve Aile Üyesi Profilini Oluştur
     if (validInvite) {
-      db.update(familyInvites)
+      await db.update(familyInvites)
         .set({ is_used: 1, used_by_user_id: userId })
         .where(eq(familyInvites.id, validInvite.id))
         .run();
 
-      db.insert(familyMembers).values({
+      await db.insert(familyMembers).values({
         id: `fm-${userId}`,
         name: full_name.trim(),
         role: validInvite.family_role || 'member',
@@ -143,7 +143,7 @@ export async function POST(req: Request) {
       // İlk kullanıcı ise kendisini Aile Lideri olarak ekle
       const existingMembers = await db.select().from(familyMembers).all();
       if (existingMembers.length === 0 || isFirstUser) {
-        db.insert(familyMembers).values({
+        await db.insert(familyMembers).values({
           id: `fm-${userId}`,
           name: full_name.trim(),
           role: 'admin',
@@ -155,31 +155,66 @@ export async function POST(req: Request) {
       }
     }
 
-    // Update health profile water target
+    // Health Profile başlangıç kaydı
     try {
-      db.update(userHealthProfile)
-        .set({ daily_water_target_ml: Number(daily_water_target_ml) || 2500, updated_at: now })
-        .run();
+      await db.insert(userHealthProfile).values({
+        id: `hp-${userId}`,
+        user_id: userId,
+        daily_water_target_ml: Number(daily_water_target_ml) || 2500,
+        target_weight_kg: 75,
+        created_at: now,
+        updated_at: now
+      }).run();
+    } catch (e) {}
+
+    // Reading Profile başlangıç kaydı
+    try {
+      await db.insert(userReadingProfile).values({
+        id: `rp-${userId}`,
+        user_id: userId,
+        yearly_target_books: 24,
+        calibrated_avg_wpm: 220,
+        avg_seconds_per_page: 84,
+        created_at: now,
+        updated_at: now
+      }).run();
+    } catch (e) {}
+
+    // Başlangıç Cüzdanı (Vadesiz Maaş Hesabı)
+    try {
+      await db.insert(walletsAccounts).values({
+        id: `w-${userId}-main`,
+        name: 'Vadesiz Maaş Hesabı',
+        type: 'bank',
+        currency: currency || 'TRY',
+        balance: 0,
+        color: '#3B82F6',
+        is_active: 1,
+        is_family_shared: 1,
+        user_id: userId,
+        created_at: now,
+        updated_at: now
+      }).run();
     } catch (e) {}
 
     // Save Telegram settings if provided
     if (telegram_bot_token && telegram_chat_id) {
-      const setSetting = (k: string, v: string) => {
-        db.insert(appSettings)
+      const setSetting = async (k: string, v: string) => {
+        await db.insert(appSettings)
           .values({ key: k, value: v, updated_at: now })
           .onConflictDoUpdate({ target: appSettings.key, set: { value: v, updated_at: now } })
           .run();
       };
-      setSetting('telegram_bot_token', telegram_bot_token);
-      setSetting('telegram_chat_id', telegram_chat_id);
-      setSetting('telegram_enabled', 'true');
+      await setSetting('telegram_bot_token', telegram_bot_token);
+      await setSetting('telegram_chat_id', telegram_chat_id);
+      await setSetting('telegram_enabled', 'true');
     }
 
     // Create session token
     const token = generateSessionToken();
     const expiresAt = new Date(Date.now() + 30 * 86400000).toISOString(); // 30 gün
 
-    db.insert(authSessions).values({
+    await db.insert(authSessions).values({
       token,
       user_id: userId,
       expires_at: expiresAt,

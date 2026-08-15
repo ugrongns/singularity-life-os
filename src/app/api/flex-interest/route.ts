@@ -6,7 +6,7 @@ import { eq, desc , or } from 'drizzle-orm';
 export async function GET(req: Request) {
   try {
     initDatabase();
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(req.url, 'http://localhost');
     const accountId = searchParams.get('accountId');
 
     if (!accountId) {

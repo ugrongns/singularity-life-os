@@ -124,7 +124,7 @@ export default function HomePage() {
   return (
     <SharedLayout notifications={notifData}>
       {/* Net Worth Hero — her zaman en üstte */}
-      {budgetData?.netWorth && <NetWorthHero netWorth={budgetData.netWorth} />}
+      {Boolean(budgetData?.netWorth) && <NetWorthHero netWorth={budgetData.netWorth} />}
 
       {/* Dashboard Grid */}
       <div className="dashboard-grid">
@@ -151,7 +151,7 @@ export default function HomePage() {
           {/* 📚 Aktif Kitap & WPM */}
           {libraryData && (
             <LibraryHeroCard
-              profile={libraryData.profile}
+              profile={libraryData.profile || { yearly_target_books: 24, completedBooksCount: 0, targetProgressPercent: 0, calibrated_avg_wpm: 220, avgMinutesPerPage: '1.4' }}
               activeBook={libraryData.activeReadingBook}
               onOpenSession={() => setIsSessionOpen(true)}
               onOpenQuotes={() => {}}
@@ -184,10 +184,10 @@ export default function HomePage() {
           )}
 
           {/* 💰 Son Harcamalar & Yaklaşan Ödemeler */}
-          {budgetData?.recentTransactions && (
+          {Boolean(budgetData) && (
             <RecentTxCard
-              transactions={budgetData.recentTransactions}
-              upcomingPayments={budgetData.upcomingPayments}
+              transactions={budgetData?.recentTransactions || []}
+              upcomingPayments={budgetData?.upcomingPayments || []}
             />
           )}
 

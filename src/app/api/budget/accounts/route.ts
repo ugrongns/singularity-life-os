@@ -233,7 +233,7 @@ export async function DELETE(req: Request) {
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(req.url, 'http://localhost');
     const id = searchParams.get('id');
 
     if (!id) {

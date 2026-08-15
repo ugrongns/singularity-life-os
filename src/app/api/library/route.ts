@@ -15,9 +15,9 @@ export async function GET() {
       : [];
     const allSessions = await db.select().from(readingSessions).all();
     const profile = (userId ? await db.select().from(userReadingProfile).where(eq(userReadingProfile.user_id, userId)).limit(1).get() : null) || {
-      yearly_target_books: allBooks.length > 0 ? 24 : 0,
-      calibrated_avg_wpm: 0,
-      avg_seconds_per_page: 0
+      yearly_target_books: 24,
+      calibrated_avg_wpm: 220,
+      avg_seconds_per_page: 84
     };
 
     const completedBooks = (allBooks as any[]).filter((b: any) => b.status === 'completed');
@@ -92,7 +92,9 @@ export async function GET() {
         profile: {
           ...profile,
           completedBooksCount: completedBooks.length,
-          targetProgressPercent: Math.min(100, Math.round((completedBooks.length / profile.yearly_target_books) * 100)),
+          targetProgressPercent: (profile.yearly_target_books && profile.yearly_target_books > 0)
+            ? Math.min(100, Math.round((completedBooks.length / profile.yearly_target_books) * 100))
+            : 0,
           avgMinutesPerPage: ((profile.avg_seconds_per_page || 84) / 60).toFixed(1)
         },
         activeReadingBook: activeReadingBook ? {
@@ -279,7 +281,7 @@ export async function DELETE(req: Request) {
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(req.url, 'http://localhost');
     const id = searchParams.get('id');
 
     if (!id) {

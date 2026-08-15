@@ -6,7 +6,7 @@ import { eq, desc, sql , or } from 'drizzle-orm';
 export async function GET(req: Request) {
   try {
     initDatabase();
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(req.url, 'http://localhost');
     const categoryId = searchParams.get('category_id');
     const monthParam = searchParams.get('month'); // YYYY-MM
 

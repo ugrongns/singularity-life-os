@@ -122,7 +122,7 @@ export async function PUT(req: Request) {
 export async function DELETE(req: Request) {
   try {
     initDatabase();
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(req.url, 'http://localhost');
     const id = searchParams.get('id');
 
     if (!id) {

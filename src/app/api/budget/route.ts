@@ -10,7 +10,7 @@ export async function GET(req: Request) {
     const user = await getAuthUser();
     const userId = user?.id;
 
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(req.url, 'http://localhost');
     const monthParam = searchParams.get('month'); // YYYY-MM
 
     const today = new Date();
