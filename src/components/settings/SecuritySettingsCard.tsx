@@ -246,10 +246,11 @@ export default function SecuritySettingsCard() {
       {/* Kullanıcı Rozeti */}
       {currentUser && (
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'flex', flexDirection: 'column', gap: '14px',
           background: 'var(--surface-subtle)', border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)', padding: '14px 16px', marginBottom: '16px'
+          borderRadius: 'var(--radius-lg)', padding: '16px', marginBottom: '16px'
         }}>
+          {/* Üst Kısım: Kullanıcı Bilgisi */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
               width: '44px', height: '44px', borderRadius: '14px', fontSize: '24px',
@@ -259,24 +260,25 @@ export default function SecuritySettingsCard() {
               {currentUser.avatar_emoji || '👑'}
             </div>
             <div>
-              <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)' }}>
+              <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-main)' }}>
                 {currentUser.full_name}
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                 @{currentUser.username} • {currentUser.email || 'E-posta eklenmedi'}
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {/* Alt Kısım: Yatay Düzende Aksiyon Butonları */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', width: '100%' }}>
             <button
               type="button"
               onClick={handleLoadSampleData}
               title="Hesabınıza görünüm amaçlı örnek veriler ekler"
               style={{
-                padding: '6px 12px', fontSize: '11px', fontWeight: 800,
+                flex: '1 1 auto', padding: '8px 12px', fontSize: '11px', fontWeight: 800,
                 background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#2563EB',
-                borderRadius: 'var(--radius-md)', cursor: 'pointer'
+                borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'center'
               }}
             >
               🚀 Örnek Verileri Yükle
@@ -286,9 +288,9 @@ export default function SecuritySettingsCard() {
               onClick={handleResetData}
               title="Hesabınızdaki tüm cüzdan, harcama ve kişisel verileri sıfırlar"
               style={{
-                padding: '6px 12px', fontSize: '11px', fontWeight: 800,
+                flex: '1 1 auto', padding: '8px 12px', fontSize: '11px', fontWeight: 800,
                 background: '#FFF1F2', border: '1px solid #FECDD3', color: '#E11D48',
-                borderRadius: 'var(--radius-md)', cursor: 'pointer'
+                borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'center'
               }}
             >
               🗑️ Verilerimi Sıfırla
@@ -297,7 +299,7 @@ export default function SecuritySettingsCard() {
               type="button"
               onClick={handleLock}
               className="btn-subtle"
-              style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 700, border: '1px solid var(--border)' }}
+              style={{ flex: '1 1 auto', padding: '8px 12px', fontSize: '11px', fontWeight: 700, border: '1px solid var(--border)', textAlign: 'center' }}
             >
               🔒 Kilitle
             </button>
@@ -305,9 +307,9 @@ export default function SecuritySettingsCard() {
               type="button"
               onClick={handleLogout}
               style={{
-                padding: '6px 12px', fontSize: '11px', fontWeight: 800,
+                flex: '1 1 auto', padding: '8px 12px', fontSize: '11px', fontWeight: 800,
                 background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626',
-                borderRadius: 'var(--radius-md)', cursor: 'pointer'
+                borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'center'
               }}
             >
               🚪 Çıkış Yap
