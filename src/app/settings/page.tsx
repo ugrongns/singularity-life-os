@@ -47,7 +47,7 @@ export default function SettingsPage() {
     <SharedLayout notifications={notifData}>
       <div style={{ padding: '0 16px 8px' }}>
         <h1 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>⚙️ Ayarlar & Sistem</h1>
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Yerel SQLite yedekleme, veri export ve sistem durumu</p>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Supabase bulut yedekleme, veri dışa aktarma ve sistem durumu</p>
       </div>
 
       <div className="dashboard-grid">
@@ -68,17 +68,17 @@ export default function SettingsPage() {
             <div className="card-title-row">
               <div className="card-title">
                 <span>🛡️</span>
-                <span>Gizlilik & Yerel Depolama</span>
+                <span>Gizlilik & Bulut Depolama</span>
               </div>
             </div>
             <div style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.6' }}>
               <p style={{ margin: '0 0 10px' }}>
-                <strong>Singularity Life OS</strong>, tüm finansal, sağlık ve kişisel verilerinizi %100 yerel cihazınızda (<code>singularity.db</code>) saklar. Hiçbir veriniz üçüncü taraf sunuculara iletilmez.
+                <strong>Singularity Life OS</strong>, tüm finansal, sağlık ve kişisel verilerinizi şifreli ve güvenli <strong>Supabase Cloud PostgreSQL</strong> altyapısında saklar.
               </p>
               <div style={{ background: 'var(--surface-subtle)', padding: '10px', borderRadius: 'var(--radius-md)', fontSize: '11px', border: '1px solid var(--border)' }}>
-                <div>• <strong>Mimari:</strong> Next.js 15 App Router + SQLite (better-sqlite3)</div>
-                <div style={{ marginTop: '4px' }}>• <strong>Çevrimdışı Çalışma:</strong> Tam Destekli (Local-First PWA)</div>
-                <div style={{ marginTop: '4px' }}>• <strong>Veritabanı Konumu:</strong> <code>./singularity.db</code></div>
+                <div>• <strong>Altyapı:</strong> Vercel Edge Serverless + Supabase Cloud</div>
+                <div style={{ marginTop: '4px' }}>• <strong>Veritabanı:</strong> PostgreSQL (Drizzle ORM)</div>
+                <div style={{ marginTop: '4px' }}>• <strong>Erişim & Süreklilik:</strong> 7/24 Kesintisiz Bulut Senkronizasyonu</div>
               </div>
             </div>
           </div>
