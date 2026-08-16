@@ -10,10 +10,10 @@ export async function GET() {
     const user = await getAuthUser();
     const userId = user?.id;
     
-    const records = userId ? await db.select().from(homeMaintenanceRecords).where(eq(homeMaintenanceRecords.user_id, userId)).all() : [];
+    const records = userId ? await db.select().from(homeMaintenanceRecords).where(eq(homeMaintenanceRecords.user_id, userId)) : [];
     const today = new Date();
 
-    const processedMaintenance = (records as any[]).map((rec: any) => {
+    const processedMaintenance = (records).map((rec: any) => {
       const dueDate = new Date(rec.next_due_date);
       const daysLeft = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       const status = daysLeft <= 7 ? 'urgent' : daysLeft <= 30 ? 'warning' : 'ok';
@@ -26,8 +26,8 @@ export async function GET() {
     });
 
     // Ev Demirbaşları & Garanti Süreleri
-    const appliances = userId ? await db.select().from(homeAppliances).where(eq(homeAppliances.user_id, userId)).all() : [];
-    const processedAppliances = (appliances as any[]).map((app: any) => {
+    const appliances = userId ? await db.select().from(homeAppliances).where(eq(homeAppliances.user_id, userId)) : [];
+    const processedAppliances = (appliances).map((app: any) => {
       let daysLeftWarranty = null;
       let isWarrantyActive = false;
 
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
           updated_at: nowStr
         })
         .where(eq(homeMaintenanceRecords.id, targetId))
-        .run();
+        ;
 
       return NextResponse.json({
         success: true,
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
         status: 'ok',
         created_at: nowStr,
         updated_at: nowStr
-      }).run();
+      });
 
       return NextResponse.json({ success: true, message: '🏠 Ev bakım görevi eklendi!' });
     }
@@ -126,13 +126,13 @@ export async function POST(req: Request) {
         notes: data.notes || '',
         created_at: nowStr,
         updated_at: nowStr
-      }).run();
+      });
 
       return NextResponse.json({ success: true, message: '📺 Ev demirbaşı & garanti kaydı oluşturuldu!' });
     }
 
     if (action === 'delete_appliance') {
-      db.delete(homeAppliances).where(eq(homeAppliances.id, data.id)).run();
+      db.delete(homeAppliances).where(eq(homeAppliances.id, data.id));
       return NextResponse.json({ success: true, message: 'Cihaz kaydı silindi.' });
     }
 

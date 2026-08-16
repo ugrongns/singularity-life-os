@@ -4,7 +4,7 @@ import { appSettings, transactions, userHealthProfile, books, walletsAccounts, i
 import { eq, sql , or } from 'drizzle-orm';
 
 async function getSetting(key: string): Promise<string | null> {
-  const row = await db.select().from(appSettings).where(eq(appSettings.key, key)).get();
+  const row = (await db.select().from(appSettings).where(eq(appSettings.key, key)))[0];
   return row ? row.value : null;
 }
 
@@ -13,7 +13,7 @@ function setSetting(key: string, value: string) {
   db.insert(appSettings)
     .values({ key, value, updated_at: now })
     .onConflictDoUpdate({ target: appSettings.key, set: { value, updated_at: now } })
-    .run();
+    ;
 }
 
 // 1. GET: Telegram Bot Durum ve Yapılandırma Bilgisi
@@ -156,8 +156,8 @@ export async function POST(req: Request) {
 
     // C. GÜNLÜK ÖZET BÜLTENİ OLUŞTUR & GÖNDER (/ozet)
     if (body.action === 'get_daily_briefing' || body.action === 'send_daily_briefing') {
-      const health = (await db.select().from(userHealthProfile).limit(1).get()) || { consumed_water_ml: 1250, daily_water_target_ml: 2500 };
-      const activeBook = (await db.select().from(books).where(eq(books.status, 'reading')).limit(1).get()) || (await db.select().from(books).limit(1).get());
+      const health = (await db.select().from(userHealthProfile).limit(1))[0] || { consumed_water_ml: 1250, daily_water_target_ml: 2500 };
+      const activeBook = (await db.select().from(books).where(eq(books.status, 'reading')).limit(1))[0] || (await db.select().from(books).limit(1))[0];
       const today = new Date().toISOString().split('T')[0];
 
       const briefing = `🌌 *Singularity Günlük Yaşam Bülteni* (${today})\n\n` +
@@ -200,8 +200,8 @@ export async function POST(req: Request) {
           `🔹 \`/su 500\` ➔ 500 ml su ekler\n` +
           `🔹 \`/kitap 20\` ➔ Kitap ilerlemesi kaydeder`;
       } else if (text.startsWith('/ozet')) {
-        const health = (await db.select().from(userHealthProfile).limit(1).get()) || { consumed_water_ml: 1250, daily_water_target_ml: 2500 };
-        const activeBook = await db.select().from(books).where(eq(books.status, 'reading')).limit(1).get();
+        const health = (await db.select().from(userHealthProfile).limit(1))[0] || { consumed_water_ml: 1250, daily_water_target_ml: 2500 };
+        const activeBook = (await db.select().from(books).where(eq(books.status, 'reading')).limit(1))[0];
         replyText = `📊 *GÜNLÜK YAŞAM ÖZETİ*\n\n` +
           `💧 Su: ${health.consumed_water_ml} / ${health.daily_water_target_ml} ml\n` +
           (activeBook ? `📚 Aktif Kitap: ${activeBook.title} (${activeBook.current_page}/${activeBook.total_pages} sayfa)\n` : '') +
@@ -209,17 +209,17 @@ export async function POST(req: Request) {
       } else if (text.startsWith('/su')) {
         const parts = text.split(' ');
         const ml = parseInt(parts[1], 10) || 250;
-        const profile = await db.select().from(userHealthProfile).limit(1).get();
+        const profile = (await db.select().from(userHealthProfile).limit(1))[0];
         const current = (profile?.consumed_water_ml || 0) + ml;
-        db.update(userHealthProfile).set({ consumed_water_ml: current, updated_at: new Date().toISOString() }).run();
+        db.update(userHealthProfile).set({ consumed_water_ml: current, updated_at: new Date().toISOString() });
         replyText = `💧 *+${ml} ml su kaydedildi!*\nBugünkü toplam: ${current} ml`;
       } else if (text.startsWith('/kitap')) {
         const parts = text.split(' ');
         const pages = parseInt(parts[1], 10) || 10;
-        const activeBook = (await db.select().from(books).where(eq(books.status, 'reading')).limit(1).get()) || (await db.select().from(books).limit(1).get());
+        const activeBook = (await db.select().from(books).where(eq(books.status, 'reading')).limit(1))[0] || (await db.select().from(books).limit(1))[0];
         if (activeBook) {
           const newPage = Math.min(activeBook.total_pages, (activeBook.current_page || 0) + pages);
-          db.update(books).set({ current_page: newPage, updated_at: new Date().toISOString() }).where(eq(books.id, activeBook.id)).run();
+          db.update(books).set({ current_page: newPage, updated_at: new Date().toISOString() }).where(eq(books.id, activeBook.id));
           replyText = `📚 *Kitap İlerlemesi Kaydedildi!*\n${activeBook.title}: +${pages} sayfa (${newPage}/${activeBook.total_pages})`;
         }
       } else if (text.length > 0) {

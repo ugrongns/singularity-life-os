@@ -10,15 +10,15 @@ export async function GET() {
     const user = await getAuthUser();
     const userId = user?.id;
 
-    const items = userId ? await db.select().from(shoppingListItems).where(eq(shoppingListItems.user_id, userId)).all() : [];
-    const wallets = userId ? await db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))).all() : [];
+    const items = userId ? await db.select().from(shoppingListItems).where(eq(shoppingListItems.user_id, userId)) : [];
+    const wallets = userId ? await db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))) : [];
 
-    const unchecked = (items as any[]).filter((i: any) => i.is_checked === 0);
-    const checked   = (items as any[]).filter((i: any) => i.is_checked === 1);
+    const unchecked = (items).filter((i: any) => i.is_checked === 0);
+    const checked   = (items).filter((i: any) => i.is_checked === 1);
 
-    const totalEstimated = (items as any[]).reduce((sum: number, i: any) => sum + (i.estimated_price || 0), 0);
-    const remainingEstimated = (unchecked as any[]).reduce((sum: number, i: any) => sum + (i.estimated_price || 0), 0);
-    const checkedEstimated = (checked as any[]).reduce((sum: number, i: any) => sum + (i.estimated_price || 0), 0);
+    const totalEstimated = (items).reduce((sum: number, i: any) => sum + (i.estimated_price || 0), 0);
+    const remainingEstimated = (unchecked).reduce((sum: number, i: any) => sum + (i.estimated_price || 0), 0);
+    const checkedEstimated = (checked).reduce((sum: number, i: any) => sum + (i.estimated_price || 0), 0);
 
     // Kategorilere göre grupla ve kategori tutarlarını hesapla
     const byCategory: Record<string, typeof items> = {};
@@ -63,11 +63,11 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     const today = now.split('T')[0];
 
-    const currentItems = await db.select().from(shoppingListItems).all();
+    const currentItems = await db.select().from(shoppingListItems);
 
     if (action === 'add') {
       const nameTrimmed = (data.name || '').trim();
-      const existing = (currentItems as any[]).find((i: any) => i.name.toLowerCase() === nameTrimmed.toLowerCase());
+      const existing = (currentItems).find((i: any) => i.name.toLowerCase() === nameTrimmed.toLowerCase());
 
       if (existing) {
         // Çift ürün eklemek yerine var olanı güncelle ve unchecked yap
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
           estimated_price: Number(data.estimated_price) || existing.estimated_price,
           is_checked: 0,
           updated_at: now
-        }).where(eq(shoppingListItems.id, existing.id)).run();
+        }).where(eq(shoppingListItems.id, existing.id));
 
         return NextResponse.json({ success: true, id: existing.id, message: 'Ürün zaten listenizde vardı, güncellendi!' });
       }
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
         is_checked: 0,
         created_at: now,
         updated_at: now
-      }).run();
+      });
       return NextResponse.json({ success: true, id, message: 'Ürün eklendi!' });
     }
 
@@ -105,36 +105,36 @@ export async function POST(request: Request) {
         category: data.category,
         estimated_price: Number(data.estimated_price) || 0,
         updated_at: now
-      }).where(eq(shoppingListItems.id, data.id)).run();
+      }).where(eq(shoppingListItems.id, data.id));
       return NextResponse.json({ success: true, message: 'Ürün güncellendi!' });
     }
 
     if (action === 'toggle') {
-      const item = await db.select().from(shoppingListItems).where(eq(shoppingListItems.id, data.id)).limit(1).get();
+      const item = (await db.select().from(shoppingListItems).where(eq(shoppingListItems.id, data.id)).limit(1))[0];
       if (item) {
         db.update(shoppingListItems).set({
           is_checked: item.is_checked === 1 ? 0 : 1,
           updated_at: now
-        }).where(eq(shoppingListItems.id, data.id)).run();
+        }).where(eq(shoppingListItems.id, data.id));
       }
       return NextResponse.json({ success: true });
     }
 
     if (action === 'delete') {
-      db.delete(shoppingListItems).where(eq(shoppingListItems.id, data.id)).run();
+      db.delete(shoppingListItems).where(eq(shoppingListItems.id, data.id));
       return NextResponse.json({ success: true });
     }
 
     if (action === 'clear_checked') {
-      const checked = await db.select().from(shoppingListItems).where(eq(shoppingListItems.is_checked, 1)).all();
+      const checked = await db.select().from(shoppingListItems).where(eq(shoppingListItems.is_checked, 1));
       for (const item of checked) {
-        db.delete(shoppingListItems).where(eq(shoppingListItems.id, item.id)).run();
+        db.delete(shoppingListItems).where(eq(shoppingListItems.id, item.id));
       }
       return NextResponse.json({ success: true, deleted: checked.length });
     }
 
     if (action === 'clear_all') {
-      db.delete(shoppingListItems).run();
+      db.delete(shoppingListItems);
       return NextResponse.json({ success: true, message: 'Tüm liste temizlendi!' });
     }
 
@@ -174,14 +174,14 @@ export async function POST(request: Request) {
 
       for (const item of presetItems) {
         const itemLower = item.name.toLowerCase();
-        const existing = (currentItems as any[]).find((i: any) => i.name.toLowerCase() === itemLower);
+        const existing = (currentItems).find((i: any) => i.name.toLowerCase() === itemLower);
 
         if (existing) {
           // Zaten varsa duplicate oluşturma, sadece is_checked=0 yap
           db.update(shoppingListItems).set({
             is_checked: 0,
             updated_at: now
-          }).where(eq(shoppingListItems.id, existing.id)).run();
+          }).where(eq(shoppingListItems.id, existing.id));
           existingCount++;
         } else {
           const id = `shop-preset-${Date.now()}-${added}`;
@@ -195,7 +195,7 @@ export async function POST(request: Request) {
             is_checked: 0,
             created_at: now,
             updated_at: now
-          }).run();
+          });
           added++;
         }
       }
@@ -210,29 +210,29 @@ export async function POST(request: Request) {
     // Alışverişi Bitir & Cüzdana Harcama Olarak İşle
     if (action === 'checkout_to_wallet') {
       const walletId = data.wallet_id;
-      const checkedItems = await db.select().from(shoppingListItems).where(eq(shoppingListItems.is_checked, 1)).all();
+      const checkedItems = await db.select().from(shoppingListItems).where(eq(shoppingListItems.is_checked, 1));
       
       if (!walletId) {
         return NextResponse.json({ success: false, error: 'Lütfen harcama yapılacak cüzdanı seçin.' }, { status: 400 });
       }
 
-      const totalAmount = (checkedItems as any[]).reduce((sum: number, i: any) => sum + (i.estimated_price || 0), 0);
+      const totalAmount = (checkedItems).reduce((sum: number, i: any) => sum + (i.estimated_price || 0), 0);
       if (totalAmount <= 0) {
         return NextResponse.json({ success: false, error: 'Alınan ürün tutarı 0 TL. Harcama kaydedilemedi.' }, { status: 400 });
       }
 
       // Cüzdanı al ve bakiyesini güncelle
-      const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).limit(1).get();
+      const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).limit(1))[0];
       if (wallet) {
         db.update(walletsAccounts).set({
           balance: (wallet.balance || 0) - totalAmount,
           updated_at: now
-        }).where(eq(walletsAccounts.id, walletId)).run();
+        }).where(eq(walletsAccounts.id, walletId));
       }
 
       // Harcama işlemi kaydet (transactions)
       const txId = `tx-shop-${Date.now()}`;
-      const itemNames = (checkedItems as any[]).map((i: any) => i.name).join(', ');
+      const itemNames = (checkedItems).map((i: any) => i.name).join(', ');
       db.insert(transactions).values({
         id: txId,
         wallet_id: walletId,
@@ -244,11 +244,11 @@ export async function POST(request: Request) {
         is_verified: 1,
         created_at: now,
         updated_at: now
-      }).run();
+      });
 
       // Alınan ürünleri listeden temizle
       for (const item of checkedItems) {
-        db.delete(shoppingListItems).where(eq(shoppingListItems.id, item.id)).run();
+        db.delete(shoppingListItems).where(eq(shoppingListItems.id, item.id));
       }
 
       return NextResponse.json({

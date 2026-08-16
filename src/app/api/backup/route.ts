@@ -1,41 +1,57 @@
 import { NextResponse } from 'next/server';
-import { initDatabase } from '@/db';
-import fs from 'fs';
-import path from 'path';
-import crypto from 'crypto';
-
-const DB_PATH = path.join(process.cwd(), 'singularity.db');
-const BACKUP_DIR = path.join(process.cwd(), 'backups');
+import { db } from '@/db';
+import * as schema from '@/db/schema';
 
 export async function GET() {
   try {
-    if (!fs.existsSync(BACKUP_DIR)) {
-      fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    // Export all tables from Supabase as JSON backup
+    const exportData: Record<string, any[]> = {};
+
+    const tables = [
+      { name: 'users', table: schema.users },
+      { name: 'family_members', table: schema.familyMembers },
+      { name: 'wallets_accounts', table: schema.walletsAccounts },
+      { name: 'categories', table: schema.categories },
+      { name: 'transactions', table: schema.transactions },
+      { name: 'sinking_funds', table: schema.sinkingFunds },
+      { name: 'books', table: schema.books },
+      { name: 'reading_sessions', table: schema.readingSessions },
+      { name: 'book_quotes', table: schema.bookQuotes },
+      { name: 'vehicles', table: schema.vehicles },
+      { name: 'vehicle_maintenance_records', table: schema.vehicleMaintenanceRecords },
+      { name: 'vehicle_fuel_logs', table: schema.vehicleFuelLogs },
+      { name: 'investment_assets', table: schema.investmentAssets },
+      { name: 'real_estate_properties', table: schema.realEstateProperties },
+      { name: 'supplement_routines', table: schema.supplementRoutines },
+      { name: 'sleep_logs', table: schema.sleepLogs },
+      { name: 'mood_logs', table: schema.moodLogs },
+      { name: 'biometrics', table: schema.biometrics },
+      { name: 'smart_scale_logs', table: schema.smartScaleLogs },
+      { name: 'shopping_list_items', table: schema.shoppingListItems },
+      { name: 'app_settings', table: schema.appSettings },
+    ];
+
+    for (const { name, table } of tables) {
+      try {
+        const rows = await db.select().from(table as any);
+        exportData[name] = rows;
+      } catch {
+        exportData[name] = [];
+      }
     }
 
-    const files = fs.readdirSync(BACKUP_DIR)
-      .filter(f => f.endsWith('.db') || f.endsWith('.json') || f.endsWith('.enc'))
-      .map(f => {
-        const stat = fs.statSync(path.join(BACKUP_DIR, f));
-        return {
-          name: f,
-          size_kb: Math.round(stat.size / 1024),
-          created_at: stat.birthtime.toISOString(),
-          is_encrypted: f.endsWith('.enc')
-        };
-      })
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-    const lastBackup = files[0] || null;
-    const dbStat = fs.existsSync(DB_PATH) ? fs.statSync(DB_PATH) : null;
+    const totalRecords = Object.values(exportData).reduce((sum, rows) => sum + rows.length, 0);
 
     return NextResponse.json({
       success: true,
       data: {
-        last_backup: lastBackup,
-        backup_count: files.length,
-        backups: files.slice(0, 10),
-        db_size_kb: dbStat ? Math.round(dbStat.size / 1024) : 0
+        last_backup: null,
+        backup_count: 0,
+        backups: [],
+        db_size_kb: 0,
+        export_available: true,
+        total_records: totalRecords,
+        message: 'Supabase PostgreSQL üzerinde çalışıyor. Veri export için aşağıdaki endpoint\'i kullanın: /api/backup/export'
       }
     });
   } catch (error: any) {
@@ -45,104 +61,60 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    initDatabase();
-    const body = await request.json();
-    const { action, passphrase } = body;
+    const body = await request.json().catch(() => ({}));
+    const action = body.action;
 
-    if (!fs.existsSync(BACKUP_DIR)) {
-      fs.mkdirSync(BACKUP_DIR, { recursive: true });
-    }
+    if (action === 'export') {
+      // Full JSON export from Supabase
+      const exportData: Record<string, any[]> = {};
+      const tableList = [
+        { name: 'users', table: schema.users },
+        { name: 'family_members', table: schema.familyMembers },
+        { name: 'wallets_accounts', table: schema.walletsAccounts },
+        { name: 'categories', table: schema.categories },
+        { name: 'transactions', table: schema.transactions },
+        { name: 'sinking_funds', table: schema.sinkingFunds },
+        { name: 'books', table: schema.books },
+        { name: 'reading_sessions', table: schema.readingSessions },
+        { name: 'book_quotes', table: schema.bookQuotes },
+        { name: 'vehicles', table: schema.vehicles },
+        { name: 'vehicle_maintenance_records', table: schema.vehicleMaintenanceRecords },
+        { name: 'vehicle_fuel_logs', table: schema.vehicleFuelLogs },
+        { name: 'investment_assets', table: schema.investmentAssets },
+        { name: 'real_estate_properties', table: schema.realEstateProperties },
+        { name: 'supplement_routines', table: schema.supplementRoutines },
+        { name: 'sleep_logs', table: schema.sleepLogs },
+        { name: 'mood_logs', table: schema.moodLogs },
+        { name: 'biometrics', table: schema.biometrics },
+        { name: 'shopping_list_items', table: schema.shoppingListItems },
+        { name: 'app_settings', table: schema.appSettings },
+      ];
 
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10);
-    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-');
+      for (const { name, table } of tableList) {
+        try {
+          const rows = await db.select().from(table as any);
+          exportData[name] = rows;
+        } catch {
+          exportData[name] = [];
+        }
+      }
 
-    if (action === 'backup_db') {
-      const backupName = `singularity-backup-${dateStr}-${timeStr}.db`;
-      const backupPath = path.join(BACKUP_DIR, backupName);
-      fs.copyFileSync(DB_PATH, backupPath);
-      const stat = fs.statSync(backupPath);
+      const json = JSON.stringify({
+        exported_at: new Date().toISOString(),
+        source: 'supabase-postgresql',
+        data: exportData
+      }, null, 2);
 
-      cleanOldBackups();
-
-      return NextResponse.json({
-        success: true,
-        backup: { name: backupName, size_kb: Math.round(stat.size / 1024), created_at: now.toISOString(), is_encrypted: false }
-      });
-    }
-
-    // AES-256 Şifreli Yedekleme
-    if (action === 'encrypted_backup') {
-      const secretKey = passphrase || 'SingularityMasterKey2026';
-      const backupName = `singularity-aes256-${dateStr}-${timeStr}.enc`;
-      const backupPath = path.join(BACKUP_DIR, backupName);
-
-      const dbBuffer = fs.readFileSync(DB_PATH);
-      const salt = crypto.randomBytes(16);
-      const key = crypto.pbkdf2Sync(secretKey, salt, 100000, 32, 'sha256');
-      const iv = crypto.randomBytes(16);
-      const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-
-      const encrypted = Buffer.concat([cipher.update(dbBuffer), cipher.final()]);
-      const authTag = cipher.getAuthTag();
-
-      // Format: salt (16) + iv (16) + authTag (16) + encrypted data
-      const finalBuffer = Buffer.concat([salt, iv, authTag, encrypted]);
-      fs.writeFileSync(backupPath, finalBuffer);
-
-      cleanOldBackups();
-
-      return NextResponse.json({
-        success: true,
-        backup: {
-          name: backupName,
-          size_kb: Math.round(finalBuffer.length / 1024),
-          created_at: now.toISOString(),
-          is_encrypted: true,
-          algorithm: 'AES-256-GCM'
+      return new Response(json, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Disposition': `attachment; filename="singularity-backup-${new Date().toISOString().split('T')[0]}.json"`
         }
       });
     }
 
-    if (action === 'export_json') {
-      const Database = (await import('better-sqlite3')).default;
-      const sqlite = new Database(DB_PATH, { readonly: true });
-
-      const tables = sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as { name: string }[];
-      const exportData: Record<string, any[]> = {};
-
-      for (const { name } of tables) {
-        exportData[name] = sqlite.prepare(`SELECT * FROM ${name}`).all();
-      }
-      sqlite.close();
-
-      const jsonStr = JSON.stringify(exportData, null, 2);
-      const exportName = `singularity-export-${dateStr}.json`;
-      const exportPath = path.join(BACKUP_DIR, exportName);
-      fs.writeFileSync(exportPath, jsonStr, 'utf-8');
-
-      return NextResponse.json({
-        success: true,
-        export: { name: exportName, size_kb: Math.round(jsonStr.length / 1024), tables: tables.length, created_at: now.toISOString() }
-      });
-    }
-
-    return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Geçersiz işlem' }, { status: 400 });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
-}
-
-function cleanOldBackups() {
-  try {
-    const cutoff = Date.now() - 30 * 86400000;
-    const allFiles = fs.readdirSync(BACKUP_DIR);
-    for (const f of allFiles) {
-      const fp = path.join(BACKUP_DIR, f);
-      const fstat = fs.statSync(fp);
-      if (fstat.birthtime.getTime() < cutoff) {
-        fs.unlinkSync(fp);
-      }
-    }
-  } catch (e) {}
 }

@@ -17,14 +17,14 @@ export async function GET(req: Request) {
     const currentMonthStr = monthParam || new Date().toISOString().slice(0, 7);
 
     // Kategori Detayı
-    const category = await db.select().from(categories).where(eq(categories.id, categoryId)).get();
+    const category = (await db.select().from(categories).where(eq(categories.id, categoryId)))[0];
     if (!category) {
       return NextResponse.json({ success: false, error: 'Kategori bulunamadı.' }, { status: 404 });
     }
 
     // Hesap isimlerini haritalamak için cüzdanları al
-    const wallets = await db.select().from(walletsAccounts).all();
-    const walletMap = new Map((wallets as any[]).map((w: any) => [w.id, w.name]));
+    const wallets = await db.select().from(walletsAccounts);
+    const walletMap = new Map((wallets).map((w: any) => [w.id, w.name]));
 
     // Bu kategoriye ve seçili aya ait tüm işlemler
     const txList = await db.select()
@@ -32,15 +32,14 @@ export async function GET(req: Request) {
       .where(
         sql`${transactions.category_id} = ${categoryId} AND substr(${transactions.transaction_date}, 1, 7) = ${currentMonthStr}`
       )
-      .orderBy(desc(transactions.transaction_date), desc(transactions.created_at))
-      .all();
+      .orderBy(desc(transactions.transaction_date), desc(transactions.created_at));
 
-    const formattedTxList = (txList as any[]).map((tx: any) => ({
+    const formattedTxList = (txList).map((tx: any) => ({
       ...tx,
       wallet_name: walletMap.get(tx.wallet_id) || 'Bilinmeyen Hesap'
     }));
 
-    const totalSpent = (txList as any[]).reduce((sum: number, t: any) => sum + t.amount, 0);
+    const totalSpent = (txList).reduce((sum: number, t: any) => sum + t.amount, 0);
 
     return NextResponse.json({
       success: true,

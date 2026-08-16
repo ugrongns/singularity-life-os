@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     const targetLimit = Number(monthly_budget_limit) || 0;
 
     // 1. Maksimum Bütçe Tavanı Kontrolü (Aylık Toplam Gelir + Kredi Kartı Limitleri Toplamı)
-    const accounts = await db.select().from(walletsAccounts).where(eq(walletsAccounts.is_active, 1)).all();
+    const accounts = await db.select().from(walletsAccounts).where(eq(walletsAccounts.is_active, 1));
     let totalCreditCardLimits = 0;
     for (const acc of accounts) {
       if (acc.type === 'credit_card') {
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     const defaultIncome = 94000;
     const maxAllowedCap = defaultIncome + totalCreditCardLimits;
 
-    const allCategories = await db.select().from(categories).all();
+    const allCategories = await db.select().from(categories);
     let currentTotalLimitExceptTarget = 0;
 
     for (const cat of allCategories) {
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
           updated_at: now
         })
         .where(eq(categories.id, id))
-        .run();
+        ;
 
       return NextResponse.json({ success: true, message: 'Kategori ve bütçe limiti güncellendi!' });
     } else {
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
         color: color || '#10B981',
         created_at: now,
         updated_at: now
-      }).run();
+      });
 
       return NextResponse.json({ success: true, message: 'Yeni kategori başarıyla eklendi!' });
     }
@@ -104,7 +104,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Kategori ID zorunludur.' }, { status: 400 });
     }
 
-    db.delete(categories).where(eq(categories.id, id)).run();
+    db.delete(categories).where(eq(categories.id, id));
 
     return NextResponse.json({ success: true, message: 'Kategori başarıyla silindi.' });
   } catch (error: any) {

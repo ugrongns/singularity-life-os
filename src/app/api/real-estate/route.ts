@@ -12,12 +12,12 @@ export async function GET() {
     const userId = user?.id;
 
     const properties = userId
-      ? await db.select().from(realEstateProperties).where(or(eq(realEstateProperties.user_id, userId), eq(realEstateProperties.is_family_shared, 1))).all()
+      ? await db.select().from(realEstateProperties).where(or(eq(realEstateProperties.user_id, userId), eq(realEstateProperties.is_family_shared, 1)))
       : [];
     const currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
 
     // Her mülk için kira getirisi, amortisman süresi ve bu ayki tahsilat durumu
-    const processedProperties = await Promise.all((properties as any[]).map(async (prop: any) => {
+    const processedProperties = await Promise.all((properties).map(async (prop: any) => {
       const annualRent = prop.monthly_rent_income * 12;
       const rentalYield = prop.estimated_market_value > 0 ? ((annualRent / prop.estimated_market_value) * 100) : 0;
       const amortizationYears = annualRent > 0 ? (prop.estimated_market_value / annualRent) : 0;
@@ -25,9 +25,8 @@ export async function GET() {
       // Bu ay kira tahsil edildi mi kontrolü
       const cashflows = await db.select()
         .from(realEstateCashflows)
-        .where(eq(realEstateCashflows.property_id, prop.id))
-        .all();
-      const collectedThisMonth = (cashflows as any[]).some((cf: any) => cf.type === 'rent_collection' && cf.date.startsWith(currentMonth));
+        .where(eq(realEstateCashflows.property_id, prop.id));
+      const collectedThisMonth = (cashflows).some((cf: any) => cf.type === 'rent_collection' && cf.date.startsWith(currentMonth));
 
       return {
         ...prop,
@@ -38,8 +37,8 @@ export async function GET() {
       };
     }));
 
-    const totalRealEstateValue = (properties as any[]).reduce((sum: number, p: any) => sum + p.estimated_market_value, 0);
-    const totalMonthlyRentIncome = (properties as any[]).reduce((sum: number, p: any) => sum + p.monthly_rent_income, 0);
+    const totalRealEstateValue = (properties).reduce((sum: number, p: any) => sum + p.estimated_market_value, 0);
+    const totalMonthlyRentIncome = (properties).reduce((sum: number, p: any) => sum + p.monthly_rent_income, 0);
 
     return NextResponse.json({
       success: true,
@@ -65,7 +64,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { property_id, wallet_id = 'wallet-isbank' } = body;
 
-    const property = await db.select().from(realEstateProperties).where(eq(realEstateProperties.id, property_id)).get();
+    const property = (await db.select().from(realEstateProperties).where(eq(realEstateProperties.id, property_id)))[0];
     if (!property) {
       return NextResponse.json({ success: false, error: 'Mülk bulunamadı.' }, { status: 404 });
     }
@@ -85,7 +84,7 @@ export async function POST(req: Request) {
       notes: `${property.title} - ${property.tenant_name} Aylık Kira Tahsilatı`,
       created_at: now,
       updated_at: now
-    }).run();
+    });
 
     // 2. Bütçe Modülüne Gelir Kaydet
     const txId = `tx-rent-${Date.now()}`;
@@ -104,15 +103,15 @@ export async function POST(req: Request) {
       updated_at: now,
       sync_status: 'synced',
       device_id: 'mac-local'
-    }).run();
+    });
 
     // 3. Banka Hesabı Bakiyesini Artır
-    const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)).get();
+    const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)))[0];
     if (wallet) {
       db.update(walletsAccounts)
         .set({ balance: wallet.balance + rentAmount, updated_at: now })
         .where(eq(walletsAccounts.id, wallet_id))
-        .run();
+        ;
     }
 
     // 4. Event Bus Bildirimi

@@ -62,29 +62,29 @@ export async function POST(req: Request) {
             updated_at: nowISO,
             sync_status: 'synced',
             device_id: 'voice-ai'
-          }).run();
+          });
 
           // Cüzdan Bakiyesi
-          const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).get();
+          const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)))[0];
           if (wallet) {
             const newBal = wallet.type === 'credit_card' ? wallet.balance + amount : wallet.balance - amount;
-            await db.update(walletsAccounts).set({ balance: newBal, updated_at: nowISO }).where(eq(walletsAccounts.id, walletId)).run();
+            await db.update(walletsAccounts).set({ balance: newBal, updated_at: nowISO }).where(eq(walletsAccounts.id, walletId));
           }
           results.push(`💳 ${act.details.merchant} (${amount} ₺)`);
         } else if (act.type === 'water') {
           const amount = Number(act.details.amount_ml) || 250;
-          const profile = await db.select().from(userHealthProfile).limit(1).get();
+          const profile = (await db.select().from(userHealthProfile).limit(1))[0];
           const current = (profile?.consumed_water_ml || 0) + amount;
           await db.update(userHealthProfile)
             .set({ consumed_water_ml: current, updated_at: nowISO })
-            .run();
+            ;
           results.push(`💧 +${amount} ml Su (Toplam: ${current} ml)`);
         } else if (act.type === 'reading') {
           const pages = Number(act.details.pages) || 10;
-          const activeBook = (await db.select().from(books).where(eq(books.status, 'reading')).limit(1).get()) || (await db.select().from(books).limit(1).get());
+          const activeBook = (await db.select().from(books).where(eq(books.status, 'reading')).limit(1))[0] || (await db.select().from(books).limit(1))[0];
           if (activeBook) {
             const newPage = Math.min(activeBook.total_pages, (activeBook.current_page || 0) + pages);
-            await db.update(books).set({ current_page: newPage, updated_at: nowISO }).where(eq(books.id, activeBook.id)).run();
+            await db.update(books).set({ current_page: newPage, updated_at: nowISO }).where(eq(books.id, activeBook.id));
             results.push(`📚 ${activeBook.title} (+${pages} sayfa ➔ ${newPage}. sayfa)`);
           }
         } else if (act.type === 'shopping') {
@@ -99,10 +99,10 @@ export async function POST(req: Request) {
             source: 'voice_command',
             created_at: nowISO,
             updated_at: nowISO
-          }).run();
+          });
           results.push(`🛒 ${act.details.name} (Market Listesine eklendi)`);
         } else if (act.type === 'supplement') {
-          db.update(supplementRoutines).set({ is_taken_today: 1, updated_at: nowISO }).run();
+          db.update(supplementRoutines).set({ is_taken_today: 1, updated_at: nowISO });
           results.push(`💊 Günlük takviyeler alındı olarak işaretlendi`);
         }
       }

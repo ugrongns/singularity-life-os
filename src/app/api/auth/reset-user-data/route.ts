@@ -39,10 +39,10 @@ export async function POST() {
 
     for (const table of userTables) {
       try {
-        await db.delete(table).where(eq((table as any).user_id, userId)).run();
+        await db.delete(table).where(eq((table as any).user_id, userId));
       } catch (err) {
         try {
-          await db.delete(table).run();
+          await db.delete(table);
         } catch (innerErr) {
           console.warn('Error clearing table:', innerErr);
         }

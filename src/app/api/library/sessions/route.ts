@@ -34,10 +34,10 @@ export async function POST(req: Request) {
       session_date: now.split('T')[0],
       created_at: now,
       updated_at: now
-    }).run();
+    });
 
     // 2. Kitabın güncel sayfasını ilerlet
-    const book = await db.select().from(books).where(eq(books.id, book_id)).get();
+    const book = (await db.select().from(books).where(eq(books.id, book_id)))[0];
     if (book && end > book.current_page) {
       const isFinished = end >= book.total_pages;
       db.update(books)
@@ -48,15 +48,14 @@ export async function POST(req: Request) {
           updated_at: now
         })
         .where(eq(books.id, book_id))
-        .run();
+        ;
     }
 
     // 3. WPM ve Sayfa Başı Saniye Kalibrasyonu (Son 100 Seans Toplamı)
     const recentSessions = await db.select()
       .from(readingSessions)
       .orderBy(desc(readingSessions.created_at))
-      .limit(100)
-      .all();
+      .limit(100);
 
     let totalWords = 0;
     let totalMinutes = 0;
@@ -73,7 +72,7 @@ export async function POST(req: Request) {
     const calculatedAvgWpm = totalMinutes > 0 ? Math.round(totalWords / totalMinutes) : 220;
     const calculatedSecPerPage = totalPages > 0 ? Math.round((totalMinutes * 60) / totalPages) : 120;
 
-    const profile = await db.select().from(userReadingProfile).limit(1).get();
+    const profile = (await db.select().from(userReadingProfile).limit(1))[0];
     if (profile) {
       db.update(userReadingProfile)
         .set({
@@ -82,7 +81,7 @@ export async function POST(req: Request) {
           updated_at: now
         })
         .where(eq(userReadingProfile.id, profile.id))
-        .run();
+        ;
     }
 
     return NextResponse.json({

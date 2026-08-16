@@ -20,8 +20,7 @@ export async function POST(req: Request) {
       // Hem email hem username ile ara
       targetUser = await db.select().from(users)
         .where(or(eq(users.email, identifier), eq(users.username, identifier)))
-        .limit(1)
-        .get();
+        .limit(1).then((r: any) => r[0]);
 
       if (!targetUser) {
         return NextResponse.json({
@@ -42,9 +41,9 @@ export async function POST(req: Request) {
     else if (pin && action === 'unlock') {
       const targetUserId = body.user_id;
       if (targetUserId) {
-        targetUser = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1).get();
+        targetUser = (await db.select().from(users).where(eq(users.id, targetUserId)).limit(1))[0];
       } else {
-        targetUser = (await db.select().from(users).where(eq(users.is_master_account, 1)).limit(1).get()) || (await db.select().from(users).limit(1).get());
+        targetUser = (await db.select().from(users).where(eq(users.is_master_account, 1)).limit(1))[0] || (await db.select().from(users).limit(1))[0];
       }
 
       if (!targetUser) {
@@ -75,7 +74,7 @@ export async function POST(req: Request) {
       expires_at: expiresAt,
       device_name: 'web-local',
       created_at: now
-    }).run();
+    });
 
     const cookieStore = await cookies();
     cookieStore.set('singularity_session', token, {

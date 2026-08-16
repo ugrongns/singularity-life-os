@@ -13,7 +13,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesap ID zorunludur.' }, { status: 400 });
     }
 
-    const account = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, id)).get();
+    const account = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, id)))[0];
     if (!account || account.type !== 'time_deposit') {
       return NextResponse.json({ success: false, error: 'Vadeli mevduat hesabı bulunamadı.' }, { status: 404 });
     }
@@ -62,12 +62,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesap ID ve Hedef Hesap ID zorunludur.' }, { status: 400 });
     }
 
-    const depositAcc = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).get();
+    const depositAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)))[0];
     if (!depositAcc || depositAcc.type !== 'time_deposit') {
       return NextResponse.json({ success: false, error: 'Vadeli mevduat hesabı bulunamadı.' }, { status: 404 });
     }
 
-    const targetAcc = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetAccountId)).get();
+    const targetAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetAccountId)))[0];
     if (!targetAcc) {
       return NextResponse.json({ success: false, error: 'Hedef vadesiz hesap bulunamadı.' }, { status: 404 });
     }
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
         updated_at: nowISO
       })
       .where(eq(walletsAccounts.id, targetAccountId))
-      .run();
+      ;
 
     // 2. Vadeli hesabı sıfırla ve deaktif et
     db.update(walletsAccounts)
@@ -96,7 +96,7 @@ export async function POST(req: Request) {
         updated_at: nowISO
       })
       .where(eq(walletsAccounts.id, accountId))
-      .run();
+      ;
 
     // 3. Anapara dönüşü işlemini kaydet
     db.insert(transactions).values({
@@ -116,7 +116,7 @@ export async function POST(req: Request) {
       updated_at: nowISO,
       sync_status: 'synced',
       device_id: 'mac-local'
-    }).run();
+    });
 
     // 4. Faiz geliri işlemini kaydet
     if (interest > 0) {
@@ -137,7 +137,7 @@ export async function POST(req: Request) {
         updated_at: nowISO,
         sync_status: 'synced',
         device_id: 'mac-local'
-      }).run();
+      });
     }
 
     return NextResponse.json({

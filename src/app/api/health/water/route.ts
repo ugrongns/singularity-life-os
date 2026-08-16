@@ -6,7 +6,7 @@ import { eq , or } from 'drizzle-orm';
 export async function GET() {
   try {
     initDatabase();
-    const profile = (await db.select().from(userHealthProfile).limit(1).get()) || {
+    const profile = (await db.select().from(userHealthProfile).limit(1))[0] || {
       daily_water_target_ml: 2500,
       consumed_water_ml: 1250
     };
@@ -35,12 +35,12 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { amount_ml = 250, reset = false } = body;
 
-    const profile = await db.select().from(userHealthProfile).limit(1).get();
+    const profile = (await db.select().from(userHealthProfile).limit(1))[0];
     const current = reset ? 0 : (profile?.consumed_water_ml || 0) + (parseFloat(amount_ml) || 250);
 
     db.update(userHealthProfile)
       .set({ consumed_water_ml: current, updated_at: new Date().toISOString() })
-      .run();
+      ;
 
     return NextResponse.json({
       success: true,

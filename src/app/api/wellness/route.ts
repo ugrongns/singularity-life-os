@@ -13,17 +13,17 @@ export async function GET() {
     const today = new Date().toISOString().split('T')[0];
 
     const supplements = userId
-      ? await db.select().from(supplementRoutines).where(and(eq(supplementRoutines.is_active, 1), eq(supplementRoutines.user_id, userId))).all()
+      ? await db.select().from(supplementRoutines).where(and(eq(supplementRoutines.is_active, 1), eq(supplementRoutines.user_id, userId)))
       : [];
 
     const todayMood = await db.select().from(moodLogs)
-      .where(eq(moodLogs.date, today)).all();
+      .where(eq(moodLogs.date, today));
 
     const todaySleep = await db.select().from(sleepLogs)
-      .where(eq(sleepLogs.date, today)).all();
+      .where(eq(sleepLogs.date, today));
 
     const todayWaterList = await db.select().from(waterIntakeLogs)
-      .where(eq(waterIntakeLogs.date, today)).all();
+      .where(eq(waterIntakeLogs.date, today));
 
     const todayWater = todayWaterList[0] || { amount_ml: 0, goal_ml: 2500 };
 
@@ -31,34 +31,34 @@ export async function GET() {
     const last7Days = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
     const moodHistory = await db.select().from(moodLogs)
       .where(sql`${moodLogs.date} >= ${last7Days}`)
-      .orderBy(desc(moodLogs.date)).all();
+      .orderBy(desc(moodLogs.date));
 
     const sleepHistory = await db.select().from(sleepLogs)
       .where(sql`${sleepLogs.date} >= ${last7Days}`)
-      .orderBy(desc(sleepLogs.date)).all();
+      .orderBy(desc(sleepLogs.date));
 
     const waterHistory = await db.select().from(waterIntakeLogs)
       .where(sql`${waterIntakeLogs.date} >= ${last7Days}`)
-      .orderBy(desc(waterIntakeLogs.date)).all();
+      .orderBy(desc(waterIntakeLogs.date));
 
     // Son biyometri
-    const latestBiometric = await db.select().from(biometrics)
-      .orderBy(desc(biometrics.date)).limit(1).all();
+    const latestBiometric = (await db.select().from(biometrics)
+      .orderBy(desc(biometrics.date)).limit(1))[0];
 
     const scaleLogs = await db.select().from(smartScaleLogs)
-      .orderBy(desc(smartScaleLogs.measurement_date)).all();
+      .orderBy(desc(smartScaleLogs.measurement_date));
 
-    const morningSupps = (supplements as any[]).filter((s: any) => s.timing === 'morning');
-    const eveningSupps = (supplements as any[]).filter((s: any) => s.timing === 'evening');
-    const mealSupps    = (supplements as any[]).filter((s: any) => s.timing === 'with_meal');
+    const morningSupps = (supplements).filter((s: any) => s.timing === 'morning');
+    const eveningSupps = (supplements).filter((s: any) => s.timing === 'evening');
+    const mealSupps    = (supplements).filter((s: any) => s.timing === 'with_meal');
 
     const totalSupps   = supplements.length;
-    const takenSupps   = (supplements as any[]).filter((s: any) => s.is_taken_today === 1).length;
+    const takenSupps   = (supplements).filter((s: any) => s.is_taken_today === 1).length;
 
     // AI Sağlık Çıkarım Hesaplaması
     let aiInsight = 'Günlük su ve uyku takibinizi düzenli yaparak haftalık canlı AI sağlık analinizi oluşturabilirsiniz!';
     if (sleepHistory.length > 0) {
-      const avgSleep = (sleepHistory as any[]).reduce((acc: number, s: any) => acc + s.duration_hours, 0) / sleepHistory.length;
+      const avgSleep = (sleepHistory).reduce((acc: number, s: any) => acc + s.duration_hours, 0) / sleepHistory.length;
       if (avgSleep >= 7.5) {
         aiInsight = `✨ Mükemmel! Son 7 gündür ortalama ${avgSleep.toFixed(1)} saat uyuyorsunuz. Bu düzen zihinsel odaklanma ve bağışıklık sisteminizi %30 daha güçlü tutuyor.`;
       } else {
@@ -76,7 +76,7 @@ export async function GET() {
         moodHistory,
         sleepHistory,
         waterHistory,
-        latestBiometric: latestBiometric[0] || null,
+        latestBiometric: latestBiometric || null,
         scaleLogs,
         aiInsight
       }
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
     const today = now.split('T')[0];
 
     if (action === 'take_supplement') {
-      const suppList = await db.select().from(supplementRoutines).where(eq(supplementRoutines.id, data.id)).all();
+      const suppList = await db.select().from(supplementRoutines).where(eq(supplementRoutines.id, data.id));
       const supp = suppList[0];
       if (supp) {
         const lastDate = supp.last_taken_date;
@@ -111,13 +111,13 @@ export async function POST(request: Request) {
           remaining_pills: newRemaining,
           last_taken_date: today,
           updated_at: now
-        }).where(eq(supplementRoutines.id, data.id)).run();
+        }).where(eq(supplementRoutines.id, data.id));
       }
       return NextResponse.json({ success: true, message: 'Takviye alındı!' });
     }
 
     if (action === 'log_water') {
-      const existingList = await db.select().from(waterIntakeLogs).where(eq(waterIntakeLogs.date, today)).all();
+      const existingList = await db.select().from(waterIntakeLogs).where(eq(waterIntakeLogs.date, today));
       const existing = existingList[0];
       const newAmount = Math.max(0, Number(data.amount_ml) || 0);
       const goal = Number(data.goal_ml) || 2500;
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
           amount_ml: newAmount,
           goal_ml: goal,
           updated_at: now
-        }).where(eq(waterIntakeLogs.id, existing.id)).run();
+        }).where(eq(waterIntakeLogs.id, existing.id));
       } else {
         const id = `water-${Date.now()}`;
         db.insert(waterIntakeLogs).values({
@@ -137,7 +137,7 @@ export async function POST(request: Request) {
           goal_ml: goal,
           created_at: now,
           updated_at: now
-        }).run();
+        });
       }
       return NextResponse.json({ success: true, amount_ml: newAmount });
     }
@@ -157,7 +157,7 @@ export async function POST(request: Request) {
         is_active: 1,
         created_at: now,
         updated_at: now
-      }).run();
+      });
       return NextResponse.json({ success: true, id, message: 'Takviye eklendi!' });
     }
 
@@ -170,17 +170,17 @@ export async function POST(request: Request) {
         remaining_pills: parseInt(data.remaining_pills) || 0,
         notes: data.notes || null,
         updated_at: now
-      }).where(eq(supplementRoutines.id, data.id)).run();
+      }).where(eq(supplementRoutines.id, data.id));
       return NextResponse.json({ success: true, message: 'Takviye güncellendi!' });
     }
 
     if (action === 'delete_supplement') {
-      db.update(supplementRoutines).set({ is_active: 0, updated_at: now }).where(eq(supplementRoutines.id, data.id)).run();
+      db.update(supplementRoutines).set({ is_active: 0, updated_at: now }).where(eq(supplementRoutines.id, data.id));
       return NextResponse.json({ success: true, message: 'Takviye silindi!' });
     }
 
     if (action === 'reset_supplements') {
-      db.update(supplementRoutines).set({ is_taken_today: 0, updated_at: now }).run();
+      db.update(supplementRoutines).set({ is_taken_today: 0, updated_at: now });
       return NextResponse.json({ success: true });
     }
 
@@ -196,7 +196,7 @@ export async function POST(request: Request) {
         date: today,
         created_at: now,
         updated_at: now
-      }).run();
+      });
       return NextResponse.json({ success: true, id });
     }
 
@@ -217,7 +217,7 @@ export async function POST(request: Request) {
         date: today,
         created_at: now,
         updated_at: now
-      }).run();
+      });
       return NextResponse.json({ success: true, id, duration_hours });
     }
 

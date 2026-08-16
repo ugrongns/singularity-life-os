@@ -43,7 +43,7 @@ export async function POST(req: Request) {
           overdraft_limit: overdraft_limit ? Number(overdraft_limit) : 0
         })
         .where(eq(walletsAccounts.id, id))
-        .run();
+        ;
 
       return NextResponse.json({ success: true, message: 'Hesap başarıyla güncellendi.' });
     } else {
@@ -75,16 +75,16 @@ export async function POST(req: Request) {
           is_active: 1,
           created_at: nowISO,
           updated_at: nowISO
-        }).run();
+        });
 
         // 1. Nakit Paranın Seçilen Vadesiz Banka Hesabına Yatırılması
         if (deposited_account_id && origAmt > 0) {
-          const bankAcc = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)).get();
+          const bankAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)))[0];
           if (bankAcc) {
             db.update(walletsAccounts)
               .set({ balance: bankAcc.balance + origAmt, updated_at: nowISO })
               .where(eq(walletsAccounts.id, deposited_account_id))
-              .run();
+              ;
 
             // Nakit Giriş İşlemi
             db.insert(transactions).values({
@@ -104,7 +104,7 @@ export async function POST(req: Request) {
               updated_at: nowISO,
               sync_status: 'synced',
               device_id: 'mac-local'
-            }).run();
+            });
           }
         }
 
@@ -135,7 +135,7 @@ export async function POST(req: Request) {
             updated_at: nowISO,
             sync_status: 'synced',
             device_id: 'mac-local'
-          }).run();
+          });
         }
 
         return NextResponse.json({
@@ -147,12 +147,12 @@ export async function POST(req: Request) {
       if (type === 'time_deposit') {
         const principal = Number(balance) || 0;
         if (deposited_account_id && principal > 0) {
-          const bankAcc = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)).get();
+          const bankAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)))[0];
           if (bankAcc) {
             db.update(walletsAccounts)
               .set({ balance: bankAcc.balance - principal, updated_at: nowISO })
               .where(eq(walletsAccounts.id, deposited_account_id))
-              .run();
+              ;
 
             // Nakit Çıkış İşlemi
             db.insert(transactions).values({
@@ -172,7 +172,7 @@ export async function POST(req: Request) {
               updated_at: nowISO,
               sync_status: 'synced',
               device_id: 'mac-local'
-            }).run();
+            });
           }
         }
 
@@ -190,7 +190,7 @@ export async function POST(req: Request) {
           is_active: 1,
           created_at: nowISO,
           updated_at: nowISO
-        }).run();
+        });
 
         return NextResponse.json({
           success: true,
@@ -217,7 +217,7 @@ export async function POST(req: Request) {
         created_at: nowISO,
         updated_at: nowISO,
         user_id: userId || null
-      }).run();
+      });
 
       return NextResponse.json({ success: true, message: 'Yeni hesap başarıyla eklendi!' });
     }
@@ -240,7 +240,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesap ID zorunludur.' }, { status: 400 });
     }
 
-    db.delete(walletsAccounts).where(user.is_master_account === 1 ? eq(walletsAccounts.id, id) : and(eq(walletsAccounts.id, id), eq(walletsAccounts.user_id, user.id))).run();
+    db.delete(walletsAccounts).where(user.is_master_account === 1 ? eq(walletsAccounts.id, id) : and(eq(walletsAccounts.id, id), eq(walletsAccounts.user_id, user.id)));
 
     return NextResponse.json({ success: true, message: 'Hesap başarıyla silindi.' });
   } catch (error: any) {

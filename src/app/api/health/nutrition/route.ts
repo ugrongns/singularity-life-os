@@ -12,7 +12,7 @@ export async function GET() {
     const today = new Date().toISOString().split('T')[0];
 
     let profile = userId
-      ? await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1).get()
+      ? (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1))[0]
       : null;
     
     if (!profile) {
@@ -36,7 +36,6 @@ export async function GET() {
           .from(nutritionMeals)
           .where(and(eq(nutritionMeals.date, today), or(eq(nutritionMeals.user_id, userId), eq(nutritionMeals.is_family_shared, 1))))
           .orderBy(desc(nutritionMeals.created_at))
-          .all()
       : [];
 
     let totalCalories = 0;
@@ -96,7 +95,7 @@ export async function POST(req: Request) {
 
     // Günlük Makro Hedeflerini Güncelleme
     if (action === 'update_profile') {
-      const existing = await db.select().from(userHealthProfile).limit(1).get();
+      const existing = (await db.select().from(userHealthProfile).limit(1))[0];
 
       if (existing) {
         db.update(userHealthProfile).set({
@@ -105,7 +104,7 @@ export async function POST(req: Request) {
           target_carbs_g: Number(data.target_carbs_g) || existing.target_carbs_g,
           target_fat_g: Number(data.target_fat_g) || existing.target_fat_g,
           updated_at: now
-        }).where(eq(userHealthProfile.id, existing.id)).run();
+        }).where(eq(userHealthProfile.id, existing.id));
       } else {
         db.insert(userHealthProfile).values({
           id: `hp-${Date.now()}`,
@@ -115,7 +114,7 @@ export async function POST(req: Request) {
           target_fat_g: Number(data.target_fat_g) || 65,
           created_at: now,
           updated_at: now
-        }).run();
+        });
       }
 
       return NextResponse.json({ success: true, message: '⚙️ Günlük kalori ve makro hedefleriniz güncellendi!' });
@@ -123,7 +122,7 @@ export async function POST(req: Request) {
 
     // Öğün Silme
     if (action === 'delete_meal') {
-      db.delete(nutritionMeals).where(eq(nutritionMeals.id, data.id)).run();
+      db.delete(nutritionMeals).where(eq(nutritionMeals.id, data.id));
       return NextResponse.json({ success: true, message: 'Öğün silindi.' });
     }
 
@@ -157,7 +156,7 @@ export async function POST(req: Request) {
       updated_at: now,
       sync_status: 'synced',
       device_id: 'mac-local'
-    }).run();
+    });
 
     return NextResponse.json({
       success: true,

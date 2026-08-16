@@ -11,23 +11,23 @@ export async function GET() {
     const userId = user?.id;
 
     const allBooks = userId
-      ? await db.select().from(books).where(or(eq(books.user_id, userId), eq(books.is_family_shared, 1))).orderBy(desc(books.created_at)).all()
+      ? await db.select().from(books).where(or(eq(books.user_id, userId), eq(books.is_family_shared, 1))).orderBy(desc(books.created_at))
       : [];
-    const allSessions = await db.select().from(readingSessions).all();
-    const profile = (userId ? await db.select().from(userReadingProfile).where(eq(userReadingProfile.user_id, userId)).limit(1).get() : null) || {
+    const allSessions = await db.select().from(readingSessions);
+    const profile = (userId ? (await db.select().from(userReadingProfile).where(eq(userReadingProfile.user_id, userId)).limit(1))[0] : null) || {
       yearly_target_books: 24,
       calibrated_avg_wpm: 220,
       avg_seconds_per_page: 84
     };
 
-    const completedBooks = (allBooks as any[]).filter((b: any) => b.status === 'completed');
+    const completedBooks = (allBooks).filter((b: any) => b.status === 'completed');
 
     // Her kitap için özel okuma seansları, hız (WPM) ve süre hesabı
-    const booksWithStats = (allBooks as any[]).map((b: any) => {
-      const bookSessions = (allSessions as any[]).filter((s: any) => s.book_id === b.id);
+    const booksWithStats = (allBooks).map((b: any) => {
+      const bookSessions = (allSessions).filter((s: any) => s.book_id === b.id);
       const sessionCount = bookSessions.length;
-      const totalPagesRead = (bookSessions as any[]).reduce((acc: number, s: any) => acc + (s.pages_read || 0), 0);
-      const totalDurationMinutes = (bookSessions as any[]).reduce((acc: number, s: any) => acc + (s.duration_minutes || 0), 0);
+      const totalPagesRead = (bookSessions).reduce((acc: number, s: any) => acc + (s.pages_read || 0), 0);
+      const totalDurationMinutes = (bookSessions).reduce((acc: number, s: any) => acc + (s.duration_minutes || 0), 0);
       
       const wordsPerPage = b.words_per_page || 250;
       const totalWordsRead = totalPagesRead * wordsPerPage;
@@ -175,7 +175,7 @@ export async function POST(req: Request) {
         updated_at: now,
         sync_status: 'synced',
         device_id: 'mac-local'
-      }).run();
+      });
 
       return NextResponse.json({
         success: true,
@@ -193,7 +193,7 @@ export async function POST(req: Request) {
           updated_at: now
         })
         .where(eq(books.id, book_id))
-        .run();
+        ;
 
       return NextResponse.json({
         success: true,
@@ -232,7 +232,7 @@ export async function POST(req: Request) {
           updated_at: now
         })
         .where(eq(books.id, book_id))
-        .run();
+        ;
 
       return NextResponse.json({
         success: true,
@@ -245,7 +245,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Kitap ID ve sayfa sayısı gereklidir.' }, { status: 400 });
     }
 
-    const targetBook = await db.select().from(books).where(eq(books.id, book_id)).get();
+    const targetBook = (await db.select().from(books).where(eq(books.id, book_id)))[0];
     if (!targetBook) {
       return NextResponse.json({ success: false, error: 'Kitap bulunamadı.' }, { status: 404 });
     }
@@ -261,7 +261,7 @@ export async function POST(req: Request) {
         updated_at: now 
       })
       .where(eq(books.id, book_id))
-      .run();
+      ;
 
     return NextResponse.json({
       success: true,
@@ -288,7 +288,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Kitap ID gereklidir.' }, { status: 400 });
     }
 
-    db.delete(books).where(user.is_master_account === 1 ? eq(books.id, id) : and(eq(books.id, id), eq(books.user_id, user.id))).run();
+    db.delete(books).where(user.is_master_account === 1 ? eq(books.id, id) : and(eq(books.id, id), eq(books.user_id, user.id)));
 
     return NextResponse.json({ success: true, message: '🗑️ Kitap kütüphaneden silindi.' });
   } catch (error: any) {

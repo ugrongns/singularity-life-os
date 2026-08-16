@@ -11,12 +11,11 @@ export async function GET() {
     const userId = user?.id;
 
     const activeSession = userId
-      ? await db.select()
+      ? (await db.select()
           .from(fastingSessions)
           .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, userId)))
           .orderBy(desc(fastingSessions.created_at))
-          .limit(1)
-          .get()
+          .limit(1))[0]
       : null;
 
     if (!activeSession) {
@@ -98,7 +97,7 @@ export async function POST(req: Request) {
     if (action === 'start') {
       // Önceki tüm aktif seansları kapat
       if (user?.id) {
-        db.update(fastingSessions).set({ is_active: 0, actual_end_time: nowISO }).where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id))).run();
+        db.update(fastingSessions).set({ is_active: 0, actual_end_time: nowISO }).where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id)));
       }
 
       const hours = protocol === '18:6' ? 18 : protocol === '20:4' ? 20 : protocol === '12:12' ? 12 : 16;
@@ -113,14 +112,14 @@ export async function POST(req: Request) {
         created_at: nowISO,
         updated_at: nowISO,
         user_id: user?.id || null
-      }).run();
+      });
 
       return NextResponse.json({ success: true, message: `${protocol} Aralıklı Oruç başlatıldı! ⏳` });
     } else if (action === 'end') {
       db.update(fastingSessions)
         .set({ is_active: 0, actual_end_time: nowISO, updated_at: nowISO })
         .where(eq(fastingSessions.is_active, 1))
-        .run();
+        ;
 
       return NextResponse.json({ success: true, message: 'Oruç seansı tamamlandı ve günlüğe kaydedildi. 🥗' });
     }

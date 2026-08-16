@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     const parsedReceipt = await parseReceiptImage(base64Image, mimeType);
 
     // Mevcut alışveriş listesindeki ürünleri al
-    const currentItems = await db.select().from(shoppingListItems).all();
+    const currentItems = await db.select().from(shoppingListItems);
     const now = new Date().toISOString();
     let matchedCount = 0;
     const matchedNames: string[] = [];
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     for (const receiptItem of parsedReceipt.items || []) {
       const rNameLower = receiptItem.name.toLowerCase();
       
-      const matched = (currentItems as any[]).find((i: any) => {
+      const matched = (currentItems).find((i: any) => {
         const iNameLower = i.name.toLowerCase();
         return iNameLower.includes(rNameLower) || rNameLower.includes(iNameLower);
       });
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
           is_checked: 1,
           estimated_price: receiptItem.price > 0 ? receiptItem.price : matched.estimated_price,
           updated_at: now
-        }).where(eq(shoppingListItems.id, matched.id)).run();
+        }).where(eq(shoppingListItems.id, matched.id));
 
         matchedCount++;
         matchedNames.push(matched.name);

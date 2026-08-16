@@ -43,7 +43,7 @@ export async function POST() {
       created_at: now,
       updated_at: now,
       user_id: userId
-    }).run();
+    });
 
     db.insert(walletsAccounts).values({
       id: wallet2Id,
@@ -59,7 +59,7 @@ export async function POST() {
       created_at: now,
       updated_at: now,
       user_id: userId
-    }).run();
+    });
 
     // 2. Örnek Kategori Bütçeleri
     const cat1Id = `cat-market`;
@@ -67,9 +67,9 @@ export async function POST() {
     const cat3Id = `cat-arac`;
 
     try {
-      db.update(categories).set({ monthly_budget_limit: 15000 }).where(eq(categories.id, cat1Id)).run();
-      db.update(categories).set({ monthly_budget_limit: 20000 }).where(eq(categories.id, cat2Id)).run();
-      db.update(categories).set({ monthly_budget_limit: 7500 }).where(eq(categories.id, cat3Id)).run();
+      db.update(categories).set({ monthly_budget_limit: 15000 }).where(eq(categories.id, cat1Id));
+      db.update(categories).set({ monthly_budget_limit: 20000 }).where(eq(categories.id, cat2Id));
+      db.update(categories).set({ monthly_budget_limit: 7500 }).where(eq(categories.id, cat3Id));
     } catch (e) {}
 
     // 3. Örnek İşlemler
@@ -87,7 +87,7 @@ export async function POST() {
       created_at: now,
       updated_at: now,
       user_id: userId
-    }).run();
+    });
 
     db.insert(transactions).values({
       id: `tx-sample-2-${Date.now()}`,
@@ -103,7 +103,7 @@ export async function POST() {
       created_at: now,
       updated_at: now,
       user_id: userId
-    }).run();
+    });
 
     // 4. Örnek Kitap & Alıntı
     const bookId = `book-sample-${Date.now()}`;
@@ -125,7 +125,7 @@ export async function POST() {
       created_at: now,
       updated_at: now,
       user_id: userId
-    }).run();
+    });
 
     db.insert(bookQuotes).values({
       id: `quote-sample-1-${Date.now()}`,
@@ -137,7 +137,7 @@ export async function POST() {
       created_at: now,
       updated_at: now,
       user_id: userId
-    }).run();
+    });
 
     db.insert(userReadingProfile).values({
       id: `prof-sample-${Date.now()}`,
@@ -147,7 +147,7 @@ export async function POST() {
       created_at: now,
       updated_at: now,
       user_id: userId
-    }).run();
+    });
 
     // 5. Örnek Gayrimenkul
     db.insert(realEstateProperties).values({
@@ -167,7 +167,7 @@ export async function POST() {
       created_at: now,
       updated_at: now,
       user_id: userId
-    }).run();
+    });
 
     // 6. Örnek Sağlık & Su Profili
     db.insert(userHealthProfile).values({
@@ -182,7 +182,7 @@ export async function POST() {
       created_at: now,
       updated_at: now,
       user_id: userId
-    }).run();
+    });
 
     return NextResponse.json({
       success: true,

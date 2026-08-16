@@ -19,8 +19,8 @@ export async function POST(req: Request) {
     }
 
     const numAmount = Number(amount);
-    const fromAcc = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, from_account_id)).get();
-    const toAcc = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, to_account_id)).get();
+    const fromAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, from_account_id)))[0];
+    const toAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, to_account_id)))[0];
 
     if (!fromAcc || !toAcc) {
       return NextResponse.json({ success: false, error: 'Hesaplardan biri bulunamadı.' }, { status: 404 });
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     db.update(walletsAccounts)
       .set({ balance: Math.max(0, newFromBalance), updated_at: now })
       .where(eq(walletsAccounts.id, from_account_id))
-      .run();
+      ;
 
     // 2. Hedef Hesap Bakiye Güncellemesi
     const newToBalance = toAcc.type === 'credit_card'
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     db.update(walletsAccounts)
       .set({ balance: Math.max(0, newToBalance), updated_at: now })
       .where(eq(walletsAccounts.id, to_account_id))
-      .run();
+      ;
 
     // 3. İşlem Kaydı Oluştur
     const isCardPayment = toAcc.type === 'credit_card';
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       notes: note ? note.trim() : (isCardPayment ? `${toAcc.name} borç ödemesi` : `Hesaplar arası transfer`),
       created_at: now,
       updated_at: now
-    }).run();
+    });
 
     // 4. Event Bus Bildirimi
     await eventBus.emit(EVENTS.TRANSACTION_CREATED, {

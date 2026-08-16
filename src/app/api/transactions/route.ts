@@ -26,13 +26,13 @@ export async function POST(req: Request) {
     }
 
     const numAmount = Number(amount);
-    const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)).get();
+    const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)))[0];
     if (!wallet) {
       return NextResponse.json({ success: false, error: 'Seçilen hesap bulunamadı.' }, { status: 404 });
     }
 
     // 1. İşlemin Gelir mi Gider mi Olduğunu Belirle
-    const category = category_id ? await db.select().from(categories).where(eq(categories.id, category_id)).get() : null;
+    const category = category_id ? (await db.select().from(categories).where(eq(categories.id, category_id)))[0] : null;
     const finalCategoryId = category ? category.id : null;
     const isIncome = (category && category.type === 'income') || body.type === 'income';
 
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
 
     let memberId = body.member_id || null;
     if (!memberId) {
-      const member = await db.select().from(familyMembers).where(eq(familyMembers.is_active, 1)).get();
+      const member = (await db.select().from(familyMembers).where(eq(familyMembers.is_active, 1)))[0];
       memberId = member?.id || null;
     }
 
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
         updated_at: nowISO,
         sync_status: 'synced',
         device_id: 'mac-local'
-      }).run();
+      });
 
       createdTxIds.push(txId);
     }
@@ -131,7 +131,7 @@ export async function POST(req: Request) {
       db.update(walletsAccounts)
         .set({ balance: newBalance, updated_at: nowISO })
         .where(eq(walletsAccounts.id, wallet_id))
-        .run();
+        ;
     }
 
     // Event Bus üzerinden çapraz modüllere haber ver
@@ -170,11 +170,11 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Harcama ID zorunludur.' }, { status: 400 });
     }
 
-    const tx = await db.select().from(transactions).where(eq(transactions.id, id)).get();
+    const tx = (await db.select().from(transactions).where(eq(transactions.id, id)))[0];
     if (tx) {
       // Bakiye İadesi
       if (tx.wallet_id) {
-        const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, tx.wallet_id)).get();
+        const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, tx.wallet_id)))[0];
         if (wallet) {
           const newBalance = wallet.type === 'credit_card'
             ? wallet.balance - tx.amount
@@ -183,10 +183,10 @@ export async function DELETE(req: Request) {
           db.update(walletsAccounts)
             .set({ balance: Math.max(0, newBalance), updated_at: new Date().toISOString() })
             .where(eq(walletsAccounts.id, tx.wallet_id))
-            .run();
+            ;
         }
       }
-      db.delete(transactions).where(user.is_master_account === 1 ? eq(transactions.id, id) : and(eq(transactions.id, id), eq(transactions.user_id, user.id))).run();
+      db.delete(transactions).where(user.is_master_account === 1 ? eq(transactions.id, id) : and(eq(transactions.id, id), eq(transactions.user_id, user.id)));
     }
 
     return NextResponse.json({ success: true, message: 'Harcama kaydı silindi ve bakiye güncellendi.' });

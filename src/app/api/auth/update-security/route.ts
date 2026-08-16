@@ -17,14 +17,13 @@ export async function POST(req: Request) {
 
     const session = await db.select().from(authSessions)
       .where(eq(authSessions.token, sessionToken))
-      .limit(1)
-      .get();
+      .limit(1).then((r: any) => r[0]);
 
     if (!session) {
       return NextResponse.json({ success: false, error: 'Geçersiz oturum.' }, { status: 401 });
     }
 
-    const user = await db.select().from(users).where(eq(users.id, session.user_id)).limit(1).get();
+    const user = (await db.select().from(users).where(eq(users.id, session.user_id)).limit(1))[0];
     if (!user) {
       return NextResponse.json({ success: false, error: 'Kullanıcı bulunamadı.' }, { status: 404 });
     }
@@ -67,7 +66,7 @@ export async function POST(req: Request) {
           updated_at: now
         })
         .where(eq(users.id, user.id))
-        .run();
+        ;
 
       return NextResponse.json({
         success: true,
@@ -112,7 +111,7 @@ export async function POST(req: Request) {
           updated_at: now
         })
         .where(eq(users.id, user.id))
-        .run();
+        ;
 
       return NextResponse.json({
         success: true,
@@ -130,7 +129,7 @@ export async function POST(req: Request) {
 
       // E-posta benzersizlik kontrolü
       if (email && email.trim()) {
-        const existingEmailUser = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim())).limit(1).get();
+        const existingEmailUser = (await db.select().from(users).where(eq(users.email, email.toLowerCase().trim())).limit(1))[0];
         if (existingEmailUser && existingEmailUser.id !== user.id) {
           return NextResponse.json({
             success: false,
@@ -147,7 +146,7 @@ export async function POST(req: Request) {
           updated_at: now
         })
         .where(eq(users.id, user.id))
-        .run();
+        ;
 
       return NextResponse.json({
         success: true,

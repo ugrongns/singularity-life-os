@@ -14,20 +14,19 @@ export async function GET(req: Request) {
     }
 
     // 1. Hesap bilgilerini al
-    const account = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).get();
+    const account = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)))[0];
     if (!account) {
       return NextResponse.json({ success: false, error: 'Hesap bulunamadı.' }, { status: 404 });
     }
 
     // 2. Nema/Faiz durumunu al
-    let flexConfig = await db.select().from(flexInterestAccounts).where(eq(flexInterestAccounts.account_id, accountId)).get();
+    let flexConfig = (await db.select().from(flexInterestAccounts).where(eq(flexInterestAccounts.account_id, accountId)))[0];
 
     // 3. Kazanç geçmişini al
     const earnings = await db.select()
       .from(flexInterestEarnings)
       .where(eq(flexInterestEarnings.wallet_account_id, accountId))
-      .orderBy(desc(flexInterestEarnings.created_at))
-      .all();
+      .orderBy(desc(flexInterestEarnings.created_at));
 
     // 4. Eğer aktifse, geçen gün sayısını ve tahmini kazancı hesapla
     let activeDays = 0;
@@ -71,7 +70,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesap ID zorunludur.' }, { status: 400 });
     }
 
-    const account = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).get();
+    const account = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)))[0];
     if (!account) {
       return NextResponse.json({ success: false, error: 'Hesap bulunamadı.' }, { status: 404 });
     }
@@ -84,7 +83,7 @@ export async function POST(req: Request) {
       const rateVal = Number(annualRate) || 0;
 
       // Kayıt var mı kontrol et
-      const existing = await db.select().from(flexInterestAccounts).where(eq(flexInterestAccounts.account_id, accountId)).get();
+      const existing = (await db.select().from(flexInterestAccounts).where(eq(flexInterestAccounts.account_id, accountId)))[0];
 
       if (existing) {
         db.update(flexInterestAccounts)
@@ -94,7 +93,7 @@ export async function POST(req: Request) {
             updated_at: nowISO
           })
           .where(eq(flexInterestAccounts.account_id, accountId))
-          .run();
+          ;
       } else {
         db.insert(flexInterestAccounts).values({
           id: `flex-${Date.now()}`,
@@ -103,7 +102,7 @@ export async function POST(req: Request) {
           annual_rate: rateVal,
           created_at: nowISO,
           updated_at: nowISO
-        }).run();
+        });
       }
 
       return NextResponse.json({
@@ -133,7 +132,7 @@ export async function POST(req: Request) {
       // Tahmini faizi hesapla
       const calculatedEarned = Math.round(principal * (rate / 100) * (days / 365) * 100) / 100;
 
-      const flexConfig = await db.select().from(flexInterestAccounts).where(eq(flexInterestAccounts.account_id, accountId)).get();
+      const flexConfig = (await db.select().from(flexInterestAccounts).where(eq(flexInterestAccounts.account_id, accountId)))[0];
 
       // 1. Kazancı veritabanına kaydet
       db.insert(flexInterestEarnings).values({
@@ -150,7 +149,7 @@ export async function POST(req: Request) {
         currency: account.currency,
         notes: notes || null,
         created_at: nowISO
-      }).run();
+      });
 
       // 2. Hesap bakiyesini güncelle
       db.update(walletsAccounts)
@@ -159,7 +158,7 @@ export async function POST(req: Request) {
           updated_at: nowISO
         })
         .where(eq(walletsAccounts.id, accountId))
-        .run();
+        ;
 
       // 3. İşlem logunu yaz
       db.insert(transactions).values({
@@ -179,7 +178,7 @@ export async function POST(req: Request) {
         updated_at: nowISO,
         sync_status: 'synced',
         device_id: 'mac-local'
-      }).run();
+      });
 
       // Opsiyonel: Nema hesabının başlangıç tarihini sıfırla (kazanç alındığı için yeni periyot başlar)
       if (flexConfig && flexConfig.is_active === 1) {
@@ -188,7 +187,7 @@ export async function POST(req: Request) {
             updated_at: nowISO // Yeni başlangıç tarihi bugündür
           })
           .where(eq(flexInterestAccounts.account_id, accountId))
-          .run();
+          ;
       }
 
       return NextResponse.json({

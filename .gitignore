@@ -25,6 +25,8 @@ singularity.db
 .vercel
 
 # Logs & OS junk
+*.log
+*.log*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

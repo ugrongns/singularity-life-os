@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
     // 0. VERİTABANINDA MEVCUT KİTAP KONTROLÜ (ISBN İle)
     if (rawIsbn) {
-      const existingByIsbn = await db.select().from(books).where(eq(books.isbn, rawIsbn)).get();
+      const existingByIsbn = (await db.select().from(books).where(eq(books.isbn, rawIsbn)))[0];
       if (existingByIsbn) {
         return NextResponse.json({
           success: true,
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       const visionResult = await parseBookCoverOrISBNImage(image_base64, mime_type || 'image/jpeg');
 
       if (visionResult.title) {
-        const existingByTitle = await db.select().from(books).where(like(books.title, `%${visionResult.title.trim()}%`)).get();
+        const existingByTitle = (await db.select().from(books).where(like(books.title, `%${visionResult.title.trim()}%`)))[0];
         if (existingByTitle) {
           return NextResponse.json({
             success: true,
@@ -230,32 +230,46 @@ export async function POST(req: Request) {
       });
       if (searchRes.ok) {
         const html = await searchRes.text();
-        const titleMatches = html.match(/class="result__title"[\s\S]*?>([\s\S]*?)<\/a>/gi);
-        if (titleMatches && titleMatches.length > 0) {
-          let cleanText = titleMatches[0].replace(/<[^>]+>/g, '').replace(/[\r\n\t]+/g, ' ').trim();
+        const titleRegex = /<a[^>]*class="[^"]*result__title[^"]*"[^>]*>([\s\S]*?)<\/a>/gi;
+        const matches = [...html.matchAll(titleRegex)];
+        if (matches && matches.length > 0) {
+          const rawSnippet = matches[0][1] || '';
+          let cleanText = rawSnippet
+            .replace(/<[^>]+>/g, '')
+            .replace(/^[^>]*>/, '')
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/&amp;/gi, '&')
+            .replace(/&quot;/gi, '"')
+            .replace(/&#39;/gi, "'")
+            .replace(/[\r\n\t]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
           cleanText = cleanText.replace(/DuckDuckGo|satın al|fiyatı|bkmkitap|kitapyurdu|idefix|trendyol|hepsiburada|amazon|kitap/gi, '').trim();
 
-          const parts = cleanText.split(/[-–—/|:]/).map(p => p.trim()).filter(Boolean);
+          const parts = cleanText.split(/[-–—/|:]/).map(p => p.trim().replace(/^class="[^"]*">/, '')).filter(Boolean);
           if (parts.length > 0 && parts[0].length >= 2) {
-            const detectedTitle = parts[0];
-            const detectedAuthor = parts[1] || 'Bilinmeyen Yazar';
+            const detectedTitle = parts[0].replace(/^[^a-zA-Z0-9ÇĞİÖŞÜçğıöşü]+/, '').trim();
+            const detectedAuthor = (parts[1] || 'Bilinmeyen Yazar').replace(/^[^a-zA-Z0-9ÇĞİÖŞÜçğıöşü]+/, '').trim();
 
-            return NextResponse.json({
-              success: true,
-              data: {
-                title: detectedTitle,
-                author: detectedAuthor,
-                publisher: 'Türkçe Yayıncı',
-                total_pages: 240,
-                isbn: rawIsbn,
-                category: 'Kişisel Gelişim',
-                format: 'physical',
-                shelf_location: 'Salon Kitaplığı',
-                words_per_page: 250,
-                summary: `İnternet aramasından otomatik tanımlanan kitap (ISBN: ${rawIsbn}).`,
-                cover_url: null
-              }
-            });
+            if (detectedTitle && detectedTitle.length >= 2) {
+              return NextResponse.json({
+                success: true,
+                data: {
+                  title: detectedTitle,
+                  author: detectedAuthor || 'Bilinmeyen Yazar',
+                  publisher: 'Türkçe Yayıncı',
+                  total_pages: 240,
+                  isbn: rawIsbn,
+                  category: 'Kişisel Gelişim',
+                  format: 'physical',
+                  shelf_location: 'Salon Kitaplığı',
+                  words_per_page: 250,
+                  summary: `İnternet aramasından otomatik tanımlanan kitap (ISBN: ${rawIsbn}).`,
+                  cover_url: null
+                }
+              });
+            }
           }
         }
       }
@@ -263,22 +277,23 @@ export async function POST(req: Request) {
       console.warn('Web search lookup failed:', webErr);
     }
 
-    // 5. Nötr Varsayılan Doldurma (Başlık Hiçbir Zaman Boş Kalmaz)
+    // 5. Nötr Varsayılan Doldurma (Kullanıcı Elle Temizlemek Zorunda Kalmasın)
     return NextResponse.json({
       success: true,
       data: {
-        title: `Barkod Okundu (ISBN: ${rawIsbn})`,
-        author: 'Yazar Adı',
-        publisher: 'Yayınevi',
+        title: '',
+        author: '',
+        publisher: '',
         total_pages: 240,
         isbn: rawIsbn,
         category: 'Kişisel Gelişim',
         format: 'physical',
         shelf_location: 'Salon Kitaplığı',
         words_per_page: 250,
-        summary: `Barkod başarıyla algılandı (ISBN: ${rawIsbn}). Lütfen kitap adını ve yazarını doğrulayarak onaylayın.`,
+        summary: `Barkod algılandı (ISBN: ${rawIsbn}).`,
         cover_url: null
-      }
+      },
+      message: `ℹ️ ISBN (${rawIsbn}) barkodu okundu. Kitap açık kütüphane veritabanında bulunamadı, lütfen kitap adı ve yazarını girerek onaylayın.`
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -40,6 +40,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
   const pageFileInputRef = useRef<HTMLInputElement>(null);
   const [isScanningPage, setIsScanningPage] = useState(false);
   const [existingBookAlert, setExistingBookAlert] = useState<{ title: string; author: string; status?: string } | null>(null);
+  const [scanMessage, setScanMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -69,6 +70,20 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
     }
   };
 
+  const sanitizeText = (str: string) => {
+    if (!str) return '';
+    return str
+      .replace(/^[^>]*>/, '')
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/[\r\n\t]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
   const handleScanISBN = async (targetIsbn?: string) => {
     setIsScanning(true);
     setExistingBookAlert(null);
@@ -88,9 +103,9 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
 
       if (json.success && json.data) {
         const d = json.data;
-        setTitle(d.title);
-        setAuthor(d.author);
-        setPublisher(d.publisher || '');
+        setTitle(sanitizeText(d.title));
+        setAuthor(sanitizeText(d.author));
+        setPublisher(sanitizeText(d.publisher || ''));
         setTotalPages(d.total_pages?.toString() || '200');
         setCategory(d.category || 'Kişisel Gelişim');
         setFormat(d.format || 'physical');
@@ -99,6 +114,11 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
         setSummary(d.summary || '');
         setIsbnInput(d.isbn || queryIsbn);
         if (d.cover_url) setCoverUrl(d.cover_url);
+        if (json.message && !json.is_already_in_library) {
+          setScanMessage(json.message);
+        } else {
+          setScanMessage(null);
+        }
         setActiveTab('manual'); // Onay formuna geç
       }
     } catch (err) {
@@ -638,6 +658,12 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
                 <div>
                   <strong>"{existingBookAlert.title}"</strong> ({existingBookAlert.author}) kitabı kütüphanenizde zaten mevcuttur. Yine de ikinci bir fiziksel nüsha olarak eklemek isterseniz onaylayabilirsiniz.
                 </div>
+              </div>
+            )}
+
+            {scanMessage && !existingBookAlert && (
+              <div style={{ background: '#EFF6FF', border: '1px solid #93C5FD', padding: '10px 12px', borderRadius: 'var(--radius-md)', color: '#1E40AF', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {scanMessage}
               </div>
             )}
             <div>

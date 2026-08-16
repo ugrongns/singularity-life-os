@@ -28,8 +28,7 @@ export async function GET() {
     .from(bookQuotes)
     .innerJoin(books, eq(bookQuotes.book_id, books.id))
     .where(or(eq(books.user_id, userId), eq(books.is_family_shared, 1)))
-    .orderBy(desc(bookQuotes.created_at))
-    .all();
+    .orderBy(desc(bookQuotes.created_at));
 
     return NextResponse.json({ success: true, data: quotes });
   } catch (error: any) {
@@ -60,7 +59,7 @@ export async function POST(req: Request) {
       is_favorite: 1,
       created_at: now,
       updated_at: now
-    }).run();
+    });
 
     return NextResponse.json({
       success: true,

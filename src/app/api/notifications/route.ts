@@ -31,7 +31,7 @@ export async function GET() {
     const notifications: Notification[] = [];
 
     // 1. Dijital Kasa — Evrak bitiş uyarıları
-    const vaultItems = userId ? await db.select().from(digitalVaultItems).where(or(eq(digitalVaultItems.user_id, userId), eq(digitalVaultItems.is_family_shared, 1))).all() : [];
+    const vaultItems = userId ? await db.select().from(digitalVaultItems).where(or(eq(digitalVaultItems.user_id, userId), eq(digitalVaultItems.is_family_shared, 1))) : [];
     for (const item of vaultItems) {
       if (!item.expiry_date) continue;
       const expDate = new Date(item.expiry_date);
@@ -57,7 +57,7 @@ export async function GET() {
     }
 
     // 2. Önemli Günler — Yaklaşan doğum günleri vs.
-    const dates = userId ? await db.select().from(importantDates).where(eq(importantDates.user_id, userId)).all() : [];
+    const dates = userId ? await db.select().from(importantDates).where(eq(importantDates.user_id, userId)) : [];
     for (const d of dates) {
       const [mm, ddStr] = d.event_date.split('-');
       const thisYear = new Date(today.getFullYear(), parseInt(mm) - 1, parseInt(ddStr));
@@ -83,7 +83,7 @@ export async function GET() {
     }
 
     // 3. Araç yasal hatırlatıcılar
-    const legalReminders = await db.select().from(vehicleLegalReminders).where(eq(vehicleLegalReminders.is_completed, 0)).all();
+    const legalReminders = await db.select().from(vehicleLegalReminders).where(eq(vehicleLegalReminders.is_completed, 0));
     for (const leg of legalReminders) {
       const legDate = new Date(leg.due_date);
       const daysLeft = Math.ceil((legDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -103,7 +103,7 @@ export async function GET() {
     }
 
     // 4. Ev Bakım Uyarıları
-    const homeMaint = await db.select().from(homeMaintenanceRecords).where(eq(homeMaintenanceRecords.status, 'warning')).all();
+    const homeMaint = await db.select().from(homeMaintenanceRecords).where(eq(homeMaintenanceRecords.status, 'warning'));
     for (const h of homeMaint) {
       const dueDate = new Date(h.next_due_date);
       const daysLeft = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -122,7 +122,7 @@ export async function GET() {
     }
 
     // 5. Kredi kartı ödeme tarihleri (3 gün içindekiler)
-    const accounts = await db.select().from(walletsAccounts).where(eq(walletsAccounts.is_active, 1)).all();
+    const accounts = await db.select().from(walletsAccounts).where(eq(walletsAccounts.is_active, 1));
     for (const acc of accounts) {
       if (acc.type === 'credit_card' && acc.balance > 0 && acc.due_day) {
         const currentMonth = today.getMonth();

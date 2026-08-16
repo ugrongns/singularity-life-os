@@ -10,7 +10,7 @@ export async function GET() {
     const user = await getAuthUser();
     
     // Aktif üyeleri getir
-    let members = await db.select().from(familyMembers).where(eq(familyMembers.is_active, 1)).all();
+    let members = await db.select().from(familyMembers).where(eq(familyMembers.is_active, 1));
 
     // Veritabanında henüz aile üyesi yoksa ana kullanıcıyı otomatik 1. üye olarak ekle (Auto-Seed)
     if (members.length === 0) {
@@ -26,18 +26,18 @@ export async function GET() {
         is_active: 1,
         created_at: now,
         updated_at: now
-      }).run();
+      });
 
-      members = await db.select().from(familyMembers).where(eq(familyMembers.is_active, 1)).all();
+      members = await db.select().from(familyMembers).where(eq(familyMembers.is_active, 1));
     }
 
     // Her üyenin toplam harcama adedini ve son harcama tarihini hesapla
-    const membersWithStats = await Promise.all((members as any[]).map(async (m: any) => {
-      const memberTxs = await db.select().from(transactions).where(eq(transactions.member_id, m.id)).all();
+    const membersWithStats = await Promise.all((members).map(async (m: any) => {
+      const memberTxs = await db.select().from(transactions).where(eq(transactions.member_id, m.id));
       return {
         ...m,
         transaction_count: memberTxs.length,
-        total_spent: (memberTxs as any[]).reduce((sum: number, t: any) => sum + (t.amount || 0), 0)
+        total_spent: (memberTxs).reduce((sum: number, t: any) => sum + (t.amount || 0), 0)
       };
     }));
 
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       is_active: 1,
       created_at: now,
       updated_at: now
-    }).run();
+    });
 
     return NextResponse.json({
       success: true,
@@ -107,7 +107,7 @@ export async function PUT(req: Request) {
         updated_at: now
       })
       .where(eq(familyMembers.id, id))
-      .run();
+      ;
 
     return NextResponse.json({
       success: true,
@@ -133,7 +133,7 @@ export async function DELETE(req: Request) {
     db.update(familyMembers)
       .set({ is_active: 0, updated_at: new Date().toISOString() })
       .where(eq(familyMembers.id, id))
-      .run();
+      ;
 
     return NextResponse.json({
       success: true,

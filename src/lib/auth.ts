@@ -59,14 +59,13 @@ export async function getAuthUser() {
     if (!sessionToken) return null;
 
     const now = new Date().toISOString();
-    const session = await db.select().from(authSessions)
+    const session = (await db.select().from(authSessions)
       .where(eq(authSessions.token, sessionToken))
-      .limit(1)
-      .get();
+      .limit(1))[0];
 
     if (!session || session.expires_at < now) return null;
 
-    const user = await db.select().from(users).where(eq(users.id, session.user_id)).limit(1).get();
+    const user = (await db.select().from(users).where(eq(users.id, session.user_id)).limit(1))[0];
     return user || null;
   } catch (err) {
     return null;

@@ -9,8 +9,7 @@ export async function GET(req: Request) {
     initDatabase();
     const records = await db.select()
       .from(vehicleMaintenanceRecords)
-      .orderBy(desc(vehicleMaintenanceRecords.km_at_service), desc(vehicleMaintenanceRecords.service_date))
-      .all();
+      .orderBy(desc(vehicleMaintenanceRecords.km_at_service), desc(vehicleMaintenanceRecords.service_date));
 
     return NextResponse.json({ success: true, data: records });
   } catch (error: any) {
@@ -61,12 +60,12 @@ export async function POST(req: Request) {
       updated_at: now,
       sync_status: 'synced',
       device_id: 'mac-local'
-    }).run();
+    });
 
     // Aracın güncel KM'sini de güncelle (servis KM'sinden küçükse)
-    const veh = await db.select().from(vehicles).where(eq(vehicles.id, vehicle_id)).get();
+    const veh = (await db.select().from(vehicles).where(eq(vehicles.id, vehicle_id)))[0];
     if (veh && veh.current_km < km) {
-      db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicle_id)).run();
+      db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicle_id));
     }
 
     // Event Bus yayımı

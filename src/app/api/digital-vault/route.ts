@@ -12,13 +12,13 @@ export async function GET() {
 
     const today = new Date();
     const vaultItems = userId
-      ? await db.select().from(digitalVaultItems).where(or(eq(digitalVaultItems.user_id, userId), eq(digitalVaultItems.is_family_shared, 1))).orderBy(desc(digitalVaultItems.created_at)).all()
+      ? await db.select().from(digitalVaultItems).where(or(eq(digitalVaultItems.user_id, userId), eq(digitalVaultItems.is_family_shared, 1))).orderBy(desc(digitalVaultItems.created_at))
       : [];
-    const dates = userId ? await db.select().from(importantDates).where(eq(importantDates.user_id, userId)).all() : [];
-    const pets = userId ? await db.select().from(petRecords).where(eq(petRecords.user_id, userId)).all() : [];
+    const dates = userId ? await db.select().from(importantDates).where(eq(importantDates.user_id, userId)) : [];
+    const pets = userId ? await db.select().from(petRecords).where(eq(petRecords.user_id, userId)) : [];
 
     // Yaklaşan bitiş uyarıları ve Vize (6 ay) uyarısı hesapla
-    const vaultWithAlerts = (vaultItems as any[]).map((item: any) => {
+    const vaultWithAlerts = (vaultItems).map((item: any) => {
       let daysLeft: number | null = null;
       let alertLevel: 'ok' | 'warning' | 'critical' = 'ok';
       let visaWarning = false;
@@ -49,7 +49,7 @@ export async function GET() {
     });
 
     // Önemli günler — bu yıl veya gelecek yıl için gün farkı
-    const datesWithCountdown = (dates as any[]).map((d: any) => {
+    const datesWithCountdown = (dates).map((d: any) => {
       const parts = d.event_date.split('-');
       const mm = parseInt(parts[0] || '1', 10);
       const dd = parseInt(parts[1] || '1', 10);
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
         notes: data.notes || null,
         created_at: now,
         updated_at: now
-      }).run();
+      });
     } else if (section === 'date') {
       db.insert(importantDates).values({
         id,
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
         notes: data.notes || null,
         created_at: now,
         updated_at: now
-      }).run();
+      });
     } else if (section === 'pet') {
       db.insert(petRecords).values({
         id,
@@ -128,7 +128,7 @@ export async function POST(request: Request) {
         notes: data.notes || null,
         created_at: now,
         updated_at: now
-      }).run();
+      });
     }
 
     return NextResponse.json({ success: true, id, message: 'Kayıt eklendi!' });
@@ -159,7 +159,7 @@ export async function PUT(request: Request) {
         document_image_url: data.document_image_url,
         notes: data.notes,
         updated_at: now
-      }).where(eq(digitalVaultItems.id, id)).run();
+      }).where(eq(digitalVaultItems.id, id));
     } else if (section === 'date') {
       db.update(importantDates).set({
         title: data.title,
@@ -170,7 +170,7 @@ export async function PUT(request: Request) {
         gift_ideas: data.gift_ideas,
         notes: data.notes,
         updated_at: now
-      }).where(eq(importantDates.id, id)).run();
+      }).where(eq(importantDates.id, id));
     } else if (section === 'pet') {
       db.update(petRecords).set({
         name: data.name,
@@ -184,7 +184,7 @@ export async function PUT(request: Request) {
         vet_next_date: data.vet_next_date,
         notes: data.notes,
         updated_at: now
-      }).where(eq(petRecords.id, id)).run();
+      }).where(eq(petRecords.id, id));
     }
 
     return NextResponse.json({ success: true, message: 'Güncellendi!' });
@@ -205,11 +205,11 @@ export async function DELETE(request: Request) {
     if (!id) return NextResponse.json({ success: false, error: 'ID required' }, { status: 400 });
 
     if (section === 'vault') {
-      db.delete(digitalVaultItems).where(user.is_master_account === 1 ? eq(digitalVaultItems.id, id) : and(eq(digitalVaultItems.id, id), eq(digitalVaultItems.user_id, user.id))).run();
+      db.delete(digitalVaultItems).where(user.is_master_account === 1 ? eq(digitalVaultItems.id, id) : and(eq(digitalVaultItems.id, id), eq(digitalVaultItems.user_id, user.id)));
     } else if (section === 'date') {
-      db.delete(importantDates).where(user.is_master_account === 1 ? eq(importantDates.id, id) : and(eq(importantDates.id, id), eq(importantDates.user_id, user.id))).run();
+      db.delete(importantDates).where(user.is_master_account === 1 ? eq(importantDates.id, id) : and(eq(importantDates.id, id), eq(importantDates.user_id, user.id)));
     } else if (section === 'pet') {
-      db.delete(petRecords).where(user.is_master_account === 1 ? eq(petRecords.id, id) : and(eq(petRecords.id, id), eq(petRecords.user_id, user.id))).run();
+      db.delete(petRecords).where(user.is_master_account === 1 ? eq(petRecords.id, id) : and(eq(petRecords.id, id), eq(petRecords.user_id, user.id)));
     }
 
     return NextResponse.json({ success: true, message: 'Silindi!' });

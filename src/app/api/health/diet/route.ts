@@ -6,8 +6,8 @@ import { desc , or } from 'drizzle-orm';
 export async function GET() {
   try {
     initDatabase();
-    const options = await db.select().from(dietMealOptions).all();
-    const parsedOptions = (options as any[]).map((opt: any) => ({
+    const options = await db.select().from(dietMealOptions);
+    const parsedOptions = (options).map((opt: any) => ({
       ...opt,
       checklist: JSON.parse(opt.items_checklist || '[]')
     }));
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
       is_family_shared: 1,
       created_at: now,
       updated_at: now
-    }).run();
+    });
 
     return NextResponse.json({
       success: true,

@@ -15,15 +15,15 @@ export async function GET() {
     const GOLD_GRAM_RATE = 3180;
 
     const assets = userId
-      ? await db.select().from(investmentAssets).where(and(eq(investmentAssets.is_active, 1), or(eq(investmentAssets.user_id, userId), eq(investmentAssets.is_family_shared, 1)))).orderBy(desc(investmentAssets.created_at)).all()
+      ? await db.select().from(investmentAssets).where(and(eq(investmentAssets.is_active, 1), or(eq(investmentAssets.user_id, userId), eq(investmentAssets.is_family_shared, 1)))).orderBy(desc(investmentAssets.created_at))
       : [];
     const besList = userId
-      ? await db.select().from(besContracts).where(or(eq(besContracts.user_id, userId), eq(besContracts.is_family_shared, 1))).orderBy(desc(besContracts.created_at)).all()
+      ? await db.select().from(besContracts).where(or(eq(besContracts.user_id, userId), eq(besContracts.is_family_shared, 1))).orderBy(desc(besContracts.created_at))
       : [];
     const accounts = userId
-      ? await db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))).all()
+      ? await db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1))))
       : [];
-    const accountMap = new Map((accounts as any[]).map((a: any) => [a.id, a.name]));
+    const accountMap = new Map((accounts).map((a: any) => [a.id, a.name]));
 
     let totalStockTRY = 0;
     let totalStockCostTRY = 0;
@@ -34,7 +34,7 @@ export async function GET() {
     let totalCashTRY = 0;
     let totalCashCostTRY = 0;
 
-    const processedAssets = (assets as any[]).map((asset: any) => {
+    const processedAssets = (assets).map((asset: any) => {
       const isUSD = asset.current_price_currency === 'USD';
       const isEUR = asset.current_price_currency === 'EUR';
       const rate = isUSD ? USD_RATE : isEUR ? EUR_RATE : 1.0;
@@ -72,9 +72,9 @@ export async function GET() {
       };
     });
 
-    const totalBesFundTRY = (besList as any[]).reduce((sum: number, b: any) => sum + b.current_fund_value, 0);
-    const totalBesPrincipalTRY = (besList as any[]).reduce((sum: number, b: any) => sum + b.total_principal, 0);
-    const totalBesStateContributionTRY = (besList as any[]).reduce((sum: number, b: any) => sum + b.state_contribution_amount, 0);
+    const totalBesFundTRY = (besList).reduce((sum: number, b: any) => sum + b.current_fund_value, 0);
+    const totalBesPrincipalTRY = (besList).reduce((sum: number, b: any) => sum + b.total_principal, 0);
+    const totalBesStateContributionTRY = (besList).reduce((sum: number, b: any) => sum + b.state_contribution_amount, 0);
 
     const totalPortfolioTRY = totalStockTRY + totalGoldTRY + totalCryptoTRY + totalCashTRY + totalBesFundTRY;
     const totalPortfolioCostTRY = totalStockCostTRY + totalGoldCostTRY + totalCryptoCostTRY + totalCashCostTRY + totalBesPrincipalTRY;
@@ -82,7 +82,7 @@ export async function GET() {
     const totalPortfolioPLPercent = totalPortfolioCostTRY > 0 ? ((totalPortfolioPLTRY / totalPortfolioCostTRY) * 100) : 0;
 
     const investmentAccountTypes = ['brokerage', 'crypto_exchange', 'crypto_wallet'];
-    const investmentAccountsList = (accounts as any[]).filter((a: any) => investmentAccountTypes.includes(a.type));
+    const investmentAccountsList = (accounts).filter((a: any) => investmentAccountTypes.includes(a.type));
 
     const allocation = {
       stocks: totalPortfolioTRY > 0 ? Math.round((totalStockTRY / totalPortfolioTRY) * 100) : 0,
@@ -167,7 +167,7 @@ export async function POST(req: Request) {
         is_family_shared: 1,
         created_at: now,
         updated_at: now
-      }).run();
+      });
 
       return NextResponse.json({
         success: true,
@@ -204,7 +204,7 @@ export async function POST(req: Request) {
       updated_at: now,
       sync_status: 'synced',
       device_id: 'mac-local'
-    }).run();
+    });
 
     return NextResponse.json({
       success: true,
@@ -229,7 +229,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Asset ID zorunludur.' }, { status: 400 });
     }
 
-    db.delete(investmentAssets).where(user.is_master_account === 1 ? eq(investmentAssets.id, id) : and(eq(investmentAssets.id, id), eq(investmentAssets.user_id, user.id))).run();
+    db.delete(investmentAssets).where(user.is_master_account === 1 ? eq(investmentAssets.id, id) : and(eq(investmentAssets.id, id), eq(investmentAssets.user_id, user.id)));
 
     return NextResponse.json({ success: true, message: 'Varlık portföyden silindi.' });
   } catch (error: any) {

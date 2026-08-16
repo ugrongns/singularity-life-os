@@ -13,28 +13,27 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesap ID zorunludur.' }, { status: 400 });
     }
 
-    const cardAccount = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).get();
+    const cardAccount = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)))[0];
     if (!cardAccount) {
       return NextResponse.json({ success: false, error: 'Kredi kartı hesabı bulunamadı.' }, { status: 404 });
     }
 
     // Bu karta ait tüm işlemleri getir
-    const allCardTx = await db.select()
+    const allCardTx = (await db.select()
       .from(transactions)
       .where(eq(transactions.wallet_id, accountId))
-      .orderBy(desc(transactions.transaction_date))
-      .all();
+      .orderBy(desc(transactions.transaction_date))) as any[];
 
     // Kategorileri çek
-    const allCategories = await db.select().from(categories).all();
-    const categoryMap = new Map((allCategories as any[]).map((c: any) => [c.id, c.name]));
+    const allCategories = await db.select().from(categories);
+    const categoryMap = new Map((allCategories).map((c: any) => [c.id, c.name]));
 
     const today = new Date();
     const todayISO = today.toISOString().split('T')[0];
     const currentMonthStr = todayISO.slice(0, 7);
 
     // 1. Bu Ayki Tek Çekim Harcamalar (is_installment === 0)
-    const singleTransactions = (allCardTx as any[])
+    const singleTransactions = (allCardTx)
       .filter((tx: any) => (!tx.is_installment || tx.is_installment === 0))
       .map((tx: any) => ({
         ...tx,
@@ -45,7 +44,7 @@ export async function GET(req: Request) {
     // Taksit gruplarını parent_transaction_id veya merchant'a göre grupla
     const installmentGroupMap = new Map<string, any>();
 
-    for (const tx of (allCardTx as any[])) {
+    for (const tx of (allCardTx)) {
       if (tx.is_installment === 1) {
         const groupKey = tx.parent_transaction_id || `${tx.merchant}-${tx.total_installments}`;
         if (!installmentGroupMap.has(groupKey)) {
@@ -64,7 +63,7 @@ export async function GET(req: Request) {
 
     // Gerçekleşen taksit sayısını (vadesi bugün veya geçmiş tarihe denk gelen taksitler) hesapla
     const activeInstallments = Array.from(installmentGroupMap.values()).map(inst => {
-      const dueCount = (allCardTx as any[]).filter((tx: any) => 
+      const dueCount = (allCardTx).filter((tx: any) => 
         (tx.parent_transaction_id === inst.parent_id || (tx.merchant === inst.merchant && tx.total_installments === inst.total_installments)) &&
         tx.is_installment === 1 &&
         tx.transaction_date <= todayISO
@@ -79,11 +78,11 @@ export async function GET(req: Request) {
     // Hesaplama Özeti
     // Bu ayki tek çekimler
     const singleTotal = singleTransactions
-      .filter(t => t.transaction_date.startsWith(currentMonthStr))
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter((t: any) => t.transaction_date.startsWith(currentMonthStr))
+      .reduce((sum: number, t: any) => sum + t.amount, 0);
 
     // Bu ayki taksit dilimleri toplamı
-    const monthlyInstallmentTotal = activeInstallments.reduce((sum, inst) => sum + inst.monthly_amount, 0);
+    const monthlyInstallmentTotal = activeInstallments.reduce((sum: number, inst: any) => sum + inst.monthly_amount, 0);
 
     // Bu ay ödenecek net güncel ekstre borcu (Tek çekim + Bu ayki taksit dilimi)
     const currentStatementDebt = singleTotal + monthlyInstallmentTotal;

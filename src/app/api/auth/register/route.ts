@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     }
 
     // 2. KULLANICI ADI KONTROLÜ
-    const existingUser = await db.select().from(users).where(eq(users.username, username.toLowerCase().trim())).limit(1).get();
+    const existingUser = (await db.select().from(users).where(eq(users.username, username.toLowerCase().trim())).limit(1))[0];
     if (existingUser) {
       return NextResponse.json({
         success: false,
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
 
     // 3. KAYITLI E-POSTA ADRESİ KONTROLÜ
     if (email && email.trim()) {
-      const existingEmail = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim())).limit(1).get();
+      const existingEmail = (await db.select().from(users).where(eq(users.email, email.toLowerCase().trim())).limit(1))[0];
       if (existingEmail) {
         return NextResponse.json({
           success: false,
@@ -87,8 +87,7 @@ export async function POST(req: Request) {
             gt(familyInvites.expires_at, now)
           )
         )
-        .limit(1)
-        .get();
+        .limit(1).then((r: any) => r[0]);
 
       if (!validInvite) {
         return NextResponse.json({
@@ -98,7 +97,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const allUsers = await db.select().from(users).all();
+    const allUsers = await db.select().from(users);
     const isFirstUser = allUsers.length === 0;
 
     // Hash password & PIN
@@ -121,14 +120,14 @@ export async function POST(req: Request) {
       is_master_account: isFirstUser ? 1 : 0,
       created_at: now,
       updated_at: now
-    }).run();
+    });
 
     // Davet Kodu Kullanıldıysa İşaretle ve Aile Üyesi Profilini Oluştur
     if (validInvite) {
       await db.update(familyInvites)
         .set({ is_used: 1, used_by_user_id: userId })
         .where(eq(familyInvites.id, validInvite.id))
-        .run();
+        ;
 
       await db.insert(familyMembers).values({
         id: `fm-${userId}`,
@@ -138,10 +137,10 @@ export async function POST(req: Request) {
         is_active: 1,
         created_at: now,
         updated_at: now
-      }).run();
+      });
     } else {
       // İlk kullanıcı ise kendisini Aile Lideri olarak ekle
-      const existingMembers = await db.select().from(familyMembers).all();
+      const existingMembers = await db.select().from(familyMembers);
       if (existingMembers.length === 0 || isFirstUser) {
         await db.insert(familyMembers).values({
           id: `fm-${userId}`,
@@ -151,7 +150,7 @@ export async function POST(req: Request) {
           is_active: 1,
           created_at: now,
           updated_at: now
-        }).run();
+        });
       }
     }
 
@@ -161,10 +160,9 @@ export async function POST(req: Request) {
         id: `hp-${userId}`,
         user_id: userId,
         daily_water_target_ml: Number(daily_water_target_ml) || 2500,
-        target_weight_kg: 75,
         created_at: now,
         updated_at: now
-      }).run();
+      });
     } catch (e) {}
 
     // Reading Profile başlangıç kaydı
@@ -177,7 +175,7 @@ export async function POST(req: Request) {
         avg_seconds_per_page: 84,
         created_at: now,
         updated_at: now
-      }).run();
+      });
     } catch (e) {}
 
     // Başlangıç Cüzdanı (Vadesiz Maaş Hesabı)
@@ -194,7 +192,7 @@ export async function POST(req: Request) {
         user_id: userId,
         created_at: now,
         updated_at: now
-      }).run();
+      });
     } catch (e) {}
 
     // Save Telegram settings if provided
@@ -203,7 +201,7 @@ export async function POST(req: Request) {
         await db.insert(appSettings)
           .values({ key: k, value: v, updated_at: now })
           .onConflictDoUpdate({ target: appSettings.key, set: { value: v, updated_at: now } })
-          .run();
+          ;
       };
       await setSetting('telegram_bot_token', telegram_bot_token);
       await setSetting('telegram_chat_id', telegram_chat_id);
@@ -220,7 +218,7 @@ export async function POST(req: Request) {
       expires_at: expiresAt,
       device_name: 'web-local',
       created_at: now
-    }).run();
+    });
 
     // Set cookie
     const cookieStore = await cookies();

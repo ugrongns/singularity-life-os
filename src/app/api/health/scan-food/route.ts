@@ -12,7 +12,7 @@ export async function GET() {
     const userId = user?.id;
 
     const scans = userId
-      ? db.select().from(packagedFoodScans).where(eq(packagedFoodScans.user_id, userId)).orderBy(desc(packagedFoodScans.created_at)).limit(10).all()
+      ? db.select().from(packagedFoodScans).where(eq(packagedFoodScans.user_id, userId)).orderBy(desc(packagedFoodScans.created_at)).limit(10)
       : [];
     return NextResponse.json({ success: true, data: scans });
   } catch (error: any) {
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
         alternative_suggestions: foodAnalysis.alternative_suggestions,
         created_at: now,
         updated_at: now
-      }).run();
+      });
 
       return NextResponse.json({ success: true, data: foodAnalysis });
     }

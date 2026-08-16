@@ -9,9 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@libsql/client": "^0.17.4",
     "@zxing/library": "^0.23.0",
-    "better-sqlite3": "^13.0.3",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.38.4",
     "lucide-react": "^0.475.0",
@@ -22,7 +20,6 @@
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.13.4",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",

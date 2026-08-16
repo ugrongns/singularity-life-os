@@ -32,8 +32,7 @@ export async function GET() {
           eq(familyInvites.is_used, 0),
           gt(familyInvites.expires_at, nowISO)
         )
-      )
-      .all();
+      );
 
     return NextResponse.json({
       success: true,
@@ -73,7 +72,7 @@ export async function POST(req: Request) {
       expires_at: expiresAt,
       is_used: 0,
       created_at: nowISO
-    }).run();
+    });
 
     return NextResponse.json({
       success: true,

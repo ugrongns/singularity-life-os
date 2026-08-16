@@ -33,24 +33,24 @@ export async function GET() {
     let ccDebt = 0;
     try {
       const wallets = userId
-        ? await db.select().from(walletsAccounts).where(or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1))).all()
+        ? await db.select().from(walletsAccounts).where(or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))
         : [];
-      liquidBalance = (wallets as any[]).reduce((sum: number, w: any) => sum + (w.type !== 'credit_card' ? (w.balance || 0) : 0), 0);
-      ccDebt = (wallets as any[]).reduce((sum: number, w: any) => sum + (w.type === 'credit_card' ? Math.abs(w.balance || 0) : 0), 0);
+      liquidBalance = (wallets).reduce((sum: number, w: any) => sum + (w.type !== 'credit_card' ? (w.balance || 0) : 0), 0);
+      ccDebt = (wallets).reduce((sum: number, w: any) => sum + (w.type === 'credit_card' ? Math.abs(w.balance || 0) : 0), 0);
     } catch (e) {}
 
     let totalBudgetLimit = 0;
     try {
-      const allCategories = (await db.select().from(categories).all()) || [];
-      totalBudgetLimit = (allCategories as any[]).reduce((sum: number, c: any) => sum + (c.monthly_budget_limit || 0), 0);
+      const allCategories = (await db.select().from(categories)) || [];
+      totalBudgetLimit = (allCategories).reduce((sum: number, c: any) => sum + (c.monthly_budget_limit || 0), 0);
     } catch (e) {}
 
     let totalSpentThisMonth = 0;
     try {
       const allTxs = userId
-        ? await db.select().from(transactions).where(or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1))).all()
+        ? await db.select().from(transactions).where(or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)))
         : [];
-      totalSpentThisMonth = (allTxs as any[])
+      totalSpentThisMonth = (allTxs)
         .filter((tx: any) => tx?.transaction_date && String(tx.transaction_date).startsWith(currentMonth))
         .reduce((sum: number, tx: any) => sum + (Number(tx.amount) || 0), 0);
     } catch (e) {}
@@ -70,12 +70,12 @@ export async function GET() {
     let healthScore = 0;
     try {
       const health = userId
-        ? await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1).get()
+        ? (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1))[0]
         : null;
       if (health) {
         const waterRatio = (health.consumed_water_ml || 0) / (health.daily_water_target_ml || 2500);
         const activeFasting = userId
-          ? await db.select().from(fastingSessions).where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, userId))).limit(1).get()
+          ? (await db.select().from(fastingSessions).where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, userId))).limit(1))[0]
           : null;
         healthScore = 18;
         if (waterRatio >= 0.9) healthScore += 5;
@@ -91,10 +91,10 @@ export async function GET() {
     let wellnessScore = 0;
     try {
       const supplements = userId
-        ? await db.select().from(supplementRoutines).where(eq(supplementRoutines.user_id, userId)).all()
+        ? await db.select().from(supplementRoutines).where(eq(supplementRoutines.user_id, userId))
         : [];
       if (supplements.length > 0) {
-        const takenSupps = (supplements as any[]).filter((s: any) => s.is_taken_today === 1).length;
+        const takenSupps = (supplements).filter((s: any) => s.is_taken_today === 1).length;
         const suppRatio = takenSupps / supplements.length;
         wellnessScore = 16;
         if (suppRatio >= 0.75) wellnessScore += 5;
@@ -107,11 +107,11 @@ export async function GET() {
     let mindScore = 0;
     try {
       const allBooks = userId
-        ? await db.select().from(books).where(or(eq(books.user_id, userId), eq(books.is_family_shared, 1))).all()
+        ? await db.select().from(books).where(or(eq(books.user_id, userId), eq(books.is_family_shared, 1)))
         : [];
       if (allBooks.length > 0) {
-        const activeBook = (allBooks as any[]).find((b: any) => b.status === 'reading');
-        const completedBooks = (allBooks as any[]).filter((b: any) => b.status === 'completed').length;
+        const activeBook = (allBooks).find((b: any) => b.status === 'reading');
+        const completedBooks = (allBooks).filter((b: any) => b.status === 'completed').length;
         mindScore = 18;
         if (activeBook && (activeBook.current_page || 0) > 0) mindScore += 5;
         if (completedBooks >= 1) mindScore += 2;
@@ -129,11 +129,11 @@ export async function GET() {
     let propertyValue = 0;
     try {
       const properties = userId
-        ? await db.select().from(realEstateProperties).where(or(eq(realEstateProperties.user_id, userId), eq(realEstateProperties.is_family_shared, 1))).all()
+        ? await db.select().from(realEstateProperties).where(or(eq(realEstateProperties.user_id, userId), eq(realEstateProperties.is_family_shared, 1)))
         : [];
       if (properties.length > 0) {
-        monthlyRentIncome = (properties as any[]).reduce((sum: number, p: any) => sum + (Number(p.monthly_rent_income) || 0), 0);
-        propertyValue = (properties as any[]).reduce((sum: number, p: any) => sum + (Number(p.estimated_market_value) || 0), 0);
+        monthlyRentIncome = (properties).reduce((sum: number, p: any) => sum + (Number(p.monthly_rent_income) || 0), 0);
+        propertyValue = (properties).reduce((sum: number, p: any) => sum + (Number(p.estimated_market_value) || 0), 0);
       }
     } catch (e) {}
 
@@ -141,10 +141,10 @@ export async function GET() {
     let liquidAssetValue = 0;
     try {
       const assets = userId
-        ? await db.select().from(investmentAssets).where(or(eq(investmentAssets.user_id, userId), eq(investmentAssets.is_family_shared, 1))).all()
+        ? await db.select().from(investmentAssets).where(or(eq(investmentAssets.user_id, userId), eq(investmentAssets.is_family_shared, 1)))
         : [];
       if (assets.length > 0) {
-        liquidAssetValue = (assets as any[]).reduce((sum: number, a: any) => sum + ((Number(a.quantity) || 0) * (Number(a.current_price) || 0)), 0);
+        liquidAssetValue = (assets).reduce((sum: number, a: any) => sum + ((Number(a.quantity) || 0) * (Number(a.current_price) || 0)), 0);
       }
     } catch (e) {}
 

@@ -51,14 +51,14 @@ export async function GET() {
     const userId = user?.id;
 
     const records = userId
-      ? await db.select().from(personalDebtsReceivables).where(eq(personalDebtsReceivables.user_id, userId)).all()
+      ? await db.select().from(personalDebtsReceivables).where(eq(personalDebtsReceivables.user_id, userId))
       : [];
     const wallets = userId
-      ? await db.select().from(walletsAccounts).where(or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1))).all()
+      ? await db.select().from(walletsAccounts).where(or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))
       : [];
-    const walletMap = new Map((wallets as any[]).map((w: any) => [w.id, w.name]));
+    const walletMap = new Map((wallets).map((w: any) => [w.id, w.name]));
 
-    const enriched = (records as any[]).map((r: any) => {
+    const enriched = (records).map((r: any) => {
       const currentTL = calcCurrentTLValue(r.index_type, r.index_amount);
       const maturityTL = calcMaturityValue(
         r.index_type, r.index_amount,
@@ -83,12 +83,12 @@ export async function GET() {
     });
 
     const totalDebt = enriched
-      .filter(r => r.type === 'debt' && r.status !== 'closed')
-      .reduce((s, r) => s + r.remaining_tl, 0);
+      .filter((r: any) => r.type === 'debt' && r.status !== 'closed')
+      .reduce((s: number, r: any) => s + r.remaining_tl, 0);
 
     const totalReceivable = enriched
-      .filter(r => r.type === 'receivable' && r.status !== 'closed')
-      .reduce((s, r) => s + r.remaining_tl, 0);
+      .filter((r: any) => r.type === 'receivable' && r.status !== 'closed')
+      .reduce((s: number, r: any) => s + r.remaining_tl, 0);
 
     return NextResponse.json({
       success: true,
@@ -136,11 +136,11 @@ export async function POST(req: Request) {
       paid_amount: 0,
       created_at: now,
       updated_at: now
-    }).run();
+    });
 
     // Bağlı hesabın bakiyesini güncelle
     if (connected_wallet_id && origTL > 0) {
-      const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, connected_wallet_id)).get();
+      const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, connected_wallet_id)))[0];
       if (wallet) {
         const newBalance = type === 'debt'
           ? wallet.balance + origTL   // Borç aldım → para geldi
@@ -149,7 +149,7 @@ export async function POST(req: Request) {
         db.update(walletsAccounts)
           .set({ balance: Math.max(0, newBalance), updated_at: now })
           .where(eq(walletsAccounts.id, connected_wallet_id))
-          .run();
+          ;
 
         const icon = type === 'debt' ? '🤝 Şahıs Borcu Alındı' : '🤝 Şahsa Borç Verildi';
         db.insert(transactions).values({
@@ -169,7 +169,7 @@ export async function POST(req: Request) {
           updated_at: now,
           sync_status: 'synced',
           device_id: 'mac-local'
-        }).run();
+        });
       }
     }
 
@@ -193,7 +193,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ success: false, error: 'ID ve ödeme tutarı zorunludur.' }, { status: 400 });
     }
 
-    const record = await db.select().from(personalDebtsReceivables).where(eq(personalDebtsReceivables.id, id)).get();
+    const record = (await db.select().from(personalDebtsReceivables).where(eq(personalDebtsReceivables.id, id)))[0];
     if (!record) {
       return NextResponse.json({ success: false, error: 'Kayıt bulunamadı.' }, { status: 404 });
     }
@@ -213,11 +213,11 @@ export async function PATCH(req: Request) {
     db.update(personalDebtsReceivables)
       .set({ paid_amount: newPaid, status: newStatus, updated_at: now })
       .where(eq(personalDebtsReceivables.id, id))
-      .run();
+      ;
 
     // Bağlı hesap bakiyesi güncelle
     if (record.connected_wallet_id) {
-      const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, record.connected_wallet_id)).get();
+      const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, record.connected_wallet_id)))[0];
       if (wallet) {
         const newBalance = record.type === 'debt'
           ? wallet.balance - payAmt   // Borcumu ödedim → para gitti
@@ -226,7 +226,7 @@ export async function PATCH(req: Request) {
         db.update(walletsAccounts)
           .set({ balance: Math.max(0, newBalance), updated_at: now })
           .where(eq(walletsAccounts.id, record.connected_wallet_id))
-          .run();
+          ;
 
         const icon = record.type === 'debt' ? '🤝 Şahıs Borcu Ödendi' : '🤝 Şahıs Alacağı Tahsil Edildi';
         db.insert(transactions).values({
@@ -246,7 +246,7 @@ export async function PATCH(req: Request) {
           updated_at: now,
           sync_status: 'synced',
           device_id: 'mac-local'
-        }).run();
+        });
       }
     }
 
@@ -270,7 +270,7 @@ export async function DELETE(req: Request) {
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ success: false, error: 'ID zorunludur.' }, { status: 400 });
 
-    db.delete(personalDebtsReceivables).where(user.is_master_account === 1 ? eq(personalDebtsReceivables.id, id) : and(eq(personalDebtsReceivables.id, id), eq(personalDebtsReceivables.user_id, user.id))).run();
+    db.delete(personalDebtsReceivables).where(user.is_master_account === 1 ? eq(personalDebtsReceivables.id, id) : and(eq(personalDebtsReceivables.id, id), eq(personalDebtsReceivables.user_id, user.id)));
     return NextResponse.json({ success: true, message: 'Kayıt silindi.' });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

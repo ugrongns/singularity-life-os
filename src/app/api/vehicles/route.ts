@@ -11,9 +11,9 @@ export async function GET() {
     const userId = user?.id;
 
     const allVehicles = userId
-      ? await db.select().from(vehicles).where(and(eq(vehicles.is_active, 1), or(eq(vehicles.user_id, userId), eq(vehicles.is_family_shared, 1)))).all()
+      ? await db.select().from(vehicles).where(and(eq(vehicles.is_active, 1), or(eq(vehicles.user_id, userId), eq(vehicles.is_family_shared, 1))))
       : [];
-    const wallets = await db.select().from(walletsAccounts).where(eq(walletsAccounts.is_active, 1)).all();
+    const wallets = await db.select().from(walletsAccounts).where(eq(walletsAccounts.is_active, 1));
 
     if (allVehicles.length === 0) {
       return NextResponse.json({
@@ -43,8 +43,7 @@ export async function GET() {
         )
       )
       .orderBy(desc(vehicleMaintenanceRecords.km_at_service))
-      .limit(1)
-      .get();
+      .limit(1).then((r: any) => r[0]);
 
     // Bakım Döngüsü Başlangıç ve Bitiş KM Hesabı (15.000 KM Kuralı)
     let cycleStartKm = lastCompletedService ? lastCompletedService.km_at_service : Math.floor(currentKm / 15000) * 15000;
@@ -65,21 +64,18 @@ export async function GET() {
       .from(vehicleFuelLogs)
       .where(eq(vehicleFuelLogs.vehicle_id, primaryVehicle.id))
       .orderBy(desc(vehicleFuelLogs.fuel_date))
-      .limit(10)
-      .all();
+      .limit(10);
 
     // Servis Kayıtları
     const maintenanceHistory = await db.select()
       .from(vehicleMaintenanceRecords)
       .where(eq(vehicleMaintenanceRecords.vehicle_id, primaryVehicle.id))
-      .orderBy(desc(vehicleMaintenanceRecords.service_date))
-      .all();
+      .orderBy(desc(vehicleMaintenanceRecords.service_date));
 
     // Yasal Hatırlatıcılar
     const legalReminders = await db.select()
       .from(vehicleLegalReminders)
-      .where(eq(vehicleLegalReminders.vehicle_id, primaryVehicle.id))
-      .all();
+      .where(eq(vehicleLegalReminders.vehicle_id, primaryVehicle.id));
 
     // Yakıt Tüketimi Hesabı (Ardışık mantıklı KM aralıklarının ortalaması)
     let avgConsumptionLiters = 0;
@@ -161,7 +157,7 @@ export async function POST(req: Request) {
       db.update(vehicles)
         .set({ current_km: newKm, updated_at: now })
         .where(eq(vehicles.id, vehicleId))
-        .run();
+        ;
 
       return NextResponse.json({ success: true, message: `🚗 Araç kilometresi ${newKm.toLocaleString('tr-TR')} KM olarak güncellendi.` });
     }
@@ -188,22 +184,22 @@ export async function POST(req: Request) {
         fuel_date: data.fuel_date || today,
         created_at: now,
         updated_at: now
-      }).run();
+      });
 
       // Araç KM güncelle
-      const veh = await db.select().from(vehicles).where(eq(vehicles.id, vehicleId)).limit(1).get();
+      const veh = (await db.select().from(vehicles).where(eq(vehicles.id, vehicleId)).limit(1))[0];
       if (veh && km > veh.current_km) {
-        db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId)).run();
+        db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId));
       }
 
       // Cüzdandan düş & harcama kaydet
       if (walletId) {
-        const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).limit(1).get();
+        const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).limit(1))[0];
         if (wallet) {
           db.update(walletsAccounts).set({
             balance: (wallet.balance || 0) - totalAmount,
             updated_at: now
-          }).where(eq(walletsAccounts.id, walletId)).run();
+          }).where(eq(walletsAccounts.id, walletId));
 
           db.insert(transactions).values({
             id: `tx-fuel-${Date.now()}`,
@@ -216,7 +212,7 @@ export async function POST(req: Request) {
             is_verified: 1,
             created_at: now,
             updated_at: now
-          }).run();
+          });
         }
       }
 
@@ -244,19 +240,19 @@ export async function POST(req: Request) {
         service_provider: data.service_provider || 'Yetkili Servis',
         created_at: now,
         updated_at: now
-      }).run();
+      });
 
       // Araç KM güncelle
-      const veh = db.select().from(vehicles).where(eq(vehicles.id, vehicleId)).all()[0];
+      const veh = (await db.select().from(vehicles).where(eq(vehicles.id, vehicleId)))[0];
       if (veh && km > veh.current_km) {
-        db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId)).run();
+        db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId));
       }
 
       // Cüzdandan düş
       if (data.wallet_id && cost > 0) {
-        const wallet = db.select().from(walletsAccounts).where(eq(walletsAccounts.id, data.wallet_id)).all()[0];
+        const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, data.wallet_id)))[0];
         if (wallet) {
-          db.update(walletsAccounts).set({ balance: (wallet.balance || 0) - cost, updated_at: now }).where(eq(walletsAccounts.id, data.wallet_id)).run();
+          db.update(walletsAccounts).set({ balance: (wallet.balance || 0) - cost, updated_at: now }).where(eq(walletsAccounts.id, data.wallet_id));
           db.insert(transactions).values({
             id: `tx-srv-${Date.now()}`,
             wallet_id: data.wallet_id,
@@ -268,7 +264,7 @@ export async function POST(req: Request) {
             is_verified: 1,
             created_at: now,
             updated_at: now
-          }).run();
+          });
         }
       }
 
@@ -288,7 +284,7 @@ export async function POST(req: Request) {
         is_completed: 0,
         created_at: now,
         updated_at: now
-      }).run();
+      });
 
       return NextResponse.json({ success: true, message: '🛡️ Yasal hatırlatıcı güncellendi.' });
     }

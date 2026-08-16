@@ -10,7 +10,7 @@ export async function GET() {
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get('singularity_session')?.value;
 
-    const allUsers = await db.select().from(users).all();
+    const allUsers = await db.select().from(users);
     const isInitialized = allUsers.length > 0;
 
     if (!sessionToken) {
@@ -28,8 +28,7 @@ export async function GET() {
     const now = new Date().toISOString();
     const session = await db.select().from(authSessions)
       .where(eq(authSessions.token, sessionToken))
-      .limit(1)
-      .get();
+      .limit(1).then((r: any) => r[0]);
 
     if (!session || session.expires_at < now) {
       return NextResponse.json({
@@ -43,7 +42,7 @@ export async function GET() {
       });
     }
 
-    const user = await db.select().from(users).where(eq(users.id, session.user_id)).limit(1).get();
+    const user = (await db.select().from(users).where(eq(users.id, session.user_id)).limit(1))[0];
     if (!user) {
       return NextResponse.json({
         success: true,

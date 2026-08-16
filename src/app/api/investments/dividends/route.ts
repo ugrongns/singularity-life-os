@@ -17,7 +17,7 @@ export async function POST(req: Request) {
       wallet_id = 'wallet-isbank'
     } = body;
 
-    const asset = await db.select().from(investmentAssets).where(eq(investmentAssets.id, asset_id)).get();
+    const asset = (await db.select().from(investmentAssets).where(eq(investmentAssets.id, asset_id)))[0];
     if (!asset) {
       return NextResponse.json({ success: false, error: 'Varlık bulunamadı.' }, { status: 404 });
     }
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
           updated_at: now
         })
         .where(eq(investmentAssets.id, asset_id))
-        .run();
+        ;
     } else {
       // Nakit Temettü: Bütçeye gelir olarak yaz ve banka hesabını artır
       const txId = `tx-div-${Date.now()}`;
@@ -62,14 +62,14 @@ export async function POST(req: Request) {
         updated_at: now,
         sync_status: 'synced',
         device_id: 'mac-local'
-      }).run();
+      });
 
-      const wallet = await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)).get();
+      const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)))[0];
       if (wallet) {
         db.update(walletsAccounts)
           .set({ balance: wallet.balance + total_amount, updated_at: now })
           .where(eq(walletsAccounts.id, wallet_id))
-          .run();
+          ;
       }
     }
 
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
       is_family_shared: 1,
       created_at: now,
       updated_at: now
-    }).run();
+    });
 
     await eventBus.emit(EVENTS.DIVIDEND_RECORDED, {
       dividendId,
