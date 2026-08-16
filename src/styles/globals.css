@@ -161,17 +161,12 @@ body {
   border-color: var(--text-main);
 }
 
-/* Dashboard Grid */
+/* Dashboard Grid - Tek Sütun Düzeni */
 .dashboard-grid {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
+  display: flex;
+  flex-direction: column;
   gap: 24px;
-}
-
-@media (max-width: 860px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
+  width: 100%;
 }
 
 .card {
