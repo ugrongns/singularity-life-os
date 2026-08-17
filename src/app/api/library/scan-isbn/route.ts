@@ -183,60 +183,70 @@ export async function POST(req: Request) {
       console.warn('OpenLibrary fallback fetch failed:', apiErr);
     }
 
-    // 4. DuckDuckGo Web Araması (Türkçe Kitaplar İçin)
-    try {
-      const searchRes = await fetch(`https://html.duckduckgo.com/html/?q=${rawIsbn}+kitap`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-      });
-      if (searchRes.ok) {
-        const html = await searchRes.text();
-        const titleRegex = /<a[^>]*class="[^"]*result__title[^"]*"[^>]*>([\s\S]*?)<\/a>/gi;
-        const matches = [...html.matchAll(titleRegex)];
-        if (matches && matches.length > 0) {
-          const rawSnippet = matches[0][1] || '';
-          let cleanText = rawSnippet
-            .replace(/<[^>]+>/g, '')
-            .replace(/^[^>]*>/, '')
-            .replace(/&nbsp;/gi, ' ')
-            .replace(/&amp;/gi, '&')
-            .replace(/&quot;/gi, '"')
-            .replace(/&#39;/gi, "'")
-            .replace(/[\r\n\t]+/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
+    // 4. Gemini AI Kütüphane & ISBN Bilgi Tabanı Sorgusu (En Güvenilir & Hızlı Çözüm)
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (apiKey) {
+      const promptText = `Sen uzman bir kütüphaneci ve bibliyografya uzmanısın.
+Aşağıdaki ISBN numarasına ait Türkçe veya uluslararası kitabın doğrulanmış resmi bilgilerini bul ve SADECE JSON formatında döndür:
+ISBN: "${rawIsbn}"
 
-          cleanText = cleanText.replace(/DuckDuckGo|satın al|fiyatı|bkmkitap|kitapyurdu|idefix|trendyol|hepsiburada|amazon|kitap/gi, '').trim();
+JSON Şeması:
+{
+  "title": "Kitabın Tam Adı",
+  "author": "Yazar Adı Soyadı",
+  "publisher": "Yayınevi Adı",
+  "total_pages": 250,
+  "category": "Kişisel Gelişim / Edebiyat / Tarih / Bilim vb.",
+  "summary": "Kitabın 2-3 cümlelik kısa ve etkileyici özeti"
+}`;
 
-          const parts = cleanText.split(/[-–—/|:]/).map(p => p.trim().replace(/^class="[^"]*">/, '')).filter(Boolean);
-          if (parts.length > 0 && parts[0].length >= 2) {
-            const detectedTitle = parts[0].replace(/^[^a-zA-Z0-9ÇĞİÖŞÜçğıöşü]+/, '').trim();
-            const detectedAuthor = (parts[1] || 'Bilinmeyen Yazar').replace(/^[^a-zA-Z0-9ÇĞİÖŞÜçğıöşü]+/, '').trim();
+      const MODELS_TO_TRY = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-pro-latest'];
+      for (const modelName of MODELS_TO_TRY) {
+        try {
+          const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: promptText }] }],
+              generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
+            })
+          });
 
-            if (detectedTitle && detectedTitle.length >= 2) {
-              return NextResponse.json({
-                success: true,
-                data: {
-                  title: detectedTitle,
-                  author: detectedAuthor || 'Bilinmeyen Yazar',
-                  publisher: 'Türkçe Yayıncı',
-                  total_pages: 240,
-                  isbn: rawIsbn,
-                  category: 'Kişisel Gelişim',
-                  format: 'physical',
-                  shelf_location: 'Salon Kitaplığı',
-                  words_per_page: 250,
-                  summary: `İnternet aramasından otomatik tanımlanan kitap (ISBN: ${rawIsbn}).`,
-                  cover_url: null
-                }
-              });
+          if (aiRes.ok) {
+            const aiData = await aiRes.json();
+            const textOutput = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (textOutput) {
+              const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
+              let parsedBook = JSON.parse(cleanJson);
+              if (Array.isArray(parsedBook) && parsedBook.length > 0) {
+                parsedBook = parsedBook[0];
+              }
+
+              if (parsedBook && parsedBook.title && parsedBook.title !== 'Bilinmeyen Kitap') {
+                return NextResponse.json({
+                  success: true,
+                  data: {
+                    title: parsedBook.title,
+                    author: parsedBook.author || 'Bilinmeyen Yazar',
+                    publisher: parsedBook.publisher || 'Genel Yayıncı',
+                    total_pages: Number(parsedBook.total_pages) || 250,
+                    isbn: rawIsbn,
+                    category: parsedBook.category || 'Kişisel Gelişim',
+                    format: 'physical',
+                    shelf_location: 'Salon Kitaplığı',
+                    words_per_page: 250,
+                    summary: parsedBook.summary || `ISBN (${rawIsbn}) ile tanımlanan kitap.`,
+                    cover_url: null
+                  },
+                  message: `📚 "${parsedBook.title}" kitabı ISBN üzerinden başarıyla tanımlandı!`
+                });
+              }
             }
           }
+        } catch (aiErr) {
+          console.warn(`[Gemini ISBN ${modelName} Error]:`, aiErr);
         }
       }
-    } catch (webErr) {
-      console.warn('Web search lookup failed:', webErr);
     }
 
     // 5. Nötr Varsayılan Doldurma (Kullanıcı Elle Temizlemek Zorunda Kalmasın)
