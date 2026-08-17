@@ -18,7 +18,7 @@ export async function GET() {
       const defaultMemberName = user?.full_name || 'Uğur (Aile Lideri)';
       const defaultId = user?.id ? `fm-${user.id}` : `fm-master-${Date.now()}`;
 
-      db.insert(familyMembers).values({
+      await db.insert(familyMembers).values({
         id: defaultId,
         name: defaultMemberName,
         role: 'admin',
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const newId = `fm-${Date.now()}`;
 
-    db.insert(familyMembers).values({
+    await db.insert(familyMembers).values({
       id: newId,
       name: name.trim(),
       role: role || 'member',
@@ -98,7 +98,7 @@ export async function PUT(req: Request) {
 
     const now = new Date().toISOString();
 
-    db.update(familyMembers)
+    await db.update(familyMembers)
       .set({
         name: name ? name.trim() : undefined,
         role: role || undefined,
@@ -130,7 +130,7 @@ export async function DELETE(req: Request) {
     }
 
     // Soft delete (is_active = 0)
-    db.update(familyMembers)
+    await db.update(familyMembers)
       .set({ is_active: 0, updated_at: new Date().toISOString() })
       .where(eq(familyMembers.id, id))
       ;

@@ -63,7 +63,7 @@ export async function POST(req: Request) {
     const code = generateInviteCode();
     const inviteId = `inv-${Date.now()}`;
 
-    db.insert(familyInvites).values({
+    await db.insert(familyInvites).values({
       id: inviteId,
       invite_code: code,
       created_by_user_id: user.id,

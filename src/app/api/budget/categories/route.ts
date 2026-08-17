@@ -54,7 +54,7 @@ export async function POST(req: Request) {
 
     if (id) {
       // Güncelle
-      db.update(categories)
+      await db.update(categories)
         .set({
           name: name.trim(),
           type: type || 'expense',
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
     } else {
       // Yeni Ekle
       const newId = `cat-${Date.now()}`;
-      db.insert(categories).values({
+      await db.insert(categories).values({
         id: newId,
         name: name.trim(),
         type: type || 'expense',
@@ -104,7 +104,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Kategori ID zorunludur.' }, { status: 400 });
     }
 
-    db.delete(categories).where(eq(categories.id, id));
+    await db.delete(categories).where(eq(categories.id, id));
 
     return NextResponse.json({ success: true, message: 'Kategori başarıyla silindi.' });
   } catch (error: any) {

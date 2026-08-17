@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       const newTotalCost = (asset.quantity * asset.avg_cost) + total_amount;
       const newAvgCost = Math.round((newTotalCost / newQuantity) * 100) / 100;
 
-      db.update(investmentAssets)
+      await db.update(investmentAssets)
         .set({
           quantity: newQuantity,
           avg_cost: newAvgCost,
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     } else {
       // Nakit Temettü: Bütçeye gelir olarak yaz ve banka hesabını artır
       const txId = `tx-div-${Date.now()}`;
-      db.insert(transactions).values({
+      await db.insert(transactions).values({
         id: txId,
         wallet_id,
         category_id: 'cat-maas', // Yatırım / Gelir
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
 
       const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)))[0];
       if (wallet) {
-        db.update(walletsAccounts)
+        await db.update(walletsAccounts)
           .set({ balance: wallet.balance + total_amount, updated_at: now })
           .where(eq(walletsAccounts.id, wallet_id))
           ;
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
     }
 
     // Temettü tablosuna kaydet
-    db.insert(investmentDividends).values({
+    await db.insert(investmentDividends).values({
       id: dividendId,
       asset_id,
       dividend_date: today,

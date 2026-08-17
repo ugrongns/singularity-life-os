@@ -32,7 +32,7 @@ export async function POST() {
     const wallet1Id = `w-sample-1-${Date.now()}`;
     const wallet2Id = `w-sample-2-${Date.now()}`;
 
-    db.insert(walletsAccounts).values({
+    await db.insert(walletsAccounts).values({
       id: wallet1Id,
       name: 'Vadesiz Maaş Hesabı',
       type: 'bank',
@@ -45,7 +45,7 @@ export async function POST() {
       user_id: userId
     });
 
-    db.insert(walletsAccounts).values({
+    await db.insert(walletsAccounts).values({
       id: wallet2Id,
       name: 'Bonus Kredi Kartı',
       type: 'credit_card',
@@ -67,13 +67,13 @@ export async function POST() {
     const cat3Id = `cat-arac`;
 
     try {
-      db.update(categories).set({ monthly_budget_limit: 15000 }).where(eq(categories.id, cat1Id));
-      db.update(categories).set({ monthly_budget_limit: 20000 }).where(eq(categories.id, cat2Id));
-      db.update(categories).set({ monthly_budget_limit: 7500 }).where(eq(categories.id, cat3Id));
+      await db.update(categories).set({ monthly_budget_limit: 15000 }).where(eq(categories.id, cat1Id));
+      await db.update(categories).set({ monthly_budget_limit: 20000 }).where(eq(categories.id, cat2Id));
+      await db.update(categories).set({ monthly_budget_limit: 7500 }).where(eq(categories.id, cat3Id));
     } catch (e) {}
 
     // 3. Örnek İşlemler
-    db.insert(transactions).values({
+    await db.insert(transactions).values({
       id: `tx-sample-1-${Date.now()}`,
       wallet_id: wallet1Id,
       category_id: 'cat-maas',
@@ -89,7 +89,7 @@ export async function POST() {
       user_id: userId
     });
 
-    db.insert(transactions).values({
+    await db.insert(transactions).values({
       id: `tx-sample-2-${Date.now()}`,
       wallet_id: wallet2Id,
       category_id: cat1Id,
@@ -107,7 +107,7 @@ export async function POST() {
 
     // 4. Örnek Kitap & Alıntı
     const bookId = `book-sample-${Date.now()}`;
-    db.insert(books).values({
+    await db.insert(books).values({
       id: bookId,
       title: 'Atomik Alışkanlıklar',
       author: 'James Clear',
@@ -127,7 +127,7 @@ export async function POST() {
       user_id: userId
     });
 
-    db.insert(bookQuotes).values({
+    await db.insert(bookQuotes).values({
       id: `quote-sample-1-${Date.now()}`,
       book_id: bookId,
       page_number: 74,
@@ -139,7 +139,7 @@ export async function POST() {
       user_id: userId
     });
 
-    db.insert(userReadingProfile).values({
+    await db.insert(userReadingProfile).values({
       id: `prof-sample-${Date.now()}`,
       yearly_target_books: 24,
       calibrated_avg_wpm: 233,
@@ -150,7 +150,7 @@ export async function POST() {
     });
 
     // 5. Örnek Gayrimenkul
-    db.insert(realEstateProperties).values({
+    await db.insert(realEstateProperties).values({
       id: `prop-sample-${Date.now()}`,
       title: 'Kadıköy Moda 2+1 Daire',
       address: 'Moda Cad. Kadıköy / İstanbul',
@@ -170,7 +170,7 @@ export async function POST() {
     });
 
     // 6. Örnek Sağlık & Su Profili
-    db.insert(userHealthProfile).values({
+    await db.insert(userHealthProfile).values({
       id: `hp-sample-${Date.now()}`,
       daily_calorie_target: 2200,
       target_protein_g: 140,

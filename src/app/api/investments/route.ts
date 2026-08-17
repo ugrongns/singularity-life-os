@@ -153,7 +153,7 @@ export async function POST(req: Request) {
       const stateContribution = principal * 0.30;
       const fundVal = parseFloat(current_fund_value) || (principal + stateContribution);
 
-      db.insert(besContracts).values({
+      await db.insert(besContracts).values({
         id: `bes-${Date.now()}`,
         member_id: 'member-ugur',
         company: company || 'Bireysel Emeklilik',
@@ -184,7 +184,7 @@ export async function POST(req: Request) {
     const cost = parseFloat(avg_cost) || (asset_class === 'cash_fiat' ? 1 : 0);
     const price = parseFloat(current_price) || cost || (asset_class === 'cash_fiat' ? 1 : 0);
 
-    db.insert(investmentAssets).values({
+    await db.insert(investmentAssets).values({
       id: assetId,
       member_id: 'member-ugur',
       account_id: account_id || null,
@@ -229,7 +229,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Asset ID zorunludur.' }, { status: 400 });
     }
 
-    db.delete(investmentAssets).where(user.is_master_account === 1 ? eq(investmentAssets.id, id) : and(eq(investmentAssets.id, id), eq(investmentAssets.user_id, user.id)));
+    await db.delete(investmentAssets).where(user.is_master_account === 1 ? eq(investmentAssets.id, id) : and(eq(investmentAssets.id, id), eq(investmentAssets.user_id, user.id)));
 
     return NextResponse.json({ success: true, message: 'Varlık portföyden silindi.' });
   } catch (error: any) {

@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const today = now.split('T')[0];
 
-    db.insert(nutritionMeals).values({
+    await db.insert(nutritionMeals).values({
       id: `meal-${Date.now()}`,
       member_id: 'member-ugur',
       name: custom_title || 'Diyetisyen Menüsü Öğünü',

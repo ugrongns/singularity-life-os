@@ -52,7 +52,7 @@ export async function POST(req: Request) {
       });
 
       if (matched) {
-        db.update(shoppingListItems).set({
+        await db.update(shoppingListItems).set({
           is_checked: 1,
           estimated_price: receiptItem.price > 0 ? receiptItem.price : matched.estimated_price,
           updated_at: now

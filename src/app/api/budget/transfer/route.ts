@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       ? fromAcc.balance + numAmount // Kredi kartından para çekilirse borcu artar
       : fromAcc.balance - numAmount; // Banka/Nakit hesabından para çıkarsa bakiye düşer
 
-    db.update(walletsAccounts)
+    await db.update(walletsAccounts)
       .set({ balance: Math.max(0, newFromBalance), updated_at: now })
       .where(eq(walletsAccounts.id, from_account_id))
       ;
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
       ? toAcc.balance - numAmount // Kredi kartına ödeme yapılırsa borcu düşer!
       : toAcc.balance + numAmount; // Banka/Nakit hesabına girerse bakiye artar
 
-    db.update(walletsAccounts)
+    await db.update(walletsAccounts)
       .set({ balance: Math.max(0, newToBalance), updated_at: now })
       .where(eq(walletsAccounts.id, to_account_id))
       ;
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       : `🔄 Transfer: ${fromAcc.name} ➔ ${toAcc.name}`;
 
     const txId = `tx-transfer-${Date.now()}`;
-    db.insert(transactions).values({
+    await db.insert(transactions).values({
       id: txId,
       wallet_id: from_account_id,
       merchant: txMerchant,

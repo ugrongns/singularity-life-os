@@ -74,7 +74,7 @@ export async function POST(req: Request) {
     const rentAmount = property.monthly_rent_income;
 
     // 1. Mülk Nakit Akışına Kira Tahsilatı Ekle
-    db.insert(realEstateCashflows).values({
+    await db.insert(realEstateCashflows).values({
       id: `cf-rent-${Date.now()}`,
       property_id,
       type: 'rent_collection',
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
 
     // 2. Bütçe Modülüne Gelir Kaydet
     const txId = `tx-rent-${Date.now()}`;
-    db.insert(transactions).values({
+    await db.insert(transactions).values({
       id: txId,
       wallet_id,
       category_id: 'cat-maas', // Gelir kategorisi
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
     // 3. Banka Hesabı Bakiyesini Artır
     const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)))[0];
     if (wallet) {
-      db.update(walletsAccounts)
+      await db.update(walletsAccounts)
         .set({ balance: wallet.balance + rentAmount, updated_at: now })
         .where(eq(walletsAccounts.id, wallet_id))
         ;

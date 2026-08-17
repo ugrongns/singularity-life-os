@@ -70,7 +70,7 @@ export async function POST(req: Request) {
       const interval = months || data.months || 6;
       const nextDate = new Date(now.getTime() + (interval * 30 * 86400000)).toISOString().split('T')[0];
 
-      db.update(homeMaintenanceRecords)
+      await db.update(homeMaintenanceRecords)
         .set({
           last_serviced_date: now.toISOString().split('T')[0],
           next_due_date: nextDate,
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
       const interval = parseInt(data.interval_months) || 6;
       const nextDate = new Date(now.getTime() + (interval * 30 * 86400000)).toISOString().split('T')[0];
 
-      db.insert(homeMaintenanceRecords).values({
+      await db.insert(homeMaintenanceRecords).values({
         id,
         item_type: data.item_type || 'custom',
         title: data.title,
@@ -114,7 +114,7 @@ export async function POST(req: Request) {
       const purchaseDate = data.purchase_date || now.toISOString().split('T')[0];
       const expiryDate = new Date(new Date(purchaseDate).getTime() + (warrantyMonths * 30 * 86400000)).toISOString().split('T')[0];
 
-      db.insert(homeAppliances).values({
+      await db.insert(homeAppliances).values({
         id,
         name: data.name,
         brand: data.brand || '',
@@ -132,7 +132,7 @@ export async function POST(req: Request) {
     }
 
     if (action === 'delete_appliance') {
-      db.delete(homeAppliances).where(eq(homeAppliances.id, data.id));
+      await db.delete(homeAppliances).where(eq(homeAppliances.id, data.id));
       return NextResponse.json({ success: true, message: 'Cihaz kaydı silindi.' });
     }
 

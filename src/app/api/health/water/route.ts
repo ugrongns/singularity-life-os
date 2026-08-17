@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     const profile = (await db.select().from(userHealthProfile).limit(1))[0];
     const current = reset ? 0 : (profile?.consumed_water_ml || 0) + (parseFloat(amount_ml) || 250);
 
-    db.update(userHealthProfile)
+    await db.update(userHealthProfile)
       .set({ consumed_water_ml: current, updated_at: new Date().toISOString() })
       ;
 

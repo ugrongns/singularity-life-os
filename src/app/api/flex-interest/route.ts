@@ -86,7 +86,7 @@ export async function POST(req: Request) {
       const existing = (await db.select().from(flexInterestAccounts).where(eq(flexInterestAccounts.account_id, accountId)))[0];
 
       if (existing) {
-        db.update(flexInterestAccounts)
+        await db.update(flexInterestAccounts)
           .set({
             is_active: activeVal,
             annual_rate: rateVal,
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
           .where(eq(flexInterestAccounts.account_id, accountId))
           ;
       } else {
-        db.insert(flexInterestAccounts).values({
+        await db.insert(flexInterestAccounts).values({
           id: `flex-${Date.now()}`,
           account_id: accountId,
           is_active: activeVal,
@@ -135,7 +135,7 @@ export async function POST(req: Request) {
       const flexConfig = (await db.select().from(flexInterestAccounts).where(eq(flexInterestAccounts.account_id, accountId)))[0];
 
       // 1. Kazancı veritabanına kaydet
-      db.insert(flexInterestEarnings).values({
+      await db.insert(flexInterestEarnings).values({
         id: `earning-${Date.now()}`,
         flex_account_id: flexConfig ? flexConfig.id : null,
         wallet_account_id: accountId,
@@ -152,7 +152,7 @@ export async function POST(req: Request) {
       });
 
       // 2. Hesap bakiyesini güncelle
-      db.update(walletsAccounts)
+      await db.update(walletsAccounts)
         .set({
           balance: account.balance + earnAmt,
           updated_at: nowISO
@@ -161,7 +161,7 @@ export async function POST(req: Request) {
         ;
 
       // 3. İşlem logunu yaz
-      db.insert(transactions).values({
+      await db.insert(transactions).values({
         id: `tx-flex-earn-${Date.now()}`,
         wallet_id: accountId,
         merchant: `💵 Nemalandırma / Faiz Kazancı`,
@@ -182,7 +182,7 @@ export async function POST(req: Request) {
 
       // Opsiyonel: Nema hesabının başlangıç tarihini sıfırla (kazanç alındığı için yeni periyot başlar)
       if (flexConfig && flexConfig.is_active === 1) {
-        db.update(flexInterestAccounts)
+        await db.update(flexInterestAccounts)
           .set({
             updated_at: nowISO // Yeni başlangıç tarihi bugündür
           })

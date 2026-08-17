@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const logId = `scale-${Date.now()}`;
 
-    db.insert(smartScaleLogs).values({
+    await db.insert(smartScaleLogs).values({
       id: logId,
       user_id: user?.id || null,
       measurement_date: body.measurement_date || now.split('T')[0],

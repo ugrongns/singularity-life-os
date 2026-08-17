@@ -145,7 +145,7 @@ export async function POST(req: Request) {
       const bookStatus = status || (curr >= total ? 'completed' : curr > 0 ? 'reading' : 'wishlist');
       const bookId = `book-${Date.now()}`;
 
-      db.insert(books).values({
+      await db.insert(books).values({
         id: bookId,
         title: title || 'Yeni Kitap',
         author: author || 'Bilinmeyen Yazar',
@@ -185,7 +185,7 @@ export async function POST(req: Request) {
 
     // 2. Emanet Durumu Değiştirme
     if (action === 'toggle_lent') {
-      db.update(books)
+      await db.update(books)
         .set({
           is_lent_out: is_lent_out ? 1 : 0,
           lent_to_name: is_lent_out ? lent_to_name : null,
@@ -207,7 +207,7 @@ export async function POST(req: Request) {
       const curr = parseInt(current_page) || 0;
       const bookStatus = status || (curr >= total ? 'completed' : curr > 0 ? 'reading' : 'wishlist');
 
-      db.update(books)
+      await db.update(books)
         .set({
           title: title ? title.trim() : undefined,
           author: author ? author.trim() : undefined,
@@ -253,7 +253,7 @@ export async function POST(req: Request) {
     const newPage = Math.min(targetBook.total_pages, Math.max(0, current_page));
     const newStatus = newPage >= targetBook.total_pages ? 'completed' : 'reading';
 
-    db.update(books)
+    await db.update(books)
       .set({ 
         current_page: newPage, 
         status: newStatus,
@@ -288,7 +288,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Kitap ID gereklidir.' }, { status: 400 });
     }
 
-    db.delete(books).where(user.is_master_account === 1 ? eq(books.id, id) : and(eq(books.id, id), eq(books.user_id, user.id)));
+    await db.delete(books).where(user.is_master_account === 1 ? eq(books.id, id) : and(eq(books.id, id), eq(books.user_id, user.id)));
 
     return NextResponse.json({ success: true, message: '🗑️ Kitap kütüphaneden silindi.' });
   } catch (error: any) {

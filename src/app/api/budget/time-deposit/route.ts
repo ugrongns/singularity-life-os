@@ -80,7 +80,7 @@ export async function POST(req: Request) {
     const nowISO = now.toISOString();
 
     // 1. Hedef hesabın bakiyesini güncelle
-    db.update(walletsAccounts)
+    await db.update(walletsAccounts)
       .set({
         balance: targetAcc.balance + totalReturn,
         updated_at: nowISO
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
       ;
 
     // 2. Vadeli hesabı sıfırla ve deaktif et
-    db.update(walletsAccounts)
+    await db.update(walletsAccounts)
       .set({
         balance: 0,
         is_active: 0,
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
       ;
 
     // 3. Anapara dönüşü işlemini kaydet
-    db.insert(transactions).values({
+    await db.insert(transactions).values({
       id: `tx-deposit-return-${Date.now()}`,
       wallet_id: targetAccountId,
       merchant: `🏛️ Vadeli Mevduat Dönüşü (Anapara)`,
@@ -120,7 +120,7 @@ export async function POST(req: Request) {
 
     // 4. Faiz geliri işlemini kaydet
     if (interest > 0) {
-      db.insert(transactions).values({
+      await db.insert(transactions).values({
         id: `tx-deposit-interest-${Date.now()}`,
         wallet_id: targetAccountId,
         merchant: `💵 Vadeli Mevduat Faiz Geliri`,

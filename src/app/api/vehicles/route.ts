@@ -154,7 +154,7 @@ export async function POST(req: Request) {
       const vehicleId = data.vehicle_id;
       const newKm = parseFloat(data.current_km);
 
-      db.update(vehicles)
+      await db.update(vehicles)
         .set({ current_km: newKm, updated_at: now })
         .where(eq(vehicles.id, vehicleId))
         ;
@@ -173,7 +173,7 @@ export async function POST(req: Request) {
       const fuelStation = data.fuel_station || 'Opet';
       const walletId = data.wallet_id;
 
-      db.insert(vehicleFuelLogs).values({
+      await db.insert(vehicleFuelLogs).values({
         id: fuelId,
         vehicle_id: vehicleId,
         km,
@@ -189,19 +189,19 @@ export async function POST(req: Request) {
       // Araç KM güncelle
       const veh = (await db.select().from(vehicles).where(eq(vehicles.id, vehicleId)).limit(1))[0];
       if (veh && km > veh.current_km) {
-        db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId));
+        await db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId));
       }
 
       // Cüzdandan düş & harcama kaydet
       if (walletId) {
         const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).limit(1))[0];
         if (wallet) {
-          db.update(walletsAccounts).set({
+          await db.update(walletsAccounts).set({
             balance: (wallet.balance || 0) - totalAmount,
             updated_at: now
           }).where(eq(walletsAccounts.id, walletId));
 
-          db.insert(transactions).values({
+          await db.insert(transactions).values({
             id: `tx-fuel-${Date.now()}`,
             wallet_id: walletId,
             merchant: `${fuelStation} - Yakıt Alımı`,
@@ -227,7 +227,7 @@ export async function POST(req: Request) {
       const cost = parseFloat(data.cost) || 0;
       const nextKm = km + 15000;
 
-      db.insert(vehicleMaintenanceRecords).values({
+      await db.insert(vehicleMaintenanceRecords).values({
         id: serviceId,
         vehicle_id: vehicleId,
         type: data.type || 'periyodik_bakim',
@@ -245,15 +245,15 @@ export async function POST(req: Request) {
       // Araç KM güncelle
       const veh = (await db.select().from(vehicles).where(eq(vehicles.id, vehicleId)))[0];
       if (veh && km > veh.current_km) {
-        db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId));
+        await db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId));
       }
 
       // Cüzdandan düş
       if (data.wallet_id && cost > 0) {
         const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, data.wallet_id)))[0];
         if (wallet) {
-          db.update(walletsAccounts).set({ balance: (wallet.balance || 0) - cost, updated_at: now }).where(eq(walletsAccounts.id, data.wallet_id));
-          db.insert(transactions).values({
+          await db.update(walletsAccounts).set({ balance: (wallet.balance || 0) - cost, updated_at: now }).where(eq(walletsAccounts.id, data.wallet_id));
+          await db.insert(transactions).values({
             id: `tx-srv-${Date.now()}`,
             wallet_id: data.wallet_id,
             merchant: `${data.service_provider || 'Oto Servis'} Bakımı`,
@@ -274,7 +274,7 @@ export async function POST(req: Request) {
     // Yasal Hatırlatıcı Ekleme/Güncelleme
     if (action === 'add_legal') {
       const id = `leg-${Date.now()}`;
-      db.insert(vehicleLegalReminders).values({
+      await db.insert(vehicleLegalReminders).values({
         id,
         vehicle_id: data.vehicle_id,
         type: data.type,

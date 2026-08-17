@@ -89,7 +89,7 @@ export async function POST(req: Request) {
       const now = new Date().toISOString();
       const scanId = `scan-${Date.now()}`;
 
-      db.insert(packagedFoodScans).values({
+      await db.insert(packagedFoodScans).values({
         id: scanId,
         product_name: foodAnalysis.product_name,
         brand: foodAnalysis.brand,

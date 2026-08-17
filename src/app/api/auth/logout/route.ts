@@ -11,7 +11,7 @@ export async function POST() {
     const sessionToken = cookieStore.get('singularity_session')?.value;
 
     if (sessionToken) {
-      db.delete(authSessions).where(eq(authSessions.token, sessionToken));
+      await db.delete(authSessions).where(eq(authSessions.token, sessionToken));
     }
 
     cookieStore.delete('singularity_session');

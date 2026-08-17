@@ -60,7 +60,7 @@ export async function POST(req: Request) {
       // Mevcut salt ile yeni parola hash'i üret (böylece mevcut PIN bozulmaz)
       const newHashRes = hashPassword(new_password, user.password_salt);
 
-      db.update(users)
+      await db.update(users)
         .set({
           password_hash: newHashRes.hash,
           updated_at: now
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
 
       const newPinHash = hashPin(new_pin, user.password_salt);
 
-      db.update(users)
+      await db.update(users)
         .set({
           quick_pin_hash: newPinHash,
           updated_at: now
@@ -138,7 +138,7 @@ export async function POST(req: Request) {
         }
       }
 
-      db.update(users)
+      await db.update(users)
         .set({
           full_name: full_name.trim(),
           email: email ? email.toLowerCase().trim() : user.email,

@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const quoteId = `quote-${Date.now()}`;
 
-    db.insert(bookQuotes).values({
+    await db.insert(bookQuotes).values({
       id: quoteId,
       book_id,
       page_number: parseInt(page_number, 10) || null,

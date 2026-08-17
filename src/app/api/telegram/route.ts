@@ -8,9 +8,9 @@ async function getSetting(key: string): Promise<string | null> {
   return row ? row.value : null;
 }
 
-function setSetting(key: string, value: string) {
+async function setSetting(key: string, value: string) {
   const now = new Date().toISOString();
-  db.insert(appSettings)
+  await db.insert(appSettings)
     .values({ key, value, updated_at: now })
     .onConflictDoUpdate({ target: appSettings.key, set: { value, updated_at: now } })
     ;
@@ -104,9 +104,9 @@ export async function POST(req: Request) {
       } catch (err) {}
 
       if (detectedChatId && body.auto_save) {
-        setSetting('telegram_bot_token', token);
-        setSetting('telegram_chat_id', detectedChatId);
-        setSetting('telegram_enabled', 'true');
+        await setSetting('telegram_bot_token', token);
+        await setSetting('telegram_chat_id', detectedChatId);
+        await setSetting('telegram_enabled', 'true');
       }
 
       return NextResponse.json({
@@ -124,8 +124,8 @@ export async function POST(req: Request) {
 
     // B. TEST BİLDİRİMİ GÖNDER
     if (body.action === 'send_test_message') {
-      const token = body.bot_token || getSetting('telegram_bot_token') || process.env.TELEGRAM_BOT_TOKEN;
-      const chatId = body.chat_id || getSetting('telegram_chat_id') || process.env.TELEGRAM_CHAT_ID;
+      const token = body.bot_token || (await getSetting('telegram_bot_token')) || process.env.TELEGRAM_BOT_TOKEN;
+      const chatId = body.chat_id || (await getSetting('telegram_chat_id')) || process.env.TELEGRAM_CHAT_ID;
 
       const messageText = `🌌 *Singularity Life OS — Test Bildirimi*\n\n✅ Telegram Bot entegrasyonu başarıyla bağlandı!\n\n💡 *Neler Yapabilirsiniz?*\n• Fiş fotoğrafı atarak bütçeye işleyebilirsiniz\n• Ses kaydı atarak çoklu işlem girebilirsiniz\n• \`/ozet\` yazarak anlık yaşam durumunuzu görebilirsiniz.`;
 
@@ -211,7 +211,7 @@ export async function POST(req: Request) {
         const ml = parseInt(parts[1], 10) || 250;
         const profile = (await db.select().from(userHealthProfile).limit(1))[0];
         const current = (profile?.consumed_water_ml || 0) + ml;
-        db.update(userHealthProfile).set({ consumed_water_ml: current, updated_at: new Date().toISOString() });
+        await db.update(userHealthProfile).set({ consumed_water_ml: current, updated_at: new Date().toISOString() });
         replyText = `💧 *+${ml} ml su kaydedildi!*\nBugünkü toplam: ${current} ml`;
       } else if (text.startsWith('/kitap')) {
         const parts = text.split(' ');
@@ -219,7 +219,7 @@ export async function POST(req: Request) {
         const activeBook = (await db.select().from(books).where(eq(books.status, 'reading')).limit(1))[0] || (await db.select().from(books).limit(1))[0];
         if (activeBook) {
           const newPage = Math.min(activeBook.total_pages, (activeBook.current_page || 0) + pages);
-          db.update(books).set({ current_page: newPage, updated_at: new Date().toISOString() }).where(eq(books.id, activeBook.id));
+          await db.update(books).set({ current_page: newPage, updated_at: new Date().toISOString() }).where(eq(books.id, activeBook.id));
           replyText = `📚 *Kitap İlerlemesi Kaydedildi!*\n${activeBook.title}: +${pages} sayfa (${newPage}/${activeBook.total_pages})`;
         }
       } else if (text.length > 0) {

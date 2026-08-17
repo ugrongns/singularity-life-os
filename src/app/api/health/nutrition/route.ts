@@ -98,7 +98,7 @@ export async function POST(req: Request) {
       const existing = (await db.select().from(userHealthProfile).limit(1))[0];
 
       if (existing) {
-        db.update(userHealthProfile).set({
+        await db.update(userHealthProfile).set({
           daily_calorie_target: Number(data.daily_calorie_target) || existing.daily_calorie_target,
           target_protein_g: Number(data.target_protein_g) || existing.target_protein_g,
           target_carbs_g: Number(data.target_carbs_g) || existing.target_carbs_g,
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
           updated_at: now
         }).where(eq(userHealthProfile.id, existing.id));
       } else {
-        db.insert(userHealthProfile).values({
+        await db.insert(userHealthProfile).values({
           id: `hp-${Date.now()}`,
           daily_calorie_target: Number(data.daily_calorie_target) || 2200,
           target_protein_g: Number(data.target_protein_g) || 140,
@@ -122,7 +122,7 @@ export async function POST(req: Request) {
 
     // Öğün Silme
     if (action === 'delete_meal') {
-      db.delete(nutritionMeals).where(eq(nutritionMeals.id, data.id));
+      await db.delete(nutritionMeals).where(eq(nutritionMeals.id, data.id));
       return NextResponse.json({ success: true, message: 'Öğün silindi.' });
     }
 
@@ -138,7 +138,7 @@ export async function POST(req: Request) {
 
     const mealId = `meal-${Date.now()}`;
 
-    db.insert(nutritionMeals).values({
+    await db.insert(nutritionMeals).values({
       id: mealId,
       member_id: 'member-ugur',
       name,

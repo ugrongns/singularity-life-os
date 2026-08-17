@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 
     if (id) {
       // Güncelle
-      db.update(walletsAccounts)
+      await db.update(walletsAccounts)
         .set({
           name: name.trim(),
           type,
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
 
         const newLoanId = `loan-${Date.now()}`;
 
-        db.insert(walletsAccounts).values({
+        await db.insert(walletsAccounts).values({
           id: newLoanId,
           name: name.trim(),
           type: 'loan',
@@ -81,13 +81,13 @@ export async function POST(req: Request) {
         if (deposited_account_id && origAmt > 0) {
           const bankAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)))[0];
           if (bankAcc) {
-            db.update(walletsAccounts)
+            await db.update(walletsAccounts)
               .set({ balance: bankAcc.balance + origAmt, updated_at: nowISO })
               .where(eq(walletsAccounts.id, deposited_account_id))
               ;
 
             // Nakit Giriş İşlemi
-            db.insert(transactions).values({
+            await db.insert(transactions).values({
               id: `tx-loan-dep-${Date.now()}`,
               wallet_id: deposited_account_id,
               merchant: `🏛️ Kredi Çekim Anaparası (${name.trim()})`,
@@ -117,7 +117,7 @@ export async function POST(req: Request) {
           instDate.setMonth(instDate.getMonth() + i);
           const instDateStr = instDate.toISOString().split('T')[0];
 
-          db.insert(transactions).values({
+          await db.insert(transactions).values({
             id: i === 0 ? parentTxId : `tx-loan-inst-${Date.now()}-${i + 1}`,
             wallet_id: newLoanId,
             merchant: `${name.trim()} Taksit Ödemesi`,
@@ -149,13 +149,13 @@ export async function POST(req: Request) {
         if (deposited_account_id && principal > 0) {
           const bankAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)))[0];
           if (bankAcc) {
-            db.update(walletsAccounts)
+            await db.update(walletsAccounts)
               .set({ balance: bankAcc.balance - principal, updated_at: nowISO })
               .where(eq(walletsAccounts.id, deposited_account_id))
               ;
 
             // Nakit Çıkış İşlemi
-            db.insert(transactions).values({
+            await db.insert(transactions).values({
               id: `tx-deposit-out-${Date.now()}`,
               wallet_id: deposited_account_id,
               merchant: `🏛️ Vadeli Mevduat Açılışı (${name.trim()})`,
@@ -177,7 +177,7 @@ export async function POST(req: Request) {
         }
 
         const newId = `acc-${Date.now()}`;
-        db.insert(walletsAccounts).values({
+        await db.insert(walletsAccounts).values({
           id: newId,
           name: name.trim(),
           type: 'time_deposit',
@@ -200,7 +200,7 @@ export async function POST(req: Request) {
 
       // Standart Hesap/Cüzdan/Kart/KMH Ekle
       const newId = `acc-${Date.now()}`;
-      db.insert(walletsAccounts).values({
+      await db.insert(walletsAccounts).values({
         id: newId,
         name: name.trim(),
         type,
@@ -240,7 +240,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesap ID zorunludur.' }, { status: 400 });
     }
 
-    db.delete(walletsAccounts).where(user.is_master_account === 1 ? eq(walletsAccounts.id, id) : and(eq(walletsAccounts.id, id), eq(walletsAccounts.user_id, user.id)));
+    await db.delete(walletsAccounts).where(user.is_master_account === 1 ? eq(walletsAccounts.id, id) : and(eq(walletsAccounts.id, id), eq(walletsAccounts.user_id, user.id)));
 
     return NextResponse.json({ success: true, message: 'Hesap başarıyla silindi.' });
   } catch (error: any) {

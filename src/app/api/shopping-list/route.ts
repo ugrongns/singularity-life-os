@@ -71,7 +71,7 @@ export async function POST(request: Request) {
 
       if (existing) {
         // Çift ürün eklemek yerine var olanı güncelle ve unchecked yap
-        db.update(shoppingListItems).set({
+        await db.update(shoppingListItems).set({
           quantity: data.quantity || existing.quantity,
           unit: data.unit || existing.unit,
           estimated_price: Number(data.estimated_price) || existing.estimated_price,
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       }
 
       const id = `shop-${Date.now()}`;
-      db.insert(shoppingListItems).values({
+      await db.insert(shoppingListItems).values({
         id,
         name: nameTrimmed,
         quantity: data.quantity || '1',
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
     }
 
     if (action === 'update') {
-      db.update(shoppingListItems).set({
+      await db.update(shoppingListItems).set({
         name: data.name,
         quantity: data.quantity,
         unit: data.unit,
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
     if (action === 'toggle') {
       const item = (await db.select().from(shoppingListItems).where(eq(shoppingListItems.id, data.id)).limit(1))[0];
       if (item) {
-        db.update(shoppingListItems).set({
+        await db.update(shoppingListItems).set({
           is_checked: item.is_checked === 1 ? 0 : 1,
           updated_at: now
         }).where(eq(shoppingListItems.id, data.id));
@@ -121,20 +121,20 @@ export async function POST(request: Request) {
     }
 
     if (action === 'delete') {
-      db.delete(shoppingListItems).where(eq(shoppingListItems.id, data.id));
+      await db.delete(shoppingListItems).where(eq(shoppingListItems.id, data.id));
       return NextResponse.json({ success: true });
     }
 
     if (action === 'clear_checked') {
       const checked = await db.select().from(shoppingListItems).where(eq(shoppingListItems.is_checked, 1));
       for (const item of checked) {
-        db.delete(shoppingListItems).where(eq(shoppingListItems.id, item.id));
+        await db.delete(shoppingListItems).where(eq(shoppingListItems.id, item.id));
       }
       return NextResponse.json({ success: true, deleted: checked.length });
     }
 
     if (action === 'clear_all') {
-      db.delete(shoppingListItems);
+      await db.delete(shoppingListItems);
       return NextResponse.json({ success: true, message: 'Tüm liste temizlendi!' });
     }
 
@@ -178,14 +178,14 @@ export async function POST(request: Request) {
 
         if (existing) {
           // Zaten varsa duplicate oluşturma, sadece is_checked=0 yap
-          db.update(shoppingListItems).set({
+          await db.update(shoppingListItems).set({
             is_checked: 0,
             updated_at: now
           }).where(eq(shoppingListItems.id, existing.id));
           existingCount++;
         } else {
           const id = `shop-preset-${Date.now()}-${added}`;
-          db.insert(shoppingListItems).values({
+          await db.insert(shoppingListItems).values({
             id,
             name: item.name,
             quantity: item.quantity,
@@ -224,7 +224,7 @@ export async function POST(request: Request) {
       // Cüzdanı al ve bakiyesini güncelle
       const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).limit(1))[0];
       if (wallet) {
-        db.update(walletsAccounts).set({
+        await db.update(walletsAccounts).set({
           balance: (wallet.balance || 0) - totalAmount,
           updated_at: now
         }).where(eq(walletsAccounts.id, walletId));
@@ -233,7 +233,7 @@ export async function POST(request: Request) {
       // Harcama işlemi kaydet (transactions)
       const txId = `tx-shop-${Date.now()}`;
       const itemNames = (checkedItems).map((i: any) => i.name).join(', ');
-      db.insert(transactions).values({
+      await db.insert(transactions).values({
         id: txId,
         wallet_id: walletId,
         merchant: 'Market Alışverişi',
@@ -248,7 +248,7 @@ export async function POST(request: Request) {
 
       // Alınan ürünleri listeden temizle
       for (const item of checkedItems) {
-        db.delete(shoppingListItems).where(eq(shoppingListItems.id, item.id));
+        await db.delete(shoppingListItems).where(eq(shoppingListItems.id, item.id));
       }
 
       return NextResponse.json({

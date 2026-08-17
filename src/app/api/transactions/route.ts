@@ -84,7 +84,7 @@ export async function POST(req: Request) {
 
       const txId = i === 0 ? parentTxId : `tx-${Date.now()}-${i + 1}`;
 
-      db.insert(transactions).values({
+      await db.insert(transactions).values({
         id: txId,
         wallet_id,
         category_id: finalCategoryId,
@@ -128,7 +128,7 @@ export async function POST(req: Request) {
           : wallet.balance - numAmount;
       }
 
-      db.update(walletsAccounts)
+      await db.update(walletsAccounts)
         .set({ balance: newBalance, updated_at: nowISO })
         .where(eq(walletsAccounts.id, wallet_id))
         ;
@@ -180,13 +180,13 @@ export async function DELETE(req: Request) {
             ? wallet.balance - tx.amount
             : wallet.balance + tx.amount;
 
-          db.update(walletsAccounts)
+          await db.update(walletsAccounts)
             .set({ balance: Math.max(0, newBalance), updated_at: new Date().toISOString() })
             .where(eq(walletsAccounts.id, tx.wallet_id))
             ;
         }
       }
-      db.delete(transactions).where(user.is_master_account === 1 ? eq(transactions.id, id) : and(eq(transactions.id, id), eq(transactions.user_id, user.id)));
+      await db.delete(transactions).where(user.is_master_account === 1 ? eq(transactions.id, id) : and(eq(transactions.id, id), eq(transactions.user_id, user.id)));
     }
 
     return NextResponse.json({ success: true, message: 'Harcama kaydı silindi ve bakiye güncellendi.' });

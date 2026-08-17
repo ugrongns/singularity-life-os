@@ -44,7 +44,7 @@ export async function POST(req: Request) {
           const amount = Number(act.details.amount) || 0;
           const walletId = act.details.wallet_id || 'wallet-garanti';
           
-          db.insert(transactions).values({
+          await db.insert(transactions).values({
             id,
             wallet_id: walletId,
             category_id: act.details.category_id || 'cat-market',
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
           }
         } else if (act.type === 'shopping') {
           const id = `shop-voice-${Date.now()}`;
-          db.insert(shoppingListItems).values({
+          await db.insert(shoppingListItems).values({
             id,
             name: act.details.name || 'Alışveriş Ürünü',
             quantity: act.details.quantity || '1',
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
           });
           results.push(`🛒 ${act.details.name} (Market Listesine eklendi)`);
         } else if (act.type === 'supplement') {
-          db.update(supplementRoutines).set({ is_taken_today: 1, updated_at: nowISO });
+          await db.update(supplementRoutines).set({ is_taken_today: 1, updated_at: nowISO });
           results.push(`💊 Günlük takviyeler alındı olarak işaretlendi`);
         }
       }

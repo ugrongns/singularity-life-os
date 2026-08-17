@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 30 * 86400000).toISOString(); // 30 gün
 
-    db.insert(authSessions).values({
+    await db.insert(authSessions).values({
       token,
       user_id: targetUser.id,
       expires_at: expiresAt,

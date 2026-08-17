@@ -121,7 +121,7 @@ export async function POST(req: Request) {
     const newId = `debt-${Date.now()}`;
     const origTL = calcCurrentTLValue(index_type || 'TRY', Number(index_amount));
 
-    db.insert(personalDebtsReceivables).values({
+    await db.insert(personalDebtsReceivables).values({
       id: newId,
       type,
       person_name: person_name.trim(),
@@ -146,13 +146,13 @@ export async function POST(req: Request) {
           ? wallet.balance + origTL   // Borç aldım → para geldi
           : wallet.balance - origTL;  // Borç verdim → para çıktı
 
-        db.update(walletsAccounts)
+        await db.update(walletsAccounts)
           .set({ balance: Math.max(0, newBalance), updated_at: now })
           .where(eq(walletsAccounts.id, connected_wallet_id))
           ;
 
         const icon = type === 'debt' ? '🤝 Şahıs Borcu Alındı' : '🤝 Şahsa Borç Verildi';
-        db.insert(transactions).values({
+        await db.insert(transactions).values({
           id: `tx-${newId}`,
           wallet_id: connected_wallet_id,
           merchant: `${icon}: ${person_name.trim()}`,
@@ -210,7 +210,7 @@ export async function PATCH(req: Request) {
     const newPaid = (record.paid_amount || 0) + payAmt;
     const newStatus = newPaid >= maturityTL ? 'closed' : 'partial';
 
-    db.update(personalDebtsReceivables)
+    await db.update(personalDebtsReceivables)
       .set({ paid_amount: newPaid, status: newStatus, updated_at: now })
       .where(eq(personalDebtsReceivables.id, id))
       ;
@@ -223,13 +223,13 @@ export async function PATCH(req: Request) {
           ? wallet.balance - payAmt   // Borcumu ödedim → para gitti
           : wallet.balance + payAmt;  // Alacağımı tahsil ettim → para geldi
 
-        db.update(walletsAccounts)
+        await db.update(walletsAccounts)
           .set({ balance: Math.max(0, newBalance), updated_at: now })
           .where(eq(walletsAccounts.id, record.connected_wallet_id))
           ;
 
         const icon = record.type === 'debt' ? '🤝 Şahıs Borcu Ödendi' : '🤝 Şahıs Alacağı Tahsil Edildi';
-        db.insert(transactions).values({
+        await db.insert(transactions).values({
           id: `tx-pay-${Date.now()}`,
           wallet_id: record.connected_wallet_id,
           merchant: `${icon}: ${record.person_name}`,
@@ -270,7 +270,7 @@ export async function DELETE(req: Request) {
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ success: false, error: 'ID zorunludur.' }, { status: 400 });
 
-    db.delete(personalDebtsReceivables).where(user.is_master_account === 1 ? eq(personalDebtsReceivables.id, id) : and(eq(personalDebtsReceivables.id, id), eq(personalDebtsReceivables.user_id, user.id)));
+    await db.delete(personalDebtsReceivables).where(user.is_master_account === 1 ? eq(personalDebtsReceivables.id, id) : and(eq(personalDebtsReceivables.id, id), eq(personalDebtsReceivables.user_id, user.id)));
     return NextResponse.json({ success: true, message: 'Kayıt silindi.' });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

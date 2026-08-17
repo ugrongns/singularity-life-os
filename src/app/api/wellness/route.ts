@@ -123,14 +123,14 @@ export async function POST(request: Request) {
       const goal = Number(data.goal_ml) || 2500;
 
       if (existing) {
-        db.update(waterIntakeLogs).set({
+        await db.update(waterIntakeLogs).set({
           amount_ml: newAmount,
           goal_ml: goal,
           updated_at: now
         }).where(eq(waterIntakeLogs.id, existing.id));
       } else {
         const id = `water-${Date.now()}`;
-        db.insert(waterIntakeLogs).values({
+        await db.insert(waterIntakeLogs).values({
           id,
           date: today,
           amount_ml: newAmount,
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
 
     if (action === 'add_supplement') {
       const id = `supp-${Date.now()}`;
-      db.insert(supplementRoutines).values({
+      await db.insert(supplementRoutines).values({
         id,
         name: data.name,
         dose: data.dose,
@@ -162,7 +162,7 @@ export async function POST(request: Request) {
     }
 
     if (action === 'update_supplement') {
-      db.update(supplementRoutines).set({
+      await db.update(supplementRoutines).set({
         name: data.name,
         dose: data.dose,
         timing: data.timing,
@@ -175,18 +175,18 @@ export async function POST(request: Request) {
     }
 
     if (action === 'delete_supplement') {
-      db.update(supplementRoutines).set({ is_active: 0, updated_at: now }).where(eq(supplementRoutines.id, data.id));
+      await db.update(supplementRoutines).set({ is_active: 0, updated_at: now }).where(eq(supplementRoutines.id, data.id));
       return NextResponse.json({ success: true, message: 'Takviye silindi!' });
     }
 
     if (action === 'reset_supplements') {
-      db.update(supplementRoutines).set({ is_taken_today: 0, updated_at: now });
+      await db.update(supplementRoutines).set({ is_taken_today: 0, updated_at: now });
       return NextResponse.json({ success: true });
     }
 
     if (action === 'add_mood') {
       const id = `mood-${Date.now()}`;
-      db.insert(moodLogs).values({
+      await db.insert(moodLogs).values({
         id,
         mood_emoji: data.mood_emoji,
         mood_score: Number(data.mood_score),
@@ -207,7 +207,7 @@ export async function POST(request: Request) {
       let duration = (wh * 60 + wm) - (bh * 60 + bm);
       if (duration < 0) duration += 24 * 60;
       const duration_hours = parseFloat((duration / 60).toFixed(1));
-      db.insert(sleepLogs).values({
+      await db.insert(sleepLogs).values({
         id,
         bedtime: data.bedtime,
         wake_time: data.wake_time,

@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     const sessionId = `session-${Date.now()}`;
 
     // 1. Seans Kaydet
-    db.insert(readingSessions).values({
+    await db.insert(readingSessions).values({
       id: sessionId,
       book_id,
       start_page: start,
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     const book = (await db.select().from(books).where(eq(books.id, book_id)))[0];
     if (book && end > book.current_page) {
       const isFinished = end >= book.total_pages;
-      db.update(books)
+      await db.update(books)
         .set({
           current_page: end,
           status: isFinished ? 'completed' : book.status,
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
 
     const profile = (await db.select().from(userReadingProfile).limit(1))[0];
     if (profile) {
-      db.update(userReadingProfile)
+      await db.update(userReadingProfile)
         .set({
           calibrated_avg_wpm: calculatedAvgWpm,
           avg_seconds_per_page: calculatedSecPerPage,

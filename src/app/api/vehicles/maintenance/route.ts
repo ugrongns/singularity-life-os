@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     const recordId = `maint-${Date.now()}`;
 
     // Servis kaydı ekle
-    db.insert(vehicleMaintenanceRecords).values({
+    await db.insert(vehicleMaintenanceRecords).values({
       id: recordId,
       vehicle_id,
       type,
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
     // Aracın güncel KM'sini de güncelle (servis KM'sinden küçükse)
     const veh = (await db.select().from(vehicles).where(eq(vehicles.id, vehicle_id)))[0];
     if (veh && veh.current_km < km) {
-      db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicle_id));
+      await db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicle_id));
     }
 
     // Event Bus yayımı

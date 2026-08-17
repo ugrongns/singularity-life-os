@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     const id = data.id || `${section}-${Date.now()}`;
 
     if (section === 'vault') {
-      db.insert(digitalVaultItems).values({
+      await db.insert(digitalVaultItems).values({
         id,
         title: data.title,
         type: data.type || 'other',
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
         updated_at: now
       });
     } else if (section === 'date') {
-      db.insert(importantDates).values({
+      await db.insert(importantDates).values({
         id,
         title: data.title,
         person_name: data.person_name,
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
         updated_at: now
       });
     } else if (section === 'pet') {
-      db.insert(petRecords).values({
+      await db.insert(petRecords).values({
         id,
         name: data.name,
         species: data.species || 'Kedi',
@@ -147,7 +147,7 @@ export async function PUT(request: Request) {
     if (!id) return NextResponse.json({ success: false, error: 'ID gerekli' }, { status: 400 });
 
     if (section === 'vault') {
-      db.update(digitalVaultItems).set({
+      await db.update(digitalVaultItems).set({
         title: data.title,
         type: data.type,
         owner: data.owner,
@@ -161,7 +161,7 @@ export async function PUT(request: Request) {
         updated_at: now
       }).where(eq(digitalVaultItems.id, id));
     } else if (section === 'date') {
-      db.update(importantDates).set({
+      await db.update(importantDates).set({
         title: data.title,
         person_name: data.person_name,
         event_type: data.event_type,
@@ -172,7 +172,7 @@ export async function PUT(request: Request) {
         updated_at: now
       }).where(eq(importantDates.id, id));
     } else if (section === 'pet') {
-      db.update(petRecords).set({
+      await db.update(petRecords).set({
         name: data.name,
         species: data.species,
         breed: data.breed,
@@ -205,11 +205,11 @@ export async function DELETE(request: Request) {
     if (!id) return NextResponse.json({ success: false, error: 'ID required' }, { status: 400 });
 
     if (section === 'vault') {
-      db.delete(digitalVaultItems).where(user.is_master_account === 1 ? eq(digitalVaultItems.id, id) : and(eq(digitalVaultItems.id, id), eq(digitalVaultItems.user_id, user.id)));
+      await db.delete(digitalVaultItems).where(user.is_master_account === 1 ? eq(digitalVaultItems.id, id) : and(eq(digitalVaultItems.id, id), eq(digitalVaultItems.user_id, user.id)));
     } else if (section === 'date') {
-      db.delete(importantDates).where(user.is_master_account === 1 ? eq(importantDates.id, id) : and(eq(importantDates.id, id), eq(importantDates.user_id, user.id)));
+      await db.delete(importantDates).where(user.is_master_account === 1 ? eq(importantDates.id, id) : and(eq(importantDates.id, id), eq(importantDates.user_id, user.id)));
     } else if (section === 'pet') {
-      db.delete(petRecords).where(user.is_master_account === 1 ? eq(petRecords.id, id) : and(eq(petRecords.id, id), eq(petRecords.user_id, user.id)));
+      await db.delete(petRecords).where(user.is_master_account === 1 ? eq(petRecords.id, id) : and(eq(petRecords.id, id), eq(petRecords.user_id, user.id)));
     }
 
     return NextResponse.json({ success: true, message: 'Silindi!' });
