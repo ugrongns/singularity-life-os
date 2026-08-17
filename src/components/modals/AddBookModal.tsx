@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import LiveBarcodeScannerModal from './LiveBarcodeScannerModal';
 
 interface AddBookModalProps {
@@ -41,6 +41,36 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
   const [isScanningPage, setIsScanningPage] = useState(false);
   const [existingBookAlert, setExistingBookAlert] = useState<{ title: string; author: string; status?: string } | null>(null);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
+
+  const resetFormState = () => {
+    setActiveTab('camera');
+    setIsbnInput('');
+    setTitle('');
+    setAuthor('');
+    setPublisher('');
+    setCategory('Kişisel Gelişim');
+    setTotalPages('200');
+    setCurrentPage('0');
+    setStatus('reading');
+    setFormat('physical');
+    setShelfLocation('Salon Kitaplığı A-3');
+    setWordsPerPage('250');
+    setSummary('');
+    setRating('5');
+    setCoverUrl('');
+    setIsLentOut(false);
+    setLentToName('');
+    setExistingBookAlert(null);
+    setScanMessage(null);
+    setIsScanning(false);
+    setIsLiveScannerOpen(false);
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      resetFormState();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -289,6 +319,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
       alert('Yapay zeka tarama hatası.');
     } finally {
       setIsScanning(false);
+      if (e.target) e.target.value = '';
     }
   };
 
