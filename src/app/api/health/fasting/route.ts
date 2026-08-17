@@ -49,10 +49,26 @@ export async function GET() {
     let phaseColor = '#3B82F6';
     let phaseDescription = 'Vücut sindirimi tamamlıyor, insülin seviyeleri dengeleniyor.';
 
-    if (elapsedHours >= 18) {
-      currentPhase = '🧬 Otofaji (Hücresel Yenilenme)';
+    if (elapsedHours >= 72) {
+      currentPhase = '🛡️ 72 Saat: Bağışıklık Sistemi Yenilenmesi';
+      phaseColor = '#EC4899';
+      phaseDescription = 'Eski akyuvarlar (bağışıklık hücreleri) tamamen geridönüştürüldü, yeni kök hücre tabanlı bağışıklık sistemi oluşuyor.';
+    } else if (elapsedHours >= 48) {
+      currentPhase = '👑 48 Saat: Kök Hücre & Büyüme Hormonu Zirvesi';
       phaseColor = '#8B5CF6';
-      phaseDescription = 'Eski ve hasarlı hücreler temizleniyor, derin hücresel gençleşme devrede.';
+      phaseDescription = 'Büyüme hormonu (HGH) %500 arttı; hücresel yaşlanmaya karşı kök hücre aktivasyonu maksimum seviyede.';
+    } else if (elapsedHours >= 36) {
+      currentPhase = '🧬 36 Saat: Derin Otofaji & Derin Hücresel Temizlik';
+      phaseColor = '#6366F1';
+      phaseDescription = 'Hücre içi çöp, katlanmamış proteinler ve disfonksiyonel organeller %300 hızla temizleniyor.';
+    } else if (elapsedHours >= 24) {
+      currentPhase = '🔥 24 Saat: Tam Otofaji & Glikojen Sıfırlaması';
+      phaseColor = '#F59E0B';
+      phaseDescription = 'Karaciğer glikojen depoları tamamen boşaldı, otofajik süreç aktif olarak hasarlı proteinleri dönüştürüyor.';
+    } else if (elapsedHours >= 18) {
+      currentPhase = '🧬 Otofaji Başlangıcı';
+      phaseColor = '#8B5CF6';
+      phaseDescription = 'Eski ve hasarlı hücreler temizleniyor, hücresel gençleşme devrede.';
     } else if (elapsedHours >= 12) {
       currentPhase = '🔥 Ketozis & Yüksek Yağ Yakımı';
       phaseColor = '#F59E0B';
@@ -100,12 +116,24 @@ export async function POST(req: Request) {
         await db.update(fastingSessions).set({ is_active: 0, actual_end_time: nowISO }).where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id)));
       }
 
-      const hours = protocol === '18:6' ? 18 : protocol === '20:4' ? 20 : protocol === '12:12' ? 12 : 16;
+      let hours = 16;
+      if (protocol === '12:12') hours = 12;
+      else if (protocol === '14:10') hours = 14;
+      else if (protocol === '16:8') hours = 16;
+      else if (protocol === '18:6') hours = 18;
+      else if (protocol === '20:4') hours = 20;
+      else if (protocol === 'OMAD' || protocol === '23:1') hours = 23;
+      else if (protocol === '24h' || protocol === '24 Saat Otofaji') hours = 24;
+      else if (protocol === '36h' || protocol === '36 Saat Derin Otofaji') hours = 36;
+      else if (protocol === '48h' || protocol === '48 Saat Kök Hücre') hours = 48;
+      else if (protocol === '72h' || protocol === '72 Saat Bağışıklık Sıfırlama') hours = 72;
+      else if (typeof protocol === 'number') hours = protocol;
+
       const targetDate = new Date(now.getTime() + (hours * 60 * 60 * 1000));
 
       await db.insert(fastingSessions).values({
         id: `fast-${Date.now()}`,
-        protocol,
+        protocol: typeof protocol === 'string' ? protocol : `${hours}h`,
         start_time: nowISO,
         target_end_time: targetDate.toISOString(),
         is_active: 1,
@@ -114,7 +142,7 @@ export async function POST(req: Request) {
         user_id: user?.id || null
       });
 
-      return NextResponse.json({ success: true, message: `${protocol} Aralıklı Oruç başlatıldı! ⏳` });
+      return NextResponse.json({ success: true, message: `${protocol} Oruç seansı başlatıldı! ⏳` });
     } else if (action === 'end') {
       await db.update(fastingSessions)
         .set({ is_active: 0, actual_end_time: nowISO, updated_at: nowISO })

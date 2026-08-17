@@ -76,10 +76,10 @@ export default function HomePage() {
 
   const handleUpdate = () => { fetchData(); };
 
-  const handleToggleFasting = async (action: 'start' | 'end') => {
+  const handleToggleFasting = async (action: 'start' | 'end', protocol: string = '16:8') => {
     const res = await fetch('/api/health/fasting', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, protocol: '16:8' })
+      body: JSON.stringify({ action, protocol })
     });
     const j = await res.json();
     if (j.success) handleUpdate();

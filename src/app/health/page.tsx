@@ -86,12 +86,12 @@ export default function HealthPage() {
     }
   };
 
-  const handleToggleFasting = async (action: 'start' | 'end') => {
+  const handleToggleFasting = async (action: 'start' | 'end', protocol: string = '16:8') => {
     try {
       const res = await fetch('/api/health/fasting', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, protocol: '16:8' })
+        body: JSON.stringify({ action, protocol })
       });
       const json = await res.json();
       if (json.success) handleUpdate(json.message);
