@@ -272,7 +272,7 @@ async function queryDRBook(isbn: string): Promise<{ book: BookData | null; diagn
 
 async function queryGeminiIsbnBook(isbn: string): Promise<{ book: BookData | null; diagnostic: ResolverDiagnostic }> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey.startsWith('AQ.')) {
+  if (!apiKey) {
     return { book: null, diagnostic: { provider: 'open_library', status: 'CONFIG', duration_ms: 0, message: 'GEMINI_API_KEY yok' } };
   }
   const started = Date.now();
@@ -334,7 +334,7 @@ SADECE aşağıdaki JSON formatında yanıt ver:
 
 async function queryWebGroundingBook(isbn: string): Promise<{ book: BookData | null; diagnostic: ResolverDiagnostic }> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey.startsWith('AQ.')) {
+  if (!apiKey) {
     return { book: null, diagnostic: { provider: 'isbndb', status: 'CONFIG', duration_ms: 0, message: 'GEMINI_API_KEY yok' } };
   }
   const started = Date.now();

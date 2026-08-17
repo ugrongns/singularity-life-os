@@ -54,7 +54,10 @@ try {
   console.warn('Postgres query builder polyfill warning:', e);
 }
 
+let isInitDone = false;
 export async function initDatabase() {
+  if (isInitDone) return;
+  isInitDone = true;
   try {
     const createTablesSQL = `
       CREATE TABLE IF NOT EXISTS family_members (
