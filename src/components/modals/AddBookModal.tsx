@@ -42,6 +42,25 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
   const [existingBookAlert, setExistingBookAlert] = useState<{ title: string; author: string; status?: string } | null>(null);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
 
+  // 🛠️ Canlı Teşhis Paneli (HUD Overlay Logs)
+  const [diagLogs, setDiagLogs] = useState<{
+    camera: string;
+    video: string;
+    engine: string;
+    detected: string;
+    apiRequest: string;
+    apiResponse: string;
+    bookData: string;
+  }>({
+    camera: '🟢 OK (Aktif)',
+    video: '🟢 OK (Görüntü Akışı Hazır)',
+    engine: 'BEKLENİYOR',
+    detected: 'BEKLENİYOR',
+    apiRequest: 'GÖNDERİLMEDİ',
+    apiResponse: 'YANIT YOK',
+    bookData: 'VERİ BEKLENİYOR'
+  });
+
   const resetFormState = () => {
     setActiveTab('camera');
     setIsbnInput('');
@@ -64,6 +83,15 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
     setScanMessage(null);
     setIsScanning(false);
     setIsLiveScannerOpen(false);
+    setDiagLogs({
+      camera: '🟢 OK (Aktif)',
+      video: '🟢 OK (Görüntü Akışı Hazır)',
+      engine: 'BEKLENİYOR',
+      detected: 'BEKLENİYOR',
+      apiRequest: 'GÖNDERİLMEDİ',
+      apiResponse: 'YANIT YOK',
+      bookData: 'VERİ BEKLENİYOR'
+    });
   };
 
   useEffect(() => {
@@ -178,6 +206,19 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
     setIsScanning(true);
     setExistingBookAlert(null);
 
+    const tStart = Date.now();
+    const payloadKB = imageBase64 ? Math.round(imageBase64.length / 1024) : 0;
+
+    setDiagLogs({
+      camera: '🟢 OK (Aktif)',
+      video: '🟢 OK (Kare Yakalandı)',
+      engine: imageBase64 ? '🟢 Gemini AI Vision OCR' : (queryIsbn ? '🟢 D&R / Client ISBN Lookup' : '🟢 Manuel Giriş'),
+      detected: queryIsbn || (imageBase64 ? '📸 Fotoğraf Kapak Karesi' : 'Görsel/Barkod Yok'),
+      apiRequest: `🟡 SENT (${payloadKB} KB)`,
+      apiResponse: '⏳ Sunucu Yanıtı Bekleniyor...',
+      bookData: '⏳ İşleniyor...'
+    });
+
     try {
       // TELEFON/İSTEMCİ IP'SİNDEN ÖN SORGULAMA (Vercel IP Engelsiz)
       let clientResult: any = null;
@@ -198,6 +239,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
           mime_type: imageBase64 ? 'image/jpeg' : undefined
         })
       });
+      const tElapsed = Date.now() - tStart;
       const json = await res.json();
 
       if (json.is_already_in_library) {
@@ -206,6 +248,15 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
 
       if (json.success && json.data) {
         const d = json.data;
+        const foundTitle = sanitizeText(d.title || clientResult?.title || '');
+        const foundAuthor = sanitizeText(d.author || clientResult?.author || '');
+
+        setDiagLogs(prev => ({
+          ...prev,
+          apiRequest: `🟢 SENT (${payloadKB} KB)`,
+          apiResponse: `🟢 ${res.status} OK (${tElapsed} ms)`,
+          bookData: foundTitle ? `🟢 FOUND: "${foundTitle}" (${foundAuthor || 'Yazar'})` : `🔴 NOT_FOUND (Boş Başlık)`
+        }));
         setTitle(sanitizeText(d.title || clientResult?.title || ''));
         setAuthor(sanitizeText(d.author || clientResult?.author || ''));
         setPublisher(sanitizeText(d.publisher || clientResult?.publisher || ''));
@@ -224,11 +275,22 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
         }
         setActiveTab('manual'); // Onay formuna geç
       } else {
+        setDiagLogs(prev => ({
+          ...prev,
+          apiResponse: `🔴 ${res.status} HTTP HATA`,
+          bookData: `🔴 HATA: ${json.error || 'Kitap bulunamadı'}`
+        }));
         alert(json.error || 'Kitap bilgisi çekilemedi. Lütfen formu manuel doldurun.');
         if (queryIsbn) setIsbnInput(queryIsbn);
         setActiveTab('manual');
       }
-    } catch (err) {
+    } catch (err: any) {
+      setDiagLogs(prev => ({
+        ...prev,
+        apiRequest: '🔴 GÖNDERİM HAKKI BAĞLANTI HATASI',
+        apiResponse: '🔴 BAĞLANTI KESİLDİ',
+        bookData: `🔴 HATA: ${err?.message || 'Ağ hatası'}`
+      }));
       alert('Bağlantı hatası oluştu. Lütfen bilgileri manuel girin.');
       if (queryIsbn) setIsbnInput(queryIsbn);
       setActiveTab('manual');
@@ -624,6 +686,23 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
           >
             ✍️ Kitap Bilgileri & Onay
           </button>
+        </div>
+
+        {/* 🛠️ Canlı Teşhis Paneli (HUD Overlay) */}
+        <div style={{ background: '#0F172A', color: '#F8FAFC', padding: '10px 12px', borderRadius: 'var(--radius-md)', fontFamily: 'monospace', fontSize: '11px', border: '1px solid #334155', marginTop: '6px' }}>
+          <div style={{ fontWeight: 800, color: '#38BDF8', fontSize: '11px', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>🛠️ CANLI TEŞHİS PANELİ (HUD)</span>
+            <span style={{ color: '#94A3B8', fontSize: '9px' }}>GERÇEK ZAMANLI</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2px', lineHeight: '1.3' }}>
+            <div>1. CAMERA      : <span style={{ color: '#4ADE80' }}>{diagLogs.camera}</span></div>
+            <div>2. VIDEO       : <span style={{ color: '#4ADE80' }}>{diagLogs.video}</span></div>
+            <div>3. ENGINE      : <span style={{ color: '#FACC15' }}>{diagLogs.engine}</span></div>
+            <div>4. DETECTED    : <span style={{ color: '#E2E8F0', fontWeight: 'bold' }}>{diagLogs.detected}</span></div>
+            <div>5. API REQUEST : <span style={{ color: '#F87171' }}>{diagLogs.apiRequest}</span></div>
+            <div>6. API RESPONSE: <span style={{ color: '#38BDF8' }}>{diagLogs.apiResponse}</span></div>
+            <div>7. BOOK DATA   : <span style={{ color: diagLogs.bookData.includes('FOUND') ? '#4ADE80' : '#F87171', fontWeight: 'bold' }}>{diagLogs.bookData}</span></div>
+          </div>
         </div>
 
         {activeTab === 'camera' && (
