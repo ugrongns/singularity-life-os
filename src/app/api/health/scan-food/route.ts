@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { packagedFoodScans } from '@/db/schema';
-import { desc, eq, or } from 'drizzle-orm';
+import { desc, eq, or, ilike } from 'drizzle-orm';
 import { parsePlateImage, parsePackagedFoodImage } from '@/lib/ai-vision';
 import { getAuthUser } from '@/lib/auth';
 
@@ -272,6 +272,31 @@ SADECE aşağıdaki JSON formatında yanıt ver:
     return NextResponse.json({ success: false, error: 'Geçersiz analiz tipi.' }, { status: 400 });
   } catch (error: any) {
     console.error('Scan Food API Error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    initDatabase();
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    const clearJunk = searchParams.get('clear_junk') === 'true';
+
+    if (clearJunk) {
+      // Çöp/bulunamayan tekrarlayan taramaları sil
+      await db.delete(packagedFoodScans).where(ilike(packagedFoodScans.product_name, '%Taranan Barkod%'));
+      return NextResponse.json({ success: true, message: 'Başarısız ve çöp taramalar temizlendi.' });
+    }
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Silinecek tarama ID sağlanmalıdır.' }, { status: 400 });
+    }
+
+    await db.delete(packagedFoodScans).where(eq(packagedFoodScans.id, id));
+    return NextResponse.json({ success: true, message: 'Ürün tarama kaydı kalıcı olarak silindi.' });
+  } catch (error: any) {
+    console.error('Delete Food Scan API Error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

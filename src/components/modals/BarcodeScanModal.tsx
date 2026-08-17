@@ -199,7 +199,12 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
       } catch (e) {}
       onSuccess(`🥗 "${result?.product_name}" günlük beslenmenize başarıyla eklendi!`);
     } else {
-      onSuccess(`🏆 Harika karar! Zararlı katkı/işlenmişlik sebebiyle "${result?.product_name}" tüketmekten vazgeçtiniz.`);
+      if (result?.id) {
+        try {
+          await fetch(`/api/health/scan-food?id=${result.id}`, { method: 'DELETE' });
+        } catch (e) {}
+      }
+      onSuccess(`🏆 Harika karar! "${result?.product_name}" tüketmekten vazgeçtiniz ve kaydı tamamen silindi.`);
     }
 
     onClose();
