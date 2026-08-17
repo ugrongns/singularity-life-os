@@ -75,6 +75,12 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
   };
 
   const handleManualScan = async (barcodeVal?: string) => {
+    const targetBarcode = barcodeVal || barcodeInput.trim();
+    if (!targetBarcode) {
+      alert('Lütfen sorgulamak istediğiniz barkod numarasını girin.');
+      return;
+    }
+
     setStep('scanning');
     try {
       const res = await fetch('/api/health/scan-food', {
@@ -82,13 +88,16 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'packaged_barcode',
-          barcode_text: barcodeVal || barcodeInput || '869055512348'
+          barcode_text: targetBarcode
         })
       });
       const json = await res.json();
       if (json.success) {
         setResult(json.data);
         setStep('result');
+      } else {
+        alert(json.error || 'Barkod analizi başarısız.');
+        setStep('upload');
       }
     } catch (err) {
       alert('Barkod analizi başarısız.');
@@ -175,16 +184,16 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
               <button 
                 className="btn-secondary" 
                 onClick={() => handleManualScan('869055512348')}
-                style={{ fontSize: '12px', padding: '8px' }}
+                style={{ fontSize: '11px', padding: '8px' }}
               >
-                🌿 Temiz Gıda Testi
+                🧪 Örnek Temiz Gıda Testi
               </button>
               <button 
                 className="btn-secondary" 
                 onClick={() => handleManualScan('869055512341')}
-                style={{ fontSize: '12px', padding: '8px' }}
+                style={{ fontSize: '11px', padding: '8px' }}
               >
-                ⚠️ Riskli Gıda Testi
+                🧪 Örnek Riskli Gıda Testi
               </button>
             </div>
 

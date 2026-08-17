@@ -525,7 +525,22 @@ export async function parsePackagedFoodImage(
 
   if (apiKey) {
     try {
-      const promptText = `Sen uzman bir gıda mühendisi ve beslenme toksikoloğusun. Fotoğraftaki paketli gıdanın ambalajını, barkodunu veya içindekiler tablosunu incele. Katkı maddelerini (E-kodları), koruyucuları, şeker/yağ kalitesini ve pestisit riski değerlendir. SADECE aşağıdaki JSON formatında yanıt ver:\n{\n  "product_name": "Ürün Adı",\n  "brand": "Marka Adı",\n  "barcode": "Varsa Barkod Numarası",\n  "health_score": 75,\n  "risk_level": "clean | moderate | high_risk",\n  "additives_detected": "Tespit edilen E-kodları ve katkı maddelerinin detaylı açıklaması",\n  "pesticide_risk_summary": "Tarım ilacı ve pestisit kalıntı riski analizi",\n  "alternative_suggestions": "Daha sağlıklı alternatif tavsiyesi"\n}`;
+      const promptText = `Sen uzman bir gıda mühendisi ve beslenme toksikoloğusun. Fotoğraftaki paketli gıdanın ambalajını, ürün adını, barkodunu veya arkasındaki içindekiler tablosunu incele.
+Katkı maddelerini (E-kodları), koruyucuları, şeker/yağ kalitesini ve pestisit riski değerlendir.
+
+ÖNEMLİ: Eğer görsel net değilse veya bir gıda ambalajı/etiketi görünmüyorsa, product_name alanına "Gıda Etiketi Okunamadı" yaz ve additives_detected alanına uyarını ekle.
+
+SADECE aşağıdaki JSON formatında geçerli bir JSON çıktısı ver, başka hiçbir metin yazma:
+{
+  "product_name": "Gerçek Ürün Adı (Örn: Ülker Çikolatalı Gofret)",
+  "brand": "Marka Adı (Örn: Ülker)",
+  "barcode": "Varsa Barkod Numarası",
+  "health_score": 75,
+  "risk_level": "clean | moderate | high_risk",
+  "additives_detected": "Tespit edilen E-kodları ve katkı maddelerinin detaylı açıklaması",
+  "pesticide_risk_summary": "Tarım ilacı ve pestisit kalıntı riski analizi",
+  "alternative_suggestions": "Daha sağlıklı alternatif tavsiyesi"
+}`;
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
@@ -562,13 +577,13 @@ export async function parsePackagedFoodImage(
         const parsed = JSON.parse(cleanJson);
         return {
           product_name: parsed.product_name || 'Taranan Paketli Gıda',
-          brand: parsed.brand || 'Bilinmeyen Marka',
-          barcode: parsed.barcode || '869000000000',
-          health_score: Number(parsed.health_score) || 70,
-          risk_level: parsed.risk_level || 'clean',
-          additives_detected: parsed.additives_detected || 'Katkı maddesi tespit edilmedi.',
-          pesticide_risk_summary: parsed.pesticide_risk_summary || 'Düşük risk.',
-          alternative_suggestions: parsed.alternative_suggestions || 'Doğal gıdalar tercih edilebilir.',
+          brand: parsed.brand || 'Belirtilmedi',
+          barcode: parsed.barcode || '—',
+          health_score: Math.max(0, Math.min(100, Number(parsed.health_score) || 50)),
+          risk_level: parsed.risk_level || 'moderate',
+          additives_detected: parsed.additives_detected || 'İçerik bilgisi okunamadı.',
+          pesticide_risk_summary: parsed.pesticide_risk_summary || 'Pestisit analizi yapılamadı.',
+          alternative_suggestions: parsed.alternative_suggestions || 'Doğal besinler tercih edilebilir.',
           confidence: 0.95
         };
       }
@@ -577,16 +592,17 @@ export async function parsePackagedFoodImage(
     }
   }
 
+  // Gerçek AI başarısız olursa veya görsel net okunamazsa dürüst uyarı döndür (Asla sahte zeytinyağı döndürme)
   return {
-    product_name: 'Organik Zeytinyağı',
-    brand: 'Ege Bahçeleri',
-    barcode: '869055512348',
-    health_score: 95,
-    risk_level: 'clean',
-    additives_detected: '%100 Saf Soğuk Sıkım. Katkısız.',
-    pesticide_risk_summary: 'Sıfır Kalıntı.',
-    alternative_suggestions: 'Sağlıklı yağ kaynağı.',
-    confidence: 0.70
+    product_name: 'Gıda Etiketi Okunamadı',
+    brand: 'Belirtilmedi',
+    barcode: '—',
+    health_score: 50,
+    risk_level: 'moderate',
+    additives_detected: 'Görselde ürün adı, ambalaj yazıları veya içindekiler tablosu net okunamadı. Lütfen paketin arkasındaki etiket alanını net çekerek tekrar deneyin.',
+    pesticide_risk_summary: 'Net etiket görseli olmadığından içerik taranamamıştır.',
+    alternative_suggestions: 'Paketli ürünlerin arkasındaki İçindekiler metnini yakından ve net odaklayarak taratabilirsiniz.',
+    confidence: 0.20
   };
 }
 
