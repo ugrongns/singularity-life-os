@@ -7,8 +7,9 @@ import { getAuthUser } from '@/lib/auth';
 
 export const maxDuration = 60;
 
-type ResolverStatus = 'FOUND' | 'NOT_FOUND' | 'TIMEOUT' | 'HTTP_ERROR' | 'RATE_LIMITED' | 'INVALID' | 'ERROR';
-type ResolverDiagnostic = { provider: 'google_books' | 'open_library'; status: ResolverStatus; http_status?: number; duration_ms: number; message?: string };
+type Provider = 'google_books' | 'open_library' | 'isbndb';
+type ResolverStatus = 'FOUND' | 'NOT_FOUND' | 'TIMEOUT' | 'HTTP_ERROR' | 'RATE_LIMITED' | 'CONFIG' | 'INVALID' | 'ERROR';
+type ResolverDiagnostic = { provider: Provider; status: ResolverStatus; http_status?: number; duration_ms: number; message?: string };
 type BookData = {
   title: string;
   author: string;
@@ -21,7 +22,7 @@ type BookData = {
   words_per_page: number;
   summary: string;
   cover_url: string | null;
-  source: 'google_books' | 'open_library';
+  source: Provider;
 };
 
 function normalizeIsbn(value: string) {
@@ -170,6 +171,50 @@ async function queryOpenLibrary(isbn: string): Promise<{ book: BookData | null; 
   }
 }
 
+async function queryISBNdb(isbn: string): Promise<{ book: BookData | null; diagnostic: ResolverDiagnostic }> {
+  const started = Date.now();
+  const apiKey = process.env.ISBNDB_API_KEY;
+  if (!apiKey) return { book: null, diagnostic: { provider: 'isbndb', status: 'CONFIG', duration_ms: 0, message: 'ISBNDB_API_KEY tanımlı değil.' } };
+
+  try {
+    const response = await withTimeout(signal => fetch(`https://api.isbndb.com/book/${encodeURIComponent(isbn)}`, {
+      headers: { Accept: 'application/json', 'x-api-key': apiKey },
+      cache: 'no-store',
+      signal
+    }), 5000);
+    const duration = Date.now() - started;
+    if (response.status === 429) return { book: null, diagnostic: { provider: 'isbndb', status: 'RATE_LIMITED', http_status: 429, duration_ms: duration, message: 'ISBNdb rate limit/quota.' } };
+    if (response.status === 404) return { book: null, diagnostic: { provider: 'isbndb', status: 'NOT_FOUND', http_status: 404, duration_ms: duration, message: 'ISBNdb kaydı bulunamadı.' } };
+    if (!response.ok) return { book: null, diagnostic: { provider: 'isbndb', status: 'HTTP_ERROR', http_status: response.status, duration_ms: duration, message: `HTTP ${response.status}` } };
+
+    const data = await response.json();
+    const info = data.book;
+    if (!info?.title) return { book: null, diagnostic: { provider: 'isbndb', status: 'NOT_FOUND', http_status: response.status, duration_ms: duration, message: 'ISBNdb boş kayıt döndürdü.' } };
+
+    return {
+      book: {
+        title: info.title,
+        author: Array.isArray(info.authors) ? info.authors.join(', ') : 'Bilinmeyen Yazar',
+        publisher: info.publisher || '',
+        total_pages: Number(info.pages) || 200,
+        isbn: normalizeIsbn(info.isbn13 || info.isbn || isbn),
+        category: normalizeCategory(info.subjects),
+        format: 'physical',
+        shelf_location: 'Salon Kitaplığı',
+        words_per_page: 250,
+        summary: info.synopsys || info.overview || info.excerpt || `${info.title} - ${Array.isArray(info.authors) ? info.authors.join(', ') : 'Bilinmeyen Yazar'}`,
+        cover_url: null,
+        source: 'isbndb'
+      },
+      diagnostic: { provider: 'isbndb', status: 'FOUND', http_status: response.status, duration_ms: duration }
+    };
+  } catch (error: any) {
+    const duration = Date.now() - started;
+    const timedOut = error?.name === 'AbortError' || error?.name === 'TimeoutError';
+    return { book: null, diagnostic: { provider: 'isbndb', status: timedOut ? 'TIMEOUT' : 'ERROR', duration_ms: duration, message: timedOut ? '5s timeout' : (error?.message || 'Unknown error') } };
+  }
+}
+
 async function queryAuthoritativeBook(isbnOrQuery: string) {
   const cleanIsbn = normalizeIsbn(isbnOrQuery);
   if (!isValidIsbn(cleanIsbn)) {
@@ -177,20 +222,25 @@ async function queryAuthoritativeBook(isbnOrQuery: string) {
       book: null as BookData | null,
       diagnostics: [
         { provider: 'google_books' as const, status: 'INVALID' as const, duration_ms: 0, message: 'Geçersiz ISBN checksum.' },
-        { provider: 'open_library' as const, status: 'INVALID' as const, duration_ms: 0, message: 'Geçersiz ISBN checksum.' }
+        { provider: 'open_library' as const, status: 'INVALID' as const, duration_ms: 0, message: 'Geçersiz ISBN checksum.' },
+        { provider: 'isbndb' as const, status: 'INVALID' as const, duration_ms: 0, message: 'Geçersiz ISBN checksum.' }
       ]
     };
   }
 
   const isbn13 = toIsbn13(cleanIsbn);
-  const [googleResult, openLibraryResult] = await Promise.all([queryGoogleBooks(isbn13), queryOpenLibrary(isbn13)]);
-  const diagnostics = [googleResult.diagnostic, openLibraryResult.diagnostic];
-  const google = googleResult.book;
-  const openLibrary = openLibraryResult.book;
-  if (!google && !openLibrary) return { book: null, diagnostics };
+  // All independent providers are queried in parallel so one slow/blocked provider cannot delay the others.
+  const [googleResult, openLibraryResult, isbnDbResult] = await Promise.all([
+    queryGoogleBooks(isbn13),
+    queryOpenLibrary(isbn13),
+    queryISBNdb(isbn13)
+  ]);
+  const diagnostics = [googleResult.diagnostic, openLibraryResult.diagnostic, isbnDbResult.diagnostic];
+  const candidates = [googleResult.book, openLibraryResult.book, isbnDbResult.book].filter(Boolean) as BookData[];
+  if (candidates.length === 0) return { book: null, diagnostics };
 
-  const primary = google || openLibrary!;
-  const secondary = google ? openLibrary : null;
+  const primary = googleResult.book || openLibraryResult.book || isbnDbResult.book!;
+  const secondary = candidates.find(candidate => candidate.source !== primary.source);
   return {
     book: {
       ...primary,
@@ -206,7 +256,10 @@ async function queryAuthoritativeBook(isbnOrQuery: string) {
 }
 
 function diagnosticsText(diagnostics: ResolverDiagnostic[]) {
-  return diagnostics.map(d => `${d.provider === 'google_books' ? 'Google Books' : 'Open Library'}: ${d.status}${d.http_status ? ` ${d.http_status}` : ''} (${d.duration_ms}ms)`).join(' | ');
+  return diagnostics.map(d => {
+    const label = d.provider === 'google_books' ? 'Google Books' : d.provider === 'open_library' ? 'Open Library' : 'ISBNdb';
+    return `${label}: ${d.status}${d.http_status ? ` ${d.http_status}` : ''} (${d.duration_ms}ms)`;
+  }).join(' | ');
 }
 
 export async function POST(req: Request) {
@@ -221,14 +274,12 @@ export async function POST(req: Request) {
 
     if (rawIsbn) {
       const existingByIsbn = (await db.select().from(books).where(eq(books.isbn, rawIsbn)))[0];
-      if (existingByIsbn) {
-        return NextResponse.json({ success: true, is_already_in_library: true, existing_book: existingByIsbn, diagnostics: [], data: {
-          title: existingByIsbn.title, author: existingByIsbn.author, publisher: existingByIsbn.publisher || '', total_pages: existingByIsbn.total_pages,
-          isbn: existingByIsbn.isbn, category: existingByIsbn.category || 'Kişisel Gelişim', format: existingByIsbn.format || 'physical',
-          shelf_location: existingByIsbn.shelf_location || 'Salon Kitaplığı', words_per_page: existingByIsbn.words_per_page || 250,
-          summary: existingByIsbn.summary || '', cover_url: existingByIsbn.cover_url || null
-        }, message: `📚 "${existingByIsbn.title}" kitabı kütüphanenizde zaten mevcut!` });
-      }
+      if (existingByIsbn) return NextResponse.json({ success: true, is_already_in_library: true, existing_book: existingByIsbn, diagnostics: [], data: {
+        title: existingByIsbn.title, author: existingByIsbn.author, publisher: existingByIsbn.publisher || '', total_pages: existingByIsbn.total_pages,
+        isbn: existingByIsbn.isbn, category: existingByIsbn.category || 'Kişisel Gelişim', format: existingByIsbn.format || 'physical',
+        shelf_location: existingByIsbn.shelf_location || 'Salon Kitaplığı', words_per_page: existingByIsbn.words_per_page || 250,
+        summary: existingByIsbn.summary || '', cover_url: existingByIsbn.cover_url || null
+      }, message: `📚 "${existingByIsbn.title}" kitabı kütüphanenizde zaten mevcut!` });
     }
 
     if (client_title && client_title.trim().length > 1 && !rawIsbn && !image_base64) {
@@ -282,8 +333,6 @@ export async function POST(req: Request) {
 
     if (verifiedData) return NextResponse.json({ success: true, is_already_in_library: false, diagnostics, data: verifiedData, message: `📚 "${verifiedData.title}" (${verifiedData.author}) doğrulandı. | ${sourceMessage}` });
 
-    // ISBN was read correctly, but every authoritative provider failed to return metadata.
-    // 424 lets the existing HUD distinguish a provider/dependency failure from a healthy 200 response.
     return NextResponse.json({
       success: false,
       error: `ISBN (${toIsbn13(rawIsbn)}) okundu fakat kitap metadata bulunamadı. ${sourceMessage}`,
