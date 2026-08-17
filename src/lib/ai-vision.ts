@@ -428,50 +428,59 @@ export async function parseBookCoverOrISBNImage(
   "words_per_page": 250
 }`;
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: promptText },
+      const MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-pro-latest'];
+      for (const modelName of MODELS) {
+        try {
+          const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [
                   {
-                    inlineData: {
-                      mimeType: mimeType,
-                      data: base64Image.replace(/^data:image\/\w+;base64,/, '')
-                    }
+                    parts: [
+                      { text: promptText },
+                      {
+                        inlineData: {
+                          mimeType: mimeType,
+                          data: base64Image.replace(/^data:image\/\w+;base64,/, '')
+                        }
+                      }
+                    ]
                   }
-                ]
-              }
-            ],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: 0.1
+                ],
+                generationConfig: {
+                  responseMimeType: 'application/json',
+                  temperature: 0.1
+                }
+              })
             }
-          })
+          );
+
+          if (response.ok) {
+            const jsonResult = await response.json();
+            const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (textOutput) {
+              const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
+              const parsed = JSON.parse(cleanJson);
+              return {
+                title: parsed.title || 'Taranan Kitap',
+                author: parsed.author || '',
+                publisher: parsed.publisher || '',
+                isbn: parsed.isbn || '',
+                total_pages: Number(parsed.total_pages) || 200,
+                category: parsed.category || 'Kişisel Gelişim',
+                summary: parsed.summary || 'Yapay zeka görsel analizi ile taranan kitap.',
+                words_per_page: Number(parsed.words_per_page) || 250,
+                confidence: 0.95
+              };
+            }
+          }
+        } catch (mErr) {
+          console.warn(`[AI Vision Book ${modelName} Warning]:`, mErr);
         }
-      );
-
-      const jsonResult = await response.json();
-      const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (textOutput) {
-        const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
-        const parsed = JSON.parse(cleanJson);
-        return {
-          title: parsed.title || 'Taranan Kitap',
-          author: parsed.author || '',
-          publisher: parsed.publisher || '',
-          isbn: parsed.isbn || '',
-          total_pages: Number(parsed.total_pages) || 200,
-          category: parsed.category || 'Kişisel Gelişim',
-          summary: parsed.summary || 'Yapay zeka görsel analizi ile taranan kitap.',
-          words_per_page: Number(parsed.words_per_page) || 250,
-          confidence: 0.95
-        };
       }
     } catch (err) {
       console.warn('[AI Vision] Book scan error:', err);
