@@ -2,13 +2,20 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema';
 
-const databaseUrl = process.env.DATABASE_URL;
+let databaseUrl = process.env.DATABASE_URL || '';
 
 if (!databaseUrl) {
   throw new Error('DATABASE_URL environment variable is not set. Please add it to your Vercel project settings.');
 }
 
-const pgClient = postgres(databaseUrl, { ssl: 'require', max: 10 });
+// Supabase Direct IPv6 host -> IPv4 Pooler Host rewrite (prevents DNS ENOENT / connection timeouts on Vercel serverless)
+if (databaseUrl.includes('db.xehnmpsaitliyekoahpl.supabase.co')) {
+  databaseUrl = databaseUrl
+    .replace('db.xehnmpsaitliyekoahpl.supabase.co:5432', 'aws-0-eu-central-1.pooler.supabase.com:6543')
+    .replace('postgresql://postgres:', 'postgresql://postgres.xehnmpsaitliyekoahpl:');
+}
+
+const pgClient = postgres(databaseUrl, { ssl: 'require', max: 10, prepare: false });
 export const db = drizzle(pgClient, { schema });
 export const client = pgClient;
 

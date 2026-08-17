@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { smartScaleLogs } from '@/db/schema';
+import { smartScaleLogs, biometrics } from '@/db/schema';
 import { getAuthUser } from '@/lib/auth';
 import { desc } from 'drizzle-orm';
 
@@ -22,14 +22,23 @@ export async function POST(req: Request) {
 
     const now = new Date().toISOString();
     const logId = `scale-${Date.now()}`;
+    const todayStr = now.split('T')[0];
+    let measurementDate = body.measurement_date || todayStr;
+    // Eğer tarih 2026 yılından eskiyse veya geçersizse bugünün tarihini atayalım
+    if (!measurementDate || measurementDate.startsWith('2025') || measurementDate.startsWith('2024')) {
+      measurementDate = todayStr;
+    }
+
+    const weightKg = Number(body.weight_kg) || 0;
+    const bodyFatPercent = body.body_fat_percent ? Number(body.body_fat_percent) : null;
 
     await db.insert(smartScaleLogs).values({
       id: logId,
       user_id: user?.id || null,
-      measurement_date: body.measurement_date || now.split('T')[0],
-      weight_kg: Number(body.weight_kg) || 0,
+      measurement_date: measurementDate,
+      weight_kg: weightKg,
       bmi: body.bmi ? Number(body.bmi) : null,
-      body_fat_percent: body.body_fat_percent ? Number(body.body_fat_percent) : null,
+      body_fat_percent: bodyFatPercent,
       body_fat_mass_kg: body.body_fat_mass_kg ? Number(body.body_fat_mass_kg) : null,
       skeletal_muscle_percent: body.skeletal_muscle_percent ? Number(body.skeletal_muscle_percent) : null,
       skeletal_muscle_mass_kg: body.skeletal_muscle_mass_kg ? Number(body.skeletal_muscle_mass_kg) : null,
@@ -50,6 +59,23 @@ export async function POST(req: Request) {
       created_at: now,
       updated_at: now
     });
+
+    // Genel biometrics tablosuna da kaydet
+    if (weightKg > 0) {
+      try {
+        await db.insert(biometrics).values({
+          id: `bio-${Date.now()}`,
+          date: measurementDate,
+          weight_kg: weightKg,
+          body_fat_percent: bodyFatPercent,
+          notes: 'Akıllı tartı taraması ile eklendi',
+          created_at: now,
+          updated_at: now
+        });
+      } catch (bioErr) {
+        console.warn('Biometrics sync notice:', bioErr);
+      }
+    }
 
     return NextResponse.json({
       success: true,
