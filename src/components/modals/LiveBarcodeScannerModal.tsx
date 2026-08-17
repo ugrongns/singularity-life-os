@@ -158,13 +158,13 @@ export default function LiveBarcodeScannerModal({
       try {
         const v = videoRef.current;
         const c = canvasRef.current;
-        c.width = v.videoWidth || 640;
-        c.height = v.videoHeight || 480;
-        const ctx = c.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(v, 0, 0, c.width, c.height);
-          snapshot = c.toDataURL('image/jpeg', 0.85);
-        }
+          c.width = Math.min(v.videoWidth || 640, 1024);
+          c.height = Math.min(v.videoHeight || 480, 1024);
+          const ctx = c.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(v, 0, 0, c.width, c.height);
+            snapshot = c.toDataURL('image/jpeg', 0.75);
+          }
       } catch (e) {}
     }
 

@@ -246,8 +246,8 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          // OCR netliği için çözünürlük 1800px'e çıkarıldı
-          const MAX = 1800;
+          // Vercel 4.5MB payload sınırı ve hızlı mobil transfer için 1024px / 0.75 kalite kullanıldı
+          const MAX = 1024;
           if (width > height && width > MAX) {
             height = Math.round((height * MAX) / width);
             width = MAX;
@@ -259,8 +259,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
-          // Kalite 0.90'a çıkarılarak keskin harf kenarları sağlandı
-          resolve(canvas.toDataURL('image/jpeg', 0.90));
+          resolve(canvas.toDataURL('image/jpeg', 0.75));
         };
         img.src = e.target?.result as string;
       };
