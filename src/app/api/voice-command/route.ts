@@ -14,9 +14,18 @@ interface ParsedAction {
 export async function POST(req: Request) {
   try {
     initDatabase();
-    const user = await getAuthUser();
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    const internalKey = process.env.INTERNAL_SERVICE_KEY;
+    const incomingInternalKey = req.headers.get('x-internal-service-key');
+    const isInternalService = Boolean(internalKey && incomingInternalKey && incomingInternalKey === internalKey);
+
+    let user = null;
+    if (!isInternalService) {
+      user = await getAuthUser();
+      if (!user) {
+        return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+      }
+    } else {
+      user = await getAuthUser();
     }
 
     const contentType = req.headers.get('content-type') || '';

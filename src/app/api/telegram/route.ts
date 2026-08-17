@@ -273,10 +273,14 @@ export async function POST(req: Request) {
       } else if (text.length > 0) {
         // Doğal Dil / Sesli Komut Motoruna Taslak Hazırlat
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+        const internalKey = process.env.INTERNAL_SERVICE_KEY || '';
         try {
           const voiceRes = await fetch(`${baseUrl}/api/voice-command`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Internal-Service-Key': internalKey
+            },
             body: JSON.stringify({ text })
           });
           const voiceJson = await voiceRes.json();
@@ -284,7 +288,10 @@ export async function POST(req: Request) {
             // Eşleşmiş yetkili kullanıcı ise güvenli işle
             await fetch(`${baseUrl}/api/voice-command`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Internal-Service-Key': internalKey
+              },
               body: JSON.stringify({ action: 'execute', actions: voiceJson.actions })
             });
             replyText = `✅ *${voiceJson.actions.length} İşlem İşlendi:*\n` + voiceJson.actions.map((a: any) => `• ${a.icon} ${a.title}`).join('\n');

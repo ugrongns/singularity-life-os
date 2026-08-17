@@ -301,37 +301,22 @@ SADECE aşağıdaki esnek JSON formatında yanıt ver:
     }
 
     let isFallback = false;
-    // AI başarısız olursa veya 503 verirse Asla Hata Döndürme, Dinamik Genel Profil Üret!
+    // AI başarısız olursa veya veri bulunamazsa Dürüst Düşük Güven (Honest Low-Confidence) döndür
     if (!parsed) {
       isFallback = true;
       parsed = {
         food_name: queryFood,
         portion_g: grams,
         source_info: {
-          type: "estimated",
-          badge: "📊 Tahmini Besin Profili (%50 Tahmini)",
-          confidence: 50,
-          reference: "Standart Gıda Grubu Tahmini (Resmi Laboratuvar Verisi Değildir)"
+          type: "low_confidence",
+          badge: "⚠️ Besin Verisi Bulunamadı (%15 Güven)",
+          confidence: 15,
+          reference: "Bu gıda için doğrulanmış besin verisi bulunamadı, lütfen değerleri manuel giriniz."
         },
-        macros: [
-          { label: "Enerji (Kalori)", value: "210 kcal", daily_percent: 10 },
-          { label: "Protein", value: "12.5 g", daily_percent: 25 },
-          { label: "Toplam Yağ", value: "7.2 g", daily_percent: 11 },
-          { label: "Karbonhidrat", value: "18.4 g", daily_percent: 6 }
-        ],
-        vitamins: [
-          { label: "B6 Vitamini", value: "0.35 mg", daily_percent: 20 },
-          { label: "B12 Vitamini", value: "1.5 mcg", daily_percent: 62 },
-          { label: "E Vitamini", value: "1.2 mg", daily_percent: 8 }
-        ],
-        minerals: [
-          { label: "Kalsiyum", value: "95 mg", daily_percent: 10 },
-          { label: "Magnezyum", value: "54 mg", daily_percent: 14 },
-          { label: "Demir", value: "1.8 mg", daily_percent: 10 }
-        ],
-        special_compounds: [
-          { label: "Doğal Besin & Biyo-Aktif Bileşenler", value: "Katkısız Standart Gıda", daily_percent: null }
-        ]
+        macros: [],
+        vitamins: [],
+        minerals: [],
+        special_compounds: []
       };
     }
 
@@ -361,6 +346,7 @@ SADECE aşağıdaki esnek JSON formatında yanıt ver:
       data: {
         food_name: parsed.food_name || queryFood,
         portion_g: grams,
+        source_info: parsed.source_info,
         categories: parsed.categories || parsed
       }
     });
@@ -371,21 +357,17 @@ SADECE aşağıdaki esnek JSON formatında yanıt ver:
       data: {
         food_name: 'Besin Analizi',
         portion_g: 100,
+        source_info: {
+          type: "low_confidence",
+          badge: "⚠️ Analiz Hatası (%0 Güven)",
+          confidence: 0,
+          reference: "Bağlantı veya veri ayrıştırma hatası oluştu."
+        },
         categories: {
-          macros: [
-            { label: "Enerji (Kalori)", value: "210 kcal", daily_percent: 10 },
-            { label: "Protein", value: "14.5 g", daily_percent: 29 },
-            { label: "Toplam Yağ", value: "8.2 g", daily_percent: 12 },
-            { label: "Karbonhidrat", value: "18.0 g", daily_percent: 6 }
-          ],
-          vitamins: [
-            { label: "B12 Vitamini", value: "2.1 mcg", daily_percent: 88 },
-            { label: "B6 Vitamini", value: "0.4 mg", daily_percent: 24 }
-          ],
-          minerals: [
-            { label: "Kalsiyum", value: "120 mg", daily_percent: 12 },
-            { label: "Magnezyum", value: "65 mg", daily_percent: 16 }
-          ]
+          macros: [],
+          vitamins: [],
+          minerals: [],
+          special_compounds: []
         }
       }
     });

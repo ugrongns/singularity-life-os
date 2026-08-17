@@ -48,6 +48,35 @@ export default function NutrientProfileModal({
   const [mealType, setMealType] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack'>('snack');
   const [saving, setSaving] = useState(false);
 
+  // Düzenlenebilir Makro Değerleri
+  const [editCalories, setEditCalories] = useState<number | string>(0);
+  const [editProtein, setEditProtein] = useState<number | string>(0);
+  const [editCarbs, setEditCarbs] = useState<number | string>(0);
+  const [editFat, setEditFat] = useState<number | string>(0);
+
+  // Data değiştiğinde makroları otomatik ayrıştır ve input state'lerine ata
+  const syncMacrosFromData = (profileData: NutrientProfileData) => {
+    let cal = 0;
+    let pro = 0;
+    let carb = 0;
+    let fat = 0;
+
+    if (profileData.categories?.macros) {
+      profileData.categories.macros.forEach(m => {
+        const num = parseFloat(m.value);
+        if (m.label.includes('Kalori') && !isNaN(num)) cal = num;
+        else if (m.label === 'Protein' && !isNaN(num)) pro = num;
+        else if (m.label === 'Karbonhidrat' && !isNaN(num)) carb = num;
+        else if (m.label === 'Toplam Yağ' && !isNaN(num)) fat = num;
+      });
+    }
+
+    setEditCalories(cal);
+    setEditProtein(pro);
+    setEditCarbs(carb);
+    setEditFat(fat);
+  };
+
   const fetchProfile = async (food: string, portionGrams: number) => {
     if (!food.trim()) return;
     setLoading(true);
@@ -60,11 +89,14 @@ export default function NutrientProfileModal({
       try {
         const parsed = typeof initialProfile === 'string' ? JSON.parse(initialProfile) : initialProfile;
         if (parsed && (parsed.categories || parsed.macros)) {
-          setData({
+          const formattedData = {
             food_name: parsed.food_name || food,
             portion_g: portionGrams,
-            categories: parsed.categories || parsed
-          });
+            categories: parsed.categories || parsed,
+            source_info: parsed.source_info
+          };
+          setData(formattedData);
+          syncMacrosFromData(formattedData);
           setLoading(false);
           return;
         }
@@ -76,6 +108,7 @@ export default function NutrientProfileModal({
       const result = await res.json();
       if (result.success && result.data) {
         setData(result.data);
+        syncMacrosFromData(result.data);
       } else {
         setError(result.error || 'İçerik bilgisi oluşturuluyor...');
       }
@@ -110,29 +143,10 @@ export default function NutrientProfileModal({
     if (!data) return;
     setSaving(true);
     try {
-      // Find calories and macros
-      let calories = 250;
-      let protein = 10;
-      let carbs = 15;
-      let fat = 20;
-
-      if (data.categories.macros) {
-        data.categories.macros.forEach(m => {
-          if (m.label.includes('Kalori')) {
-            const num = parseFloat(m.value);
-            if (!isNaN(num)) calories = num;
-          } else if (m.label === 'Protein') {
-            const num = parseFloat(m.value);
-            if (!isNaN(num)) protein = num;
-          } else if (m.label === 'Karbonhidrat') {
-            const num = parseFloat(m.value);
-            if (!isNaN(num)) carbs = num;
-          } else if (m.label === 'Toplam Yağ') {
-            const num = parseFloat(m.value);
-            if (!isNaN(num)) fat = num;
-          }
-        });
-      }
+      const calories = Number(editCalories) || 0;
+      const protein = Number(editProtein) || 0;
+      const carbs = Number(editCarbs) || 0;
+      const fat = Number(editFat) || 0;
 
       await fetch('/api/health/nutrition', {
         method: 'POST',
@@ -150,7 +164,7 @@ export default function NutrientProfileModal({
       setAdded(true);
       setShowConfirm(false);
       if (onSuccess) {
-        onSuccess(`🥗 "${data.food_name}" günlük beslenmenize eklendi!`);
+        onSuccess(`🥗 "${data.food_name}" (${calories} kcal) günlük beslenmenize eklendi!`);
       }
     } catch (e) {
       console.error(e);
@@ -329,7 +343,88 @@ export default function NutrientProfileModal({
                       </button>
                     ))}
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+
+                  {/* Düzenlenebilir Makro Değerleri (Editable Macro Inputs) */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '4px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', color: 'var(--text-muted)', marginBottom: '3px', fontWeight: 600 }}>🔥 Kalori (kcal)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={editCalories}
+                        onChange={(e) => setEditCalories(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          background: 'var(--surface-subtle)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          color: 'var(--text-main)'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', color: 'var(--text-muted)', marginBottom: '3px', fontWeight: 600 }}>🥩 Protein (g)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={editProtein}
+                        onChange={(e) => setEditProtein(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          background: 'var(--surface-subtle)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          color: 'var(--text-main)'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', color: 'var(--text-muted)', marginBottom: '3px', fontWeight: 600 }}>🍞 Karb (g)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={editCarbs}
+                        onChange={(e) => setEditCarbs(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          background: 'var(--surface-subtle)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          color: 'var(--text-main)'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', color: 'var(--text-muted)', marginBottom: '3px', fontWeight: 600 }}>🥑 Yağ (g)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={editFat}
+                        onChange={(e) => setEditFat(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          background: 'var(--surface-subtle)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          color: 'var(--text-main)'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
                     <button
                       type="button"
                       onClick={() => setShowConfirm(false)}
