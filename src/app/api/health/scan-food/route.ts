@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { packagedFoodScans } from '@/db/schema';
 import { desc, eq , or } from 'drizzle-orm';
+// Vercel deployment trigger: 2026-08-17 07:41
 import { parsePlateImage, parsePackagedFoodImage } from '@/lib/ai-vision';
 import { getAuthUser } from '@/lib/auth';
 
