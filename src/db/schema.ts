@@ -429,6 +429,17 @@ export const nutritionMeals = pgTable('nutrition_meals', {
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client'),
+  user_id: text('user_id'),
+  micronutrient_data: text('micronutrient_data')
+});
+
+export const foodNutrientProfiles = pgTable('food_nutrient_profiles', {
+  id: text('id').primaryKey(),
+  food_name: text('food_name').notNull(),
+  portion_g: doublePrecision('portion_g').notNull().default(100),
+  categories_data: text('categories_data').notNull(),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull(),
   user_id: text('user_id')
 });
 

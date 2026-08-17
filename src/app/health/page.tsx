@@ -6,6 +6,7 @@ import MacroSummaryCard from '@/components/health/MacroSummaryCard';
 import FastingTimerCard from '@/components/health/FastingTimerCard';
 import FoodQualityScoreCard from '@/components/health/FoodQualityScoreCard';
 import HomeWorkoutTrackerCard from '@/components/health/HomeWorkoutTrackerCard';
+import NutrientProfileCard from '@/components/health/NutrientProfileCard';
 import PlateScanModal from '@/components/modals/PlateScanModal';
 import BarcodeScanModal from '@/components/modals/BarcodeScanModal';
 import DietPlanModal from '@/components/modals/DietPlanModal';
@@ -146,6 +147,7 @@ export default function HealthPage() {
           )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <NutrientProfileCard />
           <FoodQualityScoreCard
             scans={foodScanData}
             onOpenBarcodeScan={() => setIsBarcodeScanOpen(true)}
