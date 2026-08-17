@@ -186,8 +186,22 @@ SADECE aşağıdaki JSON formatında yanıt ver:
             console.warn('[Barcode Scan] Open Food Facts error:', e);
           }
 
-          // Open Food Facts'ta bulunamadıysa Gemini AI ile sorgula
+          // Open Food Facts'ta bulunamadıysa Türkiye Web Arama İndeksi + Gemini AI ile sorgula
           if (!foodAnalysis) {
+            let searchSnippet = '';
+            try {
+              const ddgRes = await fetch(`https://html.duckduckgo.com/html/?q=${barcode}+barkod`, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+              });
+              if (ddgRes.ok) {
+                const html = await ddgRes.text();
+                const snippets = html.match(/<a class="result__snippet[^>]*>([\s\S]*?)<\/a>/g) || [];
+                searchSnippet = snippets.map(s => s.replace(/<[^>]+>/g, '')).join(' ').substring(0, 1200);
+              }
+            } catch (e) {
+              console.warn('[Barcode Web Search Error]:', e);
+            }
+
             const apiKey = process.env.GEMINI_API_KEY;
             if (apiKey) {
               try {
@@ -197,7 +211,23 @@ SADECE aşağıdaki JSON formatında yanıt ver:
                   body: JSON.stringify({
                     contents: [{
                       parts: [{
-                        text: `Gıda toksikoloğu ve gıda mühendisi olarak ${barcode} barkod numaralı gıda ürününü araştır ve tanımla. SADECE aşağıdaki JSON çıktısını ver:\n{\n  "product_name": "Ürün Adı",\n  "brand": "Marka",\n  "barcode": "${barcode}",\n  "health_score": 60,\n  "risk_level": "clean | moderate | high_risk",\n  "additives_detected": "Tespit edilen E-kodları ve katkı maddeleri",\n  "pesticide_risk_summary": "Pestisit ve işlenmişlik uyarısı",\n  "alternative_suggestions": "Sağlıklı alternatif tavsiyesi"\n}`
+                        text: `Sen uzman bir gıda mühendisi ve beslenme toksikoloğusun.
+${barcode} barkod numarası ve aşağıdaki web arama sonuçları üzerinden ürünün gerçek adını, markasını ve beslenme/katkı maddesi profilini tespit et.
+
+Web Arama İndeksi:
+${searchSnippet || 'Ürün bilgisi aranıyor.'}
+
+SADECE aşağıdaki JSON formatında yanıt ver:
+{
+  "product_name": "Gerçek Ürün Adı (Örn: Dardanel Ekonomik Ton Balığı 4x75g)",
+  "brand": "Marka (Örn: Dardanel)",
+  "barcode": "${barcode}",
+  "health_score": 75,
+  "risk_level": "clean | moderate | high_risk",
+  "additives_detected": "İçerik açıklaması, E-kodları, koruyucular veya ayçiçek yağı/tuz detayları",
+  "pesticide_risk_summary": "Pestisit, cıva/ağır metal ve işlenmişlik riski değerlendirmesi",
+  "alternative_suggestions": "Sağlıklı alternatif tavsiyesi"
+}`
                       }]
                     }],
                     generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
@@ -209,7 +239,7 @@ SADECE aşağıdaki JSON formatında yanıt ver:
                   foodAnalysis = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
                 }
               } catch (e) {
-                console.warn('[Barcode Scan] Gemini error:', e);
+                console.warn('[Barcode Scan Gemini Error]:', e);
               }
             }
           }
