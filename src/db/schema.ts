@@ -484,7 +484,8 @@ export const packagedFoodScans = pgTable('packaged_food_scans', {
   image_url: text('image_url'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  micronutrient_profile: text('micronutrient_profile')
 });
 
 export const dietMealOptions = pgTable('diet_meal_options', {

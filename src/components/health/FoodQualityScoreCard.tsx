@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, ShieldCheck, AlertTriangle, Leaf, Plus } from 'lucide-react';
 
+import NutrientProfileModal from '@/components/modals/NutrientProfileModal';
+
 interface FoodScan {
   id: string;
   product_name: string;
@@ -23,6 +25,8 @@ interface FoodQualityProps {
 
 export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcodeScan, onRefresh }: FoodQualityProps) {
   const [items, setItems] = useState<FoodScan[]>([]);
+  const [isNutrientModalOpen, setIsNutrientModalOpen] = useState(false);
+  const [selectedNutrientFood, setSelectedNutrientFood] = useState('');
 
   useEffect(() => {
     if (Array.isArray(initialScans)) {
@@ -166,11 +170,45 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
                     <span><strong>Pestisit Riski:</strong> {scan.pesticide_risk_summary}</span>
                   </div>
                 )}
+
+                {/* 360° Vitamin & Mineral Karnesini Gör Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedNutrientFood(scan.product_name);
+                    setIsNutrientModalOpen(true);
+                  }}
+                  style={{
+                    marginTop: '4px',
+                    padding: '6px 10px',
+                    background: 'var(--bg-main)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    color: '#10B981',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <span>🔬</span>
+                  <span>360° Vitamin & Mineral Karnesini Gör ➔</span>
+                </button>
               </div>
             );
           })
         )}
       </div>
+
+      <NutrientProfileModal
+        isOpen={isNutrientModalOpen}
+        onClose={() => setIsNutrientModalOpen(false)}
+        initialFoodName={selectedNutrientFood}
+        initialGrams={100}
+      />
     </div>
   );
 }

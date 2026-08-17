@@ -1,6 +1,8 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 
+import NutrientProfileModal from '@/components/modals/NutrientProfileModal';
+
 interface BarcodeScanModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -11,6 +13,8 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
   const [step, setStep] = useState<'upload' | 'live_camera' | 'scanning' | 'result'>('upload');
   const [barcodeInput, setBarcodeInput] = useState('');
   const [result, setResult] = useState<any | null>(null);
+  const [isNutrientModalOpen, setIsNutrientModalOpen] = useState(false);
+  const [selectedNutrientFood, setSelectedNutrientFood] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -377,6 +381,32 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
               <div style={{ fontSize: '12px', color: '#1E3A8A', marginTop: '2px', lineHeight: 1.4 }}>{result.alternative_suggestions}</div>
             </div>
 
+            {/* 360° Vitamin & Mineral Profil Dökümü Butonu */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedNutrientFood(result.product_name);
+                setIsNutrientModalOpen(true);
+              }}
+              style={{
+                padding: '10px 12px',
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.15) 100%)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                borderRadius: 'var(--radius-md)',
+                color: '#10B981',
+                fontSize: '12px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+            >
+              <span>🔬</span>
+              <span>360° Detaylı Vitamin & Mineral Karnesini Gör ➔</span>
+            </button>
+
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px', marginTop: '4px' }}>
               <button
                 className="btn-primary"
@@ -396,6 +426,14 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
           </div>
         )}
       </div>
+
+      <NutrientProfileModal
+        isOpen={isNutrientModalOpen}
+        onClose={() => setIsNutrientModalOpen(false)}
+        initialFoodName={selectedNutrientFood}
+        initialGrams={100}
+        onSuccess={onSuccess}
+      />
     </div>
   );
 }
