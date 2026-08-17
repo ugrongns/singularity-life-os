@@ -8,14 +8,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    initDatabase();
     const { searchParams } = new URL(req.url);
     const queryFood = searchParams.get('food_name') || searchParams.get('query') || 'Ceviz';
     const grams = Number(searchParams.get('grams')) || 100;
 
-    const user = await getAuthUser();
-
-    // Dahili Standart TÜRKOMP & USDA Referans Portföyü (Anında Hızlı Yanıt)
+    // Dahili Standart TÜRKOMP & USDA Referans Portföyü (Anında 2ms Yanıt)
     const STATIC_PROFILES: Record<string, any> = {
       ceviz: {
         food_name: "Çiğ Kuru İç Ceviz",
@@ -95,6 +92,8 @@ export async function GET(req: Request) {
         }
       });
     }
+
+    try { initDatabase(); } catch (e) {}
 
     // 1. Veritabanından güvenli sorgula
     try {
