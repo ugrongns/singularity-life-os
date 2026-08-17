@@ -611,40 +611,6 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
                 {isScanning ? 'Aranıyor...' : '🔍 Bul'}
               </button>
             </div>
-
-            {/* Hızlı Blueprint Doğrulama Test Butonları */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Blueprint Hazır ISBN Testleri:</span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
-                <button 
-                  type="button" 
-                  className="btn-subtle" 
-                  style={{ background: 'var(--surface-subtle)', padding: '8px', borderRadius: '6px', fontSize: '11px', textAlign: 'left' }}
-                  onClick={() => handleScanISBN('9786254416170')}
-                >
-                  ⚡ <strong>Emre Alkin - İktisada Giriş</strong><br />
-                  <span style={{ color: 'var(--text-muted)' }}>Destek Yay. • 280 Sayfa</span>
-                </button>
-                <button 
-                  type="button" 
-                  className="btn-subtle" 
-                  style={{ background: 'var(--surface-subtle)', padding: '8px', borderRadius: '6px', fontSize: '11px', textAlign: 'left' }}
-                  onClick={() => handleScanISBN('9786056951374')}
-                >
-                  ⚡ <strong>Bastiat - Hukuk</strong><br />
-                  <span style={{ color: 'var(--text-muted)' }}>Liberus • 96 Sayfa</span>
-                </button>
-                <button 
-                  type="button" 
-                  className="btn-subtle" 
-                  style={{ background: 'var(--surface-subtle)', padding: '8px', borderRadius: '6px', fontSize: '11px', textAlign: 'left' }}
-                  onClick={() => handleScanISBN('9780735211292')}
-                >
-                  ⚡ <strong>Atomik Alışkanlıklar</strong><br />
-                  <span style={{ color: 'var(--text-muted)' }}>Clear • 350 Sayfa</span>
-                </button>
-              </div>
-            </div>
           </div>
         )}
 

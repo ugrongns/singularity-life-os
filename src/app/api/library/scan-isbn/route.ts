@@ -72,84 +72,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Lütfen geçerli bir ISBN numarası veya görsel sağlayın.' }, { status: 400 });
     }
 
-    // 1. Bilinen / Özel Doğrulanmış ISBN Kütüphanesi
-    if (rawIsbn === '9786254416170' || rawIsbn.includes('6254416170')) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          title: 'İktisada Yeniden Giriş',
-          author: 'Prof. Dr. Emre Alkin',
-          publisher: 'Destek Yayınları',
-          total_pages: 280,
-          isbn: '9786254416170',
-          category: 'İş & Ekonomi',
-          format: 'physical',
-          shelf_location: 'Çalışma Odası A-1',
-          words_per_page: 260,
-          summary: 'Küresel ekonomik çalkantılar, tasarruf, yatırım ve para yönetimi üzerine başyapıt.',
-          cover_url: 'https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?w=300'
-        }
-      });
-    }
-
-    if (rawIsbn === '9789754345315' || rawIsbn.includes('9754345315')) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          title: 'Hızlı ve Yavaş Düşünme',
-          author: 'Daniel Kahneman',
-          publisher: 'Varlık Yayınları',
-          total_pages: 568,
-          isbn: '9789754345315',
-          category: 'Kişisel Gelişim',
-          format: 'physical',
-          shelf_location: 'Salon Kitaplığı A-2',
-          words_per_page: 250,
-          summary: 'İki düşünce sistemi: Hızlı, sezgisel ve duygusal olan Sistem 1; daha yavaş ve mantıklı olan Sistem 2.',
-          cover_url: 'https://covers.openlibrary.org/b/id/12311139-M.jpg'
-        }
-      });
-    }
-
-    if (rawIsbn === '9786056951374' || rawIsbn.includes('6056951374')) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          title: 'Hukuk',
-          author: 'Frédéric Bastiat',
-          publisher: 'Liberus Yayınları',
-          total_pages: 96,
-          isbn: '9786056951374',
-          category: 'Felsefe & Hukuk',
-          format: 'physical',
-          shelf_location: 'Salon Kitaplığı A-3',
-          words_per_page: 280,
-          summary: 'Bireysel haklar, mülkiyet ve hukukun sınırları üzerine klasik liberal başyapıt.',
-          cover_url: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=300'
-        }
-      });
-    }
-
-    if (rawIsbn === '9780735211292' || rawIsbn.includes('0735211292')) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          title: 'Atomik Alışkanlıklar',
-          author: 'James Clear',
-          publisher: 'Pegasus Yayınları',
-          total_pages: 350,
-          isbn: '9780735211292',
-          category: 'Kişisel Gelişim',
-          format: 'physical',
-          shelf_location: 'Çalışma Odası B-1',
-          words_per_page: 260,
-          summary: 'Küçük değişikliklerin olağanüstü sonuçlar doğurabileceğini kanıtlayan rehber.',
-          cover_url: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=300'
-        }
-      });
-    }
-
-    // 2. Open Library Direct ISBN API Sorgusu (En Hızlı Ve Kapsamlı)
+    // 1. Open Library Direct ISBN API Sorgusu (En Hızlı Ve Kapsamlı)
     try {
       const openLibRes = await fetch(`https://openlibrary.org/isbn/${rawIsbn}.json`, {
         headers: { 'User-Agent': 'SingularityLifeOS/2.1' },
@@ -193,6 +116,39 @@ export async function POST(req: Request) {
       }
     } catch (apiErr) {
       console.warn('OpenLibrary direct fetch failed:', apiErr);
+    }
+
+    // 2. Google Books API (Geniş Türkçe ve Uluslararası Kütüphane İndeksi)
+    try {
+      const gBooksRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${rawIsbn}`, {
+        next: { revalidate: 3600 }
+      });
+      if (gBooksRes.ok) {
+        const gData = await gBooksRes.json();
+        if (gData.items && gData.items.length > 0) {
+          const info = gData.items[0].volumeInfo;
+          if (info && info.title) {
+            return NextResponse.json({
+              success: true,
+              data: {
+                title: info.title,
+                author: info.authors ? info.authors.join(', ') : 'Bilinmeyen Yazar',
+                publisher: info.publisher || 'Genel Yayıncı',
+                total_pages: info.pageCount || 250,
+                isbn: rawIsbn,
+                category: info.categories ? info.categories[0] : 'Kişisel Gelişim',
+                format: 'physical',
+                shelf_location: 'Salon Kitaplığı',
+                words_per_page: 250,
+                summary: info.description || `${info.title} - ${info.authors?.join(', ')}`,
+                cover_url: info.imageLinks?.thumbnail?.replace('http:', 'https:') || null
+              }
+            });
+          }
+        }
+      }
+    } catch (gErr) {
+      console.warn('Google Books API lookup error:', gErr);
     }
 
     // 3. Open Library Secondary API Sorgusu
