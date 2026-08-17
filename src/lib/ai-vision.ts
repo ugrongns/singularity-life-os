@@ -428,7 +428,7 @@ export async function parseBookCoverOrISBNImage(
   "words_per_page": 250
 }`;
 
-      const MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-pro-latest'];
+      const MODELS = ['gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
       for (const modelName of MODELS) {
         try {
           const response = await fetch(

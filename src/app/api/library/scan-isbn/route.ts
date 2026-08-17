@@ -45,14 +45,19 @@ async function queryAuthoritativeBook(isbnOrQuery: string, apiKey?: string) {
         if (drTitle && drTitle.length > 1 && !drTitle.includes('Arama Sonuçları')) {
           let summary = `${drTitle} - ${drAuthor}`;
           let category = 'Edebiyat / Roman';
+          let publisher = '';
+          let totalPages = 200;
 
           if (apiKey) {
             try {
               const promptText = `Kitap Adı: "${drTitle}", Yazar: "${drAuthor}", ISBN: "${cleanIsbn}". 
-Bu Türkçe kitap hakkında 2-3 cümlelik özeti ve kategorisini çıkar. SADECE JSON ver:
+Bu Türkçe kitap hakkında bilinen GERÇEK verileri çıkar.
+Özellikle kitabın GERÇEK sayfa sayısını (total_pages), resmi yayınevini (publisher), özeti (summary) ve kategorisini SADECE JSON ver:
 {
+  "publisher": "Yayınevi Adı",
+  "total_pages": 352,
   "category": "Edebiyat / Roman | İş & Ekonomi | Kişisel Gelişim | Felsefe | Tarih | Bilim",
-  "summary": "Özet metni"
+  "summary": "Kitabın 2 cümlelik özeti"
 }`;
               const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${apiKey}`, {
                 method: 'POST',
@@ -70,6 +75,8 @@ Bu Türkçe kitap hakkında 2-3 cümlelik özeti ve kategorisini çıkar. SADECE
                   const cleanJson = JSON.parse(textOutput.replace(/```json/g, '').replace(/```/g, '').trim());
                   if (cleanJson.summary) summary = cleanJson.summary;
                   if (cleanJson.category) category = cleanJson.category;
+                  if (cleanJson.publisher) publisher = cleanJson.publisher;
+                  if (cleanJson.total_pages && Number(cleanJson.total_pages) > 10) totalPages = Number(cleanJson.total_pages);
                 }
               }
             } catch (e) {}
@@ -78,8 +85,8 @@ Bu Türkçe kitap hakkında 2-3 cümlelik özeti ve kategorisini çıkar. SADECE
           return {
             title: drTitle,
             author: drAuthor,
-            publisher: '',
-            total_pages: 200,
+            publisher: publisher,
+            total_pages: totalPages,
             isbn: cleanIsbn,
             category: category,
             format: 'physical',
