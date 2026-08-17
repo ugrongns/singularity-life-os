@@ -24,7 +24,7 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          const MAX = 1000;
+          const MAX = 1800;
           if (width > height && width > MAX) {
             height = Math.round((height * MAX) / width);
             width = MAX;
@@ -36,7 +36,7 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.7));
+          resolve(canvas.toDataURL('image/jpeg', 0.88));
         };
         img.src = e.target?.result as string;
       };

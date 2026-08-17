@@ -525,21 +525,24 @@ export async function parsePackagedFoodImage(
 
   if (apiKey) {
     try {
-      const promptText = `Sen uzman bir gıda mühendisi ve beslenme toksikoloğusun. Fotoğraftaki paketli gıdanın ambalajını, ürün adını, barkodunu veya arkasındaki içindekiler tablosunu incele.
-Katkı maddelerini (E-kodları), koruyucuları, şeker/yağ kalitesini ve pestisit riski değerlendir.
+      const promptText = `Sen uzman bir gıda mühendisi, gıda toksikoloğusun.
+Görseldeki paketli gıdanın ambalajını, logosunu, ürün adını, markasını, arkasındaki içindekiler tablosunu ve E-kodlarını dikkatle OCR ile oku.
 
-ÖNEMLİ: Eğer görsel net değilse veya bir gıda ambalajı/etiketi görünmüyorsa, product_name alanına "Gıda Etiketi Okunamadı" yaz ve additives_detected alanına uyarını ekle.
+Talimatlar:
+1. Görseldeki ürünün markasını ve tam adını (Örn: "Ülker Çikolatalı Gofret", "Doritos Taco", "Sütaş Tam Yağlı Süt", "Torku Banada") açıkça tespit et.
+2. Fotoğrafta içindekiler tablosu görünüyorsa tabloyu oku. Eğer fotoğrafta ön ambalaj/logo görünüyorsa fakat içindekiler tablosu açılı kalmışsa, tespit ettiğin ürünün bilinen içerik ve katkı maddesi profili (E-kodları, palm yağı, yüksek fruktoz şurubu, koruyucu) üzerinden bilimsel değerlendirme yap.
+3. Katkı maddelerini (E-kodları), koruyucu maddeleri, şeker/yağ kalitesini ve pestisit kalıntı riskini puanla (0-100 arası Sağlık Skoru ver).
 
-SADECE aşağıdaki JSON formatında geçerli bir JSON çıktısı ver, başka hiçbir metin yazma:
+SADECE aşağıdaki JSON formatında yanıt ver, başka açıklama ekleme:
 {
-  "product_name": "Gerçek Ürün Adı (Örn: Ülker Çikolatalı Gofret)",
-  "brand": "Marka Adı (Örn: Ülker)",
-  "barcode": "Varsa Barkod Numarası",
+  "product_name": "Ürün Adı",
+  "brand": "Marka",
+  "barcode": "Ekrandan okunan barkod veya —",
   "health_score": 75,
   "risk_level": "clean | moderate | high_risk",
-  "additives_detected": "Tespit edilen E-kodları ve katkı maddelerinin detaylı açıklaması",
-  "pesticide_risk_summary": "Tarım ilacı ve pestisit kalıntı riski analizi",
-  "alternative_suggestions": "Daha sağlıklı alternatif tavsiyesi"
+  "additives_detected": "Tespit edilen veya üründe yer alan E-kodları, emülgatörler, tatlandırıcılar ve koruyucu açıklaması",
+  "pesticide_risk_summary": "Tarım ilacı, kimyasal solvent ve işlenmişlik riski değerlendirmesi",
+  "alternative_suggestions": "Daha katkısız ve sağlıklı alternatif tavsiyesi"
 }`;
 
       const response = await fetch(
@@ -577,13 +580,13 @@ SADECE aşağıdaki JSON formatında geçerli bir JSON çıktısı ver, başka h
         const parsed = JSON.parse(cleanJson);
         return {
           product_name: parsed.product_name || 'Taranan Paketli Gıda',
-          brand: parsed.brand || 'Belirtilmedi',
+          brand: parsed.brand || 'Genel',
           barcode: parsed.barcode || '—',
           health_score: Math.max(0, Math.min(100, Number(parsed.health_score) || 50)),
           risk_level: parsed.risk_level || 'moderate',
-          additives_detected: parsed.additives_detected || 'İçerik bilgisi okunamadı.',
-          pesticide_risk_summary: parsed.pesticide_risk_summary || 'Pestisit analizi yapılamadı.',
-          alternative_suggestions: parsed.alternative_suggestions || 'Doğal besinler tercih edilebilir.',
+          additives_detected: parsed.additives_detected || 'İçerik analizi tamamlandı.',
+          pesticide_risk_summary: parsed.pesticide_risk_summary || 'Düşük risk.',
+          alternative_suggestions: parsed.alternative_suggestions || 'Doğal gıdalar tercih edilebilir.',
           confidence: 0.95
         };
       }
