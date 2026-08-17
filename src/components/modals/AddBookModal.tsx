@@ -84,12 +84,12 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
       .trim();
   };
 
-  const handleScanISBN = async (targetIsbn?: string) => {
+  const handleScanISBN = async (targetIsbn?: string, imageBase64?: string) => {
     const raw = (targetIsbn !== undefined ? targetIsbn : isbnInput) || '';
     const queryIsbn = raw.replace(/[^0-9X]/gi, '').trim();
 
-    if (!queryIsbn) {
-      alert('Lütfen geçerli bir ISBN numarası girin.');
+    if (!queryIsbn && !imageBase64) {
+      alert('Lütfen geçerli bir ISBN numarası girin veya kitap fotoğrafı çekin.');
       return;
     }
 
@@ -100,7 +100,11 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
       const res = await fetch('/api/library/scan-isbn', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isbn_text: queryIsbn })
+        body: JSON.stringify({
+          isbn_text: queryIsbn || undefined,
+          image_base64: imageBase64 || undefined,
+          mime_type: imageBase64 ? 'image/jpeg' : undefined
+        })
       });
       const json = await res.json();
 
@@ -129,12 +133,12 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
         setActiveTab('manual'); // Onay formuna geç
       } else {
         alert(json.error || 'Kitap bilgisi çekilemedi. Lütfen formu manuel doldurun.');
-        setIsbnInput(queryIsbn);
+        if (queryIsbn) setIsbnInput(queryIsbn);
         setActiveTab('manual');
       }
     } catch (err) {
       alert('Bağlantı hatası oluştu. Lütfen bilgileri manuel girin.');
-      setIsbnInput(queryIsbn);
+      if (queryIsbn) setIsbnInput(queryIsbn);
       setActiveTab('manual');
     } finally {
       setIsScanning(false);
@@ -212,49 +216,13 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
 
     setIsScanning(true);
     try {
-      // 1. Önce Gerçek Barkod Okuyucu (ZXing JS) ile fotoğraftaki 1D/EAN-13 barkodu tara
+      // 1. Hem ZXing barkodunu hem de sıkıştırılmış görsel karesini hazırla
       const detectedBarcode = await scanBarcodeFromPhoto(file);
-      if (detectedBarcode) {
-        const cleanIsbn = detectedBarcode.replace(/[^0-9X]/gi, '');
-        if (cleanIsbn.length >= 10) {
-          setIsbnInput(cleanIsbn);
-          await handleScanISBN(cleanIsbn);
-          setIsScanning(false);
-          return;
-        }
-      }
-
-      // 2. Barkod 1D çizgilerinden okunamadıysa, AI Vision görsel analizi yap
+      const cleanIsbn = detectedBarcode ? detectedBarcode.replace(/[^0-9X]/gi, '') : '';
       const compressedBase64 = await compressImage(file);
-      const res = await fetch('/api/library/scan-isbn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image_base64: compressedBase64,
-          mime_type: 'image/jpeg'
-        })
-      });
-      const json = await res.json();
-      if (json.is_already_in_library) {
-        setExistingBookAlert(json.existing_book || { title: json.data?.title, author: json.data?.author });
-      }
 
-      if (json.success && json.data) {
-        const d = json.data;
-        setTitle(d.title || '');
-        setAuthor(d.author || '');
-        setPublisher(d.publisher || '');
-        setTotalPages(d.total_pages?.toString() || '200');
-        setCategory(d.category || 'Kişisel Gelişim');
-        setFormat('physical');
-        setWordsPerPage(d.words_per_page?.toString() || '250');
-        setSummary(d.summary || '');
-        if (d.isbn) setIsbnInput(d.isbn);
-        if (d.cover_url) setCoverUrl(d.cover_url);
-        setActiveTab('manual'); // Form onay sekmesine geç
-      } else {
-        alert(json.error || 'Görselden kitap bilgisi okunamadı.');
-      }
+      if (cleanIsbn) setIsbnInput(cleanIsbn);
+      await handleScanISBN(cleanIsbn || undefined, compressedBase64);
     } catch (err) {
       alert('Yapay zeka tarama hatası.');
     } finally {
@@ -490,12 +458,12 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
     }
   };
 
-  const handleLiveDetected = (code: string) => {
+  const handleLiveDetected = (code: string, snapshotBase64?: string) => {
     setIsLiveScannerOpen(false);
     const cleanIsbn = code.replace(/[^0-9X]/gi, '');
-    if (cleanIsbn) {
-      setIsbnInput(cleanIsbn);
-      handleScanISBN(cleanIsbn);
+    if (cleanIsbn || snapshotBase64) {
+      if (cleanIsbn) setIsbnInput(cleanIsbn);
+      handleScanISBN(cleanIsbn || undefined, snapshotBase64);
     }
   };
 

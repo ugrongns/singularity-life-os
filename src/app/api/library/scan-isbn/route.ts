@@ -215,29 +215,30 @@ export async function POST(req: Request) {
     if (image_base64) {
       const visionResult = await parseBookCoverOrISBNImage(image_base64, mime_type || 'image/jpeg');
 
-      // Görselden okunan ISBN veya Başlık varsa resmi veritabanı zinciriyle teyit et
+      // Görselden veya parametreden gelen ISBN/başlığı resmi veritabanı zinciriyle teyit et
       const detectedIsbn = (visionResult.isbn || '').replace(/[^0-9X]/gi, '');
+      const effectiveIsbn = rawIsbn || detectedIsbn;
       let verifiedBook: any = null;
 
-      if (detectedIsbn.length >= 10) {
-        verifiedBook = await queryAuthoritativeBook(detectedIsbn, apiKey);
+      if (effectiveIsbn.length >= 10) {
+        verifiedBook = await queryAuthoritativeBook(effectiveIsbn, apiKey);
       } else if (visionResult.title && visionResult.title !== 'Taranan Kitap') {
         verifiedBook = await queryAuthoritativeBook(`${visionResult.title} ${visionResult.author || ''}`, apiKey);
       }
 
-      const finalBookData = verifiedBook ? {
-        title: verifiedBook.title || visionResult.title,
-        author: verifiedBook.author || visionResult.author,
-        publisher: verifiedBook.publisher || visionResult.publisher,
-        isbn: verifiedBook.isbn || detectedIsbn || visionResult.isbn,
-        total_pages: verifiedBook.total_pages || visionResult.total_pages || 200,
-        category: verifiedBook.category || visionResult.category || 'Edebiyat / Roman',
+      const finalBookData = {
+        title: verifiedBook?.title || visionResult.title || 'Taranan Kitap',
+        author: verifiedBook?.author || visionResult.author || '',
+        publisher: verifiedBook?.publisher || visionResult.publisher || '',
+        isbn: verifiedBook?.isbn || effectiveIsbn || '',
+        total_pages: Number(verifiedBook?.total_pages || visionResult.total_pages) || 200,
+        category: verifiedBook?.category || visionResult.category || 'Kişisel Gelişim',
         format: 'physical',
         shelf_location: 'Salon Kitaplığı',
         words_per_page: visionResult.words_per_page || 250,
-        summary: verifiedBook.summary || visionResult.summary,
-        cover_url: verifiedBook.cover_url || null
-      } : visionResult;
+        summary: verifiedBook?.summary || visionResult.summary || '',
+        cover_url: verifiedBook?.cover_url || null
+      };
 
       if (finalBookData.title) {
         const existingByTitle = (await db.select().from(books).where(like(books.title, `%${finalBookData.title.trim()}%`)))[0];

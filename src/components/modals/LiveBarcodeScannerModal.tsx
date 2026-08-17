@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 interface LiveBarcodeScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onDetected: (barcode: string) => void;
+  onDetected: (barcode: string, snapshotBase64?: string) => void;
 }
 
 export default function LiveBarcodeScannerModal({
@@ -52,7 +52,6 @@ export default function LiveBarcodeScannerModal({
           video: { facingMode: { exact: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
         });
       } catch (e) {
-        // Arka kamera 'exact' başarısız olursa genel kamera dene
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
         });
@@ -116,12 +115,12 @@ export default function LiveBarcodeScannerModal({
           const video = videoRef.current;
           const canvas = canvasRef.current;
           if (video.readyState === video.HAVE_ENOUGH_DATA) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
             const ctx = canvas.getContext('2d');
             if (ctx) {
               ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              const imgUrl = canvas.toDataURL('image/jpeg', 0.8);
+              const imgUrl = canvas.toDataURL('image/jpeg', 0.85);
               const img = new Image();
               img.src = imgUrl;
               await new Promise(r => { img.onload = r; });
@@ -150,12 +149,27 @@ export default function LiveBarcodeScannerModal({
   const triggerSuccess = (barcode: string) => {
     isScanningRef.current = false;
     setStatusText(`✅ Barkod Algılandı: ${barcode}`);
-    // Titreşim geribildirimi (destekleyen cihazlarda)
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       try { navigator.vibrate(200); } catch (e) {}
     }
+
+    let snapshot: string | undefined = undefined;
+    if (videoRef.current && canvasRef.current) {
+      try {
+        const v = videoRef.current;
+        const c = canvasRef.current;
+        c.width = v.videoWidth || 640;
+        c.height = v.videoHeight || 480;
+        const ctx = c.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(v, 0, 0, c.width, c.height);
+          snapshot = c.toDataURL('image/jpeg', 0.85);
+        }
+      } catch (e) {}
+    }
+
     stopCamera();
-    onDetected(barcode);
+    onDetected(barcode, snapshot);
   };
 
   if (!isOpen) return null;
