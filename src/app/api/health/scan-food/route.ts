@@ -284,8 +284,13 @@ export async function DELETE(req: Request) {
     const clearJunk = searchParams.get('clear_junk') === 'true';
 
     if (clearJunk) {
-      // Çöp/bulunamayan tekrarlayan taramaları sil
-      await db.delete(packagedFoodScans).where(ilike(packagedFoodScans.product_name, '%Taranan Barkod%'));
+      // Çöp/bulunamayan ve okunamayan tekrarlayan taramaları sil
+      await db.delete(packagedFoodScans).where(
+        or(
+          ilike(packagedFoodScans.product_name, '%Taranan Barkod%'),
+          ilike(packagedFoodScans.product_name, '%Etiketi Okunamad%')
+        )
+      );
       return NextResponse.json({ success: true, message: 'Başarısız ve çöp taramalar temizlendi.' });
     }
 
