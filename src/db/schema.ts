@@ -506,6 +506,34 @@ export const userHealthProfile = pgTable('user_health_profile', {
   user_id: text('user_id')
 });
 
+export const workoutSessions = pgTable('workout_sessions', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  date: text('date').notNull(),
+  start_time: text('start_time'),
+  end_time: text('end_time'),
+  duration_minutes: integer('duration_minutes').default(45),
+  total_volume_kg: doublePrecision('total_volume_kg').default(0),
+  notes: text('notes'),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull(),
+  user_id: text('user_id')
+});
+
+export const workoutExerciseLogs = pgTable('workout_exercise_logs', {
+  id: text('id').primaryKey(),
+  workout_id: text('workout_id').notNull(),
+  exercise_name: text('exercise_name').notNull(),
+  category: text('category').notNull().default('gogus'),
+  equipment: text('equipment').notNull().default('dumbbell'),
+  sets_data: text('sets_data').notNull(),
+  max_weight_kg: doublePrecision('max_weight_kg').default(0),
+  total_reps: integer('total_reps').default(0),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull(),
+  user_id: text('user_id')
+});
+
 // ==========================================
 // 🗂️ FAZ 6: DİJİTAL KASA & EVRAK YÖNETİMİ
 // ==========================================
