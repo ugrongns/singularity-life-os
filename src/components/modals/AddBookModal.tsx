@@ -108,36 +108,39 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 1000,
-      background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(10px)',
+      background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
     }}>
       <div style={{
-        background: '#121215', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '24px',
+        background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '24px',
         maxWidth: '680px', width: '100%', maxHeight: '90vh', overflowY: 'auto',
-        color: '#fff', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+        color: '#111827', boxShadow: '0 20px 45px -15px rgba(0, 0, 0, 0.15)'
       }}>
         {/* Header */}
         <div style={{
-          padding: '24px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+          padding: '20px 24px', borderBottom: '1px solid #F3F4F6',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: '#FAFAFA', borderTopLeftRadius: '24px', borderTopRightRadius: '24px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
-              width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(139, 92, 246, 0.15)',
-              color: '#a78bfa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px'
+              width: '42px', height: '42px', borderRadius: '12px', background: '#F3E8FF',
+              color: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px'
             }}>
               📚
             </div>
             <div>
-              <h2 style={{ fontSize: '18px', fontWeight: 600, margin: 0 }}>Yeni Kitap Ekle</h2>
-              <p style={{ fontSize: '13px', color: '#a1a1aa', margin: '2px 0 0 0' }}>Manuel bilgi girişi ile kütüphanenizi zenginleştirin</p>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#111827' }}>Yeni Kitap Ekle</h2>
+              <p style={{ fontSize: '13px', color: '#6B7280', margin: '2px 0 0 0' }}>Manuel bilgi girişi ile kütüphanenizi zenginleştirin</p>
             </div>
           </div>
           <button
             onClick={onClose}
             style={{
-              background: 'transparent', border: 'none', color: '#a1a1aa',
-              fontSize: '20px', cursor: 'pointer', padding: '8px', borderRadius: '8px'
+              background: '#F3F4F6', border: 'none', color: '#6B7280',
+              fontSize: '16px', fontWeight: 600, cursor: 'pointer',
+              width: '32px', height: '32px', borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}
           >
             ✕
@@ -148,8 +151,8 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
         <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {errorMessage && (
             <div style={{
-              background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)',
-              borderRadius: '12px', padding: '12px 16px', color: '#f87171', fontSize: '13px'
+              background: '#FEF2F2', border: '1px solid #FCA5A5',
+              borderRadius: '12px', padding: '12px 16px', color: '#991B1B', fontSize: '13px', fontWeight: 500
             }}>
               ⚠️ {errorMessage}
             </div>
@@ -157,76 +160,76 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
 
           {/* Section 1: Temel Bilgiler */}
           <div>
-            <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#a78bfa', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <h3 style={{ fontSize: '13px', fontWeight: 700, color: '#6D28D9', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               1. Temel Kitap Bilgileri
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', fontSize: '12px', color: '#a1a1aa', marginBottom: '6px' }}>Kitap Adı *</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Kitap Adı *</label>
                 <input
                   type="text"
                   placeholder="Örn: Atomik Alışkanlıklar"
                   value={title}
                   onChange={e => setTitle(e.target.value)}
                   style={{
-                    width: '100%', background: '#1a1a1e', border: '1px solid #27272a', borderRadius: '10px',
-                    padding: '10px 14px', color: '#fff', fontSize: '14px', outline: 'none'
+                    width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px',
+                    padding: '11px 14px', color: '#111827', fontSize: '14px', outline: 'none'
                   }}
                   required
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#a1a1aa', marginBottom: '6px' }}>Yazar *</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Yazar *</label>
                 <input
                   type="text"
                   placeholder="Örn: James Clear"
                   value={author}
                   onChange={e => setAuthor(e.target.value)}
                   style={{
-                    width: '100%', background: '#1a1a1e', border: '1px solid #27272a', borderRadius: '10px',
-                    padding: '10px 14px', color: '#fff', fontSize: '14px', outline: 'none'
+                    width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px',
+                    padding: '11px 14px', color: '#111827', fontSize: '14px', outline: 'none'
                   }}
                   required
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#a1a1aa', marginBottom: '6px' }}>Yayınevi</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Yayınevi</label>
                 <input
                   type="text"
                   placeholder="Örn: Pegasus Yayınları"
                   value={publisher}
                   onChange={e => setPublisher(e.target.value)}
                   style={{
-                    width: '100%', background: '#1a1a1e', border: '1px solid #27272a', borderRadius: '10px',
-                    padding: '10px 14px', color: '#fff', fontSize: '14px', outline: 'none'
+                    width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px',
+                    padding: '11px 14px', color: '#111827', fontSize: '14px', outline: 'none'
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#a1a1aa', marginBottom: '6px' }}>ISBN Numarası</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>ISBN Numarası</label>
                 <input
                   type="text"
                   placeholder="Örn: 9786052999844"
                   value={isbn}
                   onChange={e => setIsbn(e.target.value)}
                   style={{
-                    width: '100%', background: '#1a1a1e', border: '1px solid #27272a', borderRadius: '10px',
-                    padding: '10px 14px', color: '#fff', fontSize: '14px', outline: 'none'
+                    width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px',
+                    padding: '11px 14px', color: '#111827', fontSize: '14px', outline: 'none'
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#a1a1aa', marginBottom: '6px' }}>Kategori</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Kategori</label>
                 <select
                   value={category}
                   onChange={e => setCategory(e.target.value)}
                   style={{
-                    width: '100%', background: '#1a1a1e', border: '1px solid #27272a', borderRadius: '10px',
-                    padding: '10px 14px', color: '#fff', fontSize: '14px', outline: 'none'
+                    width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px',
+                    padding: '11px 14px', color: '#111827', fontSize: '14px', outline: 'none'
                   }}
                 >
                   <option value="Kişisel Gelişim">Kişisel Gelişim</option>
@@ -242,47 +245,47 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
             </div>
           </div>
 
-          {/* Section 2: Okuma & İlerleme Detayları */}
+          {/* Section 2: Okuma & Format Bilgileri */}
           <div>
-            <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#a78bfa', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <h3 style={{ fontSize: '13px', fontWeight: 700, color: '#6D28D9', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               2. Okuma & Format Bilgileri
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#a1a1aa', marginBottom: '6px' }}>Toplam Sayfa *</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Toplam Sayfa *</label>
                 <input
                   type="number"
                   value={totalPages}
                   onChange={e => setTotalPages(e.target.value)}
                   style={{
-                    width: '100%', background: '#1a1a1e', border: '1px solid #27272a', borderRadius: '10px',
-                    padding: '10px 14px', color: '#fff', fontSize: '14px', outline: 'none'
+                    width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px',
+                    padding: '11px 14px', color: '#111827', fontSize: '14px', outline: 'none'
                   }}
                   required
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#a1a1aa', marginBottom: '6px' }}>Okunan Sayfa</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Okunan Sayfa</label>
                 <input
                   type="number"
                   value={currentPage}
                   onChange={e => setCurrentPage(e.target.value)}
                   style={{
-                    width: '100%', background: '#1a1a1e', border: '1px solid #27272a', borderRadius: '10px',
-                    padding: '10px 14px', color: '#fff', fontSize: '14px', outline: 'none'
+                    width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px',
+                    padding: '11px 14px', color: '#111827', fontSize: '14px', outline: 'none'
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#a1a1aa', marginBottom: '6px' }}>Okuma Durumu</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Okuma Durumu</label>
                 <select
                   value={status}
                   onChange={e => setStatus(e.target.value as any)}
                   style={{
-                    width: '100%', background: '#1a1a1e', border: '1px solid #27272a', borderRadius: '10px',
-                    padding: '10px 14px', color: '#fff', fontSize: '14px', outline: 'none'
+                    width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px',
+                    padding: '11px 14px', color: '#111827', fontSize: '14px', outline: 'none'
                   }}
                 >
                   <option value="reading">📖 Okunuyor</option>
@@ -292,13 +295,13 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#a1a1aa', marginBottom: '6px' }}>Kitap Formatı</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Kitap Formatı</label>
                 <select
                   value={format}
                   onChange={e => setFormat(e.target.value as any)}
                   style={{
-                    width: '100%', background: '#1a1a1e', border: '1px solid #27272a', borderRadius: '10px',
-                    padding: '10px 14px', color: '#fff', fontSize: '14px', outline: 'none'
+                    width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px',
+                    padding: '11px 14px', color: '#111827', fontSize: '14px', outline: 'none'
                   }}
                 >
                   <option value="physical">📘 Fiziki Kitap</option>
@@ -308,27 +311,27 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#a1a1aa', marginBottom: '6px' }}>Raf / Konum</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Raf / Konum</label>
                 <input
                   type="text"
                   placeholder="Örn: Salon Kitaplığı A-3"
                   value={shelfLocation}
                   onChange={e => setShelfLocation(e.target.value)}
                   style={{
-                    width: '100%', background: '#1a1a1e', border: '1px solid #27272a', borderRadius: '10px',
-                    padding: '10px 14px', color: '#fff', fontSize: '14px', outline: 'none'
+                    width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px',
+                    padding: '11px 14px', color: '#111827', fontSize: '14px', outline: 'none'
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#a1a1aa', marginBottom: '6px' }}>Puan (1 - 5)</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Puan (1 - 5)</label>
                 <select
                   value={rating}
                   onChange={e => setRating(e.target.value)}
                   style={{
-                    width: '100%', background: '#1a1a1e', border: '1px solid #27272a', borderRadius: '10px',
-                    padding: '10px 14px', color: '#fff', fontSize: '14px', outline: 'none'
+                    width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px',
+                    padding: '11px 14px', color: '#111827', fontSize: '14px', outline: 'none'
                   }}
                 >
                   <option value="5">⭐⭐⭐⭐⭐ (5/5)</option>
@@ -343,29 +346,29 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
 
           {/* Section 3: Özet & Notlar */}
           <div>
-            <label style={{ display: 'block', fontSize: '12px', color: '#a1a1aa', marginBottom: '6px' }}>Özet / Notlar</label>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Özet / Notlar</label>
             <textarea
               rows={3}
               placeholder="Kitap hakkında kişisel özetiniz veya almak istediğiniz notlar..."
               value={summary}
               onChange={e => setSummary(e.target.value)}
               style={{
-                width: '100%', background: '#1a1a1e', border: '1px solid #27272a', borderRadius: '10px',
-                padding: '10px 14px', color: '#fff', fontSize: '14px', outline: 'none', resize: 'vertical'
+                width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px',
+                padding: '11px 14px', color: '#111827', fontSize: '14px', outline: 'none', resize: 'vertical'
               }}
             />
           </div>
 
           {/* Section 4: Emanet Takibi */}
           <div style={{
-            background: '#1a1a1e', border: '1px solid #27272a', borderRadius: '12px', padding: '16px'
+            background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '16px', padding: '16px'
           }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 600, color: '#111827' }}>
               <input
                 type="checkbox"
                 checked={isLentOut}
                 onChange={e => setIsLentOut(e.target.checked)}
-                style={{ width: '18px', height: '18px', accentColor: '#8b5cf6' }}
+                style={{ width: '18px', height: '18px', accentColor: '#7c3aed' }}
               />
               🤝 Bu kitabı başkasına emanet verdim
             </label>
@@ -373,27 +376,27 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
             {isLentOut && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#a1a1aa', marginBottom: '6px' }}>Emanet Edilen Kişi</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Emanet Edilen Kişi</label>
                   <input
                     type="text"
                     placeholder="Örn: Ahmet Yılmaz"
                     value={lentToName}
                     onChange={e => setLentToName(e.target.value)}
                     style={{
-                      width: '100%', background: '#121215', border: '1px solid #27272a', borderRadius: '8px',
-                      padding: '8px 12px', color: '#fff', fontSize: '13px', outline: 'none'
+                      width: '100%', background: '#FFFFFF', border: '1px solid #D1D5DB', borderRadius: '10px',
+                      padding: '9px 12px', color: '#111827', fontSize: '13px', outline: 'none'
                     }}
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#a1a1aa', marginBottom: '6px' }}>Emanet Tarihi</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Emanet Tarihi</label>
                   <input
                     type="date"
                     value={lentDate}
                     onChange={e => setLentDate(e.target.value)}
                     style={{
-                      width: '100%', background: '#121215', border: '1px solid #27272a', borderRadius: '8px',
-                      padding: '8px 12px', color: '#fff', fontSize: '13px', outline: 'none'
+                      width: '100%', background: '#FFFFFF', border: '1px solid #D1D5DB', borderRadius: '10px',
+                      padding: '9px 12px', color: '#111827', fontSize: '13px', outline: 'none'
                     }}
                   />
                 </div>
@@ -402,13 +405,13 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
           </div>
 
           {/* Footer Buttons */}
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid #F3F4F6' }}>
             <button
               type="button"
               onClick={onClose}
               style={{
-                background: '#27272a', color: '#a1a1aa', border: 'none', padding: '12px 20px',
-                borderRadius: '12px', cursor: 'pointer', fontSize: '14px', fontWeight: 500
+                background: '#F3F4F6', color: '#4B5563', border: 'none', padding: '12px 20px',
+                borderRadius: '12px', cursor: 'pointer', fontSize: '14px', fontWeight: 600
               }}
             >
               İptal
@@ -417,9 +420,9 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
               type="submit"
               disabled={isSubmitting}
               style={{
-                background: isSubmitting ? '#5b21b6' : '#7c3aed', color: '#fff', border: 'none',
+                background: isSubmitting ? '#6D28D9' : '#7C3AED', color: '#FFFFFF', border: 'none',
                 padding: '12px 24px', borderRadius: '12px', cursor: 'pointer', fontSize: '14px',
-                fontWeight: 600, boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+                fontWeight: 600, boxShadow: '0 4px 12px rgba(124, 58, 237, 0.25)',
                 display: 'flex', alignItems: 'center', gap: '8px'
               }}
             >
