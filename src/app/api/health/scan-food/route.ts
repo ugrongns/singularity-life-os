@@ -190,13 +190,19 @@ SADECE aşağıdaki JSON formatında yanıt ver:
           if (!foodAnalysis) {
             let searchSnippet = '';
             try {
-              const ddgRes = await fetch(`https://html.duckduckgo.com/html/?q=${barcode}+barkod`, {
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+              const ddgRes = await fetch(`https://html.duckduckgo.com/html/?q=${barcode}`, {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                  'Accept-Language': 'tr-TR,tr;q=0.9'
+                }
               });
               if (ddgRes.ok) {
                 const html = await ddgRes.text();
                 const snippets = html.match(/<a class="result__snippet[^>]*>([\s\S]*?)<\/a>/g) || [];
-                searchSnippet = snippets.map(s => s.replace(/<[^>]+>/g, '')).join(' ').substring(0, 1200);
+                searchSnippet = snippets
+                  .map(s => s.replace(/<[^>]+>/g, '').replace(/&#x27;/g, "'").replace(/&amp;/g, '&'))
+                  .join(' ')
+                  .substring(0, 1500);
               }
             } catch (e) {
               console.warn('[Barcode Web Search Error]:', e);
