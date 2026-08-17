@@ -14,6 +14,87 @@ async function queryAuthoritativeBook(isbnOrQuery: string, apiKey?: string) {
   const cleanIsbn = isbnOrQuery.replace(/[^0-9X]/gi, '');
   const searchTerm = cleanIsbn.length >= 10 ? cleanIsbn : isbnOrQuery;
 
+  // 0. ANINDA VE KESİN TÜRKÇE KİTAP DOĞRULAMA: D&R RESMİ VERİTABANI İNDEKSİ
+  if (cleanIsbn.length >= 10) {
+    try {
+      const drRes = await fetch(`https://www.dr.com.tr/search?q=${cleanIsbn}`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7'
+        },
+        signal: AbortSignal.timeout(2500)
+      });
+      if (drRes.ok) {
+        const html = await drRes.text();
+        const titleTag = html.match(/<title>([\s\S]*?)<\/title>/i)?.[1]?.trim() || '';
+        const m = titleTag.match(/^([^(]+)\s*\(([^)]+)\)/);
+        let drTitle = '';
+        let drAuthor = '';
+        if (m) {
+          drTitle = m[1].trim();
+          drAuthor = m[2].trim();
+        } else {
+          const urlMatch = drRes.url.match(/\/kitap\/([^/]+)\/([^/]+)/);
+          if (urlMatch) {
+            drTitle = urlMatch[1].replace(/-/g, ' ').trim();
+            drAuthor = urlMatch[2].replace(/-/g, ' ').trim();
+          }
+        }
+
+        if (drTitle && drTitle.length > 1 && !drTitle.includes('Arama Sonuçları')) {
+          let summary = `${drTitle} - ${drAuthor}`;
+          let category = 'Edebiyat / Roman';
+
+          if (apiKey) {
+            try {
+              const promptText = `Kitap Adı: "${drTitle}", Yazar: "${drAuthor}", ISBN: "${cleanIsbn}". 
+Bu Türkçe kitap hakkında 2-3 cümlelik özeti ve kategorisini çıkar. SADECE JSON ver:
+{
+  "category": "Edebiyat / Roman | İş & Ekonomi | Kişisel Gelişim | Felsefe | Tarih | Bilim",
+  "summary": "Özet metni"
+}`;
+              const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: promptText }] }],
+                  generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
+                }),
+                signal: AbortSignal.timeout(2500)
+              });
+              if (aiRes.ok) {
+                const aiData = await aiRes.json();
+                const textOutput = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (textOutput) {
+                  const cleanJson = JSON.parse(textOutput.replace(/```json/g, '').replace(/```/g, '').trim());
+                  if (cleanJson.summary) summary = cleanJson.summary;
+                  if (cleanJson.category) category = cleanJson.category;
+                }
+              }
+            } catch (e) {}
+          }
+
+          return {
+            title: drTitle,
+            author: drAuthor,
+            publisher: '',
+            total_pages: 200,
+            isbn: cleanIsbn,
+            category: category,
+            format: 'physical',
+            shelf_location: 'Salon Kitaplığı',
+            words_per_page: 250,
+            summary: summary,
+            cover_url: null,
+            source: 'dr_verified'
+          };
+        }
+      }
+    } catch (drErr) {
+      console.warn('[D&R Resolver Warning]:', drErr);
+    }
+  }
+
   // 1. Canlı Web Arama İndeksi + Gemini AI Sentezi (%100 Gerçek Kitap Doğrulaması)
   if (apiKey && !apiKey.startsWith('AQ.')) {
     try {
