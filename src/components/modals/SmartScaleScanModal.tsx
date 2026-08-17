@@ -12,9 +12,12 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDuplicate, setIsDuplicate] = useState(false);
+  const [duplicateInfo, setDuplicateInfo] = useState<string | null>(null);
 
-  // Form State
-  const [measurementDate, setMeasurementDate] = useState(new Date().toISOString().split('T')[0]);
+  // Form State - tarih boş başlar, taramadan gelir
+  const [measurementDate, setMeasurementDate] = useState('');
+  const [measurementTime, setMeasurementTime] = useState('');
   const [weightKg, setWeightKg] = useState('');
   const [bmi, setBmi] = useState('');
   const [bodyFatPercent, setBodyFatPercent] = useState('');
@@ -86,21 +89,42 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
       const json = await res.json();
       if (json.success && json.data) {
         const d = json.data;
-        // Tarih normalize: DD.MM.YYYY veya DD/MM/YYYY → YYYY-MM-DD, 2025 → bugün
+
+        // Ekrandaki tarihi + saati normalize et — asla override yapma
+        let parsedDate = '';
+        let parsedTime = '';
         if (d.measurement_date) {
-          let rawDate = d.measurement_date.split(' ')[0];
-          // DD.MM.YYYY veya DD/MM/YYYY formatını YYYY-MM-DD'ye çevir
-          const dotMatch = rawDate.match(/^(\d{2})[.\/](\d{2})[.\/](\d{4})$/);
-          if (dotMatch) {
-            rawDate = `${dotMatch[3]}-${dotMatch[2]}-${dotMatch[1]}`;
-          } else {
-            rawDate = rawDate.replace(/\//g, '-');
+          const raw = d.measurement_date.trim();
+          // YYYY-MM-DD HH:mm:ss veya YYYY/MM/DD HH:mm:ss
+          const isoMatch = raw.match(/^(\d{4})[\/-](\d{2})[\/-](\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?/);
+          // DD.MM.YYYY HH:mm veya DD/MM/YYYY
+          const dotMatch = raw.match(/^(\d{2})[.\/](\d{2})[.\/](\d{4})(?:\s+(\d{2}:\d{2}(?::\d{2})?))?/);
+          if (isoMatch) {
+            parsedDate = `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+            if (isoMatch[4]) parsedTime = isoMatch[4];
+          } else if (dotMatch) {
+            parsedDate = `${dotMatch[3]}-${dotMatch[2]}-${dotMatch[1]}`;
+            if (dotMatch[4]) parsedTime = dotMatch[4];
           }
-          const today = new Date().toISOString().split('T')[0];
-          // Eğer eski yıl ise (2025 vb.) bugünü kullan
-          if (!rawDate.startsWith('2026')) rawDate = today;
-          setMeasurementDate(rawDate);
         }
+        setMeasurementDate(parsedDate);
+        setMeasurementTime(parsedTime);
+
+        // Aynı tarihte kayıt var mı kontrol et
+        if (parsedDate) {
+          try {
+            const dupRes = await fetch(`/api/wellness/scale-logs?check_date=${parsedDate}`);
+            const dupJson = await dupRes.json();
+            if (dupJson.exists) {
+              setIsDuplicate(true);
+              setDuplicateInfo(`Bu tarihte (${parsedDate}) daha önce ${dupJson.count} ölçüm kaydedilmiş.`);
+            } else {
+              setIsDuplicate(false);
+              setDuplicateInfo(null);
+            }
+          } catch { setIsDuplicate(false); }
+        }
+
         if (d.weight_kg) setWeightKg(d.weight_kg.toString());
         if (d.bmi) setBmi(d.bmi.toString());
         if (d.body_fat_percent) setBodyFatPercent(d.body_fat_percent.toString());
@@ -121,7 +145,6 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
         if (d.actual_age) setActualAge(d.actual_age.toString());
         if (d.height_cm) setHeightCm(d.height_cm.toString());
 
-        alert('🤖 Akıllı Tartı Ekranı Taranıp Tüm Metrikler Çıkarıldı!');
       } else {
         alert(json.error || 'Ekran görüntüsünden veri okunamadı.');
       }
@@ -132,6 +155,7 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
     }
   };
 
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!weightKg) {
@@ -141,11 +165,16 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
 
     setIsSaving(true);
     try {
+      // Tarih + saat birleştir
+      const finalDate = measurementDate || new Date().toISOString().split('T')[0];
+      const finalDatetime = measurementTime ? `${finalDate} ${measurementTime}` : finalDate;
+
       const res = await fetch('/api/wellness/scale-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          measurement_date: measurementDate,
+          measurement_date: finalDate,
+          measurement_datetime: finalDatetime,
           weight_kg: weightKg,
           bmi,
           body_fat_percent: bodyFatPercent,
@@ -219,10 +248,24 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
 
         {/* Manuel Form / AI Tarafından Doldurulan Form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+          {/* Duplicate uyarısı */}
+          {isDuplicate && duplicateInfo && (
+            <div style={{ background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.4)', borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '18px' }}>⚠️</span>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#F59E0B' }}>Daha Önce Kullanılmış Veri</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>{duplicateInfo} Yine de kaydedebilirsiniz.</div>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
               <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Ölçüm Tarihi:</label>
-              <input type="date" value={measurementDate} onChange={e => setMeasurementDate(e.target.value)} required style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid var(--border)', marginTop: '2px' }} />
+              <input type="date" value={measurementDate} onChange={e => setMeasurementDate(e.target.value)} required style={{ width: '100%', padding: '8px', borderRadius: '8px', border: isDuplicate ? '1px solid #F59E0B' : '1px solid var(--border)', marginTop: '2px' }} />
+              {measurementTime && (
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>⏰ Saat: {measurementTime}</div>
+              )}
             </div>
             <div>
               <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Ağırlık (Kg): *</label>

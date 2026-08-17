@@ -15,11 +15,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Gemini API Anahtarı tanımlı değil.' }, { status: 500 });
     }
 
-    const promptText = `Sen uzman bir biyo-impeditif akıllı tartı ve sağlık verisi analiz uzmanısın. 
-Fotoğraftaki akıllı tartı uygulamasının ekran görüntüsünden yer alan TÜM VÜCUT METRİKLERİNİ dikkatle oku ve SADECE aşağıdaki JSON formatında geçerli bir JSON objesi döndür:
+    const promptText = `Sen uzman bir biyo-impedans akıllı tartı ve sağlık verisi analiz uzmanısın.
+Fotoğraftaki akıllı tartı uygulamasının ekran görüntüsünden TÜM VÜCUT METRİKLERİNİ ve ÖNEMLİ: ÖLÇÜM TARİHİ VE SAATİNİ dikkatle oku.
+
+Ekrandaki tarihi ve saati bulmak için şunlara bak:
+- Genellikle üstte veya altta "YYYY/MM/DD HH:mm:ss" ya da "DD.MM.YYYY HH:mm" formatında görünür
+- Tarih ekranda yoksa boş bırak (null koy), ASLA tahmin etme
+
+SADECE aşağıdaki JSON formatında geçerli bir JSON objesi döndür:
 
 {
-  "measurement_date": "YYYY/MM/DD HH:mm:ss veya YYYY-MM-DD" (Tarih ve saat görünüyorsa oku, yoksa boş bırak),
+  "measurement_date": "YYYY-MM-DD HH:mm:ss",
   "weight_kg": 84.65,
   "bmi": 27.6,
   "body_fat_percent": 26.1,
@@ -43,6 +49,7 @@ Fotoğraftaki akıllı tartı uygulamasının ekran görüntüsünden yer alan T
 
 Kurallar:
 - SADECE JSON döndür. Başka açıklama yazma.
+- measurement_date: Ekrandaki gerçek tarih ve saati oku. Tarih formatını YYYY-MM-DD HH:mm:ss olarak döndür. Saat yoksa YYYY-MM-DD döndür. Ekranda tarih yoksa null döndür.
 - Fotoğrafta görünmeyen metrikleri null olarak bırak.
 - Sayıları float/number tipinde döndür (virgülleri noktaya çevir).`;
 

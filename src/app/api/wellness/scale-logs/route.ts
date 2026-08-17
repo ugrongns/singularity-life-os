@@ -2,17 +2,28 @@ import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { smartScaleLogs, biometrics } from '@/db/schema';
 import { getAuthUser } from '@/lib/auth';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     initDatabase();
+    const { searchParams } = new URL(req.url);
+    const checkDate = searchParams.get('check_date');
+
+    // Duplicate kontrol modu: belirli bir tarihteki kayıt sayısını döndür
+    if (checkDate) {
+      const existing = await db.select().from(smartScaleLogs)
+        .where(eq(smartScaleLogs.measurement_date, checkDate));
+      return NextResponse.json({ exists: existing.length > 0, count: existing.length, date: checkDate });
+    }
+
     const logs = await db.select().from(smartScaleLogs).orderBy(desc(smartScaleLogs.measurement_date));
     return NextResponse.json({ success: true, data: logs });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
+
 
 export async function POST(req: Request) {
   try {
