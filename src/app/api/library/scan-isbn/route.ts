@@ -222,41 +222,24 @@ export async function POST(req: Request) {
     if (rawIsbn) {
       const existingByIsbn = (await db.select().from(books).where(eq(books.isbn, rawIsbn)))[0];
       if (existingByIsbn) {
-        return NextResponse.json({
-          success: true,
-          is_already_in_library: true,
-          existing_book: existingByIsbn,
-          diagnostics: [],
-          data: {
-            title: existingByIsbn.title,
-            author: existingByIsbn.author,
-            publisher: existingByIsbn.publisher || '',
-            total_pages: existingByIsbn.total_pages,
-            isbn: existingByIsbn.isbn,
-            category: existingByIsbn.category || 'Kişisel Gelişim',
-            format: existingByIsbn.format || 'physical',
-            shelf_location: existingByIsbn.shelf_location || 'Salon Kitaplığı',
-            words_per_page: existingByIsbn.words_per_page || 250,
-            summary: existingByIsbn.summary || '',
-            cover_url: existingByIsbn.cover_url || null
-          },
-          message: `📚 "${existingByIsbn.title}" kitabı kütüphanenizde zaten mevcut!`
-        });
+        return NextResponse.json({ success: true, is_already_in_library: true, existing_book: existingByIsbn, diagnostics: [], data: {
+          title: existingByIsbn.title, author: existingByIsbn.author, publisher: existingByIsbn.publisher || '', total_pages: existingByIsbn.total_pages,
+          isbn: existingByIsbn.isbn, category: existingByIsbn.category || 'Kişisel Gelişim', format: existingByIsbn.format || 'physical',
+          shelf_location: existingByIsbn.shelf_location || 'Salon Kitaplığı', words_per_page: existingByIsbn.words_per_page || 250,
+          summary: existingByIsbn.summary || '', cover_url: existingByIsbn.cover_url || null
+        }, message: `📚 "${existingByIsbn.title}" kitabı kütüphanenizde zaten mevcut!` });
       }
     }
 
-    // Client-side lookup remains an optional hint for image/OCR flows; ISBN verification is server-side and authoritative.
     if (client_title && client_title.trim().length > 1 && !rawIsbn && !image_base64) {
       const cleanTitle = client_title.trim();
       const existingByTitle = (await db.select().from(books).where(like(books.title, `%${cleanTitle}%`)))[0];
       if (existingByTitle) return NextResponse.json({ success: true, is_already_in_library: true, existing_book: existingByTitle, diagnostics: [], data: existingByTitle, message: `📚 "${existingByTitle.title}" kitabı kütüphanenizde zaten mevcut!` });
-      return NextResponse.json({
-        success: true,
-        is_already_in_library: false,
-        diagnostics: [],
-        data: { title: cleanTitle, author: client_author || '', publisher: client_publisher || '', total_pages: 200, isbn: rawIsbn, category: 'Edebiyat / Roman', format: 'physical', shelf_location: 'Salon Kitaplığı', words_per_page: 250, summary: `${cleanTitle} - ${client_author || ''}`, cover_url: client_cover_url || null },
-        message: `📚 "${cleanTitle}" (${client_author || ''}) doğrulandı!`
-      });
+      return NextResponse.json({ success: true, is_already_in_library: false, diagnostics: [], data: {
+        title: cleanTitle, author: client_author || '', publisher: client_publisher || '', total_pages: 200, isbn: rawIsbn,
+        category: 'Edebiyat / Roman', format: 'physical', shelf_location: 'Salon Kitaplığı', words_per_page: 250,
+        summary: `${cleanTitle} - ${client_author || ''}`, cover_url: client_cover_url || null
+      }, message: `📚 "${cleanTitle}" (${client_author || ''}) doğrulandı!` });
     }
 
     if (image_base64) {
@@ -265,7 +248,6 @@ export async function POST(req: Request) {
       const effectiveIsbn = rawIsbn || detectedIsbn;
       let verifiedBook: BookData | null = null;
       let diagnostics: ResolverDiagnostic[] = [];
-
       if (effectiveIsbn.length >= 10) {
         const resolved = await queryAuthoritativeBook(effectiveIsbn);
         verifiedBook = resolved.book;
@@ -273,17 +255,12 @@ export async function POST(req: Request) {
       }
 
       const finalBookData = {
-        title: verifiedBook?.title || visionResult.title || '',
-        author: verifiedBook?.author || visionResult.author || '',
-        publisher: verifiedBook?.publisher || visionResult.publisher || '',
-        isbn: verifiedBook?.isbn || effectiveIsbn || '',
+        title: verifiedBook?.title || visionResult.title || '', author: verifiedBook?.author || visionResult.author || '',
+        publisher: verifiedBook?.publisher || visionResult.publisher || '', isbn: verifiedBook?.isbn || effectiveIsbn || '',
         total_pages: Number(verifiedBook?.total_pages || visionResult.total_pages) || 200,
-        category: verifiedBook?.category || visionResult.category || 'Kişisel Gelişim',
-        format: 'physical' as const,
-        shelf_location: 'Salon Kitaplığı',
-        words_per_page: visionResult.words_per_page || 250,
-        summary: verifiedBook?.summary || visionResult.summary || '',
-        cover_url: verifiedBook?.cover_url || null
+        category: verifiedBook?.category || visionResult.category || 'Kişisel Gelişim', format: 'physical' as const,
+        shelf_location: 'Salon Kitaplığı', words_per_page: visionResult.words_per_page || 250,
+        summary: verifiedBook?.summary || visionResult.summary || '', cover_url: verifiedBook?.cover_url || null
       };
 
       if (finalBookData.title) {
@@ -291,11 +268,7 @@ export async function POST(req: Request) {
         if (existingByTitle) return NextResponse.json({ success: true, is_already_in_library: true, existing_book: existingByTitle, diagnostics, data: finalBookData, message: `📚 "${existingByTitle.title}" kitabı kütüphanenizde zaten mevcut!` });
       }
 
-      return NextResponse.json({
-        success: true,
-        is_already_in_library: false,
-        diagnostics,
-        data: finalBookData,
+      return NextResponse.json({ success: true, is_already_in_library: false, diagnostics, data: finalBookData,
         message: finalBookData.title ? `📸 Görsel analiz edildi ve "${finalBookData.title}" doğrulandı. | ${diagnosticsText(diagnostics)}` : `ℹ️ ISBN (${effectiveIsbn}) okundu; kitap metadata bulunamadı. | ${diagnosticsText(diagnostics)}`
       });
     }
@@ -307,17 +280,17 @@ export async function POST(req: Request) {
     const diagnostics = resolved.diagnostics;
     const sourceMessage = diagnosticsText(diagnostics);
 
-    if (verifiedData) {
-      return NextResponse.json({ success: true, is_already_in_library: false, diagnostics, data: verifiedData, message: `📚 "${verifiedData.title}" (${verifiedData.author}) doğrulandı. | ${sourceMessage}` });
-    }
+    if (verifiedData) return NextResponse.json({ success: true, is_already_in_library: false, diagnostics, data: verifiedData, message: `📚 "${verifiedData.title}" (${verifiedData.author}) doğrulandı. | ${sourceMessage}` });
 
+    // ISBN was read correctly, but every authoritative provider failed to return metadata.
+    // 424 lets the existing HUD distinguish a provider/dependency failure from a healthy 200 response.
     return NextResponse.json({
-      success: true,
-      is_already_in_library: false,
+      success: false,
+      error: `ISBN (${toIsbn13(rawIsbn)}) okundu fakat kitap metadata bulunamadı. ${sourceMessage}`,
+      isbn: toIsbn13(rawIsbn),
       diagnostics,
-      data: { title: '', author: '', publisher: '', total_pages: 200, isbn: toIsbn13(rawIsbn), category: 'Kişisel Gelişim', format: 'physical', shelf_location: 'Salon Kitaplığı', words_per_page: 250, summary: `ISBN: ${toIsbn13(rawIsbn)}`, cover_url: null },
-      message: `ℹ️ ISBN (${toIsbn13(rawIsbn)}) okundu; kitap metadata bulunamadı. | ${sourceMessage}`
-    });
+      data: { title: '', author: '', publisher: '', total_pages: 200, isbn: toIsbn13(rawIsbn), category: 'Kişisel Gelişim', format: 'physical', shelf_location: 'Salon Kitaplığı', words_per_page: 250, summary: `ISBN: ${toIsbn13(rawIsbn)}`, cover_url: null }
+    }, { status: 424 });
   } catch (error: any) {
     console.error('[Library ISBN Resolver Fatal]', error);
     return NextResponse.json({ success: false, error: error?.message || 'ISBN çözümleme hatası.' }, { status: 500 });
