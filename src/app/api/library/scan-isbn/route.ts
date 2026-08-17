@@ -5,6 +5,8 @@ import { eq, like } from 'drizzle-orm';
 import { parseBookCoverOrISBNImage } from '@/lib/ai-vision';
 import { getAuthUser } from '@/lib/auth';
 
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
   try {
     initDatabase();

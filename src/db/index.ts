@@ -775,7 +775,16 @@ export async function initDatabase() {
       ON CONFLICT (id) DO NOTHING;
     `;
 
+    const alterMissingColumnsSQL = `
+      ALTER TABLE books ADD COLUMN IF NOT EXISTS purchased_date TEXT;
+      ALTER TABLE books ADD COLUMN IF NOT EXISTS purchased_from TEXT;
+      ALTER TABLE books ADD COLUMN IF NOT EXISTS purchase_price DOUBLE PRECISION;
+      ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS user_id TEXT;
+      ALTER TABLE investment_assets ADD COLUMN IF NOT EXISTS account_id TEXT;
+    `;
+
     await pgClient.unsafe(createTablesSQL);
+    await pgClient.unsafe(alterMissingColumnsSQL);
     await pgClient.unsafe(seedCategoriesSQL);
   } catch (err) {
     console.warn('initDatabase notice:', err);
