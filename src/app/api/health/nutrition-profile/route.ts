@@ -707,76 +707,145 @@ const STATIC_PROFILES: Record<string, any> = {
 };
 
 /**
- * Gelişmiş Türkçe Arama & Kök Eşleştirme Motoru
+ * Gelişmiş Türkçe Arama & Kök Eşleştirme Motoru (Strict Token & Boundary-Aware)
  */
 function findStaticProfileMatch(query: string) {
-  const q = query.toLowerCase()
+  // 1. Metni normalize et ve kelimelerine ayır
+  const normalized = query.toLowerCase()
     .replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 
+  if (!normalized || normalized.length < 2) return null;
+
+  // 2. Yalnızca niteleyici / sıfat olan tek kelimeler ASLA statik eşleşmeye girmemeli (Doğrudan AI'ya devret)
+  const STANDALONE_MODIFIERS = new Set([
+    'beyaz', 'kirmizi', 'siyah', 'yesil', 'sari', 'mor', 'taze', 'cig', 'haslanmis',
+    'kuru', 'organik', 'tam', 'yarim', 'yagsiz', 'az yagli', 'tam yagli', 'dogal', 'suzme',
+    'ev', 'koy', 'kizarmis', 'firinda', 'izgara', 'kavrulmus', 'tuzsuz', 'tuzlu'
+  ]);
+
+  if (STANDALONE_MODIFIERS.has(normalized)) {
+    return null;
+  }
+
+  // Regex yardımcı fonksiyonu: Tam kelime sınırı kontrolü
+  const hasWord = (word: string) => new RegExp(`\\b${word}\\b`, 'i').test(normalized);
+  const hasPhrase = (phrase: string) => normalized.includes(phrase);
+
   // 1. Yumurta
-  if (q.includes('yumurta') || q === 'egg') return STATIC_PROFILES.yumurta;
+  if (hasWord('yumurta') || hasWord('egg') || hasWord('omlet') || hasPhrase('haslanmis yumurta') || hasPhrase('cirpilmis yumurta')) {
+    return STATIC_PROFILES.yumurta;
+  }
 
-  // 2. Tavuk
-  if (q.includes('tavuk') || q.includes('gogus') || q.includes('pilic') || q.includes('fileto')) return STATIC_PROFILES.tavuk;
+  // 2. Tavuk Göğsü / Fileto
+  if ((hasWord('tavuk') || hasWord('pilic')) && !hasPhrase('corbasi') && !hasPhrase('doner') && !hasPhrase('durum')) {
+    return STATIC_PROFILES.tavuk;
+  }
 
-  // 3. Yulaf
-  if (q.includes('yulaf') || q.includes('oat')) return STATIC_PROFILES.yulaf;
+  // 3. Yulaf Ezmesi
+  if (hasWord('yulaf') || hasWord('oat') || hasWord('oatmeal')) {
+    return STATIC_PROFILES.yulaf;
+  }
 
   // 4. Muz
-  if (q.includes('muz') || q === 'banana') return STATIC_PROFILES.muz;
+  if (hasWord('muz') || hasWord('banana')) {
+    return STATIC_PROFILES.muz;
+  }
 
   // 5. Süt
-  if ((q === 'sut' || q.includes('sut ') || q.includes(' inek sutu') || q.includes('tam yagli sut')) && !q.includes('peynir') && !q.includes('tatli')) return STATIC_PROFILES.sut;
+  if (hasWord('sut') || hasWord('milk')) {
+    if (!hasWord('peynir') && !hasWord('tatlisi') && !hasWord('dilimi') && !hasWord('misir') && !hasWord('receli')) {
+      return STATIC_PROFILES.sut;
+    }
+  }
 
   // 6. Yoğurt
-  if (q.includes('yogurt') || q.includes('suzme')) return STATIC_PROFILES.yogurt;
+  if (hasWord('yogurt') || hasPhrase('suzme yogurt')) {
+    return STATIC_PROFILES.yogurt;
+  }
 
-  // 7. Peynirler (Spesifik Ayrıştırma - Greedy Eşleşme Yok!)
-  if (q.includes('lor')) return STATIC_PROFILES.lor;
-  if (q.includes('kasar') || q.includes('cheddar') || q.includes('cedar')) return STATIC_PROFILES.kasar_peyniri;
-  if (q.includes('tulum')) return STATIC_PROFILES.tulum_peyniri;
-  if (q.includes('beyaz peynir') || q.includes('ezine') || q.includes('feta') || q === 'peynir') return STATIC_PROFILES.beyaz_peynir;
-  // NOT: Eğer spesifik başka bir peynir türüyse (ör: 'rokfor', 'parmesan', 'mozzarella', 'hellim'), statik eşleşme yapma -> AI'ya git!
+  // 7. Peynirler (Her Biri Bağımsız ve Kesin Eşleşme)
+  if (hasWord('lor')) {
+    return STATIC_PROFILES.lor;
+  }
+  if (hasWord('kasar') || hasWord('cheddar') || hasWord('cedar') || hasPhrase('eski kasar') || hasPhrase('taze kasar')) {
+    return STATIC_PROFILES.kasar_peyniri;
+  }
+  if (hasWord('tulum') || hasPhrase('erzincan tulum') || hasPhrase('izmir tulum')) {
+    return STATIC_PROFILES.tulum_peyniri;
+  }
+  if (hasPhrase('beyaz peynir') || hasWord('ezine') || hasWord('feta') || normalized === 'peynir') {
+    return STATIC_PROFILES.beyaz_peynir;
+  }
+  // DİKKAT: Eğer aranan 'parmesan peyniri', 'hellim peyniri', 'rokfor' gibi listede olmayan bir peynir ise
+  // statik hiçbir peynire zorla eşleştirme -> DOĞRUDAN AI'YA GİTSİN!
 
   // 8. Zeytinyağı
-  if (q.includes('zeytinyag') || q.includes('zeytin yag')) return STATIC_PROFILES.zeytinyagi;
+  if (hasPhrase('zeytinyagi') || hasPhrase('zeytin yagi') || hasPhrase('olive oil') || hasPhrase('sizma zeytinyagi')) {
+    return STATIC_PROFILES.zeytinyagi;
+  }
 
-  // 9. Dana / Kırmızı Et
-  if (q.includes('dana') || q.includes('kiyma') || q.includes('biftek') || q.includes('bonfile') || q.includes('kirmizi et') || q === 'et' || q === 'kofte') return STATIC_PROFILES.dana_eti;
+  // 9. Zeytin (Sofralık — Yağ içermiyorsa)
+  if (hasWord('zeytin') && !hasWord('yagi') && !hasWord('yag')) {
+    return STATIC_PROFILES.zeytin;
+  }
 
-  // 10. Badem
-  if (q.includes('badem') || q === 'almond') return STATIC_PROFILES.badem;
+  // 10. Dana / Kırmızı Et
+  if (hasPhrase('dana eti') || hasPhrase('kirmizi et') || hasWord('biftek') || hasWord('bonfile') || hasPhrase('dana kiyma') || normalized === 'kiyma' || normalized === 'et') {
+    return STATIC_PROFILES.dana_eti;
+  }
 
-  // 11. Elma
-  if (q.includes('elma') || q === 'apple') return STATIC_PROFILES.elma;
+  // 11. Badem
+  if (hasWord('badem') || hasWord('almond')) {
+    return STATIC_PROFILES.badem;
+  }
 
-  // 12. Mercimek
-  if (q.includes('mercimek') || q === 'lentil') return STATIC_PROFILES.mercimek;
+  // 12. Elma
+  if (hasWord('elma') || hasWord('apple')) {
+    return STATIC_PROFILES.elma;
+  }
 
-  // 13. Avokado
-  if (q.includes('avokado') || q.includes('avocado')) return STATIC_PROFILES.avokado;
+  // 13. Mercimek
+  if (hasWord('mercimek') || hasWord('lentil')) {
+    return STATIC_PROFILES.mercimek;
+  }
 
-  // 14. Fıstık Ezmesi
-  if (q.includes('fistik') || q.includes('peanut')) return STATIC_PROFILES.fistik_ezmesi;
+  // 14. Avokado
+  if (hasWord('avokado') || hasWord('avocado')) {
+    return STATIC_PROFILES.avokado;
+  }
 
-  // 15. Zeytin (Zeytinyağı değilse)
-  if (q.includes('zeytin') && !q.includes('yag')) return STATIC_PROFILES.zeytin;
+  // 15. Fıstık Ezmesi
+  if (hasPhrase('fistik ezmesi') || hasPhrase('peanut butter')) {
+    return STATIC_PROFILES.fistik_ezmesi;
+  }
 
-  // 16. Pirinç
-  if (q.includes('pirinc') || q.includes('pilav') || q === 'rice') return STATIC_PROFILES.pirinc;
+  // 16. Pirinç / Pilav
+  if (hasWord('pirinc') || hasPhrase('pirinc pilavi') || hasWord('basmati') || hasPhrase('yasemin pirinc')) {
+    return STATIC_PROFILES.pirinc;
+  }
 
   // 17. Ceviz
-  if (q.includes('ceviz') || q === 'walnut') return STATIC_PROFILES.ceviz;
+  if (hasWord('ceviz') || hasWord('walnut')) {
+    return STATIC_PROFILES.ceviz;
+  }
 
   // 18. Somon
-  if (q.includes('somon') || q === 'salmon') return STATIC_PROFILES.somon;
+  if (hasWord('somon') || hasWord('salmon')) {
+    return STATIC_PROFILES.somon;
+  }
 
   // 19. Ton Balığı
-  if (q.includes('ton') || q.includes('dardanel') || q === 'tuna') return STATIC_PROFILES.dardanel;
+  if (hasPhrase('ton baligi') || hasWord('dardanel') || hasWord('tuna') || normalized === 'ton') {
+    return STATIC_PROFILES.dardanel;
+  }
 
   // 20. Hurma
-  if (q.includes('hurma') || q === 'date') return STATIC_PROFILES.hurma;
+  if (hasWord('hurma') || hasWord('date') || hasPhrase('hurma ezmesi')) {
+    return STATIC_PROFILES.hurma;
+  }
 
   return null;
 }
