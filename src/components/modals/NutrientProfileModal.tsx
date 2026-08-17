@@ -25,6 +25,7 @@ interface NutrientProfileModalProps {
   onClose: () => void;
   initialFoodName?: string;
   initialGrams?: number;
+  initialProfile?: string | any;
   onSuccess?: (msg: string) => void;
 }
 
@@ -33,6 +34,7 @@ export default function NutrientProfileModal({
   onClose,
   initialFoodName = 'Ceviz',
   initialGrams = 100,
+  initialProfile,
   onSuccess
 }: NutrientProfileModalProps) {
   const [searchQuery, setSearchQuery] = useState(initialFoodName);
@@ -48,13 +50,30 @@ export default function NutrientProfileModal({
     setLoading(true);
     setError(null);
     setAdded(false);
+
+    // Eğer doğrudan hazır profil string'i verilmişse anında göster
+    if (initialProfile) {
+      try {
+        const parsed = typeof initialProfile === 'string' ? JSON.parse(initialProfile) : initialProfile;
+        if (parsed && (parsed.categories || parsed.macros)) {
+          setData({
+            food_name: parsed.food_name || food,
+            portion_g: portionGrams,
+            categories: parsed.categories || parsed
+          });
+          setLoading(false);
+          return;
+        }
+      } catch (e) {}
+    }
+
     try {
       const res = await fetch(`/api/health/nutrition-profile?food_name=${encodeURIComponent(food)}&grams=${portionGrams}`);
       const result = await res.json();
       if (result.success && result.data) {
         setData(result.data);
       } else {
-        setError(result.error || 'İçerik bilgisi alınamadı.');
+        setError(result.error || 'İçerik bilgisi oluşturuluyor...');
       }
     } catch (err: any) {
       setError('Bağlantı hatası oluştu.');

@@ -15,6 +15,7 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
   const [result, setResult] = useState<any | null>(null);
   const [isNutrientModalOpen, setIsNutrientModalOpen] = useState(false);
   const [selectedNutrientFood, setSelectedNutrientFood] = useState('');
+  const [selectedNutrientProfile, setSelectedNutrientProfile] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -386,6 +387,7 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
               type="button"
               onClick={() => {
                 setSelectedNutrientFood(result.product_name);
+                setSelectedNutrientProfile(result.micronutrient_profile || null);
                 setIsNutrientModalOpen(true);
               }}
               style={{
@@ -432,6 +434,7 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
         onClose={() => setIsNutrientModalOpen(false)}
         initialFoodName={selectedNutrientFood}
         initialGrams={100}
+        initialProfile={selectedNutrientProfile}
         onSuccess={onSuccess}
       />
     </div>

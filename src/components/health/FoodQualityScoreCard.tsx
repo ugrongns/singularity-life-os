@@ -15,6 +15,7 @@ interface FoodScan {
   additives_detected?: string;
   pesticide_risk_summary?: string;
   alternative_suggestions?: string;
+  micronutrient_profile?: string;
 }
 
 interface FoodQualityProps {
@@ -27,6 +28,7 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
   const [items, setItems] = useState<FoodScan[]>([]);
   const [isNutrientModalOpen, setIsNutrientModalOpen] = useState(false);
   const [selectedNutrientFood, setSelectedNutrientFood] = useState('');
+  const [selectedNutrientProfile, setSelectedNutrientProfile] = useState<string | null>(null);
 
   useEffect(() => {
     if (Array.isArray(initialScans)) {
@@ -176,6 +178,7 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
                   type="button"
                   onClick={() => {
                     setSelectedNutrientFood(scan.product_name);
+                    setSelectedNutrientProfile(scan.micronutrient_profile || null);
                     setIsNutrientModalOpen(true);
                   }}
                   style={{
@@ -208,6 +211,7 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
         onClose={() => setIsNutrientModalOpen(false)}
         initialFoodName={selectedNutrientFood}
         initialGrams={100}
+        initialProfile={selectedNutrientProfile}
       />
     </div>
   );
