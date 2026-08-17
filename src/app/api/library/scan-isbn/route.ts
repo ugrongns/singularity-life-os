@@ -181,11 +181,11 @@ export async function POST(req: Request) {
 
     const apiKey = process.env.GEMINI_API_KEY;
     const body = await req.json();
-    const { isbn_text, image_base64, mime_type } = body;
+    const { isbn_text, image_base64, mime_type, client_title, client_author, client_publisher, client_cover_url } = body;
 
     const rawIsbn = (isbn_text || '').replace(/[^0-9X]/gi, '');
 
-    // 0. VERİTABANINDA MEVCUT KİTAP KONTROLÜ (ISBN İle)
+    // 0. VERİTABANINDA MEVCUT KİTAP KONTROLÜ (ISBN Veya Başlık İle)
     if (rawIsbn) {
       const existingByIsbn = (await db.select().from(books).where(eq(books.isbn, rawIsbn)))[0];
       if (existingByIsbn) {
@@ -209,6 +209,72 @@ export async function POST(req: Request) {
           message: `📚 "${existingByIsbn.title}" kitabı kütüphanenizde zaten mevcut!`
         });
       }
+    }
+
+    // 0.1. İSTEMCİ TARAFINDAN (TELEFONDAN) BULUNAN KİTAP VERİSİNİ ZENGİNLEŞTİR VE DÖNDÜR
+    if (client_title && client_title.trim().length > 1) {
+      const cleanTitle = client_title.trim();
+      const existingByTitle = (await db.select().from(books).where(like(books.title, `%${cleanTitle}%`)))[0];
+      if (existingByTitle) {
+        return NextResponse.json({
+          success: true,
+          is_already_in_library: true,
+          existing_book: existingByTitle,
+          data: existingByTitle,
+          message: `📚 "${existingByTitle.title}" kitabı kütüphanenizde zaten mevcut!`
+        });
+      }
+
+      let enrichedSummary = `${cleanTitle} - ${client_author || ''}`;
+      let enrichedCategory = 'Edebiyat / Roman';
+
+      if (apiKey) {
+        try {
+          const promptText = `Kitap Adı: "${cleanTitle}", Yazar: "${client_author || ''}", Yayınevi: "${client_publisher || ''}", ISBN: "${rawIsbn}"
+Bu kitap hakkında 2-3 cümlelik özeti ve kategorisini çıkar. SADECE JSON formatında ver:
+{
+  "category": "Edebiyat / Roman | İş & Ekonomi | Kişisel Gelişim | Felsefe | Tarih | Bilim",
+  "summary": "Özet metni"
+}`;
+          const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: promptText }] }],
+              generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
+            }),
+            signal: AbortSignal.timeout(2500)
+          });
+          if (aiRes.ok) {
+            const aiData = await aiRes.json();
+            const text = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              const cleanJ = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
+              if (cleanJ.summary) enrichedSummary = cleanJ.summary;
+              if (cleanJ.category) enrichedCategory = cleanJ.category;
+            }
+          }
+        } catch (e) {}
+      }
+
+      return NextResponse.json({
+        success: true,
+        is_already_in_library: false,
+        data: {
+          title: cleanTitle,
+          author: client_author || '',
+          publisher: client_publisher || '',
+          total_pages: 200,
+          isbn: rawIsbn,
+          category: enrichedCategory,
+          format: 'physical',
+          shelf_location: 'Salon Kitaplığı',
+          words_per_page: 250,
+          summary: enrichedSummary,
+          cover_url: client_cover_url || null
+        },
+        message: `📚 "${cleanTitle}" (${client_author || ''}) doğrulandı!`
+      });
     }
 
     // 1. EĞER GÖRSEL YÜKLENDİYSE: GEMINI VISION + RESMİ VERİTABANI ÇAPRAZ DOĞRULAMASI

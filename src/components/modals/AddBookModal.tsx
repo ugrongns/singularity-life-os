@@ -84,6 +84,58 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
       .trim();
   };
 
+  const fetchBookMetadataClientSide = async (isbn: string) => {
+    const clean = isbn.replace(/[^0-9X]/gi, '').trim();
+    if (!clean || clean.length < 10) return null;
+
+    // 1. Client-Side OpenLibrary jscmd=data (Kullanıcı IP'sinden)
+    try {
+      const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${clean}&format=json&jscmd=data`, {
+        signal: AbortSignal.timeout(2500)
+      });
+      if (res.ok) {
+        const j = await res.json();
+        const key = `ISBN:${clean}`;
+        if (j && j[key]) {
+          const b = j[key];
+          if (b.title) {
+            return {
+              title: b.title,
+              author: b.authors ? b.authors.map((a: any) => a.name).join(', ') : '',
+              publisher: b.publishers ? b.publishers.map((p: any) => p.name).join(', ') : '',
+              total_pages: b.number_of_pages || 200,
+              cover_url: b.cover?.large || b.cover?.medium || null
+            };
+          }
+        }
+      }
+    } catch (e) {}
+
+    // 2. Client-Side Google Books API (Kullanıcı IP'sinden)
+    try {
+      const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${clean}`, {
+        signal: AbortSignal.timeout(2500)
+      });
+      if (res.ok) {
+        const j = await res.json();
+        if (j.items && j.items.length > 0) {
+          const info = j.items[0].volumeInfo;
+          if (info && info.title) {
+            return {
+              title: info.title,
+              author: info.authors ? info.authors.join(', ') : '',
+              publisher: info.publisher || '',
+              total_pages: info.pageCount || 200,
+              cover_url: info.imageLinks?.thumbnail?.replace('http:', 'https:') || null
+            };
+          }
+        }
+      }
+    } catch (e) {}
+
+    return null;
+  };
+
   const handleScanISBN = async (targetIsbn?: string, imageBase64?: string) => {
     const raw = (targetIsbn !== undefined ? targetIsbn : isbnInput) || '';
     const queryIsbn = raw.replace(/[^0-9X]/gi, '').trim();
@@ -97,11 +149,21 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
     setExistingBookAlert(null);
 
     try {
+      // TELEFON/İSTEMCİ IP'SİNDEN ÖN SORGULAMA (Vercel IP Engelsiz)
+      let clientResult: any = null;
+      if (queryIsbn && queryIsbn.length >= 10) {
+        clientResult = await fetchBookMetadataClientSide(queryIsbn);
+      }
+
       const res = await fetch('/api/library/scan-isbn', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           isbn_text: queryIsbn || undefined,
+          client_title: clientResult?.title || undefined,
+          client_author: clientResult?.author || undefined,
+          client_publisher: clientResult?.publisher || undefined,
+          client_cover_url: clientResult?.cover_url || undefined,
           image_base64: imageBase64 || undefined,
           mime_type: imageBase64 ? 'image/jpeg' : undefined
         })
@@ -114,17 +176,17 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
 
       if (json.success && json.data) {
         const d = json.data;
-        setTitle(sanitizeText(d.title || ''));
-        setAuthor(sanitizeText(d.author || ''));
-        setPublisher(sanitizeText(d.publisher || ''));
-        setTotalPages(d.total_pages?.toString() || '200');
+        setTitle(sanitizeText(d.title || clientResult?.title || ''));
+        setAuthor(sanitizeText(d.author || clientResult?.author || ''));
+        setPublisher(sanitizeText(d.publisher || clientResult?.publisher || ''));
+        setTotalPages(d.total_pages?.toString() || clientResult?.total_pages?.toString() || '200');
         setCategory(d.category || 'Edebiyat / Roman');
         setFormat(d.format || 'physical');
         setShelfLocation(d.shelf_location || 'Salon Kitaplığı');
         setWordsPerPage(d.words_per_page?.toString() || '250');
         setSummary(d.summary || '');
         setIsbnInput(d.isbn || queryIsbn);
-        if (d.cover_url) setCoverUrl(d.cover_url);
+        if (d.cover_url || clientResult?.cover_url) setCoverUrl(d.cover_url || clientResult?.cover_url);
         if (json.message && !json.is_already_in_library) {
           setScanMessage(json.message);
         } else {
