@@ -681,6 +681,18 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
                 {scanMessage}
               </div>
             )}
+
+            {(!title || title.trim() === '') && (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isScanning}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px', background: '#EEF2FF', border: '1px dashed #6366F1', color: '#4338CA', borderRadius: 'var(--radius-md)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
+              >
+                📸 Kitap Kapağını Çek & Yapay Zekayla Doldur
+              </button>
+            )}
+
             <div>
               <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Kitap Başlığı:</label>
               <input 
@@ -688,6 +700,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
                 value={title} 
                 onChange={e => setTitle(e.target.value)}
                 required
+                placeholder="Örn: Atomik Alışkanlıklar"
                 style={{ width: '100%', padding: '10px', fontSize: '14px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
               />
             </div>
