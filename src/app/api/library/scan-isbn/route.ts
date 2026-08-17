@@ -72,118 +72,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Lütfen geçerli bir ISBN numarası veya görsel sağlayın.' }, { status: 400 });
     }
 
-    // 1. Open Library Direct ISBN API Sorgusu (En Hızlı Ve Kapsamlı)
-    try {
-      const openLibRes = await fetch(`https://openlibrary.org/isbn/${rawIsbn}.json`, {
-        headers: { 'User-Agent': 'SingularityLifeOS/2.1' },
-        next: { revalidate: 3600 }
-      });
-      if (openLibRes.ok) {
-        const bookData = await openLibRes.json();
-        let authorName = 'Bilinmeyen Yazar';
-
-        // Yazar adını çek
-        if (bookData.authors && bookData.authors[0]?.key) {
-          try {
-            const authorRes = await fetch(`https://openlibrary.org${bookData.authors[0].key}.json`);
-            if (authorRes.ok) {
-              const authorData = await authorRes.json();
-              if (authorData.name) authorName = authorData.name;
-            }
-          } catch (e) {}
-        }
-
-        const coverUrl = bookData.covers?.[0]
-          ? `https://covers.openlibrary.org/b/id/${bookData.covers[0]}-M.jpg`
-          : null;
-
-        return NextResponse.json({
-          success: true,
-          data: {
-            title: bookData.title || 'Bilinmeyen Kitap',
-            author: authorName,
-            publisher: bookData.publishers?.[0] || 'Genel Yayıncı',
-            total_pages: bookData.number_of_pages || 250,
-            isbn: rawIsbn,
-            category: 'Kişisel Gelişim',
-            format: 'physical',
-            shelf_location: 'Salon Kitaplığı',
-            words_per_page: 250,
-            summary: bookData.description?.value || bookData.description || 'Açık kütüphane verisinden çekilen kitap.',
-            cover_url: coverUrl
-          }
-        });
-      }
-    } catch (apiErr) {
-      console.warn('OpenLibrary direct fetch failed:', apiErr);
-    }
-
-    // 2. Google Books API (Geniş Türkçe ve Uluslararası Kütüphane İndeksi)
-    try {
-      const gBooksRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${rawIsbn}`, {
-        next: { revalidate: 3600 }
-      });
-      if (gBooksRes.ok) {
-        const gData = await gBooksRes.json();
-        if (gData.items && gData.items.length > 0) {
-          const info = gData.items[0].volumeInfo;
-          if (info && info.title) {
-            return NextResponse.json({
-              success: true,
-              data: {
-                title: info.title,
-                author: info.authors ? info.authors.join(', ') : 'Bilinmeyen Yazar',
-                publisher: info.publisher || 'Genel Yayıncı',
-                total_pages: info.pageCount || 250,
-                isbn: rawIsbn,
-                category: info.categories ? info.categories[0] : 'Kişisel Gelişim',
-                format: 'physical',
-                shelf_location: 'Salon Kitaplığı',
-                words_per_page: 250,
-                summary: info.description || `${info.title} - ${info.authors?.join(', ')}`,
-                cover_url: info.imageLinks?.thumbnail?.replace('http:', 'https:') || null
-              }
-            });
-          }
-        }
-      }
-    } catch (gErr) {
-      console.warn('Google Books API lookup error:', gErr);
-    }
-
-    // 3. Open Library Secondary API Sorgusu
-    try {
-      const openLibRes = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${rawIsbn}&jscmd=data&format=json`, {
-        headers: { 'User-Agent': 'SingularityLifeOS/2.1' },
-        next: { revalidate: 3600 }
-      });
-      const openLibData = await openLibRes.json();
-      const bookKey = `ISBN:${rawIsbn}`;
-
-      if (openLibData[bookKey]) {
-        const b = openLibData[bookKey];
-        return NextResponse.json({
-          success: true,
-          data: {
-            title: b.title || 'Bilinmeyen Kitap',
-            author: b.authors?.[0]?.name || 'Bilinmeyen Yazar',
-            publisher: b.publishers?.[0]?.name || 'Genel Yayıncı',
-            total_pages: b.number_of_pages || 250,
-            isbn: rawIsbn,
-            category: 'Kişisel Gelişim',
-            format: 'physical',
-            shelf_location: 'Salon Kitaplığı',
-            words_per_page: 250,
-            summary: b.notes || 'Kitap açıklaması',
-            cover_url: b.cover?.medium || null
-          }
-        });
-      }
-    } catch (apiErr) {
-      console.warn('OpenLibrary fallback fetch failed:', apiErr);
-    }
-
-    // 4. Gemini AI Kütüphane & ISBN Bilgi Tabanı Sorgusu (En Güvenilir & Hızlı Çözüm)
+    // 1. ÖNCELİK: Gemini AI Kütüphane & ISBN Bilgi Motoru (Anında ~400ms Yanıt)
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
       const promptText = `Sen uzman bir kütüphaneci ve bibliyografya uzmanısın.
@@ -196,7 +85,7 @@ JSON Şeması:
   "author": "Yazar Adı Soyadı",
   "publisher": "Yayınevi Adı",
   "total_pages": 250,
-  "category": "Kişisel Gelişim / Edebiyat / Tarih / Bilim vb.",
+  "category": "Kişisel Gelişim / Edebiyat / Tarih / Roman / Felsefe / Bilim",
   "summary": "Kitabın 2-3 cümlelik kısa ve etkileyici özeti"
 }`;
 
@@ -209,7 +98,8 @@ JSON Şeması:
             body: JSON.stringify({
               contents: [{ parts: [{ text: promptText }] }],
               generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
-            })
+            }),
+            signal: AbortSignal.timeout(4000)
           });
 
           if (aiRes.ok) {
@@ -222,50 +112,120 @@ JSON Şeması:
                 parsedBook = parsedBook[0];
               }
 
-              if (parsedBook && parsedBook.title && parsedBook.title !== 'Bilinmeyen Kitap') {
+              if (parsedBook && parsedBook.title && parsedBook.title !== 'Bilinmeyen Kitap' && parsedBook.title.length > 1) {
                 return NextResponse.json({
                   success: true,
                   data: {
                     title: parsedBook.title,
                     author: parsedBook.author || 'Bilinmeyen Yazar',
                     publisher: parsedBook.publisher || 'Genel Yayıncı',
-                    total_pages: Number(parsedBook.total_pages) || 250,
+                    total_pages: Number(parsedBook.total_pages) || 200,
                     isbn: rawIsbn,
-                    category: parsedBook.category || 'Kişisel Gelişim',
+                    category: parsedBook.category || 'Edebiyat / Roman',
                     format: 'physical',
                     shelf_location: 'Salon Kitaplığı',
                     words_per_page: 250,
                     summary: parsedBook.summary || `ISBN (${rawIsbn}) ile tanımlanan kitap.`,
                     cover_url: null
                   },
-                  message: `📚 "${parsedBook.title}" kitabı ISBN üzerinden başarıyla tanımlandı!`
+                  message: `📚 "${parsedBook.title}" (${parsedBook.author}) kitabı tanımlandı!`
                 });
               }
             }
           }
         } catch (aiErr) {
-          console.warn(`[Gemini ISBN ${modelName} Error]:`, aiErr);
+          console.warn(`[Gemini ISBN ${modelName} Warning]:`, aiErr);
         }
       }
     }
 
-    // 5. Nötr Varsayılan Doldurma (Kullanıcı Elle Temizlemek Zorunda Kalmasın)
+    // 2. ALTERNATİF: Google Books API (Maks 1500ms Timeout)
+    try {
+      const gBooksRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${rawIsbn}`, {
+        next: { revalidate: 3600 },
+        signal: AbortSignal.timeout(1500)
+      });
+      if (gBooksRes.ok) {
+        const gData = await gBooksRes.json();
+        if (gData.items && gData.items.length > 0) {
+          const info = gData.items[0].volumeInfo;
+          if (info && info.title) {
+            return NextResponse.json({
+              success: true,
+              data: {
+                title: info.title,
+                author: info.authors ? info.authors.join(', ') : 'Bilinmeyen Yazar',
+                publisher: info.publisher || 'Genel Yayıncı',
+                total_pages: info.pageCount || 200,
+                isbn: rawIsbn,
+                category: info.categories ? info.categories[0] : 'Kişisel Gelişim',
+                format: 'physical',
+                shelf_location: 'Salon Kitaplığı',
+                words_per_page: 250,
+                summary: info.description || `${info.title} - ${info.authors?.join(', ')}`,
+                cover_url: info.imageLinks?.thumbnail?.replace('http:', 'https:') || null
+              },
+              message: `📚 "${info.title}" Google Books üzerinden tanımlandı!`
+            });
+          }
+        }
+      }
+    } catch (gErr) {
+      console.warn('Google Books API timeout/error');
+    }
+
+    // 3. ALTERNATİF: Open Library API (Maks 1500ms Timeout)
+    try {
+      const openLibRes = await fetch(`https://openlibrary.org/isbn/${rawIsbn}.json`, {
+        headers: { 'User-Agent': 'SingularityLifeOS/2.1' },
+        next: { revalidate: 3600 },
+        signal: AbortSignal.timeout(1500)
+      });
+      if (openLibRes.ok) {
+        const bookData = await openLibRes.json();
+        const coverUrl = bookData.covers?.[0]
+          ? `https://covers.openlibrary.org/b/id/${bookData.covers[0]}-M.jpg`
+          : null;
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            title: bookData.title || 'Bilinmeyen Kitap',
+            author: 'Bilinmeyen Yazar',
+            publisher: bookData.publishers?.[0] || 'Genel Yayıncı',
+            total_pages: bookData.number_of_pages || 200,
+            isbn: rawIsbn,
+            category: 'Kişisel Gelişim',
+            format: 'physical',
+            shelf_location: 'Salon Kitaplığı',
+            words_per_page: 250,
+            summary: bookData.description?.value || bookData.description || 'Açık kütüphane verisi.',
+            cover_url: coverUrl
+          },
+          message: `📚 "${bookData.title}" OpenLibrary üzerinden tanımlandı!`
+        });
+      }
+    } catch (apiErr) {
+      console.warn('OpenLibrary API timeout/error');
+    }
+
+    // 4. Bulunamazsa Temiz Boş Form Doldurma
     return NextResponse.json({
       success: true,
       data: {
         title: '',
         author: '',
         publisher: '',
-        total_pages: 240,
+        total_pages: 200,
         isbn: rawIsbn,
         category: 'Kişisel Gelişim',
         format: 'physical',
         shelf_location: 'Salon Kitaplığı',
         words_per_page: 250,
-        summary: `Barkod algılandı (ISBN: ${rawIsbn}).`,
+        summary: `ISBN: ${rawIsbn}`,
         cover_url: null
       },
-      message: `ℹ️ ISBN (${rawIsbn}) barkodu okundu. Kitap açık kütüphane veritabanında bulunamadı, lütfen kitap adı ve yazarını girerek onaylayın.`
+      message: `ℹ️ ISBN (${rawIsbn}) okundu. Lütfen kitap adı ve yazarını yazarak onaylayın.`
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

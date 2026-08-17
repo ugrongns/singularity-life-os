@@ -85,9 +85,16 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
   };
 
   const handleScanISBN = async (targetIsbn?: string) => {
+    const raw = (targetIsbn !== undefined ? targetIsbn : isbnInput) || '';
+    const queryIsbn = raw.replace(/[^0-9X]/gi, '').trim();
+
+    if (!queryIsbn) {
+      alert('Lütfen geçerli bir ISBN numarası girin.');
+      return;
+    }
+
     setIsScanning(true);
     setExistingBookAlert(null);
-    const queryIsbn = targetIsbn || isbnInput || '9786056951374';
 
     try {
       const res = await fetch('/api/library/scan-isbn', {
@@ -103,13 +110,13 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
 
       if (json.success && json.data) {
         const d = json.data;
-        setTitle(sanitizeText(d.title));
-        setAuthor(sanitizeText(d.author));
+        setTitle(sanitizeText(d.title || ''));
+        setAuthor(sanitizeText(d.author || ''));
         setPublisher(sanitizeText(d.publisher || ''));
         setTotalPages(d.total_pages?.toString() || '200');
-        setCategory(d.category || 'Kişisel Gelişim');
+        setCategory(d.category || 'Edebiyat / Roman');
         setFormat(d.format || 'physical');
-        setShelfLocation(d.shelf_location || 'Salon Kitaplığı A-3');
+        setShelfLocation(d.shelf_location || 'Salon Kitaplığı');
         setWordsPerPage(d.words_per_page?.toString() || '250');
         setSummary(d.summary || '');
         setIsbnInput(d.isbn || queryIsbn);
@@ -120,9 +127,15 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
           setScanMessage(null);
         }
         setActiveTab('manual'); // Onay formuna geç
+      } else {
+        alert(json.error || 'Kitap bilgisi çekilemedi. Lütfen formu manuel doldurun.');
+        setIsbnInput(queryIsbn);
+        setActiveTab('manual');
       }
     } catch (err) {
-      alert('Barkod okunamadı.');
+      alert('Bağlantı hatası oluştu. Lütfen bilgileri manuel girin.');
+      setIsbnInput(queryIsbn);
+      setActiveTab('manual');
     } finally {
       setIsScanning(false);
     }
@@ -601,6 +614,12 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
                 placeholder="ISBN No (Örn: 9786254416170)"
                 value={isbnInput} 
                 onChange={e => setIsbnInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleScanISBN();
+                  }
+                }}
                 style={{ flex: 1, padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
               />
               <button 
