@@ -4,11 +4,14 @@ import { familyInvites } from '@/db/schema';
 import { getAuthUser } from '@/lib/auth';
 import { eq, and, gt } from 'drizzle-orm';
 
+import crypto from 'crypto';
+
 function generateInviteCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.randomBytes(6);
   let randomStr = '';
   for (let i = 0; i < 6; i++) {
-    randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
+    randomStr += chars[bytes[i] % chars.length];
   }
   return `FAM-${randomStr}`;
 }

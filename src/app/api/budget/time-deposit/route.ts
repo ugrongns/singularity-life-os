@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { walletsAccounts, transactions } from '@/db/schema';
-import { eq , or } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
+import { getAuthUser } from '@/lib/auth';
 
 export async function GET(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url, 'http://localhost');
     const id = searchParams.get('id');
 
@@ -23,28 +29,39 @@ export async function GET(req: Request) {
     const rate = account.interest_rate || 0;
     const createdDate = new Date(account.created_at);
     const maturityDate = account.maturity_date ? new Date(account.maturity_date) : new Date();
+    const now = new Date();
 
-    // Gün farkı
-    const diffTime = Math.max(0, maturityDate.getTime() - createdDate.getTime());
-    const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 30; // Varsayılan 30 gün
+    // Gün sayısı
+    const totalDays = Math.max(1, Math.round((maturityDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const elapsedDays = Math.max(0, Math.min(totalDays, Math.round((now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24))));
+    const remainingDays = Math.max(0, totalDays - elapsedDays);
 
-    // Brüt faiz formülü: Anapara * (Faiz Oranı / 100) * (Gün / 365)
-    const calculatedInterest = Math.round(principal * (rate / 100) * (days / 365) * 100) / 100;
+    // Basit günlük faiz formülü: Anapara * (Faiz / 100) * (Gün / 365) * (1 - Stopaj)
+    // Standart stopaj: %7.5
+    const grossInterest = principal * (rate / 100) * (totalDays / 365);
+    const taxAmount = grossInterest * 0.075;
+    const netInterest = grossInterest - taxAmount;
+
+    // Şu ana kadar biriken faiz
+    const accruedGross = principal * (rate / 100) * (elapsedDays / 365);
+    const accruedNet = accruedGross * 0.925;
 
     return NextResponse.json({
       success: true,
       data: {
-        id: account.id,
-        name: account.name,
-        principal,
-        interest_rate: rate,
-        interest_type: account.interest_type || 'simple',
-        maturity_date: account.maturity_date,
-        created_at: account.created_at,
-        days,
-        calculatedInterest,
-        deposited_account_id: account.deposited_account_id,
-        currency: account.currency
+        account,
+        calculations: {
+          principal,
+          rate,
+          totalDays,
+          elapsedDays,
+          remainingDays,
+          grossInterest,
+          netInterest,
+          accruedNet,
+          maturityAmount: principal + netInterest,
+          isMatured: now >= maturityDate
+        }
       }
     });
   } catch (error: any) {
@@ -55,6 +72,11 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { accountId, targetAccountId, actualInterestEarned, closeNotes } = body;
 

@@ -2,10 +2,16 @@ import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { categories, transactions, walletsAccounts } from '@/db/schema';
 import { eq, desc, sql , or } from 'drizzle-orm';
+import { getAuthUser } from '@/lib/auth';
 
 export async function GET(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url, 'http://localhost');
     const categoryId = searchParams.get('category_id');
     const monthParam = searchParams.get('month'); // YYYY-MM

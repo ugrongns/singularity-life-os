@@ -3,10 +3,16 @@ import { db, initDatabase } from '@/db';
 import { walletsAccounts, transactions } from '@/db/schema';
 import { eq , or } from 'drizzle-orm';
 import { eventBus, EVENTS } from '@/lib/events';
+import { getAuthUser } from '@/lib/auth';
 
 export async function POST(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { from_account_id, to_account_id, amount, note, transaction_date } = body;
 

@@ -3,10 +3,16 @@ import { db, initDatabase } from '@/db';
 import { books } from '@/db/schema';
 import { eq, like } from 'drizzle-orm';
 import { parseBookCoverOrISBNImage } from '@/lib/ai-vision';
+import { getAuthUser } from '@/lib/auth';
 
 export async function POST(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { isbn_text, image_base64, mime_type } = body;
 

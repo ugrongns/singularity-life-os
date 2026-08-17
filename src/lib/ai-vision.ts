@@ -88,24 +88,19 @@ export async function parseReceiptImage(
     }
   }
 
-  // API Anahtarı henüz eklenmemişse veya offline iken yerel simülasyon ayrıştırıcı
+  // Fallback (Fotoğraftan fiş/fatura okunamadıysa dürüst nötr taslak)
   const today = new Date().toISOString().split('T')[0];
   return {
-    merchant: 'Migros Ticaret A.Ş.',
-    amount: 1485.50,
+    merchant: '',
+    amount: 0,
     currency: 'TRY',
     date: today,
     category_id: 'cat-market',
     category_name: 'Market & Gıda',
-    items: [
-      { name: 'Süt 1L Günlük', price: 42.50, quantity: 2 },
-      { name: 'Tam Buğday Ekmeği', price: 35.00, quantity: 1 },
-      { name: 'Beyaz Peynir 500g', price: 185.00, quantity: 1 },
-      { name: 'Zeytinyağı 1L Sızma', price: 450.00, quantity: 1 }
-    ],
-    tax_amount: 135.04,
-    confidence: 0.88,
-    raw_text: 'MİGROS TİCARET A.Ş. 08.08.2026 TOPLAM: 1.485,50 TL KDV: 135,04 TL'
+    items: [],
+    tax_amount: 0,
+    confidence: 0.15,
+    raw_text: 'Görselden fiş/fatura bilgisi okunamadı. Lütfen tutar ve işletmeyi manuel giriniz.'
   };
 }
 
@@ -189,21 +184,21 @@ export async function parseVaultDocumentImage(
         };
       }
     } catch (err) {
-      console.warn('[AI Vision] Gemini API hatası, akıllı simülasyon belgesine dönülüyor:', err);
+      console.warn('[AI Vision] Gemini API hatası:', err);
     }
   }
 
-  // API Anahtarı henüz eklenmemişse veya offline iken yerel simülasyon ayrıştırıcı
+  // Fallback (Belge görseli okunamadıysa dürüst nötr taslak)
   return {
-    title: 'T.C. Bordo Pasaport',
-    type: 'passport',
-    owner: 'Kullanıcı',
-    issuer: 'Nüfus ve Vatandaşlık İşleri Gnl. Mdr.',
-    document_number: 'U19842571',
-    issue_date: '2022-06-15',
-    expiry_date: '2032-06-15',
-    notes: '10 Yıllık Umuma Mahsus Bordo Pasaport. Bitişe 6 aydan az kaldığında vize uyarı verir.',
-    confidence: 0.90
+    title: '',
+    type: 'other',
+    owner: '',
+    issuer: '',
+    document_number: '',
+    issue_date: '',
+    expiry_date: '',
+    notes: 'Belge görseli net okunamadı. Lütfen belge detaylarını manuel doldurunuz.',
+    confidence: 0.10
   };
 }
 
@@ -292,21 +287,21 @@ Sadece geçerli JSON yanıtı döndür.`
         };
       }
     } catch (err) {
-      console.warn('[AI Vision] Gemini API hatası, simülasyon faturaya dönülüyor:', err);
+      console.warn('[AI Vision] Gemini API hatası:', err);
     }
   }
 
-  // Fallback akıllı OCR simülasyonu
+  // Fallback (Fatura/garanti belgesi okunamadıysa dürüst nötr taslak)
   const today = new Date().toISOString().split('T')[0];
   return {
-    name: 'Çamaşır Makinesi 9KG',
-    brand: 'Bosch',
-    model: 'Series 6 WGA24400TR',
+    name: '',
+    brand: '',
+    model: '',
     purchase_date: today,
-    warranty_months: 36,
-    service_phone: '444 6 333',
-    notes: 'Bosch Yetkili Satıcı Faturası. 3 Yıl Standart Garanti Kapsamında.',
-    confidence: 0.90
+    warranty_months: 24,
+    service_phone: '',
+    notes: 'Görselden fatura/garanti bilgisi okunamadı. Lütfen cihaz adı ve garanti süresini manuel giriniz.',
+    confidence: 0.10
   };
 }
 
@@ -384,20 +379,16 @@ export async function parsePlateImage(
     }
   }
 
-  // Fallback simülasyon (API key yoksa)
+  // Fallback (Tabak fotoğrafından besin çıkarılamadıysa dürüst nötr taslak)
   return {
-    name: 'Izgara Tavuk & Bulgur Pilavı',
+    name: '',
     meal_type: 'lunch',
-    base_calories: 520,
-    base_protein: 42,
-    base_carbs: 48,
-    base_fat: 14,
-    confidence: 0.75,
-    items: [
-      { name: 'Izgara Tavuk Göğsü (180g)', calories: 296, protein: 38, carbs: 0, fat: 6 },
-      { name: 'Bulgur Pilavı (120g)', calories: 178, protein: 4, carbs: 46, fat: 1 },
-      { name: 'Zeytinyağlı Salata (50g)', calories: 46, protein: 0, carbs: 2, fat: 7 }
-    ]
+    base_calories: 0,
+    base_protein: 0,
+    base_carbs: 0,
+    base_fat: 0,
+    confidence: 0.10,
+    items: []
   };
 }
 

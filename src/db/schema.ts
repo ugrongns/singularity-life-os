@@ -42,7 +42,7 @@ export const walletsAccounts = pgTable('wallets_accounts', {
   deposited_account_id: text('deposited_account_id'),
   currency: text('currency').notNull().default('TRY'),
   color: text('color').default('#111827'),
-  is_family_shared: integer('is_family_shared').notNull().default(1),
+  is_family_shared: integer('is_family_shared').notNull().default(0),
   is_active: integer('is_active').notNull().default(1),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
@@ -134,6 +134,8 @@ export const sinkingFunds = pgTable('sinking_funds', {
 });
 
 // 6. Çevrimdışı Senkron Kuyruğu
+// NOTE: sync_queue tablosu ve sync_status alanları çevrimdışı önbellek senkronizasyon mimarisinin
+// gelecekteki offline worker aşaması için ayrılmıştır. Şu an tüm işlemler canlı online DB'ye doğrudan yazılır.
 export const syncQueue = pgTable('sync_queue', {
   id: text('id').primaryKey(),
   table_name: text('table_name').notNull(),

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { transactions, walletsAccounts, userHealthProfile, books, shoppingListItems, supplementRoutines, moodLogs } from '@/db/schema';
 import { eq , or } from 'drizzle-orm';
+import { getAuthUser } from '@/lib/auth';
 
 interface ParsedAction {
   type: 'expense' | 'water' | 'reading' | 'shopping' | 'supplement' | 'mood' | 'fasting';
@@ -13,6 +14,11 @@ interface ParsedAction {
 export async function POST(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const contentType = req.headers.get('content-type') || '';
     let text = '';
     let isExecution = false;

@@ -8,6 +8,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const queryFood = searchParams.get('food_name') || searchParams.get('query') || 'Ceviz';
     const grams = Number(searchParams.get('grams')) || 100;
@@ -213,10 +218,8 @@ export async function GET(req: Request) {
       });
     }
 
-    let user: any = null;
     try { 
       initDatabase(); 
-      user = await getAuthUser();
     } catch (e) {}
 
     // 1. Veritabanından güvenli sorgula
@@ -297,16 +300,18 @@ SADECE aşağıdaki esnek JSON formatında yanıt ver:
       }
     }
 
+    let isFallback = false;
     // AI başarısız olursa veya 503 verirse Asla Hata Döndürme, Dinamik Genel Profil Üret!
     if (!parsed) {
+      isFallback = true;
       parsed = {
         food_name: queryFood,
         portion_g: grams,
         source_info: {
           type: "estimated",
-          badge: "📊 Tahmini Besin Profili (%60 Tahmini)",
-          confidence: 60,
-          reference: "Genel Standart Gıda Şablonu (Bağlantı Yedeklemesi)"
+          badge: "📊 Tahmini Besin Profili (%50 Tahmini)",
+          confidence: 50,
+          reference: "Standart Gıda Grubu Tahmini (Resmi Laboratuvar Verisi Değildir)"
         },
         macros: [
           { label: "Enerji (Kalori)", value: "210 kcal", daily_percent: 10 },
@@ -330,23 +335,25 @@ SADECE aşağıdaki esnek JSON formatında yanıt ver:
       };
     }
 
-    // DB'ye kaydet (ileride hızlı çekmek için)
-    try {
-      if (db) {
-        const now = new Date().toISOString();
-        const profileId = `profile-${Date.now()}`;
-        await db.insert(foodNutrientProfiles).values({
-          id: profileId,
-          food_name: parsed.food_name || queryFood,
-          portion_g: grams,
-          categories_data: JSON.stringify(parsed),
-          created_at: now,
-          updated_at: now,
-          user_id: user?.id || null
-        });
+    // Yalnızca GERÇEK doğrulanmış AI yanıtlarını DB'ye kaydet (Sentetik fallback'leri ASLA kaydetme)
+    if (!isFallback) {
+      try {
+        if (db) {
+          const now = new Date().toISOString();
+          const profileId = `profile-${Date.now()}`;
+          await db.insert(foodNutrientProfiles).values({
+            id: profileId,
+            food_name: parsed.food_name || queryFood,
+            portion_g: grams,
+            categories_data: JSON.stringify(parsed),
+            created_at: now,
+            updated_at: now,
+            user_id: user?.id || null
+          });
+        }
+      } catch (dbErr) {
+        console.warn('[Nutrient Profile DB Save Warning]:', dbErr);
       }
-    } catch (dbErr) {
-      console.warn('[Nutrient Profile DB Save Warning]:', dbErr);
     }
 
     return NextResponse.json({

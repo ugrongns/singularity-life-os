@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
+import { getAuthUser } from '@/lib/auth';
 
 export async function POST(req: Request) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { image_base64, mime_type = 'image/jpeg' } = body;
 

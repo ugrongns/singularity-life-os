@@ -2,9 +2,15 @@ import { NextResponse } from 'next/server';
 import { parseVaultDocumentImage } from '@/lib/ai-vision';
 import fs from 'fs';
 import path from 'path';
+import { getAuthUser } from '@/lib/auth';
 
 export async function POST(req: Request) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const contentType = req.headers.get('content-type') || '';
     let base64Image = '';
     let mimeType = 'image/jpeg';
@@ -21,8 +27,8 @@ export async function POST(req: Request) {
         base64Image = buffer.toString('base64');
         mimeType = file.type || 'image/jpeg';
 
-        // Yüklenen resmi diske kaydet (public/uploads/vault/...)
-        const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'vault');
+        // Yüklenen resmi güvenli dizine kaydet (private_storage/vault/...)
+        const uploadDir = path.join(process.cwd(), 'private_storage', 'vault');
         if (!fs.existsSync(uploadDir)) {
           fs.mkdirSync(uploadDir, { recursive: true });
         }
@@ -31,7 +37,7 @@ export async function POST(req: Request) {
         const filePath = path.join(uploadDir, filename);
         fs.writeFileSync(filePath, buffer);
 
-        documentImageUrl = `/uploads/vault/${filename}`;
+        documentImageUrl = `/api/digital-vault/file?filename=${filename}`;
       } else if (base64Input) {
         base64Image = base64Input;
       }

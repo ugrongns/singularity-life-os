@@ -88,6 +88,11 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { action, ...data } = body;
     const now = new Date().toISOString();
@@ -140,7 +145,7 @@ export async function POST(req: Request) {
 
     await db.insert(nutritionMeals).values({
       id: mealId,
-      member_id: 'member-ugur',
+      member_id: user.id || 'member-default',
       name,
       meal_type,
       calories,
@@ -151,11 +156,12 @@ export async function POST(req: Request) {
       image_url: data.image_url || null,
       date: data.date || today,
       is_verified: 1,
-      is_family_shared: 1,
+      is_family_shared: data.is_family_shared !== undefined ? Number(data.is_family_shared) : 0,
       created_at: now,
       updated_at: now,
       sync_status: 'synced',
-      device_id: 'mac-local'
+      device_id: 'web-client',
+      user_id: user.id
     });
 
     return NextResponse.json({

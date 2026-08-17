@@ -3,10 +3,16 @@ import { db, initDatabase } from '@/db';
 import { vehicleMaintenanceRecords, vehicles } from '@/db/schema';
 import { desc, eq , or } from 'drizzle-orm';
 import { eventBus, EVENTS } from '@/lib/events';
+import { getAuthUser } from '@/lib/auth';
 
 export async function GET(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const records = await db.select()
       .from(vehicleMaintenanceRecords)
       .orderBy(desc(vehicleMaintenanceRecords.km_at_service), desc(vehicleMaintenanceRecords.service_date));
@@ -20,6 +26,11 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const body = await req.json();
 
     const {

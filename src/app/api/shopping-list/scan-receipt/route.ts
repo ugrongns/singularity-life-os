@@ -3,10 +3,16 @@ import { parseReceiptImage } from '@/lib/ai-vision';
 import { db, initDatabase } from '@/db';
 import { shoppingListItems } from '@/db/schema';
 import { eq , or } from 'drizzle-orm';
+import { getAuthUser } from '@/lib/auth';
 
 export async function POST(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const contentType = req.headers.get('content-type') || '';
     let base64Image = '';
     let mimeType = 'image/jpeg';

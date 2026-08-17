@@ -44,12 +44,16 @@ export default function NutrientProfileModal({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'macros' | 'vitamins' | 'minerals' | 'special'>('all');
   const [added, setAdded] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [mealType, setMealType] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack'>('snack');
+  const [saving, setSaving] = useState(false);
 
   const fetchProfile = async (food: string, portionGrams: number) => {
     if (!food.trim()) return;
     setLoading(true);
     setError(null);
     setAdded(false);
+    setShowConfirm(false);
 
     // Eğer doğrudan hazır profil string'i verilmişse anında göster
     if (initialProfile) {
@@ -102,8 +106,9 @@ export default function NutrientProfileModal({
     fetchProfile(searchQuery, newGrams);
   };
 
-  const handleAddToDiet = async () => {
+  const handleConfirmAdd = async () => {
     if (!data) return;
+    setSaving(true);
     try {
       // Find calories and macros
       let calories = 250;
@@ -134,7 +139,7 @@ export default function NutrientProfileModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${data.food_name} (${grams}g)`,
-          meal_type: 'snack',
+          meal_type: mealType,
           base_calories: calories,
           base_protein: protein,
           base_carbs: carbs,
@@ -143,11 +148,14 @@ export default function NutrientProfileModal({
         })
       });
       setAdded(true);
+      setShowConfirm(false);
       if (onSuccess) {
         onSuccess(`🥗 "${data.food_name}" günlük beslenmenize eklendi!`);
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -280,7 +288,7 @@ export default function NutrientProfileModal({
                 <button
                   type="button"
                   className="btn-primary"
-                  onClick={handleAddToDiet}
+                  onClick={() => setShowConfirm(!showConfirm)}
                   disabled={added}
                   style={{ fontSize: '12px', padding: '8px 14px', background: added ? '#059669' : undefined }}
                 >
@@ -288,6 +296,59 @@ export default function NutrientProfileModal({
                   <span>{added ? 'Eklendi!' : 'Beslenmeme Ekle'}</span>
                 </button>
               </div>
+
+              {/* Onay & Öğün Tipi Seçim Kutusu (Confirm Drawer) */}
+              {showConfirm && !added && (
+                <div style={{ padding: '12px', background: 'var(--bg-main)', border: '1px solid #10B981', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>
+                    🥗 Öğün Tipi ve Teyit:
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'breakfast', label: '🍳 Kahvaltı' },
+                      { id: 'lunch', label: '🥗 Öğle' },
+                      { id: 'dinner', label: '🍲 Akşam' },
+                      { id: 'snack', label: '🍎 Ara Öğün' }
+                    ].map(m => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setMealType(m.id as any)}
+                        style={{
+                          padding: '6px 10px',
+                          fontSize: '11px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border)',
+                          background: mealType === m.id ? '#10B981' : 'var(--surface-subtle)',
+                          color: mealType === m.id ? '#091512' : 'var(--text-main)',
+                          fontWeight: mealType === m.id ? 700 : 500,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm(false)}
+                      style={{ padding: '6px 12px', fontSize: '11px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-muted)', cursor: 'pointer' }}
+                    >
+                      Vazgeç
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={handleConfirmAdd}
+                      disabled={saving}
+                      style={{ padding: '6px 14px', fontSize: '11px' }}
+                    >
+                      {saving ? 'Kaydediliyor...' : `✓ ${grams}g Olarak Günlüğüme İşle`}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Veri Kaynağı ve Doğrulama Rozeti */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '11px' }}>

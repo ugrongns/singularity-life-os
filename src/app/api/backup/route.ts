@@ -2,11 +2,10 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import * as schema from '@/db/schema';
 import crypto from 'crypto';
+import { getAuthUser } from '@/lib/auth';
 
-// Tüm tablolar
-const ALL_TABLES = [
-  { name: 'users', table: schema.users },
-  { name: 'auth_sessions', table: schema.authSessions },
+// Düz dışa aktarmalarda hassas tabloları ve kimlik doğrulama tokenlarını hariç tut
+const SAFE_EXPORT_TABLES = [
   { name: 'family_members', table: schema.familyMembers },
   { name: 'family_invites', table: schema.familyInvites },
   { name: 'wallets_accounts', table: schema.walletsAccounts },
@@ -47,9 +46,11 @@ const ALL_TABLES = [
   { name: 'app_settings', table: schema.appSettings },
 ];
 
-async function fetchAllData() {
+async function fetchSafeData() {
   const exportData: Record<string, any[]> = {};
-  for (const { name, table } of ALL_TABLES) {
+  
+  // 1. Güvenli genel tablolar
+  for (const { name, table } of SAFE_EXPORT_TABLES) {
     try {
       const rows = await db.select().from(table as any);
       exportData[name] = rows;
@@ -57,15 +58,38 @@ async function fetchAllData() {
       exportData[name] = [];
     }
   }
+
+  // 2. Kullanıcı tablosu: Parola hash ve salt'ları kesinlikle DAHİL ETME!
+  try {
+    const rawUsers = await db.select().from(schema.users);
+    exportData['users'] = rawUsers.map(u => ({
+      id: u.id,
+      username: u.username,
+      full_name: u.full_name,
+      email: u.email,
+      role: u.role,
+      avatar_emoji: u.avatar_emoji,
+      created_at: u.created_at,
+      updated_at: u.updated_at
+    }));
+  } catch {
+    exportData['users'] = [];
+  }
+
   return exportData;
 }
 
 export async function GET(req: Request) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url, 'http://localhost');
     const download = searchParams.get('download');
 
-    const exportData = await fetchAllData();
+    const exportData = await fetchSafeData();
     const totalRecords = Object.values(exportData).reduce((sum, rows) => sum + rows.length, 0);
     const rawJson = JSON.stringify(exportData);
     const sizeKb = Math.round(Buffer.byteLength(rawJson, 'utf8') / 1024);
@@ -77,7 +101,7 @@ export async function GET(req: Request) {
         version: '1.0.0',
         database: 'Supabase PostgreSQL',
         total_records: totalRecords,
-        tables_count: ALL_TABLES.length,
+        tables_count: SAFE_EXPORT_TABLES.length,
         data: exportData
       }, null, 2);
 
@@ -109,7 +133,7 @@ export async function GET(req: Request) {
         ],
         db_size_kb: sizeKb,
         total_records: totalRecords,
-        tables_count: ALL_TABLES.length,
+        tables_count: SAFE_EXPORT_TABLES.length + 1,
         status: 'cloud_active',
         database_engine: 'Supabase PostgreSQL',
         message: 'Veritabanı 7/24 Supabase bulutunda aktif ve güvenli.'
@@ -122,19 +146,25 @@ export async function GET(req: Request) {
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const body = await request.json().catch(() => ({}));
     const action = body.action || 'export_json';
     const now = new Date();
     const dateStr = now.toISOString().split('T')[0];
 
-    const exportData = await fetchAllData();
+    const exportData = await fetchSafeData();
     const totalRecords = Object.values(exportData).reduce((sum, rows) => sum + rows.length, 0);
+    const tablesCount = SAFE_EXPORT_TABLES.length + 1;
     const payloadObject = {
       exported_at: now.toISOString(),
       version: '1.0.0',
       database: 'Supabase PostgreSQL',
       total_records: totalRecords,
-      tables_count: ALL_TABLES.length,
+      tables_count: tablesCount,
       data: exportData
     };
     const jsonString = JSON.stringify(payloadObject, null, 2);
@@ -148,13 +178,13 @@ export async function POST(request: Request) {
           name: `singularity-backup-${dateStr}.json`,
           size_kb: sizeKb,
           created_at: now.toISOString(),
-          tables: ALL_TABLES.length,
+          tables: tablesCount,
           total_records: totalRecords
         },
         export: {
           name: `singularity-backup-${dateStr}.json`,
           size_kb: sizeKb,
-          tables: ALL_TABLES.length,
+          tables: tablesCount,
           total_records: totalRecords
         },
         jsonData: payloadObject
@@ -190,7 +220,7 @@ export async function POST(request: Request) {
           size_kb: encSizeKb,
           created_at: now.toISOString(),
           is_encrypted: true,
-          tables: ALL_TABLES.length,
+          tables: tablesCount,
           total_records: totalRecords
         },
         encryptedPayload: encPayload

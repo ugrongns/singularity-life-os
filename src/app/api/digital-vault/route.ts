@@ -79,6 +79,11 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { section, ...data } = body;
     const now = new Date().toISOString();
@@ -89,7 +94,7 @@ export async function POST(request: Request) {
         id,
         title: data.title,
         type: data.type || 'other',
-        owner: data.owner || 'Kullanıcı',
+        owner: data.owner || user.full_name || 'Kullanıcı',
         issuer: data.issuer || null,
         issue_date: data.issue_date || null,
         expiry_date: data.expiry_date || null,
@@ -97,6 +102,7 @@ export async function POST(request: Request) {
         document_number: data.document_number || null,
         document_image_url: data.document_image_url || null,
         notes: data.notes || null,
+        user_id: user.id,
         created_at: now,
         updated_at: now
       });
@@ -110,6 +116,7 @@ export async function POST(request: Request) {
         remind_days_before: parseInt(data.remind_days_before) || 7,
         gift_ideas: data.gift_ideas || null,
         notes: data.notes || null,
+        user_id: user.id,
         created_at: now,
         updated_at: now
       });
@@ -126,6 +133,7 @@ export async function POST(request: Request) {
         vet_phone: data.vet_phone || null,
         vet_next_date: data.vet_next_date || null,
         notes: data.notes || null,
+        user_id: user.id,
         created_at: now,
         updated_at: now
       });
@@ -140,6 +148,11 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { section, id, ...data } = body;
     const now = new Date().toISOString();
