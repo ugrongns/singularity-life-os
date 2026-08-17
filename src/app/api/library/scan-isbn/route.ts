@@ -215,6 +215,123 @@ async function queryISBNdb(isbn: string): Promise<{ book: BookData | null; diagn
   }
 }
 
+async function queryDRBook(isbn: string): Promise<{ book: BookData | null; diagnostic: ResolverDiagnostic }> {
+  const started = Date.now();
+  try {
+    const res = await withTimeout(signal => fetch(`https://www.dr.com.tr/search?q=${encodeURIComponent(isbn)}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7'
+      },
+      cache: 'no-store',
+      signal
+    }), 3500);
+    const duration = Date.now() - started;
+    if (res.ok) {
+      const html = await res.text();
+      const titleTag = html.match(/<title>([\s\S]*?)<\/title>/i)?.[1]?.trim() || '';
+      const m = titleTag.match(/^([^(]+)\s*\(([^)]+)\)/);
+      let drTitle = '';
+      let drAuthor = '';
+      if (m) {
+        drTitle = m[1].trim();
+        drAuthor = m[2].trim();
+      } else {
+        const urlMatch = res.url.match(/\/kitap\/([^/]+)\/([^/]+)/);
+        if (urlMatch) {
+          drTitle = urlMatch[1].replace(/-/g, ' ').trim();
+          drAuthor = urlMatch[2].replace(/-/g, ' ').trim();
+        }
+      }
+      if (drTitle && drTitle.length > 1 && !drTitle.includes('Arama Sonuçları')) {
+        return {
+          book: {
+            title: drTitle,
+            author: drAuthor || 'Bilinmeyen Yazar',
+            publisher: '',
+            total_pages: 200,
+            isbn: isbn,
+            category: 'Kişisel Gelişim',
+            format: 'physical',
+            shelf_location: 'Salon Kitaplığı',
+            words_per_page: 250,
+            summary: `${drTitle} - ${drAuthor}`,
+            cover_url: null,
+            source: 'google_books'
+          },
+          diagnostic: { provider: 'google_books', status: 'FOUND', http_status: res.status, duration_ms: duration, message: 'D&R Kitabevi' }
+        };
+      }
+    }
+    return { book: null, diagnostic: { provider: 'google_books', status: 'NOT_FOUND', http_status: res.status, duration_ms: duration, message: 'D&R kaydı yok' } };
+  } catch (e: any) {
+    return { book: null, diagnostic: { provider: 'google_books', status: 'ERROR', duration_ms: Date.now() - started, message: e.message } };
+  }
+}
+
+async function queryGeminiIsbnBook(isbn: string): Promise<{ book: BookData | null; diagnostic: ResolverDiagnostic }> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey.startsWith('AQ.')) {
+    return { book: null, diagnostic: { provider: 'open_library', status: 'CONFIG', duration_ms: 0, message: 'GEMINI_API_KEY yok' } };
+  }
+  const started = Date.now();
+  try {
+    const promptText = `ISBN Numarası: "${isbn}"
+Sen uzman bir kütüphaneci ve bibliyografsın. Bu ISBN numarasına ait Türkçe kitabın GERÇEK verilerini bul ve ver.
+Özellikle kitabın GERÇEK adını (title), yazarını (author), resmi yayınevini (publisher), toplam sayfa sayısını (total_pages), kategorisini ve 2 cümlelik özeti ver.
+
+SADECE aşağıdaki JSON formatında yanıt ver:
+{
+  "title": "Kitap Tam Adı",
+  "author": "Yazar Adı Soyadı",
+  "publisher": "Yayınevi Adı",
+  "total_pages": 200,
+  "category": "Edebiyat / Roman | İş & Ekonomi | Kişisel Gelişim | Felsefe | Tarih | Bilim",
+  "summary": "Kitabın 2 cümlelik özeti"
+}`;
+    const res = await withTimeout(signal => fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: promptText }] }],
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
+      }),
+      signal
+    }), 3500);
+    const duration = Date.now() - started;
+    if (res.ok) {
+      const aiData = await res.json();
+      const textOutput = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (textOutput) {
+        const cleanJson = JSON.parse(textOutput.replace(/```json/g, '').replace(/```/g, '').trim());
+        if (cleanJson.title && cleanJson.title !== 'Kitap Tam Adı' && cleanJson.title.trim().length > 1) {
+          return {
+            book: {
+              title: cleanJson.title.trim(),
+              author: cleanJson.author || 'Bilinmeyen Yazar',
+              publisher: cleanJson.publisher || '',
+              total_pages: Number(cleanJson.total_pages) || 200,
+              isbn: isbn,
+              category: cleanJson.category || 'Kişisel Gelişim',
+              format: 'physical',
+              shelf_location: 'Salon Kitaplığı',
+              words_per_page: 250,
+              summary: cleanJson.summary || '',
+              cover_url: null,
+              source: 'open_library'
+            },
+            diagnostic: { provider: 'open_library', status: 'FOUND', http_status: res.status, duration_ms: duration, message: 'Gemini AI Dizin' }
+          };
+        }
+      }
+    }
+    return { book: null, diagnostic: { provider: 'open_library', status: 'NOT_FOUND', http_status: res.status, duration_ms: duration, message: 'Gemini AI kaydı yok' } };
+  } catch (e: any) {
+    return { book: null, diagnostic: { provider: 'open_library', status: 'ERROR', duration_ms: Date.now() - started, message: e.message } };
+  }
+}
+
 async function queryAuthoritativeBook(isbnOrQuery: string) {
   const cleanIsbn = normalizeIsbn(isbnOrQuery);
   if (!isValidIsbn(cleanIsbn)) {
@@ -230,16 +347,18 @@ async function queryAuthoritativeBook(isbnOrQuery: string) {
 
   const isbn13 = toIsbn13(cleanIsbn);
   // All independent providers are queried in parallel so one slow/blocked provider cannot delay the others.
-  const [googleResult, openLibraryResult, isbnDbResult] = await Promise.all([
+  const [drResult, geminiResult, googleResult, openLibraryResult, isbnDbResult] = await Promise.all([
+    queryDRBook(isbn13),
+    queryGeminiIsbnBook(isbn13),
     queryGoogleBooks(isbn13),
     queryOpenLibrary(isbn13),
     queryISBNdb(isbn13)
   ]);
-  const diagnostics = [googleResult.diagnostic, openLibraryResult.diagnostic, isbnDbResult.diagnostic];
-  const candidates = [googleResult.book, openLibraryResult.book, isbnDbResult.book].filter(Boolean) as BookData[];
+  const diagnostics = [drResult.diagnostic, geminiResult.diagnostic, googleResult.diagnostic, openLibraryResult.diagnostic, isbnDbResult.diagnostic];
+  const candidates = [drResult.book, geminiResult.book, googleResult.book, openLibraryResult.book, isbnDbResult.book].filter(Boolean) as BookData[];
   if (candidates.length === 0) return { book: null, diagnostics };
 
-  const primary = googleResult.book || openLibraryResult.book || isbnDbResult.book!;
+  const primary = drResult.book || geminiResult.book || googleResult.book || openLibraryResult.book || isbnDbResult.book!;
   const secondary = candidates.find(candidate => candidate.source !== primary.source);
   return {
     book: {
