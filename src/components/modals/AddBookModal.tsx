@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 interface AddBookModalProps {
   isOpen: boolean;
@@ -29,7 +29,11 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
   const [lentDate, setLentDate] = useState(new Date().toISOString().split('T')[0]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAnalyzingPhoto, setIsAnalyzingPhoto] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successNotice, setSuccessNotice] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -52,6 +56,90 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
     setLentToName('');
     setLentDate(new Date().toISOString().split('T')[0]);
     setErrorMessage(null);
+    setSuccessNotice(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // İstemci tarafında hızlı görsel sıkıştırma (Max 1024px, 0.75 Kalite)
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 1024;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.75));
+          } else {
+            resolve(e.target?.result as string);
+          }
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // 2. Aşama: Kapak Fotoğrafından Otomatik Bilgi Çıkarma Handlerı
+  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsAnalyzingPhoto(true);
+    setErrorMessage(null);
+    setSuccessNotice(null);
+
+    try {
+      const compressedBase64 = await compressImage(file);
+
+      const res = await fetch('/api/library/scan-isbn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_base64: compressedBase64,
+          mime_type: 'image/jpeg'
+        })
+      });
+
+      const json = await res.json();
+      if (json.success && json.data) {
+        const b = json.data;
+        if (b.title) setTitle(b.title);
+        if (b.author) setAuthor(b.author);
+        if (b.publisher) setPublisher(b.publisher);
+        if (b.isbn) setIsbn(b.isbn);
+        if (b.total_pages) setTotalPages(String(b.total_pages));
+        if (b.category) setCategory(b.category);
+        if (b.summary) setSummary(b.summary);
+
+        setSuccessNotice(json.message || `📸 Kitap kapağından "${b.title}" başarıyla okundu!`);
+      } else {
+        setErrorMessage(json.error || 'Görselden kitap bilgisi okunamadı. Lütfen fotoğrafın net olduğundan emin olun.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Fotoğraf işlenirken bir bağlantı hatası oluştu.');
+    } finally {
+      setIsAnalyzingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -131,7 +219,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
             </div>
             <div>
               <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#111827' }}>Yeni Kitap Ekle</h2>
-              <p style={{ fontSize: '13px', color: '#6B7280', margin: '2px 0 0 0' }}>Manuel bilgi girişi ile kütüphanenizi zenginleştirin</p>
+              <p style={{ fontSize: '13px', color: '#6B7280', margin: '2px 0 0 0' }}>Kapağını çekerek veya manuel bilgilerle kitap ekleyin</p>
             </div>
           </div>
           <button
@@ -147,14 +235,64 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
           </button>
         </div>
 
+        {/* 2. Aşama: Kapak Fotoğrafı Çek / Yükle Butonu & Gizli Input */}
+        <div style={{ padding: '20px 24px 0 24px' }}>
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            ref={fileInputRef}
+            onChange={handlePhotoCapture}
+            style={{ display: 'none' }}
+          />
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isAnalyzingPhoto}
+            style={{
+              width: '100%',
+              background: isAnalyzingPhoto ? '#F5F3FF' : '#F3E8FF',
+              border: '2px dashed #C084FC',
+              borderRadius: '16px',
+              padding: '16px',
+              color: '#7C3AED',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: isAnalyzingPhoto ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 8px rgba(124, 58, 237, 0.08)'
+            }}
+          >
+            {isAnalyzingPhoto ? (
+              <>✨ Yapay Zeka Kapak Fotoğrafını Okuyor...</>
+            ) : (
+              <>📸 Kitap Kapağını Çek / Görsel Seç & Otomatik Doldur</>
+            )}
+          </button>
+        </div>
+
         {/* Form Body */}
-        <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <form onSubmit={handleSubmit} style={{ padding: '20px 24px 24px 24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {errorMessage && (
             <div style={{
               background: '#FEF2F2', border: '1px solid #FCA5A5',
               borderRadius: '12px', padding: '12px 16px', color: '#991B1B', fontSize: '13px', fontWeight: 500
             }}>
               ⚠️ {errorMessage}
+            </div>
+          )}
+
+          {successNotice && (
+            <div style={{
+              background: '#ECFDF5', border: '1px solid #6EE7B7',
+              borderRadius: '12px', padding: '12px 16px', color: '#065F46', fontSize: '13px', fontWeight: 500
+            }}>
+              {successNotice}
             </div>
           )}
 

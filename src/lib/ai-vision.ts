@@ -414,7 +414,7 @@ export async function parseBookCoverOrISBNImage(
 ): Promise<ParsedBookVision> {
   const apiKey = process.env.GEMINI_API_KEY;
 
-  if (apiKey && !apiKey.startsWith('AQ.')) {
+  if (apiKey) {
     try {
       const promptText = `Sen uzman bir kütüphaneci ve OCR görsel analiz uzmanısın. Gönderilen fotoğraftaki kitap kapağını, arka kapağını veya ISBN barkodunu incele. Kitap bilgilerini çıkar ve SADECE aşağıdaki JSON formatında bir yanıt ver:
 {
