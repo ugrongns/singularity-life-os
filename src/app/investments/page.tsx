@@ -16,8 +16,31 @@ export default function InvestmentsPage() {
   const [isAddAssetOpen, setIsAddAssetOpen] = useState(false);
   const [isDividendOpen, setIsDividendOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const showToast = (msg: string) => { setToastMsg(msg); setTimeout(() => setToastMsg(null), 3000); };
+
+  const handleRefreshPrices = async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch('/api/investments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'refresh_prices' })
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast(json.message || '⚡ Piyasa fiyatları güncellendi!');
+        fetchData();
+      } else {
+        showToast(`⚠️ ${json.error || 'Fiyatlar güncellenemedi'}`);
+      }
+    } catch (e: any) {
+      showToast('⚠️ Bağlantı hatası');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const fetchData = async () => {
     const [invRes, budRes, reRes, notifRes] = await Promise.all([
@@ -43,9 +66,20 @@ export default function InvestmentsPage() {
         </div>
       )}
 
-      <div style={{ padding: '0 16px 8px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>📈 Yatırımlar</h1>
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Portföy, hisseler, borsalar, BES ve gayrimenkul</p>
+      <div style={{ padding: '0 16px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>📈 Yatırımlar</h1>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Portföy, hisseler, borsalar, BES ve gayrimenkul</p>
+        </div>
+        <button
+          type="button"
+          onClick={handleRefreshPrices}
+          disabled={refreshing}
+          className="btn-primary"
+          style={{ padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          <span>{refreshing ? '🔄 Güncelleniyor...' : '⚡ Canlı Fiyatları Güncelle'}</span>
+        </button>
       </div>
 
       <div className="dashboard-grid">

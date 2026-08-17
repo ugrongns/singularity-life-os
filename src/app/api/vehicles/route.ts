@@ -73,9 +73,35 @@ export async function GET() {
       .orderBy(desc(vehicleMaintenanceRecords.service_date));
 
     // Yasal Hatırlatıcılar
-    const legalReminders = await db.select()
+    let legalReminders = await db.select()
       .from(vehicleLegalReminders)
       .where(eq(vehicleLegalReminders.vehicle_id, primaryVehicle.id));
+
+    // Eğer henüz yasal hatırlatıcı tanımlanmamışsa TÜVTÜRK & MTV takvimini otomatik üret ve kaydet
+    if (legalReminders.length === 0) {
+      try {
+        const { generateAutoLegalReminders } = await import('@/lib/vehicle-legal');
+        const autoReminders = generateAutoLegalReminders(primaryVehicle.id, primaryVehicle.year || 2022);
+        for (const rem of autoReminders) {
+          await db.insert(vehicleLegalReminders).values({
+            id: rem.id,
+            vehicle_id: rem.vehicle_id,
+            type: rem.type,
+            due_date: rem.due_date,
+            policy_no: rem.policy_no,
+            cost_estimate: rem.cost_estimate,
+            is_completed: rem.is_completed,
+            created_at: rem.created_at,
+            updated_at: rem.updated_at
+          });
+        }
+        legalReminders = await db.select()
+          .from(vehicleLegalReminders)
+          .where(eq(vehicleLegalReminders.vehicle_id, primaryVehicle.id));
+      } catch (autoErr) {
+        console.warn('Auto legal reminder generation notice:', autoErr);
+      }
+    }
 
     // Yakıt Tüketimi Hesabı (Ardışık mantıklı KM aralıklarının ortalaması)
     let avgConsumptionLiters = 0;
@@ -289,6 +315,34 @@ export async function POST(req: Request) {
       });
 
       return NextResponse.json({ success: true, message: '🛡️ Yasal hatırlatıcı güncellendi.' });
+    }
+
+    // Yasal Hatırlatıcıları Otomatik Üret (TÜVTÜRK & MTV)
+    if (action === 'auto_generate_legal' && data.vehicle_id) {
+      const veh = (await db.select().from(vehicles).where(eq(vehicles.id, data.vehicle_id)))[0];
+      if (!veh) return NextResponse.json({ success: false, error: 'Araç bulunamadı.' }, { status: 404 });
+
+      const { generateAutoLegalReminders } = await import('@/lib/vehicle-legal');
+      const generated = generateAutoLegalReminders(veh.id, veh.year || 2022);
+      for (const rem of generated) {
+        await db.insert(vehicleLegalReminders).values({
+          id: rem.id,
+          vehicle_id: rem.vehicle_id,
+          type: rem.type,
+          due_date: rem.due_date,
+          policy_no: rem.policy_no,
+          cost_estimate: rem.cost_estimate,
+          is_completed: rem.is_completed,
+          created_at: rem.created_at,
+          updated_at: rem.updated_at
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: '🏛️ TÜVTÜRK Muayene ve MTV taksit takvimi aracınıza otomatik tanımlandı!',
+        count: generated.length
+      });
     }
 
     return NextResponse.json({ success: false, error: 'Bilinmeyen işlem' }, { status: 400 });

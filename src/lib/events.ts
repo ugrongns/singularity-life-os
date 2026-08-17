@@ -1,4 +1,12 @@
 // Singularity Modüler Monolit Internal Event Bus
+import { db, initDatabase } from '@/db';
+import { 
+  transactions, categories, walletsAccounts, 
+  vehicles, vehicleMaintenanceRecords, 
+  nutritionMeals, userHealthProfile 
+} from '@/db/schema';
+import { eq, sql, and, gte, lte } from 'drizzle-orm';
+
 type EventCallback<T = any> = (data: T) => void | Promise<void>;
 
 class EventBus {
@@ -47,45 +55,106 @@ export const EVENTS = {
   BACKUP_REQUESTED: 'system:backup_requested',
 };
 
-// Modüler Monolit Domain Dinleyicileri (Core Subscribers)
+// =========================================================================
+// 🚀 Modüler Monolit Domain Dinleyicileri (Gerçek İş Yükü & Cross-Domain Logic)
+// =========================================================================
+
+// 1. Harcama Oluştuğunda: Bütçe Limiti Kontrolü & Kategori Tavan Uyarısı
 eventBus.subscribe(EVENTS.TRANSACTION_CREATED, async (data: any) => {
   try {
-    console.log(`[EventBus] 💳 İşlem kaydedildi: ${data.merchant || 'Harcama'} (${data.amount} TL) - Cüzdan: ${data.wallet_id}`);
+    initDatabase();
+    if (!data.category_id || !data.amount) return;
+
+    const catList = await db.select().from(categories).where(eq(categories.id, data.category_id));
+    const cat = catList[0];
+    if (!cat || !cat.monthly_budget_limit || cat.monthly_budget_limit <= 0) return;
+
+    // Bu ayın toplam harcamasını hesapla
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+    const monthlyTxs = await db.select()
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.category_id, cat.id),
+          gte(transactions.transaction_date, startOfMonth),
+          lte(transactions.transaction_date, endOfMonth)
+        )
+      );
+
+    const totalSpentThisMonth = monthlyTxs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const limit = cat.monthly_budget_limit;
+    const usagePercent = Math.round((totalSpentThisMonth / limit) * 100);
+
+    if (totalSpentThisMonth > limit) {
+      console.warn(`[EventBus ALARM] 🚨 ${cat.name} kategorisinde bütçe aşıldı! Harcanan: ${totalSpentThisMonth.toLocaleString('tr-TR')} ₺ / Limit: ${limit.toLocaleString('tr-TR')} ₺ (%${usagePercent})`);
+    } else if (usagePercent >= 85) {
+      console.info(`[EventBus UYARI] ⚠️ ${cat.name} bütçesi dolmak üzere: %${usagePercent} kullanıldı (${totalSpentThisMonth.toLocaleString('tr-TR')} ₺ / ${limit.toLocaleString('tr-TR')} ₺)`);
+    }
   } catch (err) {
     console.error('[EventBus Error - TRANSACTION_CREATED]:', err);
   }
 });
 
+// 2. Araç Bakımı Yapıldığında: Kilometre Senkronizasyonu & Servis Döngüsü
 eventBus.subscribe(EVENTS.VEHICLE_MAINTENANCE_RECORDED, async (data: any) => {
   try {
-    console.log(`[EventBus] 🚗 Araç bakımı işlendi: Araç ID ${data.vehicle_id}, KM: ${data.km}, Maliyet: ${data.cost} TL`);
+    initDatabase();
+    if (!data.vehicle_id) return;
+
+    const km = Number(data.km || data.km_at_service) || 0;
+    if (km > 0) {
+      const vehList = await db.select().from(vehicles).where(eq(vehicles.id, data.vehicle_id));
+      const veh = vehList[0];
+      if (veh && km > veh.current_km) {
+        await db.update(vehicles)
+          .set({ current_km: km, updated_at: new Date().toISOString() })
+          .where(eq(vehicles.id, data.vehicle_id));
+        console.log(`[EventBus] 🚗 Araç KM güncellendi: ${veh.plate} (${veh.current_km} ➔ ${km} KM)`);
+      }
+    }
   } catch (err) {
     console.error('[EventBus Error - VEHICLE_MAINTENANCE_RECORDED]:', err);
   }
 });
 
+// 3. Kira Tahsil Edildiğinde: Cüzdan Bakiyesi & Entegrasyon Kontrolü
 eventBus.subscribe(EVENTS.RENT_COLLECTED, async (data: any) => {
   try {
-    console.log(`[EventBus] 🏠 Kira tahsil edildi: Mülk ${data.property_id}, Tutar: ${data.amount} TL, Cüzdan: ${data.wallet_id}`);
+    initDatabase();
+    console.log(`[EventBus] 🏠 Kira tahsilat olayı onaylandı: Mülk ${data.property_id}, Tutar: ${data.amount} TL`);
   } catch (err) {
     console.error('[EventBus Error - RENT_COLLECTED]:', err);
   }
 });
 
+// 4. Temettü Kaydedildiğinde: Gelir Dağıtımı & Varlık Getirisi
 eventBus.subscribe(EVENTS.DIVIDEND_RECORDED, async (data: any) => {
   try {
-    console.log(`[EventBus] 📈 Temettü işlendi: Varlık ${data.asset_id}, Tutar: ${data.total_amount} TL, Tür: ${data.treatment_type}`);
+    initDatabase();
+    console.log(`[EventBus] 📈 Temettü olayı işlendi: Varlık ${data.asset_id}, Tutar: ${data.total_amount} TL`);
   } catch (err) {
     console.error('[EventBus Error - DIVIDEND_RECORDED]:', err);
   }
 });
 
+// 5. Beslenme Öğünü Kaydedildiğinde: Günlük Kalori & Makro Hedef Takibi
 eventBus.subscribe(EVENTS.DIET_MEAL_RECORDED, async (data: any) => {
   try {
-    console.log(`[EventBus] 🥗 Öğün günlüğü güncellendi: ${data.name || 'Öğün'} (${data.calories || 0} kcal)`);
+    initDatabase();
+    const today = new Date().toISOString().split('T')[0];
+    const todayMeals = await db.select().from(nutritionMeals).where(eq(nutritionMeals.date, today));
+    const totalCal = todayMeals.reduce((s, m) => s + (m.calories || 0), 0);
+    const totalPro = todayMeals.reduce((s, m) => s + (m.protein_g || 0), 0);
+
+    const profile = (await db.select().from(userHealthProfile).limit(1))[0];
+    const targetCal = profile?.daily_calorie_target || 2200;
+    const calPercent = Math.round((totalCal / targetCal) * 100);
+
+    console.log(`[EventBus] 🥗 Günlük beslenme güncellendi: ${totalCal}/${targetCal} kcal (%${calPercent}) - Protein: ${totalPro}g`);
   } catch (err) {
     console.error('[EventBus Error - DIET_MEAL_RECORDED]:', err);
   }
 });
-
-

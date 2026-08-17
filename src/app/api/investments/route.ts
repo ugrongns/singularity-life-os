@@ -3,6 +3,7 @@ import { db, initDatabase } from '@/db';
 import { investmentAssets, besContracts, walletsAccounts } from '@/db/schema';
 import { eq, desc, and , or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { fetchLiveExchangeRates, fetchTefasFundPrice, fetchCryptoPrice } from '@/lib/market-data';
 
 export async function GET() {
   try {
@@ -10,9 +11,11 @@ export async function GET() {
     const user = await getAuthUser();
     const userId = user?.id;
 
-    const USD_RATE = 36.50;
-    const EUR_RATE = 39.80;
-    const GOLD_GRAM_RATE = 3180;
+    // Canlı Döviz ve Altın Kurlarını Çek
+    const liveRates = await fetchLiveExchangeRates();
+    const USD_RATE = liveRates.USD_TRY;
+    const EUR_RATE = liveRates.EUR_TRY;
+    const GOLD_GRAM_RATE = liveRates.GOLD_GRAM_TRY;
 
     const assets = userId
       ? await db.select().from(investmentAssets).where(and(eq(investmentAssets.is_active, 1), or(eq(investmentAssets.user_id, userId), eq(investmentAssets.is_family_shared, 1)))).orderBy(desc(investmentAssets.created_at))
@@ -125,6 +128,54 @@ export async function POST(req: Request) {
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     const body = await req.json();
+    const now = new Date().toISOString();
+
+    // ⚡ Portföydeki Tüm Varlıkların Piyasa Fiyatlarını Canlı Güncelle
+    if (body.action === 'refresh_prices') {
+      const liveRates = await fetchLiveExchangeRates();
+      const userAssets = await db.select().from(investmentAssets).where(
+        and(eq(investmentAssets.is_active, 1), or(eq(investmentAssets.user_id, user.id), eq(investmentAssets.is_family_shared, 1)))
+      );
+      let updatedCount = 0;
+
+      for (const asset of userAssets) {
+        let newPrice: number | null = null;
+        let newCurrency = asset.current_price_currency;
+
+        if (asset.asset_class === 'gold_metal' || asset.symbol === 'ALTIN' || asset.symbol === 'GRAM') {
+          newPrice = liveRates.GOLD_GRAM_TRY;
+          newCurrency = 'TRY';
+        } else if (asset.asset_class === 'crypto') {
+          const cryptoData = await fetchCryptoPrice(asset.symbol);
+          if (cryptoData) {
+            newPrice = asset.current_price_currency === 'USD' ? cryptoData.priceUSD : cryptoData.priceTRY;
+          }
+        } else {
+          // 3 karakterli fon kodları (TEFAS: TCD, MAC, TI2 vb.)
+          if (asset.symbol && asset.symbol.length === 3) {
+            const tefasData = await fetchTefasFundPrice(asset.symbol);
+            if (tefasData && tefasData.price > 0) {
+              newPrice = tefasData.price;
+              newCurrency = 'TRY';
+            }
+          }
+        }
+
+        if (newPrice !== null && newPrice > 0) {
+          await db.update(investmentAssets)
+            .set({ current_price: newPrice, current_price_currency: newCurrency, last_updated_at: now, updated_at: now })
+            .where(eq(investmentAssets.id, asset.id));
+          updatedCount++;
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `⚡ ${updatedCount} varlığın piyasa fiyatı güncellendi! (Dolar: ${liveRates.USD_TRY} TL, Altın: ${liveRates.GOLD_GRAM_TRY} TL)`,
+        rates: liveRates,
+        updatedCount
+      });
+    }
 
     const {
       type = 'asset',
@@ -147,7 +198,6 @@ export async function POST(req: Request) {
       monthly_payment
     } = body;
 
-    const now = new Date().toISOString();
     const transactionTimestamp = purchase_date || now;
 
     if (type === 'bes') {

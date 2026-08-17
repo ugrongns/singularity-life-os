@@ -164,6 +164,22 @@ export async function POST(req: Request) {
       user_id: user.id
     });
 
+    // Event Bus üzerinden beslenme olayını bildir
+    try {
+      const { eventBus, EVENTS } = await import('@/lib/events');
+      await eventBus.emit(EVENTS.DIET_MEAL_RECORDED, {
+        mealId,
+        name,
+        calories,
+        protein_g,
+        carbs_g,
+        fat_g,
+        userId: user.id
+      });
+    } catch (evErr) {
+      console.warn('EventBus emit notice:', evErr);
+    }
+
     return NextResponse.json({
       success: true,
       message: `🥗 ${name} (${calories} kcal - ${protein_g}g Protein) günlük beslenmenize eklendi!`
