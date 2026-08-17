@@ -93,7 +93,11 @@ export async function GET(req: Request) {
       });
     }
 
-    try { initDatabase(); } catch (e) {}
+    let user: any = null;
+    try { 
+      initDatabase(); 
+      user = await getAuthUser();
+    } catch (e) {}
 
     // 1. Veritabanından güvenli sorgula
     try {
