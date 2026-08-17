@@ -86,7 +86,21 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
       const json = await res.json();
       if (json.success && json.data) {
         const d = json.data;
-        if (d.measurement_date) setMeasurementDate(d.measurement_date.split(' ')[0].replace(/\//g, '-'));
+        // Tarih normalize: DD.MM.YYYY veya DD/MM/YYYY → YYYY-MM-DD, 2025 → bugün
+        if (d.measurement_date) {
+          let rawDate = d.measurement_date.split(' ')[0];
+          // DD.MM.YYYY veya DD/MM/YYYY formatını YYYY-MM-DD'ye çevir
+          const dotMatch = rawDate.match(/^(\d{2})[.\/](\d{2})[.\/](\d{4})$/);
+          if (dotMatch) {
+            rawDate = `${dotMatch[3]}-${dotMatch[2]}-${dotMatch[1]}`;
+          } else {
+            rawDate = rawDate.replace(/\//g, '-');
+          }
+          const today = new Date().toISOString().split('T')[0];
+          // Eğer eski yıl ise (2025 vb.) bugünü kullan
+          if (!rawDate.startsWith('2026')) rawDate = today;
+          setMeasurementDate(rawDate);
+        }
         if (d.weight_kg) setWeightKg(d.weight_kg.toString());
         if (d.bmi) setBmi(d.bmi.toString());
         if (d.body_fat_percent) setBodyFatPercent(d.body_fat_percent.toString());
