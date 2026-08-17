@@ -428,7 +428,7 @@ export async function parseBookCoverOrISBNImage(
   "words_per_page": 250
 }`;
 
-      const MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-pro-latest'];
+      const MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-pro-latest'];
       for (const modelName of MODELS) {
         try {
           const response = await fetch(
@@ -464,18 +464,24 @@ export async function parseBookCoverOrISBNImage(
 
             if (textOutput) {
               const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
-              const parsed = JSON.parse(cleanJson);
-              return {
-                title: parsed.title || 'Taranan Kitap',
-                author: parsed.author || '',
-                publisher: parsed.publisher || '',
-                isbn: parsed.isbn || '',
-                total_pages: Number(parsed.total_pages) || 200,
-                category: parsed.category || 'Kişisel Gelişim',
-                summary: parsed.summary || 'Yapay zeka görsel analizi ile taranan kitap.',
-                words_per_page: Number(parsed.words_per_page) || 250,
-                confidence: 0.95
-              };
+              let parsed: any = {};
+              try { parsed = JSON.parse(cleanJson); } catch (e) {}
+              if (Array.isArray(parsed) && parsed.length > 0) parsed = parsed[0];
+
+              const detectedTitle = (parsed.title || '').trim();
+              if (detectedTitle && detectedTitle !== 'Taranan Kitap' && detectedTitle !== 'Kitap Tam Adı' && detectedTitle.length >= 2) {
+                return {
+                  title: detectedTitle,
+                  author: (parsed.author || '').replace(/Yazar Adı Soyadı/i, '').trim(),
+                  publisher: (parsed.publisher || '').replace(/Yayınevi Adı/i, '').trim(),
+                  isbn: (parsed.isbn || '').replace(/[^0-9X]/gi, '').trim(),
+                  total_pages: Number(parsed.total_pages) || 200,
+                  category: parsed.category || 'Kişisel Gelişim',
+                  summary: parsed.summary || 'Yapay zeka görsel analizi ile taranan kitap.',
+                  words_per_page: Number(parsed.words_per_page) || 250,
+                  confidence: 0.95
+                };
+              }
             }
           }
         } catch (mErr) {

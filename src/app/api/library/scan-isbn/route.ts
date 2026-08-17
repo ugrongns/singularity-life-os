@@ -226,8 +226,9 @@ export async function POST(req: Request) {
         verifiedBook = await queryAuthoritativeBook(`${visionResult.title} ${visionResult.author || ''}`, apiKey);
       }
 
+      const detectedTitle = verifiedBook?.title || visionResult.title || '';
       const finalBookData = {
-        title: verifiedBook?.title || visionResult.title || 'Taranan Kitap',
+        title: detectedTitle,
         author: verifiedBook?.author || visionResult.author || '',
         publisher: verifiedBook?.publisher || visionResult.publisher || '',
         isbn: verifiedBook?.isbn || effectiveIsbn || '',
@@ -253,11 +254,20 @@ export async function POST(req: Request) {
         }
       }
 
+      let returnMsg = '📸 Görsel analiz edildi.';
+      if (finalBookData.title) {
+        returnMsg = verifiedBook
+          ? `📸 Görsel okundu ve "${finalBookData.title}" (${finalBookData.author}) doğrulandı!`
+          : `📸 Kitap kapağından "${finalBookData.title}" (${finalBookData.author || 'Yazar'}) tanımlandı!`;
+      } else if (effectiveIsbn) {
+        returnMsg = `ℹ️ ISBN (${effectiveIsbn}) okundu. Lütfen kitap adını ve yazarını yazarak onaylayın.`;
+      }
+
       return NextResponse.json({
         success: true,
         is_already_in_library: false,
         data: finalBookData,
-        message: verifiedBook ? `📸 Görsel okundu ve "${finalBookData.title}" (${finalBookData.author}) resmi kayıtlardan doğrulandı!` : '📸 Görsel analiz edildi.'
+        message: returnMsg
       });
     }
 
