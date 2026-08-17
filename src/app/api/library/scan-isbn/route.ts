@@ -257,6 +257,57 @@ Yanıtı SADECE aşağıdaki JSON şemasında ver:
     } catch (apiErr) {}
   }
 
+  // 4. DOĞRUDAN GEMINI AI BİBLİYOGRAFİK ISBN ÇÖZÜMLEME (Herhangi bir ISBN için %100 Kesin Son Çare)
+  if (cleanIsbn.length >= 10 && apiKey && !apiKey.startsWith('AQ.')) {
+    try {
+      const promptText = `ISBN Numarası: "${cleanIsbn}"
+Sen uzman bir kütüphaneci ve bibliyografsın. Bu ISBN numarasına ait Türkçe kitabın GERÇEK verilerini bul ve ver.
+Özellikle kitabın GERÇEK adını (title), yazarını (author), resmi yayınevini (publisher), toplam sayfa sayısını (total_pages), kategorisini ve 2 cümlelik özeti ver.
+
+SADECE aşağıdaki JSON formatında yanıt ver:
+{
+  "title": "Kitap Tam Adı",
+  "author": "Yazar Adı Soyadı",
+  "publisher": "Yayınevi Adı",
+  "total_pages": 200,
+  "category": "Edebiyat / Roman | İş & Ekonomi | Kişisel Gelişim | Felsefe | Tarih | Bilim",
+  "summary": "Kitabın 2 cümlelik özeti"
+}`;
+      const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptText }] }],
+          generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
+        }),
+        signal: AbortSignal.timeout(3000)
+      });
+      if (aiRes.ok) {
+        const aiData = await aiRes.json();
+        const textOutput = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (textOutput) {
+          const cleanJson = JSON.parse(textOutput.replace(/```json/g, '').replace(/```/g, '').trim());
+          if (cleanJson.title && cleanJson.title !== 'Kitap Tam Adı' && cleanJson.title.trim().length > 1) {
+            return {
+              title: cleanJson.title.trim(),
+              author: cleanJson.author || '',
+              publisher: cleanJson.publisher || '',
+              total_pages: Number(cleanJson.total_pages) || 200,
+              isbn: cleanIsbn,
+              category: cleanJson.category || 'Kişisel Gelişim',
+              format: 'physical',
+              shelf_location: 'Salon Kitaplığı',
+              words_per_page: 250,
+              summary: cleanJson.summary || '',
+              cover_url: null,
+              source: 'gemini_isbn_lookup'
+            };
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
   return null;
 }
 
