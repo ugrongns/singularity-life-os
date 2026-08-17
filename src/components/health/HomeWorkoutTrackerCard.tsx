@@ -180,17 +180,9 @@ export default function HomeWorkoutTrackerCard() {
         <div style={{ textAlign: 'center', padding: '24px', background: 'var(--surface-subtle)', borderRadius: '12px', border: '1px dashed var(--border)' }}>
           <div style={{ fontSize: '28px', marginBottom: '8px' }}>🏋️‍♂️</div>
           <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>Henüz antrenman kaydı yok</div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', marginBottom: '12px' }}>
-            Dambıl, sehpa ve direnç bandı hareketlerinizi kaydetmeye başlamak için yukarıdaki butona tıklayın!
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Dambıl, sehpa ve direnç bandı hareketlerinizi kaydetmeye başlamak için yukarıdaki yeşil butona tıklayın!
           </div>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => setIsModalOpen(true)}
-            style={{ padding: '8px 14px', fontSize: '12px', fontWeight: 800 }}
-          >
-            + İLK ANTRENMANINI KAYDET
-          </button>
         </div>
       )}
 
