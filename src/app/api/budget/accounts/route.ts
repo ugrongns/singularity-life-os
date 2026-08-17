@@ -7,6 +7,8 @@ import { getAuthUser } from '@/lib/auth';
 export async function POST(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     const body = await req.json();
     const {
       id, name, type, balance, credit_limit, cutoff_day, due_day, currency,
@@ -16,8 +18,7 @@ export async function POST(req: Request) {
       interest_rate_contractual, interest_rate_late, min_payment_percent, overdraft_limit
     } = body;
 
-    const user = await getAuthUser();
-    const userId = user?.id;
+    const userId = user.id;
 
     const now = new Date();
     const nowISO = now.toISOString();

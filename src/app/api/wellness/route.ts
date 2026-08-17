@@ -89,6 +89,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     const body = await request.json();
     const { action, ...data } = body;
     const now = new Date().toISOString();

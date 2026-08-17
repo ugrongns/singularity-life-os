@@ -9,6 +9,8 @@ import { walletsAccounts } from '@/db/schema';
 export async function POST(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     const body = await req.json();
     const { id, name, type, monthly_budget_limit, group_50_30_20, icon, color } = body;
 

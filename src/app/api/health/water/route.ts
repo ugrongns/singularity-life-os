@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { userHealthProfile } from '@/db/schema';
-import { eq , or } from 'drizzle-orm';
+import { getAuthUser } from '@/lib/auth';
 
 export async function GET() {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+
     const profile = (await db.select().from(userHealthProfile).limit(1))[0] || {
       daily_water_target_ml: 2500,
       consumed_water_ml: 1250
@@ -32,6 +35,9 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+
     const body = await req.json();
     const { amount_ml = 250, reset = false } = body;
 

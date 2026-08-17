@@ -7,6 +7,8 @@ import { desc, eq } from 'drizzle-orm';
 export async function GET(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     const { searchParams } = new URL(req.url);
     const checkDate = searchParams.get('check_date');
 
@@ -29,6 +31,7 @@ export async function POST(req: Request) {
   try {
     initDatabase();
     const user = await getAuthUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     const body = await req.json();
 
     const now = new Date().toISOString();
@@ -45,7 +48,7 @@ export async function POST(req: Request) {
 
     await db.insert(smartScaleLogs).values({
       id: logId,
-      user_id: user?.id || null,
+      user_id: user.id,
       measurement_date: measurementDate,
       weight_kg: weightKg,
       bmi: body.bmi ? Number(body.bmi) : null,

@@ -8,6 +8,8 @@ import { eq , or , and } from 'drizzle-orm';
 export async function POST(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     const body = await req.json();
 
     const {
@@ -67,8 +69,7 @@ export async function POST(req: Request) {
 
     const createdTxIds: string[] = [];
 
-    const user = await getAuthUser();
-    const userId = user?.id || null;
+    const userId = user.id;
 
     let memberId = body.member_id || null;
     if (!memberId) {

@@ -122,6 +122,8 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     const body = await req.json();
 
     const {
@@ -155,7 +157,7 @@ export async function POST(req: Request) {
 
       await db.insert(besContracts).values({
         id: `bes-${Date.now()}`,
-        member_id: 'member-ugur',
+        member_id: user.id,
         company: company || 'Bireysel Emeklilik',
         contract_no: contract_no || null,
         start_date: start_date || transactionTimestamp,
@@ -186,7 +188,7 @@ export async function POST(req: Request) {
 
     await db.insert(investmentAssets).values({
       id: assetId,
-      member_id: 'member-ugur',
+      member_id: user.id,
       account_id: account_id || null,
       symbol: symbol.toUpperCase(),
       name,
