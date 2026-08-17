@@ -125,10 +125,61 @@ export async function POST(req: Request) {
                   barcode,
                   health_score: healthScore,
                   risk_level: riskLevel,
-                  additives_detected: additives ? `Tespit Edilen Katkılar: ${additives}` : 'Katkı maddesi bilgisi temiz / bulunamadı.',
+                  additives_detected: additives ? `Tespit Edilen Katkılar: ${additives}` : '',
                   pesticide_risk_summary: novaScore === 4 ? 'Ultra-işlenmiş gıda kategorisinde. Tarım ilacı ve raf ömrü uzatıcı kimyasal riski yüksek.' : 'İşlenmişlik seviyesi düşük.',
                   alternative_suggestions: 'Benzer gıda grubunda katkısız ve işlenmemiş alternatifler tercih edilebilir.'
                 };
+
+                // Eğer veritabanında detaylı katkı bilgisi eksikse Gemini AI ile toksikoloji ve içerik derin analizi yap
+                const apiKey = process.env.GEMINI_API_KEY;
+                if (apiKey) {
+                  try {
+                    const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        contents: [{
+                          parts: [{
+                            text: `Uzman gıda mühendisi ve toksikolog olarak "${brand} ${productName}" (Barkod: ${barcode}) ürününün üretici standartlarını, ambalaj içeriğini, katkı maddelerini (E-kodları), koruyucularını, tuz/şeker/yağ oranlarını ve pestisit riski durumunu değerlendir.
+SADECE aşağıdaki JSON formatında yanıt ver:
+{
+  "product_name": "${productName}",
+  "brand": "${brand}",
+  "barcode": "${barcode}",
+  "health_score": 85,
+  "risk_level": "clean",
+  "additives_detected": "Detaylı içerik profili, E-kodları, koruyucular veya doğal peynir altı suyu çökeltisi açıklaması",
+  "pesticide_risk_summary": "Pestisit, kimyasal solvent ve işlenmişlik riski değerlendirmesi",
+  "alternative_suggestions": "Sağlıklı beslenme tavsiyesi"
+}`
+                          }]
+                        }],
+                        generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
+                      })
+                    });
+                    const aiData = await aiRes.json();
+                    const textOutput = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (textOutput) {
+                      const enriched = JSON.parse(textOutput.replace(/```json/g, '').replace(/```/g, '').trim());
+                      foodAnalysis = {
+                        product_name: enriched.product_name || productName,
+                        brand: enriched.brand || brand,
+                        barcode,
+                        health_score: Number(enriched.health_score) || healthScore,
+                        risk_level: enriched.risk_level || riskLevel,
+                        additives_detected: enriched.additives_detected || 'Katkı maddesi bilgisi temiz.',
+                        pesticide_risk_summary: enriched.pesticide_risk_summary || foodAnalysis.pesticide_risk_summary,
+                        alternative_suggestions: enriched.alternative_suggestions || foodAnalysis.alternative_suggestions
+                      };
+                    }
+                  } catch (e) {
+                    console.warn('[Barcode AI Enrichment Error]:', e);
+                  }
+                }
+
+                if (!foodAnalysis.additives_detected) {
+                  foodAnalysis.additives_detected = 'Katkı maddesi bilgisi temiz / tespit edilmedi.';
+                }
               }
             }
           } catch (e) {
