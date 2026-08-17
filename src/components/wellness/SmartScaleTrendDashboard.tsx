@@ -50,6 +50,12 @@ const METRIC_OPTIONS = [
 export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTrendDashboardProps) {
   const [selectedMetric, setSelectedMetric] = useState('weight_kg');
 
+  // Debug: console log to verify data flow
+  React.useEffect(() => {
+    console.log('[SmartScaleTrendDashboard] logs received:', logs?.length, logs);
+  }, [logs]);
+
+
   const currentOption = METRIC_OPTIONS.find(m => m.key === selectedMetric) || METRIC_OPTIONS[0];
 
   // Filtrelenmiş ve tarihe göre sıralanmış loglar
