@@ -12,8 +12,8 @@ export async function GET() {
     const userId = user?.id;
 
     const scans = userId
-      ? db.select().from(packagedFoodScans).where(eq(packagedFoodScans.user_id, userId)).orderBy(desc(packagedFoodScans.created_at)).limit(10)
-      : [];
+      ? await db.select().from(packagedFoodScans).where(or(eq(packagedFoodScans.user_id, userId), eq(packagedFoodScans.user_id, ''))).orderBy(desc(packagedFoodScans.created_at)).limit(10)
+      : await db.select().from(packagedFoodScans).orderBy(desc(packagedFoodScans.created_at)).limit(10);
     return NextResponse.json({ success: true, data: scans });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -86,6 +86,7 @@ export async function POST(req: Request) {
         };
       }
 
+      const user = await getAuthUser();
       const now = new Date().toISOString();
       const scanId = `scan-${Date.now()}`;
 
@@ -99,6 +100,7 @@ export async function POST(req: Request) {
         additives_detected: foodAnalysis.additives_detected,
         pesticide_risk_summary: foodAnalysis.pesticide_risk_summary,
         alternative_suggestions: foodAnalysis.alternative_suggestions,
+        user_id: user?.id || null,
         created_at: now,
         updated_at: now
       });
