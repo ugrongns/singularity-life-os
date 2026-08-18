@@ -61,7 +61,7 @@ export async function GET() {
       };
     });
 
-    const activeReadingBook = booksWithStats.find(b => b.status === 'reading') || booksWithStats[0];
+    const activeReadingBook = booksWithStats.find((b: any) => b.status === 'reading') || null;
 
     // Aktif okunan kitap için Kalan Süre (ETA) Hesabı (O kitabın özel hızı veya genel profil WPM'i ile)
     let activeBookETA = null;
@@ -206,8 +206,11 @@ export async function POST(req: Request) {
     // 3. Kitap Detaylarını Tam Güncelleme
     if (action === 'update_details' && book_id) {
       const total = parseInt(total_pages) || 200;
-      const curr = parseInt(current_page) || 0;
+      let curr = parseInt(current_page) || 0;
       const bookStatus = status || (curr >= total ? 'completed' : curr > 0 ? 'reading' : 'wishlist');
+      if (bookStatus === 'completed' && curr < total) {
+        curr = total;
+      }
 
       await db.update(books)
         .set({
