@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { BOOK_CATEGORIES } from '@/lib/book-categories';
 
 interface Book {
   id: string;
@@ -364,10 +365,17 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
               <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>KATEGORİ</label>
               <input
                 type="text"
+                list="book-categories-list"
                 value={category}
                 onChange={e => setCategory(e.target.value)}
                 style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
+                placeholder="Kategori seçin veya yazın..."
               />
+              <datalist id="book-categories-list">
+                {BOOK_CATEGORIES.map(cat => (
+                  <option key={cat} value={cat} />
+                ))}
+              </datalist>
             </div>
             <div>
               <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>FORMAT</label>

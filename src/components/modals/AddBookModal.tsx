@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
 import LiveBarcodeScannerModal from './LiveBarcodeScannerModal';
+import { BOOK_CATEGORIES } from '@/lib/book-categories';
 
 interface AddBookModalProps {
   isOpen: boolean;
@@ -477,14 +478,9 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
                       padding: '11px 14px', color: '#111827', fontSize: '14px', outline: 'none'
                     }}
                   >
-                    <option value="Kişisel Gelişim">Kişisel Gelişim</option>
-                    <option value="Edebiyat / Roman">Edebiyat / Roman</option>
-                    <option value="İş & Ekonomi">İş & Ekonomi</option>
-                    <option value="Felsefe">Felsefe</option>
-                    <option value="Tarih">Tarih</option>
-                    <option value="Bilim & Teknoloji">Bilim & Teknoloji</option>
-                    <option value="Psikoloji">Psikoloji</option>
-                    <option value="Biyografi">Biyografi</option>
+                    {BOOK_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
 
