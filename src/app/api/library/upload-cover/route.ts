@@ -20,21 +20,27 @@ export async function POST(req: Request) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // public/uploads/covers dizinini oluştur (yoksa)
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'covers');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    let publicUrl = '';
+
+    // 1. Yerel ortamda diske yazmayı dene (localhost)
+    try {
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'covers');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const ext = path.extname(file.name) || '.jpg';
+      const filename = `cover-${Date.now()}-${Math.random().toString(36).substring(2, 7)}${ext}`;
+      const filePath = path.join(uploadDir, filename);
+
+      fs.writeFileSync(filePath, buffer);
+      publicUrl = `/uploads/covers/${filename}`;
+    } catch (fsError) {
+      // 2. Vercel / Serverless ortamlarda disk salt-okunur (EROFS) olduğu için Base64 Data URL'e düş
+      console.warn('Filesystem read-only (Serverless environment), converting cover to Base64 Data URL.');
+      const mimeType = file.type || 'image/jpeg';
+      publicUrl = `data:${mimeType};base64,${buffer.toString('base64')}`;
     }
-
-    // Dosya uzantısını belirle (.jpg, .png, .webp vs.)
-    const ext = path.extname(file.name) || '.jpg';
-    const filename = `cover-${Date.now()}-${Math.random().toString(36).substring(2, 7)}${ext}`;
-    const filePath = path.join(uploadDir, filename);
-
-    // Dosyayı diske yaz
-    fs.writeFileSync(filePath, buffer);
-
-    const publicUrl = `/uploads/covers/${filename}`;
 
     return NextResponse.json({
       success: true,
