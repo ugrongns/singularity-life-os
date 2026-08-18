@@ -102,7 +102,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
     });
   };
 
-  // 2. Aşama: Kapak Fotoğrafından Otomatik Bilgi Çıkarma
+  // 2. Aşama: Kapak Fotoğrafından Otomatik Bilgi Çıkarma & Kapak Resmi Olarak Kaydetme
   const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -113,6 +113,8 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
 
     try {
       const compressedBase64 = await compressImage(file);
+      // Çekilen kapak fotoğrafını doğrudan kapak görseli olarak kaydet
+      setCoverUrl(compressedBase64);
 
       const res = await fetch('/api/library/scan-isbn', {
         method: 'POST',
@@ -134,9 +136,9 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
         if (b.category) setCategory(b.category);
         if (b.summary) setSummary(b.summary);
 
-        setSuccessNotice(json.message || `📸 Kitap kapağından "${b.title}" başarıyla okundu!`);
+        setSuccessNotice(json.message || `📸 Kitap kapağından "${b.title}" okundu ve görsel eklendi!`);
       } else {
-        setErrorMessage(json.error || 'Görselden kitap bilgisi okunamadı. Lütfen fotoğrafın net olduğundan emin olun.');
+        setSuccessNotice('📸 Kapak fotoğrafı eklendi. Detaylı künye bilgilerini aşağıdan doldurabilirsiniz.');
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Fotoğraf işlenirken bir bağlantı hatası oluştu.');
@@ -172,6 +174,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
         if (b.total_pages) setTotalPages(String(b.total_pages));
         if (b.category) setCategory(b.category);
         if (b.summary) setSummary(b.summary);
+        if (b.cover_url) setCoverUrl(b.cover_url);
 
         setSuccessNotice(json.message || `🔍 "${b.title}" (ISBN: ${clean}) veritabanında bulundu!`);
       } else {
@@ -339,6 +342,37 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
             </button>
           </div>
 
+          {/* Kapak Önizleme Paneli */}
+          {coverUrl && (
+            <div style={{
+              margin: '16px 24px 0 24px', padding: '12px 16px', background: '#F9FAFB',
+              border: '1px solid #E5E7EB', borderRadius: '16px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <img
+                  src={coverUrl}
+                  alt="Kapak Önizleme"
+                  style={{ width: '48px', height: '64px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #D1D5DB' }}
+                />
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#111827' }}>🖼️ Kitap Kapağı Eklendi</div>
+                  <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '2px' }}>Görsel kitap kartlarında gösterilecektir</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCoverUrl('')}
+                style={{
+                  background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B',
+                  padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer'
+                }}
+              >
+                Kapağı Kaldır
+              </button>
+            </div>
+          )}
+
           {/* Form Body */}
           <form onSubmit={handleSubmit} style={{ padding: '20px 24px 24px 24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {isAnalyzing && (
@@ -452,6 +486,20 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
                     <option value="Psikoloji">Psikoloji</option>
                     <option value="Biyografi">Biyografi</option>
                   </select>
+                </div>
+
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Kapak Resmi URL (İsteğe Bağlı)</label>
+                  <input
+                    type="text"
+                    placeholder="https://... ile başlayan kapak resmi internet bağlantısı"
+                    value={coverUrl}
+                    onChange={e => setCoverUrl(e.target.value)}
+                    style={{
+                      width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px',
+                      padding: '11px 14px', color: '#111827', fontSize: '14px', outline: 'none'
+                    }}
+                  />
                 </div>
               </div>
             </div>
