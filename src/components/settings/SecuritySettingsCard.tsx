@@ -188,8 +188,15 @@ export default function SecuritySettingsCard() {
           const res = await fetch('/api/auth/reset-user-data', { method: 'POST' });
           const json = await res.json();
           if (json.success) {
+            // Tema tercihi hariç tüm istemci önbelleklerini temizle
+            const currentTheme = localStorage.getItem('singularity_theme');
+            localStorage.clear();
+            sessionStorage.clear();
+            if (currentTheme) {
+              localStorage.setItem('singularity_theme', currentTheme);
+            }
             alert(json.message);
-            window.location.reload();
+            window.location.href = '/';
           } else {
             alert('❌ Hata: ' + (json.error || 'Sıfırlama başarısız.'));
           }

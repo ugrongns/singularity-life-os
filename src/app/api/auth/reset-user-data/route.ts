@@ -2,15 +2,57 @@ import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { getAuthUser } from '@/lib/auth';
 import {
-  familyMembers, walletsAccounts, personalDebtsReceivables, categories,
-  transactions, sinkingFunds, syncQueue, vehicles, vehicleMaintenanceRecords,
-  vehicleFuelLogs, vehicleLegalReminders, homeMaintenanceRecords, homeAppliances,
-  investmentAssets, investmentDividends, besContracts, realEstateProperties,
-  realEstateCashflows, books, readingSessions, bookQuotes, userReadingProfile,
-  nutritionMeals, nutritionMealItems, fastingSessions, packagedFoodScans,
-  dietMealOptions, userHealthProfile, digitalVaultItems, importantDates,
-  petRecords, supplementRoutines, sleepLogs, moodLogs, waterIntakeLogs,
-  biometrics, shoppingListItems, appSettings, flexInterestAccounts, flexInterestEarnings
+  // Seviye 1: En Uç Bağımlı Tablolar (Child Tables)
+  flexInterestEarnings,
+  investmentDividends,
+  realEstateCashflows,
+  readingSessions,
+  bookQuotes,
+  nutritionMealItems,
+  workoutExerciseLogs,
+  vehicleFuelLogs,
+  vehicleMaintenanceRecords,
+  vehicleLegalReminders,
+
+  // Seviye 2: Orta Bağımlı Tablolar
+  transactions,
+  personalDebtsReceivables,
+  flexInterestAccounts,
+  investmentAssets,
+  besContracts,
+  realEstateProperties,
+  books,
+  nutritionMeals,
+  fastingSessions,
+  packagedFoodScans,
+  dietMealOptions,
+  workoutSessions,
+  foodNutrientProfiles,
+  vehicles,
+  homeMaintenanceRecords,
+  homeAppliances,
+  digitalVaultItems,
+  importantDates,
+  petRecords,
+  supplementRoutines,
+  sleepLogs,
+  moodLogs,
+  waterIntakeLogs,
+  biometrics,
+  smartScaleLogs,
+  shoppingListItems,
+  sinkingFunds,
+  syncQueue,
+  familyInvites,
+
+  // Seviye 3: Ana Varlık Tabloları
+  walletsAccounts,
+
+  // Seviye 4: Profil Tabloları
+  userHealthProfile,
+  userReadingProfile,
+  familyMembers,
+  appSettings
 } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -25,33 +67,82 @@ export async function POST() {
 
     const userId = user.id;
 
-    const userTables = [
-      transactions, walletsAccounts, personalDebtsReceivables, familyMembers,
-      sinkingFunds, syncQueue, vehicleMaintenanceRecords, vehicleFuelLogs,
-      vehicleLegalReminders, vehicles, homeMaintenanceRecords, homeAppliances,
-      investmentDividends, investmentAssets, besContracts, realEstateCashflows,
-      realEstateProperties, readingSessions, bookQuotes, books, userReadingProfile,
-      nutritionMealItems, nutritionMeals, fastingSessions, packagedFoodScans,
-      dietMealOptions, userHealthProfile, digitalVaultItems, importantDates,
-      petRecords, supplementRoutines, sleepLogs, moodLogs, waterIntakeLogs,
-      biometrics, shoppingListItems, appSettings, flexInterestEarnings, flexInterestAccounts
+    // Hiyerarşik Bağımlılık Sıralaması (Foreign-Key Safe Delete Order)
+    const hierarchicalTables = [
+      // 1. Aşama: En Uç Tablolar (Child Records)
+      flexInterestEarnings,
+      investmentDividends,
+      realEstateCashflows,
+      readingSessions,
+      bookQuotes,
+      nutritionMealItems,
+      workoutExerciseLogs,
+      vehicleFuelLogs,
+      vehicleMaintenanceRecords,
+      vehicleLegalReminders,
+
+      // 2. Aşama: İşlemler ve Modül Varlıkları
+      transactions,
+      personalDebtsReceivables,
+      flexInterestAccounts,
+      investmentAssets,
+      besContracts,
+      realEstateProperties,
+      books,
+      nutritionMeals,
+      fastingSessions,
+      packagedFoodScans,
+      dietMealOptions,
+      workoutSessions,
+      foodNutrientProfiles,
+      vehicles,
+      homeMaintenanceRecords,
+      homeAppliances,
+      digitalVaultItems,
+      importantDates,
+      petRecords,
+      supplementRoutines,
+      sleepLogs,
+      moodLogs,
+      waterIntakeLogs,
+      biometrics,
+      smartScaleLogs,
+      shoppingListItems,
+      sinkingFunds,
+      syncQueue,
+      familyInvites,
+
+      // 3. Aşama: Cüzdan & Hesaplar
+      walletsAccounts,
+
+      // 4. Aşama: Profil & Ayar Tabloları
+      userHealthProfile,
+      userReadingProfile,
+      familyMembers,
+      appSettings
     ];
 
-    for (const table of userTables) {
+    for (const table of hierarchicalTables) {
       try {
-        await db.delete(table).where(eq((table as any).user_id, userId));
-      } catch (err) {
+        if ('user_id' in (table as any)) {
+          await db.delete(table).where(eq((table as any).user_id, userId));
+        } else if ('created_by_user_id' in (table as any)) {
+          await db.delete(table).where(eq((table as any).created_by_user_id, userId));
+        } else {
+          await db.delete(table);
+        }
+      } catch (tableErr) {
         try {
           await db.delete(table);
         } catch (innerErr) {
-          console.warn('Error clearing table:', innerErr);
+          console.warn(`[Reset Data] Tablo temizlenirken hata oluştu:`, innerErr);
         }
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: '🎉 Hesabınıza ait tüm veriler başarıyla sıfırlandı ve temizlendi!'
+      message: '🎉 Hesabınıza ait tüm veriler sıfırlandı ve sistem tertemiz hale getirildi!'
     });
   } catch (error: any) {
     console.error('Reset User Data Error:', error);
