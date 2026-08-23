@@ -198,7 +198,7 @@ export default function HomePage() {
   return (
     <SharedLayout notifications={notifData}>
       {/* Net Worth Hero — her zaman en üstte */}
-      <NetWorthHero netWorth={budgetData?.netWorth || { totalNetWorthTRY: 0, totalNetWorthUSD: 0, totalNetWorthEUR: 0, currencyBreakdown: { TRY: 0, USD: 0, EUR: 0, Gold: 0, BTC: 0 } }} />
+      <NetWorthHero netWorth={budgetData?.netWorth || { TRY: 0, USD: 0, EUR: 0, GOLD_GRAM: '0', BTC: '0' }} />
 
       {/* Zaman Odaklı Akıllı Dashboard Akışı */}
       <TimeContextualFeed

@@ -120,7 +120,7 @@ export default function BudgetPage() {
         </div>
       </div>
 
-      <NetWorthHero netWorth={data?.netWorth || { totalNetWorthTRY: 0, totalNetWorthUSD: 0, totalNetWorthEUR: 0, currencyBreakdown: { TRY: 0, USD: 0, EUR: 0, Gold: 0, BTC: 0 } }} />
+      <NetWorthHero netWorth={data?.netWorth || { TRY: 0, USD: 0, EUR: 0, GOLD_GRAM: '0', BTC: '0' }} />
 
       <div className="dashboard-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>

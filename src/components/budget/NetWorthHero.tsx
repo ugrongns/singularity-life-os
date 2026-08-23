@@ -35,8 +35,15 @@ export default function NetWorthHero({ netWorth }: NetWorthProps) {
           <div className="networth-label">Toplam Net Değer (Net Worth)</div>
           <div className="networth-amount tabular-nums">{getDisplayValue()}</div>
         </div>
-        <div style={{ background: 'var(--emerald-bg)', color: 'var(--emerald)', padding: '5px 12px', borderRadius: 'var(--radius-full)', fontSize: '12px', fontWeight: 600 }}>
-          ▲ Aktif Aile Portföyü
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+          <a href="/budget" style={{
+            background: 'var(--blue-bg)', color: 'var(--blue)',
+            padding: '5px 12px', borderRadius: 'var(--radius-full)',
+            fontSize: '12px', fontWeight: 600, textDecoration: 'none',
+            display: 'inline-flex', alignItems: 'center', gap: '4px'
+          }}>
+            📊 Finans & Bütçe
+          </a>
         </div>
       </div>
 
