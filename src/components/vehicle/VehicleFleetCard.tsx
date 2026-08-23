@@ -107,7 +107,7 @@ export default function VehicleFleetCard({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontWeight: 900, fontSize: '17px', color: 'var(--text-main)' }}>{vehicle.plate}</span>
-                <span style={{ fontSize: '11px', background: '#EEF2FF', color: '#4F46E5', padding: '2px 8px', borderRadius: '4px', fontWeight: 800 }}>
+                <span style={{ fontSize: '11px', background: 'var(--indigo-bg)', color: 'var(--indigo)', padding: '2px 8px', borderRadius: '4px', fontWeight: 800 }}>
                   {vehicle.fuel_type}
                 </span>
               </div>

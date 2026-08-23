@@ -218,8 +218,8 @@ export default function WellnessCard({
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  background: s.is_taken_today ? '#F0FDF4' : isLowStock ? '#FFFBEB' : 'var(--surface-subtle)',
-                  border: `1px solid ${s.is_taken_today ? 'rgba(16,185,129,0.3)' : isLowStock ? 'rgba(245,158,11,0.4)' : 'var(--border)'}`,
+                  background: s.is_taken_today ? 'var(--emerald-bg)' : isLowStock ? 'var(--amber-bg)' : 'var(--surface-subtle)',
+                  border: `1px solid ${s.is_taken_today ? 'var(--emerald)' : isLowStock ? 'var(--amber)' : 'var(--border)'}`,
                   borderRadius: 'var(--radius-md)',
                   transition: 'all 0.2s'
                 }}

@@ -37,29 +37,85 @@
 body.dark-mode {
   --bg: #090A0F;
   --surface: #12141C;
-  --surface-subtle: #1A1D27;
-  --glass-surface: rgba(18, 20, 28, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --border: rgba(255, 255, 255, 0.09);
-  --border-strong: rgba(255, 255, 255, 0.16);
+  --surface-subtle: #181B26;
+  --glass-surface: rgba(18, 20, 28, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --border: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.22);
   --text-main: #F9FAFB;
   --text-muted: #9CA3AF;
   --text-subtle: #6B7280;
 
   --emerald: #34D399;
-  --emerald-bg: rgba(16, 185, 129, 0.12);
+  --emerald-bg: rgba(16, 185, 129, 0.16);
   --blue: #60A5FA;
-  --blue-bg: rgba(59, 130, 246, 0.12);
+  --blue-bg: rgba(59, 130, 246, 0.16);
   --indigo: #818CF8;
-  --indigo-bg: rgba(99, 102, 241, 0.12);
+  --indigo-bg: rgba(99, 102, 241, 0.16);
   --amber: #FBBF24;
-  --amber-bg: rgba(245, 158, 11, 0.12);
+  --amber-bg: rgba(245, 158, 11, 0.16);
   --rose: #FB7185;
-  --rose-bg: rgba(244, 63, 94, 0.12);
+  --rose-bg: rgba(244, 63, 94, 0.16);
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 20px 45px rgba(0, 0, 0, 0.65);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.7);
+}
+
+/* Dark mode özel buton ve form kontrast kuralları */
+[data-theme="dark"] .currency-btn {
+  background: var(--surface-subtle);
+  color: #E5E7EB;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme="dark"] .currency-btn.active {
+  background: #3B82F6;
+  color: #FFFFFF !important;
+  border-color: #3B82F6;
+  font-weight: 700;
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.4);
+}
+
+[data-theme="dark"] .choice-pill {
+  background: var(--surface-subtle);
+  color: #9CA3AF;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="dark"] .choice-pill:hover {
+  color: #F9FAFB;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+[data-theme="dark"] .choice-pill.selected {
+  background: #3B82F6;
+  color: #FFFFFF !important;
+  border-color: #3B82F6;
+  font-weight: 700;
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.35);
+}
+
+[data-theme="dark"] .btn-primary {
+  background: #3B82F6;
+  color: #FFFFFF !important;
+  border: 1px solid #2563EB;
+  font-weight: 700;
+}
+
+[data-theme="dark"] .btn-primary:hover {
+  background: #2563EB;
+}
+
+[data-theme="dark"] .btn-subtle {
+  background: var(--surface-subtle);
+  color: #E5E7EB;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme="dark"] .btn-subtle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #FFFFFF;
 }
 
 * {

@@ -87,9 +87,9 @@ export default function PortfolioHeroCard({ summary, allocation, onOpenDividendM
           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>BES (%30 D.)</div>
           <div style={{ fontSize: '13px', fontWeight: 700, color: '#10B981' }}>%{allocation.bes}</div>
         </div>
-        <div style={{ background: '#F5F3FF', padding: '8px', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
+        <div style={{ background: 'var(--indigo-bg)', padding: '8px', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Kripto</div>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#8B5CF6' }}>%{allocation.crypto}</div>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--indigo)' }}>%{allocation.crypto}</div>
         </div>
       </div>
     </div>

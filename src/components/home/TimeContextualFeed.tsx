@@ -70,12 +70,12 @@ export default function TimeContextualFeed({
             style={{
               padding: '5px 10px',
               fontSize: '11px',
-              fontWeight: 600,
+              fontWeight: 700,
               borderRadius: 'var(--radius-sm)',
               border: 'none',
               cursor: 'pointer',
-              background: mode === 'auto' ? 'var(--text-main)' : 'transparent',
-              color: mode === 'auto' ? 'var(--surface)' : 'var(--text-muted)',
+              background: mode === 'auto' ? '#3B82F6' : 'transparent',
+              color: mode === 'auto' ? '#FFFFFF' : 'var(--text-muted)',
               transition: 'all 0.15s'
             }}
           >
@@ -86,12 +86,12 @@ export default function TimeContextualFeed({
             style={{
               padding: '5px 10px',
               fontSize: '11px',
-              fontWeight: 600,
+              fontWeight: 700,
               borderRadius: 'var(--radius-sm)',
               border: 'none',
               cursor: 'pointer',
-              background: mode === 'morning' ? 'var(--amber)' : 'transparent',
-              color: mode === 'morning' ? '#000' : 'var(--text-muted)',
+              background: mode === 'morning' ? '#F59E0B' : 'transparent',
+              color: mode === 'morning' ? '#FFFFFF' : 'var(--text-muted)',
               transition: 'all 0.15s'
             }}
           >
@@ -102,12 +102,12 @@ export default function TimeContextualFeed({
             style={{
               padding: '5px 10px',
               fontSize: '11px',
-              fontWeight: 600,
+              fontWeight: 700,
               borderRadius: 'var(--radius-sm)',
               border: 'none',
               cursor: 'pointer',
-              background: mode === 'day' ? 'var(--blue)' : 'transparent',
-              color: mode === 'day' ? '#FFF' : 'var(--text-muted)',
+              background: mode === 'day' ? '#3B82F6' : 'transparent',
+              color: mode === 'day' ? '#FFFFFF' : 'var(--text-muted)',
               transition: 'all 0.15s'
             }}
           >
@@ -118,12 +118,12 @@ export default function TimeContextualFeed({
             style={{
               padding: '5px 10px',
               fontSize: '11px',
-              fontWeight: 600,
+              fontWeight: 700,
               borderRadius: 'var(--radius-sm)',
               border: 'none',
               cursor: 'pointer',
-              background: mode === 'evening' ? 'var(--indigo)' : 'transparent',
-              color: mode === 'evening' ? '#FFF' : 'var(--text-muted)',
+              background: mode === 'evening' ? '#8B5CF6' : 'transparent',
+              color: mode === 'evening' ? '#FFFFFF' : 'var(--text-muted)',
               transition: 'all 0.15s'
             }}
           >

@@ -116,7 +116,7 @@ export default function RecentTxCard({ transactions, upcomingPayments = [], onUp
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div
-                      style={{ fontSize: '18px', background: 'white', border: '1px solid var(--border)', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}
+                      style={{ fontSize: '18px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}
                       title={tx.member_name ? `İşlemi yapan: ${tx.member_name}` : 'İşlemi yapan aile üyesi'}
                     >
                       {tx.member_avatar || '👤'}
