@@ -228,18 +228,12 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
         {accounts.map(acc => {
           const isCreditCard = acc.type === 'credit_card';
           const isLoan = acc.type === 'loan';
-          const isBrokerage = acc.type === 'brokerage';
-          const isCryptoEx = acc.type === 'crypto_exchange';
-          const isCryptoWallet = acc.type === 'crypto_wallet';
           const isTimeDeposit = acc.type === 'time_deposit';
 
           const isMatured = isTimeDeposit && acc.maturity_date && new Date(acc.maturity_date) <= new Date();
 
           const icon = isCreditCard ? '💳' :
             isLoan ? '🏛️' :
-            isBrokerage ? '📈' :
-            isCryptoEx ? '🔐' :
-            isCryptoWallet ? '🦊' :
             isTimeDeposit ? '⏳' :
             acc.type === 'cash' ? '💵' :
             acc.type === 'vault' ? '🥇' : '🏦';
@@ -266,21 +260,6 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
                     {isLoan && (
                       <span style={{ fontSize: '10px', background: '#FEF3C7', color: '#92400E', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
                         🏛️ Tüketici Kredisi
-                      </span>
-                    )}
-                    {isBrokerage && (
-                      <span style={{ fontSize: '10px', background: '#E0E7FF', color: '#3730A3', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                        📈 Aracı Kurum
-                      </span>
-                    )}
-                    {isCryptoEx && (
-                      <span style={{ fontSize: '10px', background: '#FEF3C7', color: '#78350F', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                        🔐 Kripto Borsa
-                      </span>
-                    )}
-                    {isCryptoWallet && (
-                      <span style={{ fontSize: '10px', background: '#ECE9FE', color: '#5B21B6', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                        🦊 Kripto Cüzdan
                       </span>
                     )}
                     {isTimeDeposit && (
@@ -311,12 +290,7 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
                         Faiz Oranı: <strong>%{acc.interest_rate}</strong> • Vade Tarihi: <strong>{acc.maturity_date || 'Belirtilmedi'}</strong>
                       </span>
                     )}
-                    {(isBrokerage || isCryptoEx || isCryptoWallet) && (
-                      <span>
-                        {acc.assets_summary ? `Varlıklar: ${acc.assets_summary}` : 'Portföy Hesabı'}
-                      </span>
-                    )}
-                    {!isCreditCard && !isLoan && !isTimeDeposit && !isBrokerage && !isCryptoEx && !isCryptoWallet && (
+                    {!isCreditCard && !isLoan && !isTimeDeposit && (
                       <span>Vadesiz Mevduat & Nakit Bakiye</span>
                     )}
                   </div>
@@ -420,10 +394,7 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
                     <option value="credit_card">💳 Kredi Kartı</option>
                     <option value="loan">🏛️ Kredi / İhtiyaç Kredisi</option>
                     <option value="cash">💵 Nakit Cüzdan</option>
-                    <option value="vault">🥇 Altın / Kasa</option>
-                    <option value="brokerage">📈 Aracı Kurum (Hisse/Borsa)</option>
-                    <option value="crypto_exchange">🔐 Kripto Borsa (Binance vb.)</option>
-                    <option value="crypto_wallet">🦊 Kripto Cüzdan (MetaMask/Ledger)</option>
+                    <option value="vault">🔐 Kasa / Fiziksel Varlık</option>
                   </select>
                 </div>
 

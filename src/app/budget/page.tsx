@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 import SharedLayout from '@/components/layout/SharedLayout';
-import NetWorthHero from '@/components/budget/NetWorthHero';
 import AccountsCard from '@/components/budget/AccountsCard';
 import { BudgetRiskCard } from '@/components/budget/BudgetRiskCard';
 import BudgetLimitsCard from '@/components/budget/BudgetLimitsCard';
@@ -119,8 +118,6 @@ export default function BudgetPage() {
           </button>
         </div>
       </div>
-
-      <NetWorthHero netWorth={data?.netWorth || { TRY: 0, USD: 0, EUR: 0, GOLD_GRAM: '0', BTC: '0' }} />
 
       <div className="dashboard-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>

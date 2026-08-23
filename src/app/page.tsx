@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 import SharedLayout from '@/components/layout/SharedLayout';
-import NetWorthHero from '@/components/budget/NetWorthHero';
 import RecentTxCard from '@/components/budget/RecentTxCard';
 import VehicleFleetCard from '@/components/vehicle/VehicleFleetCard';
 import LibraryHeroCard from '@/components/library/LibraryHeroCard';
@@ -200,9 +199,6 @@ export default function HomePage() {
 
   return (
     <SharedLayout notifications={notifData}>
-      {/* Net Worth Hero — her zaman en üstte */}
-      <NetWorthHero netWorth={budgetData?.netWorth || { TRY: 0, USD: 0, EUR: 0, GOLD_GRAM: '0', BTC: '0' }} />
-
       {/* Zaman Odaklı Akıllı Dashboard Akışı */}
       <TimeContextualFeed
         morningWidgets={
