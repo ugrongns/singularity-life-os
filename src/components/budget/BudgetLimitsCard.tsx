@@ -277,16 +277,16 @@ export default function BudgetLimitsCard({ categories, monthlySummary, onUpdate,
       {/* 🎯 50 / 30 / 20 Bütçe Sağlık Skoru & Dağılım Paneli */}
       {scoreData && (
         <div style={{
-          background: 'linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%)',
-          border: '1px solid #DBEAFE', borderRadius: 'var(--radius-md)', padding: '12px', marginBottom: '14px'
+          background: 'var(--surface-subtle)',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px', marginBottom: '14px'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontSize: '14px' }}>🎯</span>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#1E40AF' }}>50 / 30 / 20 Bütçe Dengesi Skoru</span>
+              <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--blue)' }}>50 / 30 / 20 Bütçe Dengesi Skoru</span>
             </div>
             <div style={{
-              background: scoreData.score >= 80 ? '#10B981' : scoreData.score >= 60 ? '#3B82F6' : '#EF4444',
+              background: scoreData.score >= 80 ? 'var(--emerald)' : scoreData.score >= 60 ? 'var(--blue)' : 'var(--rose)',
               color: 'white', padding: '3px 10px', borderRadius: 'var(--radius-full)', fontSize: '11px', fontWeight: 900
             }}>
               {scoreData.score} / 100 — {scoreData.grade}
@@ -294,28 +294,28 @@ export default function BudgetLimitsCard({ categories, monthlySummary, onUpdate,
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginTop: '6px' }}>
-            <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '6px 8px' }}>
-              <div style={{ fontSize: '10px', color: '#64748B', fontWeight: 700 }}>🛡️ %50 İhtiyaçlar</div>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 8px' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>🛡️ %50 İhtiyaçlar</div>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px' }}>
                 {formatTRY(scoreData.breakdown.needs.planned)}
               </div>
-              <div style={{ fontSize: '9px', color: '#94A3B8' }}>Hedef: {formatTRY(scoreData.breakdown.needs.ideal)}</div>
+              <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Hedef: {formatTRY(scoreData.breakdown.needs.ideal)}</div>
             </div>
 
-            <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '6px 8px' }}>
-              <div style={{ fontSize: '10px', color: '#64748B', fontWeight: 700 }}>🎉 %30 İstekler</div>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 8px' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>🎉 %30 İstekler</div>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px' }}>
                 {formatTRY(scoreData.breakdown.wants.planned)}
               </div>
-              <div style={{ fontSize: '9px', color: '#94A3B8' }}>Hedef: {formatTRY(scoreData.breakdown.wants.ideal)}</div>
+              <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Hedef: {formatTRY(scoreData.breakdown.wants.ideal)}</div>
             </div>
 
-            <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '6px 8px' }}>
-              <div style={{ fontSize: '10px', color: '#64748B', fontWeight: 700 }}>🌱 %20 Birikim/Borç</div>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 8px' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>🌱 %20 Birikim/Borç</div>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px' }}>
                 {formatTRY(scoreData.breakdown.savings.planned)}
               </div>
-              <div style={{ fontSize: '9px', color: '#94A3B8' }}>Hedef: {formatTRY(scoreData.breakdown.savings.ideal)}</div>
+              <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Hedef: {formatTRY(scoreData.breakdown.savings.ideal)}</div>
             </div>
           </div>
         </div>

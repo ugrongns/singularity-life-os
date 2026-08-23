@@ -80,8 +80,8 @@ export default function BudgetPage() {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px',
               height: '36px', padding: '0 14px', borderRadius: 'var(--radius-full)',
-              background: '#EEF2FF', border: '1px solid #C7D2FE',
-              fontSize: '12px', fontWeight: 800, color: '#4F46E5',
+              background: 'var(--indigo-bg)', border: '1px solid var(--border)',
+              fontSize: '12px', fontWeight: 800, color: 'var(--indigo)',
               cursor: 'pointer', whiteSpace: 'nowrap', width: 'auto', margin: 0
             }}
           >
@@ -108,8 +108,8 @@ export default function BudgetPage() {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px',
               height: '36px', padding: '0 16px', borderRadius: 'var(--radius-full)',
-              background: 'var(--text-main)', border: 'none',
-              fontSize: '12px', fontWeight: 700, color: 'white',
+              background: '#3B82F6', border: 'none',
+              fontSize: '12px', fontWeight: 700, color: '#FFFFFF',
               cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)',
               width: 'auto', margin: 0
             }}

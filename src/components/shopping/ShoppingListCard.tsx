@@ -208,7 +208,7 @@ export default function ShoppingListCard({
         {categoryTotals && Object.keys(categoryTotals).length > 0 && (
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
             {Object.entries(categoryTotals).map(([cat, total]) => (
-              <span key={cat} style={{ fontSize: '10px', fontWeight: 700, background: 'white', border: '1px solid var(--border)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-muted)' }}>
+              <span key={cat} style={{ fontSize: '10px', fontWeight: 700, background: 'var(--surface)', border: '1px solid var(--border)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-muted)' }}>
                 {CAT_ICONS[cat] || '📦'} {cat}: {formatTRY(total)}
               </span>
             ))}
@@ -217,7 +217,7 @@ export default function ShoppingListCard({
       </div>
 
       {/* Paket Filtreleme Barı (Sadece seçilen listeyi açar) */}
-      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', background: '#F8FAFC', padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', background: 'var(--surface-subtle)', padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
         <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)' }}>⚡ Paket Filtrele:</span>
         
         <button
@@ -225,9 +225,9 @@ export default function ShoppingListCard({
           onClick={() => setPresetFilter('all')}
           style={{
             fontSize: '11px', fontWeight: 800, padding: '5px 12px', borderRadius: '6px', cursor: 'pointer',
-            border: presetFilter === 'all' ? '1px solid #4F46E5' : '1px solid #CBD5E1',
-            background: presetFilter === 'all' ? '#4F46E5' : 'white',
-            color: presetFilter === 'all' ? 'white' : 'var(--text-main)'
+            border: presetFilter === 'all' ? '1px solid var(--blue)' : '1px solid var(--border)',
+            background: presetFilter === 'all' ? 'var(--blue)' : 'var(--surface)',
+            color: presetFilter === 'all' ? 'white' : 'var(--text-muted)'
           }}
         >
           ✨ Tümü
@@ -238,9 +238,9 @@ export default function ShoppingListCard({
           onClick={() => setPresetFilter('diet')}
           style={{
             fontSize: '11px', fontWeight: 800, padding: '5px 12px', borderRadius: '6px', cursor: 'pointer',
-            border: presetFilter === 'diet' ? '1px solid #059669' : '1px solid #CBD5E1',
-            background: presetFilter === 'diet' ? '#059669' : 'white',
-            color: presetFilter === 'diet' ? 'white' : 'var(--text-main)'
+            border: presetFilter === 'diet' ? '1px solid var(--emerald)' : '1px solid var(--border)',
+            background: presetFilter === 'diet' ? 'var(--emerald)' : 'var(--surface)',
+            color: presetFilter === 'diet' ? 'white' : 'var(--text-muted)'
           }}
         >
           🥑 Diyet Paketi
@@ -251,9 +251,9 @@ export default function ShoppingListCard({
           onClick={() => setPresetFilter('grocery')}
           style={{
             fontSize: '11px', fontWeight: 800, padding: '5px 12px', borderRadius: '6px', cursor: 'pointer',
-            border: presetFilter === 'grocery' ? '1px solid #D97706' : '1px solid #CBD5E1',
-            background: presetFilter === 'grocery' ? '#D97706' : 'white',
-            color: presetFilter === 'grocery' ? 'white' : 'var(--text-main)'
+            border: presetFilter === 'grocery' ? '1px solid var(--amber)' : '1px solid var(--border)',
+            background: presetFilter === 'grocery' ? 'var(--amber)' : 'var(--surface)',
+            color: presetFilter === 'grocery' ? 'white' : 'var(--text-muted)'
           }}
         >
           🍞 Temel Gıda Paketi
@@ -264,9 +264,9 @@ export default function ShoppingListCard({
           onClick={() => setPresetFilter('produce')}
           style={{
             fontSize: '11px', fontWeight: 800, padding: '5px 12px', borderRadius: '6px', cursor: 'pointer',
-            border: presetFilter === 'produce' ? '1px solid #2563EB' : '1px solid #CBD5E1',
-            background: presetFilter === 'produce' ? '#2563EB' : 'white',
-            color: presetFilter === 'produce' ? 'white' : 'var(--text-main)'
+            border: presetFilter === 'produce' ? '1px solid var(--indigo)' : '1px solid var(--border)',
+            background: presetFilter === 'produce' ? 'var(--indigo)' : 'var(--surface)',
+            color: presetFilter === 'produce' ? 'white' : 'var(--text-muted)'
           }}
         >
           🥗 Manav Paketi
@@ -280,7 +280,7 @@ export default function ShoppingListCard({
           placeholder="🔍 Ürün ara..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          style={{ flex: 1, minWidth: '160px', padding: '8px 12px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
+          style={{ flex: 1, minWidth: '160px', padding: '8px 12px', fontSize: '12px', background: 'var(--surface)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
         />
 
         <div style={{ display: 'flex', gap: '4px' }}>
@@ -288,9 +288,9 @@ export default function ShoppingListCard({
             onClick={() => setFilterView('unchecked')}
             style={{
               padding: '6px 10px', fontSize: '11px', fontWeight: 800, borderRadius: '6px',
-              border: filterView === 'unchecked' ? '1px solid #4F46E5' : '1px solid var(--border)',
-              background: filterView === 'unchecked' ? '#EEF2FF' : 'white',
-              color: filterView === 'unchecked' ? '#4F46E5' : 'var(--text-main)', cursor: 'pointer'
+              border: filterView === 'unchecked' ? '1px solid var(--blue)' : '1px solid var(--border)',
+              background: filterView === 'unchecked' ? 'var(--blue)' : 'var(--surface)',
+              color: filterView === 'unchecked' ? 'white' : 'var(--text-muted)', cursor: 'pointer'
             }}
           >
             Alınacaklar ({summary.remaining})
@@ -299,9 +299,9 @@ export default function ShoppingListCard({
             onClick={() => setFilterView('all')}
             style={{
               padding: '6px 10px', fontSize: '11px', fontWeight: 800, borderRadius: '6px',
-              border: filterView === 'all' ? '1px solid #4F46E5' : '1px solid var(--border)',
-              background: filterView === 'all' ? '#EEF2FF' : 'white',
-              color: filterView === 'all' ? '#4F46E5' : 'var(--text-main)', cursor: 'pointer'
+              border: filterView === 'all' ? '1px solid var(--blue)' : '1px solid var(--border)',
+              background: filterView === 'all' ? 'var(--blue)' : 'var(--surface)',
+              color: filterView === 'all' ? 'white' : 'var(--text-muted)', cursor: 'pointer'
             }}
           >
             Tümü ({summary.total})

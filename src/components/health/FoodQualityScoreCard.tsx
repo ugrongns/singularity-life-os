@@ -160,7 +160,7 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
 
                 {/* Katkı Maddeleri Analizi */}
                 {scan.additives_detected && (
-                  <div style={{ fontSize: '12px', color: isClean ? '#065F46' : '#991B1B', lineHeight: 1.4, background: isClean ? '#ECFDF5' : '#FEF2F2', padding: '8px 10px', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '12px', color: isClean ? 'var(--emerald)' : 'var(--rose)', lineHeight: 1.4, background: isClean ? 'var(--emerald-bg)' : 'var(--rose-bg)', border: `1px solid ${isClean ? 'rgba(16,185,129,0.3)' : 'rgba(244,63,94,0.3)'}`, padding: '8px 10px', borderRadius: '6px' }}>
                     ⚠️ <strong>İçerik Analizi:</strong> {scan.additives_detected}
                   </div>
                 )}

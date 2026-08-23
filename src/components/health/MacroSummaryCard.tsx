@@ -128,18 +128,18 @@ export default function MacroSummaryCard({
       </div>
 
       {/* 💧 Günlük Su Tüketimi Takibi */}
-      <div style={{ background: '#EFF6FF', border: '1px solid rgba(59, 130, 246, 0.2)', padding: '10px 12px', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div style={{ background: 'var(--blue-bg)', border: '1px solid var(--border)', padding: '10px 12px', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '12px', fontWeight: 700, color: '#1E40AF' }}>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--blue)' }}>
             💧 Su Tüketimi: {water.consumed_ml} / {water.target_ml} ml
           </span>
-          <span style={{ fontSize: '11px', fontWeight: 700, color: '#2563EB' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--blue)' }}>
             %{water.percentage}
           </span>
         </div>
 
         <div className="progress-bar" style={{ height: '6px' }}>
-          <div className="progress-fill" style={{ width: `${water.percentage}%`, backgroundColor: '#3B82F6' }} />
+          <div className="progress-fill" style={{ width: `${water.percentage}%`, backgroundColor: 'var(--blue)' }} />
         </div>
 
         {onAddWater && (
@@ -147,14 +147,14 @@ export default function MacroSummaryCard({
             <button 
               className="btn-subtle" 
               onClick={() => onAddWater(250)}
-              style={{ flex: 1, background: 'white', padding: '4px', fontSize: '11px', fontWeight: 600, color: '#2563EB', borderRadius: '4px', border: '1px solid rgba(59, 130, 246, 0.3)' }}
+              style={{ flex: 1, background: 'var(--surface)', padding: '4px', fontSize: '11px', fontWeight: 700, color: 'var(--blue)', borderRadius: '4px', border: '1px solid var(--border)' }}
             >
               +250 ml Bardak
             </button>
             <button 
               className="btn-subtle" 
               onClick={() => onAddWater(500)}
-              style={{ flex: 1, background: 'white', padding: '4px', fontSize: '11px', fontWeight: 600, color: '#2563EB', borderRadius: '4px', border: '1px solid rgba(59, 130, 246, 0.3)' }}
+              style={{ flex: 1, background: 'var(--surface)', padding: '4px', fontSize: '11px', fontWeight: 700, color: 'var(--blue)', borderRadius: '4px', border: '1px solid var(--border)' }}
             >
               +500 ml Şişe
             </button>

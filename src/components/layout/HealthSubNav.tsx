@@ -28,9 +28,10 @@ export default function HealthSubNav() {
           fontWeight: 800,
           borderRadius: '6px',
           textDecoration: 'none',
-          background: isHealth ? 'white' : 'transparent',
-          color: isHealth ? '#4F46E5' : 'var(--text-muted)',
-          boxShadow: isHealth ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+          background: isHealth ? 'var(--surface)' : 'transparent',
+          color: isHealth ? 'var(--blue)' : 'var(--text-muted)',
+          border: isHealth ? '1px solid var(--border)' : '1px solid transparent',
+          boxShadow: isHealth ? 'var(--shadow-sm)' : 'none',
           transition: 'all 0.2s'
         }}
       >
@@ -47,9 +48,10 @@ export default function HealthSubNav() {
           fontWeight: 800,
           borderRadius: '6px',
           textDecoration: 'none',
-          background: isWellness ? 'white' : 'transparent',
-          color: isWellness ? '#059669' : 'var(--text-muted)',
-          boxShadow: isWellness ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+          background: isWellness ? 'var(--surface)' : 'transparent',
+          color: isWellness ? 'var(--emerald)' : 'var(--text-muted)',
+          border: isWellness ? '1px solid var(--border)' : '1px solid transparent',
+          boxShadow: isWellness ? 'var(--shadow-sm)' : 'none',
           transition: 'all 0.2s'
         }}
       >
