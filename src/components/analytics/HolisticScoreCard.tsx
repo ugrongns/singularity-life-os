@@ -100,9 +100,9 @@ export default function HolisticScoreCard({ scoreData }: Props) {
       </div>
 
       {/* AI Günlük Tavsiye */}
-      <div style={{ background: '#EFF6FF', border: '1px solid rgba(59,130,246,0.25)', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div style={{ background: 'var(--blue-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <span style={{ fontSize: '20px' }}>💡</span>
-        <div style={{ fontSize: '12px', color: '#1E40AF', lineHeight: '1.4', fontWeight: 500 }}>
+        <div style={{ fontSize: '12px', color: 'var(--blue)', lineHeight: '1.4', fontWeight: 500 }}>
           {recommendation}
         </div>
       </div>

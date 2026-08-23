@@ -39,7 +39,7 @@ export default function FireAnalyticsCard({ fireMetrics, inflationMetrics }: Pro
           <span>🎯</span>
           <span>Finansal Özgürlük (FIRE) & Enflasyon Analitiği</span>
         </div>
-        <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: '#EEF2FF', color: '#4F46E5' }}>
+        <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: 'var(--indigo-bg)', color: 'var(--indigo)' }}>
           %4 Kuralı Modeli
         </span>
       </div>
@@ -54,7 +54,7 @@ export default function FireAnalyticsCard({ fireMetrics, inflationMetrics }: Pro
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <span style={{ fontSize: '24px', fontWeight: 900, color: '#10B981' }}>
+            <span style={{ fontSize: '24px', fontWeight: 900, color: 'var(--emerald)' }}>
               %{passiveCoveragePercent}
             </span>
             <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Yaşam Masrafı Karşılandı</div>
@@ -62,7 +62,7 @@ export default function FireAnalyticsCard({ fireMetrics, inflationMetrics }: Pro
         </div>
 
         <div className="budget-bar-track" style={{ height: '8px', marginTop: '6px' }}>
-          <div className="budget-bar-fill" style={{ width: `${Math.min(100, passiveCoveragePercent)}%`, backgroundColor: '#10B981' }} />
+          <div className="budget-bar-fill" style={{ width: `${Math.min(100, passiveCoveragePercent)}%`, backgroundColor: 'var(--emerald)' }} />
         </div>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
           Kira ve temettü gelirleriniz aylık zorunlu yaşam giderinizin <strong>%{passiveCoveragePercent}</strong>'ini tamamen pasif karşılıyor.
@@ -79,7 +79,7 @@ export default function FireAnalyticsCard({ fireMetrics, inflationMetrics }: Pro
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <span style={{ fontSize: '20px', fontWeight: 800, color: '#4F46E5' }}>
+            <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--indigo)' }}>
               %{fireProgressPercent}
             </span>
             <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Tam Bağımsızlık Hedefi</div>
@@ -87,12 +87,12 @@ export default function FireAnalyticsCard({ fireMetrics, inflationMetrics }: Pro
         </div>
 
         <div className="budget-bar-track" style={{ height: '8px', marginTop: '6px' }}>
-          <div className="budget-bar-fill" style={{ width: `${fireProgressPercent}%`, backgroundColor: '#4F46E5' }} />
+          <div className="budget-bar-fill" style={{ width: `${fireProgressPercent}%`, backgroundColor: 'var(--indigo)' }} />
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', fontSize: '11px' }}>
           <span style={{ color: 'var(--text-muted)' }}>Mevcut tasarruf ve pasif getiri hızıyla:</span>
-          <span style={{ fontWeight: 800, color: '#4F46E5', background: '#EEF2FF', padding: '2px 8px', borderRadius: '4px' }}>
+          <span style={{ fontWeight: 800, color: 'var(--indigo)', background: 'var(--indigo-bg)', padding: '2px 8px', borderRadius: '4px' }}>
             ~{yearsToFire} Yıl Sonra FIRE
           </span>
         </div>

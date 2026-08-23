@@ -149,7 +149,7 @@ export async function GET() {
     } catch (e) {}
 
     const totalMonthlyPassiveIncome = monthlyRentIncome + monthlyDividendEst;
-    const monthlyLivingExpenseEst = totalBudgetLimit;
+    const monthlyLivingExpenseEst = totalSpentThisMonth > 0 ? totalSpentThisMonth : (totalBudgetLimit > 0 ? totalBudgetLimit : 0);
 
     const passiveCoveragePercent = monthlyLivingExpenseEst > 0 ? Math.min(200, Math.round((totalMonthlyPassiveIncome / monthlyLivingExpenseEst) * 100)) : 0;
 
@@ -165,7 +165,7 @@ export async function GET() {
     const monthlySavingsEst = Math.max(0, monthlyLivingExpenseEst - totalSpentThisMonth);
     const remainingToFire = Math.max(0, fireTargetNumber - totalNetWorth);
     const totalAnnualSavings = (monthlySavingsEst * 12) + (totalMonthlyPassiveIncome * 12);
-    const yearsToFire = (totalNetWorth > 0 && totalAnnualSavings > 0)
+    const yearsToFire = (totalNetWorth > 0 && totalAnnualSavings > 0 && remainingToFire > 0)
       ? Math.max(0.1, Math.round((remainingToFire / totalAnnualSavings) * 10) / 10)
       : 0;
 
@@ -174,6 +174,7 @@ export async function GET() {
     // ==========================================
     const personalInflationRate = totalSpentThisMonth > 0 ? 46.8 : 0;
     const officialTuikRate = 58.5;
+    const savingVsOfficialTuikPercent = personalInflationRate > 0 ? Math.round((officialTuikRate - personalInflationRate) * 10) / 10 : 0;
 
     return NextResponse.json({
       success: true,
@@ -188,6 +189,7 @@ export async function GET() {
             mind: { score: mindScore, max: 25, label: 'Zihin & İkinci Beyin' }
           },
           recommendation: (() => {
+            if (totalLifeScore === 0) return '💡 İlk harcamanızı, su tüketiminizi veya okuduğunuz kitabı kaydederek yaşam skorunuzu oluşturmaya başlayın!';
             if (totalLifeScore >= 95) return '🌟 Mükemmel ritim! Tüm sistemleriniz hedef doğrultusunda kusursuz çalışıyor.';
             const lowest = Math.min(financeScore, healthScore, wellnessScore, mindScore);
             if (lowest === financeScore) {
@@ -214,7 +216,7 @@ export async function GET() {
         inflationMetrics: {
           personalInflationRate,
           officialTuikRate,
-          savingVsOfficialTuikPercent: Math.round((officialTuikRate - personalInflationRate) * 10) / 10,
+          savingVsOfficialTuikPercent,
           basketSummary: 'Akaryakıt, Gıda & Kira sepetindeki reel harcama verilerine dayalı kişisel enflasyon endeksi'
         }
       }
