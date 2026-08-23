@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { walletsAccounts, categories, transactions, investmentAssets, besContracts, realEstateProperties, vehicleLegalReminders, familyMembers } from '@/db/schema';
+import { walletsAccounts, categories, transactions, vehicleLegalReminders, familyMembers } from '@/db/schema';
 import { desc, asc, eq, and, sql , or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
@@ -24,51 +24,34 @@ export async function GET(req: Request) {
     const GOLD_GRAM_RATE = 3180;
     const BTC_RATE = 3500000;
 
-    // 1. Hesaplar & Cüzdanlar ve Yatırımlar
+    const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
+
+    // 1. Hesaplar & Cüzdanlar
     const rawAccounts = userId
-      ? await db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1))))
+      ? await db.select().from(walletsAccounts).where(
+          and(
+            eq(walletsAccounts.is_active, 1),
+            familyId
+              ? and(eq(walletsAccounts.family_id, familyId), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))
+              : eq(walletsAccounts.user_id, userId)
+          )
+        )
       : [];
-    const assets = userId
-      ? await db.select().from(investmentAssets).where(and(eq(investmentAssets.is_active, 1), or(eq(investmentAssets.user_id, userId), eq(investmentAssets.is_family_shared, 1))))
-      : [];
-
-    // Yatırım hesapları için bağlı varlıkların canlı TL değerini ve özetini hesapla
-    const accounts = (rawAccounts).map((acc: any) => {
-      const isInvAcc = ['brokerage', 'crypto_exchange', 'crypto_wallet'].includes(acc.type);
-      if (!isInvAcc) return acc;
-
-      const linkedAssets = (assets).filter((a: any) => a.account_id === acc.id);
-      let calculatedBalanceTRY = 0;
-      const summaries: string[] = [];
-
-      for (const a of linkedAssets) {
-        const isUSD = a.current_price_currency === 'USD';
-        const isEUR = a.current_price_currency === 'EUR';
-        const rate = isUSD ? USD_RATE : isEUR ? EUR_RATE : 1.0;
-        const price = a.asset_class === 'cash_fiat' ? (a.current_price || 1) : a.current_price;
-        const valTRY = a.quantity * price * rate;
-        calculatedBalanceTRY += valTRY;
-        summaries.push(`${a.symbol} (${a.quantity.toLocaleString('tr-TR')})`);
-      }
-
-      return {
-        ...acc,
-        balance: linkedAssets.length > 0 ? Math.round(calculatedBalanceTRY) : acc.balance,
-        assets_count: linkedAssets.length,
-        assets_summary: summaries.slice(0, 3).join(', ')
-      };
-    });
+    const accounts = rawAccounts;
 
     // 2. Kategoriler
     const allCategories = await db.select().from(categories);
     const categoryMap = new Map((allCategories).map((c: any) => [c.id, c]));
 
     // 3. Son 5 Harcama (Geçmiş İşlemler)
-    // Taksitli işlemlerden sadece 1. dilimi göster (sonraki dilimler kredi kartı borcu olarak zaten takip ediliyor)
     const allRecentTx = userId
       ? await db.select()
           .from(transactions)
-          .where(or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)))
+          .where(
+            familyId
+              ? and(eq(transactions.family_id, familyId), or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)))
+              : eq(transactions.user_id, userId)
+          )
           .orderBy(desc(transactions.transaction_date), desc(transactions.created_at))
           .limit(50)
       : [];
@@ -192,7 +175,9 @@ export async function GET(req: Request) {
     const monthlyTx = userId
       ? await db.select().from(transactions).where(
           and(
-            or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)),
+            familyId
+              ? and(eq(transactions.family_id, familyId), or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)))
+              : eq(transactions.user_id, userId),
             sql`substr(${transactions.transaction_date}, 1, 7) = ${currentMonthStr}`
           )
         )
@@ -249,7 +234,14 @@ export async function GET(req: Request) {
         const pastMonth = localYYYYMM(pastDate);
         const pastTxs = userId
           ? await db.select().from(transactions)
-              .where(and(or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)), sql`substr(${transactions.transaction_date}, 1, 7) = ${pastMonth}`))
+              .where(
+                and(
+                  familyId
+                    ? and(eq(transactions.family_id, familyId), or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)))
+                    : eq(transactions.user_id, userId),
+                  sql`substr(${transactions.transaction_date}, 1, 7) = ${pastMonth}`
+                )
+              )
           : [];
         const pastIncome = (pastTxs)
           .filter((t: any) => {
@@ -348,25 +340,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // Yatırımlar Değeri (Hisse, Altın, Kripto, Nakit Bakiye)
-    let totalInvestmentsTRY = 0;
-    for (const a of assets) {
-      const isUSD = a.current_price_currency === 'USD';
-      const isEUR = a.current_price_currency === 'EUR';
-      const rate = isUSD ? USD_RATE : isEUR ? EUR_RATE : 1.0;
-      const price = a.asset_class === 'cash_fiat' ? (a.current_price || 1) : a.current_price;
-      totalInvestmentsTRY += a.quantity * price * rate;
-    }
-
-    // BES Fon Büyüklüğü
-    const besList = userId ? await db.select().from(besContracts).where(or(eq(besContracts.user_id, userId), eq(besContracts.is_family_shared, 1))) : [];
-    const totalBesTRY = (besList).reduce((sum: number, b: any) => sum + b.current_fund_value, 0);
-
-    // Gayrimenkul Rayiç Değeri
-    const properties = userId ? await db.select().from(realEstateProperties).where(or(eq(realEstateProperties.user_id, userId), eq(realEstateProperties.is_family_shared, 1))) : [];
-    const totalRealEstateTRY = (properties).reduce((sum: number, p: any) => sum + p.estimated_market_value, 0);
-
-    const netWorthTRY = totalCashAssetsTRY + totalInvestmentsTRY + totalBesTRY + totalRealEstateTRY - totalDebtsTRY;
+    const netWorthTRY = totalCashAssetsTRY - totalDebtsTRY;
 
     const multiCurrencyNetWorth = {
       TRY: netWorthTRY,
@@ -376,8 +350,8 @@ export async function GET(req: Request) {
       BTC: (netWorthTRY / BTC_RATE).toFixed(2),
       breakdown: {
         cashAndBanks: totalCashAssetsTRY,
-        investmentsAndBES: totalInvestmentsTRY + totalBesTRY,
-        realEstate: totalRealEstateTRY,
+        investmentsAndBES: 0,
+        realEstate: 0,
         debts: totalDebtsTRY
       }
     };
@@ -407,7 +381,14 @@ export async function GET(req: Request) {
       const monthTxs = userId
         ? await db.select()
             .from(transactions)
-            .where(and(or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)), sql`substr(${transactions.transaction_date}, 1, 7) = ${fMonthStr}`))
+            .where(
+              and(
+                familyId
+                  ? and(eq(transactions.family_id, familyId), or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)))
+                  : eq(transactions.user_id, userId),
+                sql`substr(${transactions.transaction_date}, 1, 7) = ${fMonthStr}`
+              )
+            )
         : [];
 
       const installmentTxs = (monthTxs).filter((t: any) => t.is_installment === 1);

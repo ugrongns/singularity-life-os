@@ -70,10 +70,11 @@ export async function POST(req: Request) {
     const createdTxIds: string[] = [];
 
     const userId = user.id;
+    const familyId = user.family_id || `fam-${user.id}`;
 
     let memberId = body.member_id || null;
     if (!memberId) {
-      const member = (await db.select().from(familyMembers).where(eq(familyMembers.is_active, 1)))[0];
+      const member = (await db.select().from(familyMembers).where(and(eq(familyMembers.is_active, 1), eq(familyMembers.family_id, familyId))))[0];
       memberId = member?.id || null;
     }
 
@@ -91,6 +92,7 @@ export async function POST(req: Request) {
         category_id: finalCategoryId,
         member_id: memberId,
         user_id: userId,
+        family_id: familyId,
         merchant: merchant || (isIncome ? 'Gelir Girişi' : 'Genel Harcama'),
         amount: monthlyAmount,
         currency: 'TRY',

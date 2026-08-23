@@ -181,30 +181,45 @@ export default function SecuritySettingsCard() {
   };
 
   const handleResetData = async () => {
-    if (confirm('⚠️ DİKKAT: Hesabınıza ait tüm cüzdanlar, yatırımlar, harcamalar, araçlar, belgeler ve sağlık kayıtları KALICI OLARAK SİLİNECEKTİR!\n\nBu işlem geri alınamaz. Devam etmek istiyor musunuz?')) {
-      if (confirm('Son onay: Tüm kişisel verilerinizi sıfırlamayı ve temizlemeyi onaylıyor musunuz?')) {
-        try {
-          setSaving(true);
-          const res = await fetch('/api/auth/reset-user-data', { method: 'POST' });
-          const json = await res.json();
-          if (json.success) {
-            // Tema tercihi hariç tüm istemci önbelleklerini temizle
-            const currentTheme = localStorage.getItem('singularity_theme');
-            localStorage.clear();
-            sessionStorage.clear();
-            if (currentTheme) {
-              localStorage.setItem('singularity_theme', currentTheme);
-            }
-            alert(json.message);
-            window.location.href = '/';
-          } else {
-            alert('❌ Hata: ' + (json.error || 'Sıfırlama başarısız.'));
+    const isAdmin = currentUser?.role === 'admin';
+    let scope = 'personal';
+
+    if (isAdmin) {
+      const choice = confirm(
+        '⚠️ SIFIRLAMA SEÇENEĞİ:\n\n[TAMAM] -> Ailenize ait TÜM ORTAK verileri (Araçlar, Faturalar, Ortak Cüzdanlar) ve kendi kişisel verilerinizi sıfırlar.\n[İPTAL] -> Yalnızca kendi KİŞİSEL verilerinizi (Sağlık, Kütüphane) sıfırlamak için İptal butonuna basın.'
+      );
+      scope = choice ? 'family' : 'personal';
+    }
+
+    const confirmMsg = scope === 'family'
+      ? '🚨 SON ONAY: Ailenizin tüm ortak verileri ve sizin kişisel kayıtlarınız sıfırlanacaktır. Devam edilsin mi?'
+      : '🚨 SON ONAY: Sadece size ait kişisel kayıtlar (Sağlık, Kütüphane, Bireysel Notlar) sıfırlanacaktır. Aile ortak havuzuna dokunulmayacaktır. Onaylıyor musunuz?';
+
+    if (confirm(confirmMsg)) {
+      try {
+        setSaving(true);
+        const res = await fetch('/api/auth/reset-user-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scope })
+        });
+        const json = await res.json();
+        if (json.success) {
+          const currentTheme = localStorage.getItem('singularity_theme');
+          localStorage.clear();
+          sessionStorage.clear();
+          if (currentTheme) {
+            localStorage.setItem('singularity_theme', currentTheme);
           }
-        } catch (err) {
-          alert('❌ Bağlantı hatası.');
-        } finally {
-          setSaving(false);
+          alert(json.message);
+          window.location.href = '/';
+        } else {
+          alert('❌ Hata: ' + (json.error || 'Sıfırlama başarısız.'));
         }
+      } catch (err) {
+        alert('❌ Bağlantı hatası.');
+      } finally {
+        setSaving(false);
       }
     }
   };

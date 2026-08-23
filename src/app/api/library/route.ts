@@ -11,7 +11,7 @@ export async function GET() {
     const userId = user?.id;
 
     const allBooks = userId
-      ? await db.select().from(books).where(or(eq(books.user_id, userId), eq(books.is_family_shared, 1))).orderBy(desc(books.created_at))
+      ? await db.select().from(books).where(eq(books.user_id, userId)).orderBy(desc(books.created_at))
       : [];
     const allSessions = await db.select().from(readingSessions);
     const profile = (userId ? (await db.select().from(userReadingProfile).where(eq(userReadingProfile.user_id, userId)).limit(1))[0] : null) || {

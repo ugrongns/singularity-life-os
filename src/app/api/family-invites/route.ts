@@ -56,7 +56,11 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { family_role = 'spouse', target_name = '' } = body;
+    const {
+      family_role = 'member',
+      relationship_type = 'spouse',
+      target_name = ''
+    } = body;
 
     const now = new Date();
     const nowISO = now.toISOString();
@@ -65,12 +69,15 @@ export async function POST(req: Request) {
     const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const code = generateInviteCode();
     const inviteId = `inv-${Date.now()}`;
+    const familyId = user.family_id || `fam-${user.id}`;
 
     await db.insert(familyInvites).values({
       id: inviteId,
+      family_id: familyId,
       invite_code: code,
       created_by_user_id: user.id,
-      family_role,
+      family_role: family_role || 'member',
+      relationship_type: relationship_type || 'spouse',
       target_name: target_name?.trim() || null,
       expires_at: expiresAt,
       is_used: 0,
@@ -84,6 +91,7 @@ export async function POST(req: Request) {
         invite_code: code,
         expires_at: expiresAt,
         family_role,
+        relationship_type,
         target_name: target_name?.trim() || null
       }
     });

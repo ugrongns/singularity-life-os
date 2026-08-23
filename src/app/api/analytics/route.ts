@@ -9,10 +9,7 @@ import {
   supplementRoutines,
   sleepLogs,
   moodLogs,
-  books,
-  realEstateProperties,
-  investmentAssets,
-  investmentDividends
+  books
 } from '@/db/schema';
 import { eq, and , or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
@@ -39,84 +36,54 @@ export async function GET() {
       ccDebt = (wallets).reduce((sum: number, w: any) => sum + (w.type === 'credit_card' ? Math.abs(w.balance || 0) : 0), 0);
     } catch (e) {}
 
+    let totalSpentThisMonth = 0;
     let totalBudgetLimit = 0;
     try {
-      const allCategories = (await db.select().from(categories)) || [];
-      totalBudgetLimit = (allCategories).reduce((sum: number, c: any) => sum + (c.monthly_budget_limit || 0), 0);
-    } catch (e) {}
+      const allCats = await db.select().from(categories);
+      totalBudgetLimit = (allCats).reduce((sum: number, c: any) => sum + (c.monthly_budget_limit || 0), 0);
 
-    let totalSpentThisMonth = 0;
-    try {
-      const allTxs = userId
+      const txs = userId
         ? await db.select().from(transactions).where(or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)))
         : [];
-      totalSpentThisMonth = (allTxs)
-        .filter((tx: any) => tx?.transaction_date && String(tx.transaction_date).startsWith(currentMonth))
-        .reduce((sum: number, tx: any) => sum + (Number(tx.amount) || 0), 0);
+      const thisMonthTxs = (txs).filter((t: any) => t.transaction_date && t.transaction_date.startsWith(currentMonth));
+      totalSpentThisMonth = thisMonthTxs.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
     } catch (e) {}
 
-    const budgetRatio = totalBudgetLimit > 0 ? totalSpentThisMonth / totalBudgetLimit : 0;
-    let financeScore = 0;
-    if (totalSpentThisMonth > 0 || liquidBalance > 0) {
-      if (budgetRatio <= 0.70) financeScore = 25;
-      else if (budgetRatio <= 0.85) financeScore = 22;
-      else if (budgetRatio <= 1.0) financeScore = 18;
-      else financeScore = 12;
-    }
+    let financeScore = 15;
+    if (totalBudgetLimit > 0 && totalSpentThisMonth <= totalBudgetLimit) financeScore += 5;
+    if (liquidBalance > ccDebt * 2) financeScore += 5;
 
     // ==========================================
-    // 2. 🧬 BİYOMETRİK & BESLENME SKORU (0-25 Puan)
+    // 2. 🩺 SAĞLIK SKORU (0-25 Puan)
     // ==========================================
-    let healthScore = 0;
+    let healthScore = 18;
     try {
-      const health = userId
-        ? (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1))[0]
-        : null;
-      if (health) {
-        const waterRatio = (health.consumed_water_ml || 0) / (health.daily_water_target_ml || 2500);
-        const activeFasting = userId
-          ? (await db.select().from(fastingSessions).where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, userId))).limit(1))[0]
-          : null;
-        healthScore = 18;
-        if (waterRatio >= 0.9) healthScore += 5;
-        else if (waterRatio >= 0.6) healthScore += 3;
-        if (activeFasting) healthScore += 2;
-        healthScore = Math.min(25, healthScore);
-      }
+      const hp = (await db.select().from(userHealthProfile).limit(1))[0];
+      if (hp && hp.consumed_water_ml >= hp.daily_water_target_ml) healthScore += 4;
+      const fasting = (await db.select().from(fastingSessions).limit(1))[0];
+      if (fasting && fasting.is_active === 0) healthScore += 3;
     } catch (e) {}
 
     // ==========================================
-    // 3. 💊 WELLNESS & UYKU SKORU (0-25 Puan)
+    // 3. 🧘 WELLNESS & RUH HALİ SKORU (0-25 Puan)
     // ==========================================
-    let wellnessScore = 0;
+    let wellnessScore = 20;
     try {
-      const supplements = userId
-        ? await db.select().from(supplementRoutines).where(eq(supplementRoutines.user_id, userId))
+      const lastSleep = (await db.select().from(sleepLogs).limit(1))[0];
+      if (lastSleep && lastSleep.duration_hours >= 7) wellnessScore += 3;
+      const lastMood = (await db.select().from(moodLogs).limit(1))[0];
+      if (lastMood && lastMood.mood_score >= 4) wellnessScore += 2;
+    } catch (e) {}
+
+    // ==========================================
+    // 4. 📚 ZİHİN & OKUMA SKORU (0-25 Puan)
+    // ==========================================
+    let mindScore = 17;
+    try {
+      const activeBooks = userId
+        ? await db.select().from(books).where(and(eq(books.user_id, userId), eq(books.status, 'reading')))
         : [];
-      if (supplements.length > 0) {
-        const takenSupps = (supplements).filter((s: any) => s.is_taken_today === 1).length;
-        const suppRatio = takenSupps / supplements.length;
-        wellnessScore = 16;
-        if (suppRatio >= 0.75) wellnessScore += 5;
-      }
-    } catch (e) {}
-
-    // ==========================================
-    // 4. 📚 ZİHİN & İKİNCİ BEYİN SKORU (0-25 Puan)
-    // ==========================================
-    let mindScore = 0;
-    try {
-      const allBooks = userId
-        ? await db.select().from(books).where(or(eq(books.user_id, userId), eq(books.is_family_shared, 1)))
-        : [];
-      if (allBooks.length > 0) {
-        const activeBook = (allBooks).find((b: any) => b.status === 'reading');
-        const completedBooks = (allBooks).filter((b: any) => b.status === 'completed').length;
-        mindScore = 18;
-        if (activeBook && (activeBook.current_page || 0) > 0) mindScore += 5;
-        if (completedBooks >= 1) mindScore += 2;
-        mindScore = Math.min(25, mindScore);
-      }
+      if (activeBooks.length > 0) mindScore += 8;
     } catch (e) {}
 
     // TOPLAM BÜTÜNSEL YAŞAM SKORU
@@ -125,40 +92,16 @@ export async function GET() {
     // ==========================================
     // 5. 🎯 FIRE (FİNANSAL ÖZGÜRLÜK) ANALİTİĞİ
     // ==========================================
-    let monthlyRentIncome = 0;
-    let propertyValue = 0;
-    try {
-      const properties = userId
-        ? await db.select().from(realEstateProperties).where(or(eq(realEstateProperties.user_id, userId), eq(realEstateProperties.is_family_shared, 1)))
-        : [];
-      if (properties.length > 0) {
-        monthlyRentIncome = (properties).reduce((sum: number, p: any) => sum + (Number(p.monthly_rent_income) || 0), 0);
-        propertyValue = (properties).reduce((sum: number, p: any) => sum + (Number(p.estimated_market_value) || 0), 0);
-      }
-    } catch (e) {}
-
-    let monthlyDividendEst = 0;
-    let liquidAssetValue = 0;
-    try {
-      const assets = userId
-        ? await db.select().from(investmentAssets).where(or(eq(investmentAssets.user_id, userId), eq(investmentAssets.is_family_shared, 1)))
-        : [];
-      if (assets.length > 0) {
-        liquidAssetValue = (assets).reduce((sum: number, a: any) => sum + ((Number(a.quantity) || 0) * (Number(a.current_price) || 0)), 0);
-      }
-    } catch (e) {}
-
-    const totalMonthlyPassiveIncome = monthlyRentIncome + monthlyDividendEst;
+    const totalMonthlyPassiveIncome = 0;
     const monthlyLivingExpenseEst = totalSpentThisMonth > 0 ? totalSpentThisMonth : (totalBudgetLimit > 0 ? totalBudgetLimit : 0);
-
-    const passiveCoveragePercent = monthlyLivingExpenseEst > 0 ? Math.min(200, Math.round((totalMonthlyPassiveIncome / monthlyLivingExpenseEst) * 100)) : 0;
+    const passiveCoveragePercent = 0;
 
     // FIRE Numarası (%4 Kuralı = Yıllık Gider x 25)
     const annualExpense = monthlyLivingExpenseEst * 12;
     const fireTargetNumber = annualExpense * 25;
 
     // Toplam Net Değer
-    const totalNetWorth = propertyValue + liquidAssetValue + liquidBalance - ccDebt;
+    const totalNetWorth = liquidBalance - ccDebt;
     const fireProgressPercent = fireTargetNumber > 0 ? Math.min(100, Math.round((totalNetWorth / fireTargetNumber) * 100)) : 0;
 
     // Kalan Yıl Tahmini

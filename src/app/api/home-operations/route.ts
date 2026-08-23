@@ -9,8 +9,9 @@ export async function GET() {
     initDatabase();
     const user = await getAuthUser();
     const userId = user?.id;
+    const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
     
-    const records = userId ? await db.select().from(homeMaintenanceRecords).where(eq(homeMaintenanceRecords.user_id, userId)) : [];
+    const records = userId ? await db.select().from(homeMaintenanceRecords).where(familyId ? eq(homeMaintenanceRecords.family_id, familyId) : eq(homeMaintenanceRecords.user_id, userId)) : [];
     const today = new Date();
 
     const processedMaintenance = (records).map((rec: any) => {
@@ -26,7 +27,7 @@ export async function GET() {
     });
 
     // Ev Demirbaşları & Garanti Süreleri
-    const appliances = userId ? await db.select().from(homeAppliances).where(eq(homeAppliances.user_id, userId)) : [];
+    const appliances = userId ? await db.select().from(homeAppliances).where(familyId ? eq(homeAppliances.family_id, familyId) : eq(homeAppliances.user_id, userId)) : [];
     const processedAppliances = (appliances).map((app: any) => {
       let daysLeftWarranty = null;
       let isWarrantyActive = false;
@@ -65,6 +66,7 @@ export async function POST(req: Request) {
     const { action, record_id, months = 6, ...data } = body;
     const now = new Date();
     const nowStr = now.toISOString();
+    const familyId = user.family_id || `fam-${user.id}`;
 
     // Filtre / Bakım Yenileme (Reset Interval)
     if (action === 'reset_filter' || record_id) {
@@ -102,6 +104,8 @@ export async function POST(req: Request) {
         interval_months: interval,
         cost_estimate: parseFloat(data.cost_estimate) || 0,
         status: 'ok',
+        user_id: user.id,
+        family_id: familyId,
         created_at: nowStr,
         updated_at: nowStr
       });
@@ -126,6 +130,8 @@ export async function POST(req: Request) {
         warranty_expiry_date: expiryDate,
         service_phone: data.service_phone || '',
         notes: data.notes || '',
+        user_id: user.id,
+        family_id: familyId,
         created_at: nowStr,
         updated_at: nowStr
       });

@@ -25,10 +25,21 @@ export async function initDatabase() {
   isInitDone = true;
   try {
     const createTablesSQL = `
-      CREATE TABLE IF NOT EXISTS family_members (
+      CREATE TABLE IF NOT EXISTS families (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
+        created_by_user_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS family_members (
+        id TEXT PRIMARY KEY,
+        family_id TEXT,
+        user_id TEXT,
+        name TEXT NOT NULL,
         role TEXT NOT NULL DEFAULT 'admin',
+        relationship_type TEXT DEFAULT 'member',
         avatar TEXT DEFAULT '👤',
         is_active INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
@@ -39,9 +50,11 @@ export async function initDatabase() {
 
       CREATE TABLE IF NOT EXISTS family_invites (
         id TEXT PRIMARY KEY,
+        family_id TEXT,
         invite_code TEXT NOT NULL UNIQUE,
         created_by_user_id TEXT NOT NULL,
         family_role TEXT NOT NULL DEFAULT 'member',
+        relationship_type TEXT DEFAULT 'spouse',
         target_name TEXT,
         expires_at TEXT NOT NULL,
         is_used INTEGER NOT NULL DEFAULT 0,
@@ -254,94 +267,6 @@ export async function initDatabase() {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         user_id TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS investment_assets (
-        id TEXT PRIMARY KEY,
-        member_id TEXT REFERENCES family_members(id),
-        account_id TEXT REFERENCES wallets_accounts(id),
-        symbol TEXT NOT NULL,
-        name TEXT NOT NULL,
-        asset_class TEXT NOT NULL,
-        quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
-        avg_cost DOUBLE PRECISION NOT NULL DEFAULT 0,
-        cost_currency TEXT NOT NULL DEFAULT 'TRY',
-        current_price DOUBLE PRECISION NOT NULL DEFAULT 0,
-        current_price_currency TEXT NOT NULL DEFAULT 'TRY',
-        purchase_date TEXT,
-        last_updated_at TEXT NOT NULL,
-        is_family_shared INTEGER NOT NULL DEFAULT 1,
-        is_active INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        sync_status TEXT NOT NULL DEFAULT 'synced',
-        device_id TEXT DEFAULT 'web-client',
-        user_id TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS investment_dividends (
-        id TEXT PRIMARY KEY,
-        asset_id TEXT NOT NULL REFERENCES investment_assets(id),
-        dividend_date TEXT NOT NULL,
-        amount_per_share DOUBLE PRECISION NOT NULL,
-        total_amount DOUBLE PRECISION NOT NULL,
-        currency TEXT NOT NULL DEFAULT 'TRY',
-        treatment_type TEXT NOT NULL DEFAULT 'cash_payout',
-        reinvested_quantity DOUBLE PRECISION DEFAULT 0,
-        is_family_shared INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS bes_contracts (
-        id TEXT PRIMARY KEY,
-        member_id TEXT REFERENCES family_members(id),
-        company TEXT NOT NULL,
-        contract_no TEXT,
-        start_date TEXT,
-        total_principal DOUBLE PRECISION NOT NULL DEFAULT 0,
-        state_contribution_rate DOUBLE PRECISION NOT NULL DEFAULT 0.30,
-        state_contribution_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
-        current_fund_value DOUBLE PRECISION NOT NULL DEFAULT 0,
-        monthly_payment DOUBLE PRECISION DEFAULT 0,
-        is_family_shared INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        user_id TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS real_estate_properties (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        address TEXT,
-        property_type TEXT NOT NULL DEFAULT 'residential',
-        purchase_price DOUBLE PRECISION DEFAULT 0,
-        estimated_market_value DOUBLE PRECISION NOT NULL DEFAULT 0,
-        currency TEXT NOT NULL DEFAULT 'TRY',
-        monthly_rent_income DOUBLE PRECISION NOT NULL DEFAULT 0,
-        tenant_name TEXT,
-        tenant_phone TEXT,
-        rent_due_day INTEGER DEFAULT 5,
-        lease_start_date TEXT,
-        tufe_rate_percent DOUBLE PRECISION DEFAULT 58.5,
-        deposit_amount DOUBLE PRECISION DEFAULT 0,
-        is_occupied INTEGER NOT NULL DEFAULT 1,
-        is_family_shared INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        user_id TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS real_estate_cashflows (
-        id TEXT PRIMARY KEY,
-        property_id TEXT NOT NULL REFERENCES real_estate_properties(id),
-        type TEXT NOT NULL,
-        amount DOUBLE PRECISION NOT NULL,
-        currency TEXT NOT NULL DEFAULT 'TRY',
-        date TEXT NOT NULL,
-        notes TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS books (
@@ -702,31 +627,6 @@ export async function initDatabase() {
         device_name TEXT DEFAULT 'web-client',
         created_at TEXT NOT NULL
       );
-
-      CREATE TABLE IF NOT EXISTS flex_interest_accounts (
-        id TEXT PRIMARY KEY,
-        account_id TEXT NOT NULL REFERENCES wallets_accounts(id),
-        is_active INTEGER NOT NULL DEFAULT 0,
-        annual_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS flex_interest_earnings (
-        id TEXT PRIMARY KEY,
-        flex_account_id TEXT REFERENCES flex_interest_accounts(id),
-        wallet_account_id TEXT NOT NULL REFERENCES wallets_accounts(id),
-        start_date TEXT NOT NULL,
-        end_date TEXT NOT NULL,
-        days INTEGER NOT NULL,
-        principal_amount DOUBLE PRECISION NOT NULL,
-        interest_rate DOUBLE PRECISION NOT NULL,
-        earned_amount DOUBLE PRECISION NOT NULL,
-        actual_amount DOUBLE PRECISION NOT NULL,
-        currency TEXT NOT NULL DEFAULT 'TRY',
-        notes TEXT,
-        created_at TEXT NOT NULL
-      );
     `;
 
     const seedCategoriesSQL = `
@@ -748,7 +648,29 @@ export async function initDatabase() {
       ALTER TABLE books ADD COLUMN IF NOT EXISTS purchased_from TEXT;
       ALTER TABLE books ADD COLUMN IF NOT EXISTS purchase_price DOUBLE PRECISION;
       ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS user_id TEXT;
-      ALTER TABLE investment_assets ADD COLUMN IF NOT EXISTS account_id TEXT;
+      ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS relationship_type TEXT DEFAULT 'leader';
+      ALTER TABLE family_members ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE family_members ADD COLUMN IF NOT EXISTS user_id TEXT;
+      ALTER TABLE family_members ADD COLUMN IF NOT EXISTS relationship_type TEXT DEFAULT 'member';
+      ALTER TABLE family_invites ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE family_invites ADD COLUMN IF NOT EXISTS relationship_type TEXT DEFAULT 'spouse';
+      ALTER TABLE wallets_accounts ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE personal_debts_receivables ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE categories ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE sinking_funds ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE home_maintenance_records ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE home_appliances ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE digital_vault_items ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE important_dates ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE pet_records ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE sleep_logs ADD COLUMN IF NOT EXISTS user_id TEXT;
+      ALTER TABLE mood_logs ADD COLUMN IF NOT EXISTS user_id TEXT;
+      ALTER TABLE water_intake_logs ADD COLUMN IF NOT EXISTS user_id TEXT;
+      ALTER TABLE biometrics ADD COLUMN IF NOT EXISTS user_id TEXT;
+      ALTER TABLE shopping_list_items ADD COLUMN IF NOT EXISTS family_id TEXT;
     `;
 
     await pgClient.unsafe(createTablesSQL);

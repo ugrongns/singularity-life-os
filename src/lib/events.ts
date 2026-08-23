@@ -49,8 +49,6 @@ export const EVENTS = {
   INSTALLMENT_SCHEDULED: 'installment:scheduled',
   FUEL_RECEIPT_RECORDED: 'vehicle:fuel_recorded',
   VEHICLE_MAINTENANCE_RECORDED: 'vehicle:maintenance_recorded',
-  RENT_COLLECTED: 'realestate:rent_collected',
-  DIVIDEND_RECORDED: 'investment:dividend_recorded',
   DIET_MEAL_RECORDED: 'health:meal_recorded',
   BACKUP_REQUESTED: 'system:backup_requested',
 };
@@ -120,27 +118,7 @@ eventBus.subscribe(EVENTS.VEHICLE_MAINTENANCE_RECORDED, async (data: any) => {
   }
 });
 
-// 3. Kira Tahsil Edildiğinde: Cüzdan Bakiyesi & Entegrasyon Kontrolü
-eventBus.subscribe(EVENTS.RENT_COLLECTED, async (data: any) => {
-  try {
-    initDatabase();
-    console.log(`[EventBus] 🏠 Kira tahsilat olayı onaylandı: Mülk ${data.property_id}, Tutar: ${data.amount} TL`);
-  } catch (err) {
-    console.error('[EventBus Error - RENT_COLLECTED]:', err);
-  }
-});
-
-// 4. Temettü Kaydedildiğinde: Gelir Dağıtımı & Varlık Getirisi
-eventBus.subscribe(EVENTS.DIVIDEND_RECORDED, async (data: any) => {
-  try {
-    initDatabase();
-    console.log(`[EventBus] 📈 Temettü olayı işlendi: Varlık ${data.asset_id}, Tutar: ${data.total_amount} TL`);
-  } catch (err) {
-    console.error('[EventBus Error - DIVIDEND_RECORDED]:', err);
-  }
-});
-
-// 5. Beslenme Öğünü Kaydedildiğinde: Günlük Kalori & Makro Hedef Takibi
+// 3. Beslenme Öğünü Kaydedildiğinde: Günlük Kalori & Makro Hedef Takibi
 eventBus.subscribe(EVENTS.DIET_MEAL_RECORDED, async (data: any) => {
   try {
     initDatabase();

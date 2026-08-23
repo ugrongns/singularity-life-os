@@ -8,27 +8,45 @@ export async function GET() {
   try {
     initDatabase();
     const user = await getAuthUser();
-    
-    // Aktif üyeleri getir
-    let members = await db.select().from(familyMembers).where(eq(familyMembers.is_active, 1));
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Oturum bulunamadı.' }, { status: 401 });
+    }
 
-    // Veritabanında henüz aile üyesi yoksa ana kullanıcıyı otomatik 1. üye olarak ekle (Auto-Seed)
+    const familyId = user.family_id || `fam-${user.id}`;
+    
+    // Yalnızca bu kullanıcının ailesine ait aktif üyeleri getir
+    let members = await db.select().from(familyMembers).where(
+      and(
+        eq(familyMembers.is_active, 1),
+        eq(familyMembers.family_id, familyId)
+      )
+    );
+
+    // Eğer bu ailede henüz üye kaydı yoksa kullanıcının kendisini otomatik Aile Lideri olarak ekle
     if (members.length === 0) {
       const now = new Date().toISOString();
-      const defaultMemberName = user?.full_name || 'Uğur (Aile Lideri)';
-      const defaultId = user?.id ? `fm-${user.id}` : `fm-master-${Date.now()}`;
+      const defaultMemberName = user.full_name || 'Aile Lideri';
+      const defaultId = `fm-${user.id}`;
 
       await db.insert(familyMembers).values({
         id: defaultId,
+        family_id: familyId,
+        user_id: user.id,
         name: defaultMemberName,
-        role: 'admin',
-        avatar: '👑',
+        role: user.role || 'admin',
+        relationship_type: user.relationship_type || 'leader',
+        avatar: user.avatar_emoji || (user.role === 'admin' ? '👑' : '👤'),
         is_active: 1,
         created_at: now,
         updated_at: now
       });
 
-      members = await db.select().from(familyMembers).where(eq(familyMembers.is_active, 1));
+      members = await db.select().from(familyMembers).where(
+        and(
+          eq(familyMembers.is_active, 1),
+          eq(familyMembers.family_id, familyId)
+        )
+      );
     }
 
     // Her üyenin toplam harcama adedini ve son harcama tarihini hesapla
@@ -55,8 +73,12 @@ export async function POST(req: Request) {
   try {
     initDatabase();
     const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Oturum bulunamadı.' }, { status: 401 });
+    }
+
     const body = await req.json();
-    const { name, role = 'member', avatar = '👤' } = body;
+    const { name, role = 'member', relationship_type = 'spouse', avatar = '👤' } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json({ success: false, error: 'Üye adı zorunludur.' }, { status: 400 });
@@ -64,11 +86,14 @@ export async function POST(req: Request) {
 
     const now = new Date().toISOString();
     const newId = `fm-${Date.now()}`;
+    const familyId = user.family_id || `fam-${user.id}`;
 
     await db.insert(familyMembers).values({
       id: newId,
+      family_id: familyId,
       name: name.trim(),
       role: role || 'member',
+      relationship_type: relationship_type || 'spouse',
       avatar: avatar || '👤',
       is_active: 1,
       created_at: now,
@@ -78,7 +103,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: `🎉 ${name.trim()} aile üyelerine eklendi!`,
-      data: { id: newId, name, role, avatar }
+      data: { id: newId, name, role, relationship_type, avatar }
     });
   } catch (error: any) {
     console.error('Family Members POST API Error:', error);
@@ -90,7 +115,7 @@ export async function PUT(req: Request) {
   try {
     initDatabase();
     const body = await req.json();
-    const { id, name, role, avatar, is_active } = body;
+    const { id, name, role, relationship_type, avatar, is_active } = body;
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'Üye ID zorunludur.' }, { status: 400 });
@@ -102,12 +127,12 @@ export async function PUT(req: Request) {
       .set({
         name: name ? name.trim() : undefined,
         role: role || undefined,
+        relationship_type: relationship_type || undefined,
         avatar: avatar || undefined,
         is_active: typeof is_active === 'number' ? is_active : 1,
         updated_at: now
       })
-      .where(eq(familyMembers.id, id))
-      ;
+      .where(eq(familyMembers.id, id));
 
     return NextResponse.json({
       success: true,

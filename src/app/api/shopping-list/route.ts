@@ -10,8 +10,9 @@ export async function GET() {
     const user = await getAuthUser();
     const userId = user?.id;
 
-    const items = userId ? await db.select().from(shoppingListItems).where(eq(shoppingListItems.user_id, userId)) : [];
-    const wallets = userId ? await db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))) : [];
+    const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
+    const items = userId ? await db.select().from(shoppingListItems).where(familyId ? eq(shoppingListItems.family_id, familyId) : eq(shoppingListItems.user_id, userId)) : [];
+    const wallets = userId ? await db.select().from(walletsAccounts).where(and(eq(walletsAccounts.is_active, 1), familyId ? eq(walletsAccounts.family_id, familyId) : eq(walletsAccounts.user_id, userId))) : [];
 
     const unchecked = (items).filter((i: any) => i.is_checked === 0);
     const checked   = (items).filter((i: any) => i.is_checked === 1);
@@ -58,12 +59,15 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     initDatabase();
+    const user = await getAuthUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     const body = await request.json();
     const { action, ...data } = body;
     const now = new Date().toISOString();
     const today = now.split('T')[0];
+    const familyId = user.family_id || `fam-${user.id}`;
 
-    const currentItems = await db.select().from(shoppingListItems);
+    const currentItems = await db.select().from(shoppingListItems).where(eq(shoppingListItems.family_id, familyId));
 
     if (action === 'add') {
       const nameTrimmed = (data.name || '').trim();
@@ -91,6 +95,8 @@ export async function POST(request: Request) {
         category: data.category || 'Market',
         estimated_price: Number(data.estimated_price) || 0,
         is_checked: 0,
+        user_id: user.id,
+        family_id: familyId,
         created_at: now,
         updated_at: now
       });

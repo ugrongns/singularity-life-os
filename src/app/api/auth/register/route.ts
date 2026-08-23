@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { users, authSessions, appSettings, userHealthProfile, userReadingProfile, walletsAccounts, familyInvites, familyMembers } from '@/db/schema';
+import { users, families, authSessions, appSettings, userHealthProfile, userReadingProfile, walletsAccounts, familyInvites, familyMembers } from '@/db/schema';
 import { hashPassword, hashPin, generateSessionToken } from '@/lib/auth';
 import { eq, and, gt } from 'drizzle-orm';
 import { cookies } from 'next/headers';
@@ -97,14 +97,42 @@ export async function POST(req: Request) {
       }
     }
 
-    const allUsers = await db.select().from(users);
-    const isFirstUser = allUsers.length === 0;
-
     // Hash password & PIN
     const { hash: passwordHash, salt } = hashPassword(password);
     const quickPinHash = hashPin(String(quick_pin), salt);
 
     const userId = `user-${Date.now()}`;
+    let familyId = '';
+    let userRole = 'admin';
+    let userRelationship = 'leader';
+    let isMaster = 1;
+
+    if (validInvite) {
+      // 🏠 Davet Kodu ile Kayıt: Mevcut Aileye Katıl
+      familyId = validInvite.family_id || `fam-${validInvite.created_by_user_id}`;
+      userRole = validInvite.family_role || 'member';
+      userRelationship = validInvite.relationship_type || 'spouse';
+      isMaster = 0;
+
+      // Davet Kodunu Kullanıldı Olarak İşaretle
+      await db.update(familyInvites)
+        .set({ is_used: 1, used_by_user_id: userId })
+        .where(eq(familyInvites.id, validInvite.id));
+    } else {
+      // 👑 Bağımsız Kayıt: Yeni Bir Aile / Hane Oluştur
+      const nameParts = full_name.trim().split(' ');
+      const surname = nameParts.length > 1 ? nameParts[nameParts.length - 1] : full_name.trim();
+      const familyName = `${surname} Ailesi`;
+      familyId = `fam-${Date.now()}`;
+
+      await db.insert(families).values({
+        id: familyId,
+        name: familyName,
+        created_by_user_id: userId,
+        created_at: now,
+        updated_at: now
+      });
+    }
 
     // Insert user
     await db.insert(users).values({
@@ -115,46 +143,30 @@ export async function POST(req: Request) {
       password_hash: passwordHash,
       password_salt: salt,
       quick_pin_hash: quickPinHash,
-      role: validInvite ? (validInvite.family_role || 'member') : 'admin',
-      avatar_emoji: avatar_emoji || '👤',
-      is_master_account: isFirstUser ? 1 : 0,
+      role: userRole,
+      relationship_type: userRelationship,
+      avatar_emoji: avatar_emoji || (isMaster ? '👑' : '👤'),
+      is_master_account: isMaster,
+      family_id: familyId,
       created_at: now,
       updated_at: now
     });
 
-    // Davet Kodu Kullanıldıysa İşaretle ve Aile Üyesi Profilini Oluştur
-    if (validInvite) {
-      await db.update(familyInvites)
-        .set({ is_used: 1, used_by_user_id: userId })
-        .where(eq(familyInvites.id, validInvite.id))
-        ;
+    // Aile Üyesi Profilini Oluştur
+    await db.insert(familyMembers).values({
+      id: `fm-${userId}`,
+      family_id: familyId,
+      user_id: userId,
+      name: full_name.trim(),
+      role: userRole,
+      relationship_type: userRelationship,
+      avatar: avatar_emoji || (isMaster ? '👑' : '👤'),
+      is_active: 1,
+      created_at: now,
+      updated_at: now
+    });
 
-      await db.insert(familyMembers).values({
-        id: `fm-${userId}`,
-        name: full_name.trim(),
-        role: validInvite.family_role || 'member',
-        avatar: avatar_emoji || '👤',
-        is_active: 1,
-        created_at: now,
-        updated_at: now
-      });
-    } else {
-      // İlk kullanıcı ise kendisini Aile Lideri olarak ekle
-      const existingMembers = await db.select().from(familyMembers);
-      if (existingMembers.length === 0 || isFirstUser) {
-        await db.insert(familyMembers).values({
-          id: `fm-${userId}`,
-          name: full_name.trim(),
-          role: 'admin',
-          avatar: avatar_emoji || '👑',
-          is_active: 1,
-          created_at: now,
-          updated_at: now
-        });
-      }
-    }
-
-    // Health Profile başlangıç kaydı
+    // Health Profile başlangıç kaydı (Kişiye Özel)
     try {
       await db.insert(userHealthProfile).values({
         id: `hp-${userId}`,
@@ -165,7 +177,7 @@ export async function POST(req: Request) {
       });
     } catch (e) {}
 
-    // Reading Profile başlangıç kaydı
+    // Reading Profile başlangıç kaydı (Kişiye Özel)
     try {
       await db.insert(userReadingProfile).values({
         id: `rp-${userId}`,
@@ -178,18 +190,19 @@ export async function POST(req: Request) {
       });
     } catch (e) {}
 
-    // Başlangıç Cüzdanı (Vadesiz Maaş Hesabı)
+    // Başlangıç Cüzdanı
     try {
       await db.insert(walletsAccounts).values({
         id: `w-${userId}-main`,
-        name: 'Vadesiz Maaş Hesabı',
+        name: isMaster ? 'Vadesiz Maaş Hesabı' : `${full_name.trim().split(' ')[0]} Vadesiz Hesabı`,
         type: 'bank',
         currency: currency || 'TRY',
         balance: 0,
         color: '#3B82F6',
         is_active: 1,
-        is_family_shared: 1,
+        is_family_shared: isMaster ? 1 : 0,
         user_id: userId,
+        family_id: familyId,
         created_at: now,
         updated_at: now
       });

@@ -3,7 +3,7 @@ import { db, initDatabase } from '@/db';
 import {
   digitalVaultItems, importantDates, petRecords,
   vehicleLegalReminders, homeMaintenanceRecords,
-  realEstateProperties, walletsAccounts
+  walletsAccounts
 } from '@/db/schema';
 import { eq, sql , or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';

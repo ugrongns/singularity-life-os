@@ -59,6 +59,8 @@ export async function POST(req: Request) {
 
         const newLoanId = `loan-${Date.now()}`;
 
+        const familyId = user.family_id || `fam-${user.id}`;
+
         await db.insert(walletsAccounts).values({
           id: newLoanId,
           name: name.trim(),
@@ -74,6 +76,9 @@ export async function POST(req: Request) {
           deposited_account_id: deposited_account_id || null,
           currency: currency || 'TRY',
           is_active: 1,
+          is_family_shared: 1,
+          user_id: userId,
+          family_id: familyId,
           created_at: nowISO,
           updated_at: nowISO
         });
@@ -101,6 +106,8 @@ export async function POST(req: Request) {
               total_installments: 1,
               is_verified: 1,
               is_family_shared: 1,
+              user_id: userId,
+              family_id: familyId,
               created_at: nowISO,
               updated_at: nowISO,
               sync_status: 'synced',
@@ -132,6 +139,8 @@ export async function POST(req: Request) {
             parent_transaction_id: parentTxId,
             is_verified: 1,
             is_family_shared: 1,
+            user_id: userId,
+            family_id: familyId,
             created_at: nowISO,
             updated_at: nowISO,
             sync_status: 'synced',
@@ -146,6 +155,7 @@ export async function POST(req: Request) {
       }
 
       if (type === 'time_deposit') {
+        const familyId = user.family_id || `fam-${user.id}`;
         const principal = Number(balance) || 0;
         if (deposited_account_id && principal > 0) {
           const bankAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)))[0];
@@ -169,6 +179,8 @@ export async function POST(req: Request) {
               total_installments: 1,
               is_verified: 1,
               is_family_shared: 1,
+              user_id: userId,
+              family_id: familyId,
               created_at: nowISO,
               updated_at: nowISO,
               sync_status: 'synced',
@@ -189,6 +201,9 @@ export async function POST(req: Request) {
           interest_rate: interest_rate ? Number(interest_rate) : null,
           interest_type: interest_type || 'simple',
           is_active: 1,
+          is_family_shared: 1,
+          user_id: userId,
+          family_id: familyId,
           created_at: nowISO,
           updated_at: nowISO
         });
@@ -200,6 +215,7 @@ export async function POST(req: Request) {
       }
 
       // Standart Hesap/Cüzdan/Kart/KMH Ekle
+      const familyId = user.family_id || `fam-${user.id}`;
       const newId = `acc-${Date.now()}`;
       await db.insert(walletsAccounts).values({
         id: newId,
@@ -215,9 +231,11 @@ export async function POST(req: Request) {
         min_payment_percent: min_payment_percent ? Number(min_payment_percent) : 20,
         overdraft_limit: overdraft_limit ? Number(overdraft_limit) : 0,
         is_active: 1,
+        is_family_shared: user.role === 'admin' ? 1 : 0,
+        user_id: userId,
+        family_id: familyId,
         created_at: nowISO,
-        updated_at: nowISO,
-        user_id: userId || null
+        updated_at: nowISO
       });
 
       return NextResponse.json({ success: true, message: 'Yeni hesap başarıyla eklendi!' });

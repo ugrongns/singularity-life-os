@@ -11,11 +11,16 @@ export async function GET() {
     const userId = user?.id;
 
     const today = new Date();
+    const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
     const vaultItems = userId
-      ? await db.select().from(digitalVaultItems).where(or(eq(digitalVaultItems.user_id, userId), eq(digitalVaultItems.is_family_shared, 1))).orderBy(desc(digitalVaultItems.created_at))
+      ? await db.select().from(digitalVaultItems).where(
+          familyId
+            ? and(eq(digitalVaultItems.family_id, familyId), or(eq(digitalVaultItems.user_id, userId), eq(digitalVaultItems.is_family_shared, 1)))
+            : eq(digitalVaultItems.user_id, userId)
+        ).orderBy(desc(digitalVaultItems.created_at))
       : [];
-    const dates = userId ? await db.select().from(importantDates).where(eq(importantDates.user_id, userId)) : [];
-    const pets = userId ? await db.select().from(petRecords).where(eq(petRecords.user_id, userId)) : [];
+    const dates = userId ? await db.select().from(importantDates).where(familyId ? eq(importantDates.family_id, familyId) : eq(importantDates.user_id, userId)) : [];
+    const pets = userId ? await db.select().from(petRecords).where(familyId ? eq(petRecords.family_id, familyId) : eq(petRecords.user_id, userId)) : [];
 
     // Yaklaşan bitiş uyarıları ve Vize (6 ay) uyarısı hesapla
     const vaultWithAlerts = (vaultItems).map((item: any) => {
@@ -89,6 +94,8 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     const id = data.id || `${section}-${Date.now()}`;
 
+    const familyId = user.family_id || `fam-${user.id}`;
+
     if (section === 'vault') {
       await db.insert(digitalVaultItems).values({
         id,
@@ -102,7 +109,9 @@ export async function POST(request: Request) {
         document_number: data.document_number || null,
         document_image_url: data.document_image_url || null,
         notes: data.notes || null,
+        is_family_shared: data.is_family_shared !== undefined ? Number(data.is_family_shared) : 0,
         user_id: user.id,
+        family_id: familyId,
         created_at: now,
         updated_at: now
       });
@@ -117,6 +126,7 @@ export async function POST(request: Request) {
         gift_ideas: data.gift_ideas || null,
         notes: data.notes || null,
         user_id: user.id,
+        family_id: familyId,
         created_at: now,
         updated_at: now
       });
@@ -134,6 +144,7 @@ export async function POST(request: Request) {
         vet_next_date: data.vet_next_date || null,
         notes: data.notes || null,
         user_id: user.id,
+        family_id: familyId,
         created_at: now,
         updated_at: now
       });

@@ -65,6 +65,8 @@ export async function GET() {
           full_name: user.full_name,
           email: user.email,
           role: user.role,
+          relationship_type: user.relationship_type || (user.role === 'admin' ? 'leader' : 'member'),
+          family_id: user.family_id || `fam-${user.id}`,
           avatar_emoji: user.avatar_emoji,
           is_master_account: user.is_master_account === 1
         }

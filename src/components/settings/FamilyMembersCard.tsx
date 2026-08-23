@@ -14,10 +14,17 @@ interface FamilyMember {
 const EMOJI_OPTIONS = ['👑', '👨', '👩', '💍', '👦', '👧', '👵', '👴', '👶', '🐶', '🐱', '👤'];
 const ROLE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   admin: { label: '👑 Aile Lideri', color: '#B45309', bg: '#FEF3C7' },
+  leader: { label: '👑 Aile Lideri', color: '#B45309', bg: '#FEF3C7' },
   spouse: { label: '💍 Eş', color: '#BE185D', bg: '#FCE7F3' },
-  child: { label: '👦 Çocuk', color: '#1D4ED8', bg: '#DBEAFE' },
+  child: { label: '👶 Çocuk', color: '#1D4ED8', bg: '#DBEAFE' },
+  roommate: { label: '🏠 Ev Arkadaşı', color: '#6D28D9', bg: '#EDE9FE' },
+  friend: { label: '🤝 Arkadaş', color: '#0369A1', bg: '#E0F2FE' },
+  mother: { label: '👩 Anne', color: '#BE185D', bg: '#FCE7F3' },
+  father: { label: '👨 Baba', color: '#047857', bg: '#D1FAE5' },
   parent: { label: '👴 Ebeveyn', color: '#047857', bg: '#D1FAE5' },
-  member: { label: '👤 Üye', color: '#4B5563', bg: '#F3F4F6' }
+  sibling: { label: '👫 Kardeş', color: '#C2410C', bg: '#FFEDD5' },
+  member: { label: '👤 Üye', color: '#4B5563', bg: '#F3F4F6' },
+  other: { label: '👤 Diğer', color: '#4B5563', bg: '#F3F4F6' }
 };
 
 export default function FamilyMembersCard() {
@@ -126,11 +133,11 @@ export default function FamilyMembersCard() {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   // Invite Form State
-  const [inviteRole, setInviteRole] = useState('spouse');
+  const [inviteRelationship, setInviteRelationship] = useState('spouse');
   const [inviteTargetName, setInviteTargetName] = useState('');
 
   const handleOpenInviteModal = () => {
-    setInviteRole('spouse');
+    setInviteRelationship('spouse');
     setInviteTargetName('');
     setIsInviteModalOpen(true);
   };
@@ -143,7 +150,8 @@ export default function FamilyMembersCard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          family_role: inviteRole,
+          family_role: 'member',
+          relationship_type: inviteRelationship,
           target_name: inviteTargetName
         })
       });
@@ -415,20 +423,22 @@ export default function FamilyMembersCard() {
             </p>
 
             <form onSubmit={handleGenerateInvite} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* Rol Seçimi */}
+              {/* İlişki / Tanım Seçimi */}
               <div>
-                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>Davet Edilen Bireyin Rolü / İlişki Tipi *</label>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>Davet Edilen Bireyin İlişki Tipi / Rolü *</label>
                 <select
-                  value={inviteRole}
-                  onChange={e => setInviteRole(e.target.value)}
+                  value={inviteRelationship}
+                  onChange={e => setInviteRelationship(e.target.value)}
                   style={{ width: '100%', padding: '10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)' }}
                 >
                   <option value="spouse">💍 Eş</option>
-                  <option value="child">👦 Çocuk</option>
-                  <option value="parent">👴 Ebeveyn (Anne / Baba)</option>
-                  <option value="sibling">🧒 Kardeş</option>
+                  <option value="child">👶 Çocuk</option>
+                  <option value="roommate">🏠 Ev Arkadaşı</option>
+                  <option value="friend">🤝 Arkadaş</option>
+                  <option value="mother">👩 Anne</option>
+                  <option value="father">👨 Baba</option>
+                  <option value="sibling">👫 Kardeş</option>
                   <option value="member">👤 Diğer Aile Üyesi</option>
-                  <option value="admin">👑 İkinci Aile Yöneticisi</option>
                 </select>
               </div>
 

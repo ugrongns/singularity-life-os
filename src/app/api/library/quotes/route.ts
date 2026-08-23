@@ -27,7 +27,7 @@ export async function GET() {
     })
     .from(bookQuotes)
     .innerJoin(books, eq(bookQuotes.book_id, books.id))
-    .where(or(eq(books.user_id, userId), eq(books.is_family_shared, 1)))
+    .where(eq(books.user_id, userId))
     .orderBy(desc(bookQuotes.created_at));
 
     return NextResponse.json({ success: true, data: quotes });

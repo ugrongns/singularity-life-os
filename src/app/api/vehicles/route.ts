@@ -10,8 +10,14 @@ export async function GET() {
     const user = await getAuthUser();
     const userId = user?.id;
 
+    const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
     const allVehicles = userId
-      ? await db.select().from(vehicles).where(and(eq(vehicles.is_active, 1), or(eq(vehicles.user_id, userId), eq(vehicles.is_family_shared, 1))))
+      ? await db.select().from(vehicles).where(
+          and(
+            eq(vehicles.is_active, 1),
+            familyId ? eq(vehicles.family_id, familyId) : eq(vehicles.user_id, userId)
+          )
+        )
       : [];
     const wallets = await db.select().from(walletsAccounts).where(eq(walletsAccounts.is_active, 1));
 
@@ -195,7 +201,8 @@ export async function POST(req: Request) {
         updated_at: now,
         sync_status: 'synced',
         device_id: 'web-client',
-        user_id: user.id
+        user_id: user.id,
+        family_id: user.family_id || `fam-${user.id}`
       } as any);
 
       return NextResponse.json({

@@ -9,7 +9,6 @@ import {
   bookQuotes,
   userReadingProfile,
   vehicles,
-  realEstateProperties,
   userHealthProfile,
   waterIntakeLogs
 } from '@/db/schema';
@@ -149,27 +148,7 @@ export async function POST() {
       user_id: userId
     });
 
-    // 5. Örnek Gayrimenkul
-    await db.insert(realEstateProperties).values({
-      id: `prop-sample-${Date.now()}`,
-      title: 'Kadıköy Moda 2+1 Daire',
-      address: 'Moda Cad. Kadıköy / İstanbul',
-      property_type: 'residential',
-      purchase_price: 3500000,
-      estimated_market_value: 6500000,
-      currency: 'TRY',
-      monthly_rent_income: 32000,
-      tenant_name: 'Ahmet Yılmaz',
-      tenant_phone: '0532 111 22 33',
-      rent_due_day: 5,
-      lease_start_date: '2025-01-01',
-      is_occupied: 1,
-      created_at: now,
-      updated_at: now,
-      user_id: userId
-    });
-
-    // 6. Örnek Sağlık & Su Profili
+    // 5. Örnek Sağlık & Su Profili
     await db.insert(userHealthProfile).values({
       id: `hp-sample-${Date.now()}`,
       daily_calorie_target: 2200,
@@ -186,7 +165,7 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      message: '🚀 Örnek demo veriler (Cüzdan, Harcama, Kitap, Alıntı, Mülk) hesabınıza başarıyla yüklendi!'
+      message: '🚀 Örnek demo veriler (Cüzdan, Harcama, Kitap, Alıntı) hesabınıza başarıyla yüklendi!'
     });
   } catch (error: any) {
     console.error('Load Sample Data Error:', error);

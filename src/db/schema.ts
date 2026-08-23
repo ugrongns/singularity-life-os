@@ -1,10 +1,22 @@
 import { pgTable, text, integer, real, boolean, doublePrecision } from 'drizzle-orm/pg-core';
 
+// 0. Aileler / Haneler (Multi-Tenant Household)
+export const families = pgTable('families', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  created_by_user_id: text('created_by_user_id').notNull(),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+});
+
 // 1. Aile Üyeleri & Kullanıcılar
 export const familyMembers = pgTable('family_members', {
   id: text('id').primaryKey(),
+  family_id: text('family_id'),
+  user_id: text('user_id'),
   name: text('name').notNull(),
   role: text('role').notNull().default('admin'),
+  relationship_type: text('relationship_type').default('member'),
   avatar: text('avatar').default('👤'),
   is_active: integer('is_active').notNull().default(1),
   created_at: text('created_at').notNull(),
@@ -15,9 +27,11 @@ export const familyMembers = pgTable('family_members', {
 
 export const familyInvites = pgTable('family_invites', {
   id: text('id').primaryKey(),
+  family_id: text('family_id'),
   invite_code: text('invite_code').notNull().unique(),
   created_by_user_id: text('created_by_user_id').notNull(),
   family_role: text('family_role').notNull().default('member'),
+  relationship_type: text('relationship_type').default('spouse'),
   target_name: text('target_name'),
   expires_at: text('expires_at').notNull(),
   is_used: integer('is_used').notNull().default(0),
@@ -55,7 +69,8 @@ export const walletsAccounts = pgTable('wallets_accounts', {
   interest_rate_late: doublePrecision('interest_rate_late').default(4.55),
   min_payment_percent: doublePrecision('min_payment_percent').default(20),
   overdraft_limit: doublePrecision('overdraft_limit').default(0),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 // 3. Kişisel Borç & Alacak Takibi
@@ -74,7 +89,8 @@ export const personalDebtsReceivables = pgTable('personal_debts_receivables', {
   paid_amount: doublePrecision('paid_amount').default(0),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 // 4. Gelir & Gider Kategorileri
@@ -90,7 +106,8 @@ export const categories = pgTable('categories', {
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
-  device_id: text('device_id').default('web-client')
+  device_id: text('device_id').default('web-client'),
+  family_id: text('family_id')
 });
 
 // 4. Gelir, Gider & Taksitli İşlemler
@@ -115,7 +132,8 @@ export const transactions = pgTable('transactions', {
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client'),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 // 5. Hedef Fonları & Kumbaralar
@@ -130,7 +148,8 @@ export const sinkingFunds = pgTable('sinking_funds', {
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
-  device_id: text('device_id').default('web-client')
+  device_id: text('device_id').default('web-client'),
+  family_id: text('family_id')
 });
 
 // 6. Çevrimdışı Senkron Kuyruğu
@@ -165,7 +184,8 @@ export const vehicles = pgTable('vehicles', {
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client'),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 export const vehicleMaintenanceRecords = pgTable('vehicle_maintenance_records', {
@@ -225,7 +245,8 @@ export const homeMaintenanceRecords = pgTable('home_maintenance_records', {
   status: text('status').notNull().default('ok'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 export const homeAppliances = pgTable('home_appliances', {
@@ -241,99 +262,8 @@ export const homeAppliances = pgTable('home_appliances', {
   notes: text('notes'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
-});
-
-// ==========================================
-// 📈 FAZ 3: YATIRIMLAR & GAYRİMENKUL TABLOLARI
-// ==========================================
-
-export const investmentAssets = pgTable('investment_assets', {
-  id: text('id').primaryKey(),
-  member_id: text('member_id').references(() => familyMembers.id),
-  account_id: text('account_id').references(() => walletsAccounts.id),
-  symbol: text('symbol').notNull(),
-  name: text('name').notNull(),
-  asset_class: text('asset_class').notNull(),
-  quantity: doublePrecision('quantity').notNull().default(0),
-  avg_cost: doublePrecision('avg_cost').notNull().default(0),
-  cost_currency: text('cost_currency').notNull().default('TRY'),
-  current_price: doublePrecision('current_price').notNull().default(0),
-  current_price_currency: text('current_price_currency').notNull().default('TRY'),
-  purchase_date: text('purchase_date'),
-  last_updated_at: text('last_updated_at').notNull(),
-  is_family_shared: integer('is_family_shared').notNull().default(1),
-  is_active: integer('is_active').notNull().default(1),
-  created_at: text('created_at').notNull(),
-  updated_at: text('updated_at').notNull(),
-  sync_status: text('sync_status').notNull().default('synced'),
-  device_id: text('device_id').default('web-client'),
-  user_id: text('user_id')
-});
-
-export const investmentDividends = pgTable('investment_dividends', {
-  id: text('id').primaryKey(),
-  asset_id: text('asset_id').notNull().references(() => investmentAssets.id),
-  dividend_date: text('dividend_date').notNull(),
-  amount_per_share: doublePrecision('amount_per_share').notNull(),
-  total_amount: doublePrecision('total_amount').notNull(),
-  currency: text('currency').notNull().default('TRY'),
-  treatment_type: text('treatment_type').notNull().default('cash_payout'),
-  reinvested_quantity: doublePrecision('reinvested_quantity').default(0),
-  is_family_shared: integer('is_family_shared').notNull().default(1),
-  created_at: text('created_at').notNull(),
-  updated_at: text('updated_at').notNull()
-});
-
-export const besContracts = pgTable('bes_contracts', {
-  id: text('id').primaryKey(),
-  member_id: text('member_id').references(() => familyMembers.id),
-  company: text('company').notNull(),
-  contract_no: text('contract_no'),
-  start_date: text('start_date'),
-  total_principal: doublePrecision('total_principal').notNull().default(0),
-  state_contribution_rate: doublePrecision('state_contribution_rate').notNull().default(0.30),
-  state_contribution_amount: doublePrecision('state_contribution_amount').notNull().default(0),
-  current_fund_value: doublePrecision('current_fund_value').notNull().default(0),
-  monthly_payment: doublePrecision('monthly_payment').default(0),
-  is_family_shared: integer('is_family_shared').notNull().default(1),
-  created_at: text('created_at').notNull(),
-  updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
-});
-
-export const realEstateProperties = pgTable('real_estate_properties', {
-  id: text('id').primaryKey(),
-  title: text('title').notNull(),
-  address: text('address'),
-  property_type: text('property_type').notNull().default('residential'),
-  purchase_price: doublePrecision('purchase_price').default(0),
-  estimated_market_value: doublePrecision('estimated_market_value').notNull().default(0),
-  currency: text('currency').notNull().default('TRY'),
-  monthly_rent_income: doublePrecision('monthly_rent_income').notNull().default(0),
-  tenant_name: text('tenant_name'),
-  tenant_phone: text('tenant_phone'),
-  rent_due_day: integer('rent_due_day').default(5),
-  lease_start_date: text('lease_start_date'),
-  tufe_rate_percent: doublePrecision('tufe_rate_percent').default(58.5),
-  deposit_amount: doublePrecision('deposit_amount').default(0),
-  is_occupied: integer('is_occupied').notNull().default(1),
-  is_family_shared: integer('is_family_shared').notNull().default(1),
-  created_at: text('created_at').notNull(),
-  updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
-});
-
-export const realEstateCashflows = pgTable('real_estate_cashflows', {
-  id: text('id').primaryKey(),
-  property_id: text('property_id').notNull().references(() => realEstateProperties.id),
-  type: text('type').notNull(),
-  amount: doublePrecision('amount').notNull(),
-  currency: text('currency').notNull().default('TRY'),
-  date: text('date').notNull(),
-  notes: text('notes'),
-  created_at: text('created_at').notNull(),
-  updated_at: text('updated_at').notNull()
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 // ==========================================
@@ -567,7 +497,8 @@ export const digitalVaultItems = pgTable('digital_vault_items', {
   is_family_shared: integer('is_family_shared').notNull().default(0),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 export const importantDates = pgTable('important_dates', {
@@ -582,7 +513,8 @@ export const importantDates = pgTable('important_dates', {
   notes: text('notes'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 export const petRecords = pgTable('pet_records', {
@@ -599,7 +531,8 @@ export const petRecords = pgTable('pet_records', {
   notes: text('notes'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 // ==========================================
@@ -628,6 +561,7 @@ export const supplementRoutines = pgTable('supplement_routines', {
 
 export const sleepLogs = pgTable('sleep_logs', {
   id: text('id').primaryKey(),
+  user_id: text('user_id'),
   member_id: text('member_id'),
   bedtime: text('bedtime').notNull(),
   wake_time: text('wake_time').notNull(),
@@ -641,6 +575,7 @@ export const sleepLogs = pgTable('sleep_logs', {
 
 export const moodLogs = pgTable('mood_logs', {
   id: text('id').primaryKey(),
+  user_id: text('user_id'),
   member_id: text('member_id'),
   mood_emoji: text('mood_emoji').notNull(),
   mood_score: integer('mood_score').notNull(),
@@ -654,6 +589,7 @@ export const moodLogs = pgTable('mood_logs', {
 
 export const waterIntakeLogs = pgTable('water_intake_logs', {
   id: text('id').primaryKey(),
+  user_id: text('user_id'),
   member_id: text('member_id'),
   date: text('date').notNull(),
   amount_ml: integer('amount_ml').notNull().default(0),
@@ -664,6 +600,7 @@ export const waterIntakeLogs = pgTable('water_intake_logs', {
 
 export const biometrics = pgTable('biometrics', {
   id: text('id').primaryKey(),
+  user_id: text('user_id'),
   member_id: text('member_id'),
   weight_kg: doublePrecision('weight_kg'),
   waist_cm: doublePrecision('waist_cm'),
@@ -723,7 +660,8 @@ export const shoppingListItems = pgTable('shopping_list_items', {
   notes: text('notes'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 // ==========================================
@@ -749,8 +687,10 @@ export const users = pgTable('users', {
   password_salt: text('password_salt').notNull(),
   quick_pin_hash: text('quick_pin_hash').notNull(),
   role: text('role').notNull().default('admin'),
+  relationship_type: text('relationship_type').default('leader'),
   avatar_emoji: text('avatar_emoji').default('👤'),
   is_master_account: integer('is_master_account').notNull().default(1),
+  family_id: text('family_id'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()
 });
@@ -763,31 +703,3 @@ export const authSessions = pgTable('auth_sessions', {
   created_at: text('created_at').notNull()
 });
 
-// ==========================================
-// 💸 FAZ 15: BOŞTA DURAN NAKİTE FAİZ / NEMA
-// ==========================================
-
-export const flexInterestAccounts = pgTable('flex_interest_accounts', {
-  id: text('id').primaryKey(),
-  account_id: text('account_id').notNull().references(() => walletsAccounts.id),
-  is_active: integer('is_active').notNull().default(0),
-  annual_rate: doublePrecision('annual_rate').notNull().default(0),
-  created_at: text('created_at').notNull(),
-  updated_at: text('updated_at').notNull()
-});
-
-export const flexInterestEarnings = pgTable('flex_interest_earnings', {
-  id: text('id').primaryKey(),
-  flex_account_id: text('flex_account_id').references(() => flexInterestAccounts.id),
-  wallet_account_id: text('wallet_account_id').notNull().references(() => walletsAccounts.id),
-  start_date: text('start_date').notNull(),
-  end_date: text('end_date').notNull(),
-  days: integer('days').notNull(),
-  principal_amount: doublePrecision('principal_amount').notNull(),
-  interest_rate: doublePrecision('interest_rate').notNull(),
-  earned_amount: doublePrecision('earned_amount').notNull(),
-  actual_amount: doublePrecision('actual_amount').notNull(),
-  currency: text('currency').notNull().default('TRY'),
-  notes: text('notes'),
-  created_at: text('created_at').notNull()
-});
