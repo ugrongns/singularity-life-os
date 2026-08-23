@@ -19,41 +19,6 @@ const pgClient = postgres(databaseUrl, { ssl: 'require', max: 10, prepare: false
 export const db = drizzle(pgClient, { schema });
 export const client = pgClient;
 
-// Polyfill .get(), .all(), .run() for Drizzle Postgres query builders
-try {
-  const dummySelect = db.select().from(schema.users);
-  const dummyInsert = db.insert(schema.users).values({ id: '_t', username: '_t', full_name: '_t', password_hash: '_t', password_salt: '_t', quick_pin_hash: '_t', created_at: '_t', updated_at: '_t' });
-  const dummyUpdate = db.update(schema.users).set({ full_name: '_t' });
-  const dummyDelete = db.delete(schema.users);
-  const protos = [
-    Object.getPrototypeOf(dummySelect),
-    Object.getPrototypeOf(dummyInsert),
-    Object.getPrototypeOf(dummyUpdate),
-    Object.getPrototypeOf(dummyDelete),
-  ];
-  protos.forEach((p: any) => {
-    if (p && !p.get) {
-      p.get = async function () {
-        const res = await this;
-        return Array.isArray(res) ? res[0] : res;
-      };
-    }
-    if (p && !p.all) {
-      p.all = async function () {
-        const res = await this;
-        return Array.isArray(res) ? res : res ? [res] : [];
-      };
-    }
-    if (p && !p.run) {
-      p.run = async function () {
-        return await this;
-      };
-    }
-  });
-} catch (e) {
-  console.warn('Postgres query builder polyfill warning:', e);
-}
-
 let isInitDone = false;
 export async function initDatabase() {
   if (isInitDone) return;

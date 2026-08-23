@@ -17,6 +17,12 @@ import ReadingSessionModal from '@/components/modals/ReadingSessionModal';
 import AddFuelLogModal from '@/components/modals/AddFuelLogModal';
 import AddVehicleServiceModal from '@/components/modals/AddVehicleServiceModal';
 
+import TimeContextualFeed from '@/components/home/TimeContextualFeed';
+import QuickIngestHub from '@/components/home/QuickIngestHub';
+import ReceiptScanModal from '@/components/modals/ReceiptScanModal';
+import PlateScanModal from '@/components/modals/PlateScanModal';
+import VoiceCommandModal from '@/components/modals/VoiceCommandModal';
+
 export default function HomePage() {
   const [session,      setSession]      = useState<any>(null);
   const [budgetData,   setBudgetData]   = useState<any>(null);
@@ -30,42 +36,37 @@ export default function HomePage() {
   const [loading,      setLoading]      = useState(true);
   const [fetchError,   setFetchError]   = useState<string | null>(null);
 
-  // Sayfa-özel modal state'leri (SharedLayout'ta yönetilmeyen modaller)
+  // Modaller
   const [isMaintHistOpen,   setIsMaintHistOpen]   = useState(false);
   const [isDividendOpen,    setIsDividendOpen]    = useState(false);
   const [isSessionOpen,     setIsSessionOpen]     = useState(false);
   const [isFuelOpen,        setIsFuelOpen]        = useState(false);
   const [isServiceOpen,     setIsServiceOpen]     = useState(false);
+  const [isReceiptScanOpen, setIsReceiptScanOpen] = useState(false);
+  const [isFoodScanOpen,    setIsFoodScanOpen]    = useState(false);
+  const [isVoiceOpen,       setIsVoiceOpen]       = useState(false);
 
   const fetchData = async () => {
     try {
       setFetchError(null);
-      const [sessRes, budRes, invRes, vehRes, libRes, fastRes, wellRes, shopRes, notifRes] = await Promise.all([
-        fetch('/api/auth/session'),
-        fetch('/api/budget'),
-        fetch('/api/investments'),
-        fetch('/api/vehicles'),
-        fetch('/api/library'),
-        fetch('/api/health/fasting'),
-        fetch('/api/wellness'),
-        fetch('/api/shopping-list'),
-        fetch('/api/notifications'),
-      ]);
-      const [sessJ, budJ, invJ, vehJ, libJ, fastJ, wellJ, shopJ, notifJ] = await Promise.all([
-        sessRes.json(), budRes.json(), invRes.json(), vehRes.json(), libRes.json(),
-        fastRes.json(), wellRes.json(), shopRes.json(), notifRes.json(),
-      ]);
-      if (sessJ.success)  setSession(sessJ.data);
-      if (budJ.success)   setBudgetData(budJ.data);
-      if (invJ.success)   setInvestData(invJ.data);
-      if (vehJ.success)   setVehicleData(vehJ.data);
-      if (libJ.success)   setLibraryData(libJ.data);
-      if (fastJ.success)  setFastingData(fastJ.data);
-      if (wellJ.success)  setWellnessData(wellJ.data);
-      if (shopJ.success)  setShoppingData(shopJ.data);
-      if (notifJ.success) setNotifData(notifJ.data);
+      const res = await fetch('/api/dashboard/composite');
+      const j = await res.json();
+      if (j.success && j.data) {
+        const d = j.data;
+        if (d.session)     setSession(d.session);
+        if (d.budget)      setBudgetData(d.budget);
+        if (d.investments) setInvestData(d.investments);
+        if (d.vehicles)    setVehicleData(d.vehicles);
+        if (d.library)     setLibraryData(d.library);
+        if (d.fasting)     setFastingData(d.fasting);
+        if (d.wellness)    setWellnessData(d.wellness);
+        if (d.shopping)    setShoppingData(d.shopping);
+        if (d.notifications) setNotifData(d.notifications);
+      } else {
+        setFetchError(j.error || 'Veriler alınamadı.');
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Composite fetch error:', err);
       setFetchError('Veriler yüklenirken bir bağlantı hatası oluştu.');
     } finally {
       setLoading(false);
@@ -85,6 +86,32 @@ export default function HomePage() {
     if (j.success) handleUpdate();
   };
 
+  const handleQuickAddWater = async () => {
+    try {
+      await fetch('/api/health/water', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount_ml: 500 })
+      });
+      handleUpdate();
+    } catch (e) {
+      console.error('Water add error:', e);
+    }
+  };
+
+  const handleQuickTakeSupplements = async () => {
+    try {
+      await fetch('/api/wellness', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'take_all' })
+      });
+      handleUpdate();
+    } catch (e) {
+      console.error('Supplements take error:', e);
+    }
+  };
+
   // Loading ekranı
   if (loading) {
     return (
@@ -98,7 +125,7 @@ export default function HomePage() {
     );
   }
 
-  // Session guard: Oturum yoksa veya doğrulanmamışsa LandingPage göster
+  // Session guard
   if (!session || !session.is_authenticated || !session.is_initialized) {
     return <LandingPage />;
   }
@@ -121,74 +148,115 @@ export default function HomePage() {
     );
   }
 
+  // Widget Grupları
+  const fastingCard = (
+    <FastingTimerCard
+      fastingData={fastingData || { is_active: false, protocol: '16:8' }}
+      onToggleFasting={handleToggleFasting}
+    />
+  );
+
+  const wellnessCard = (
+    <WellnessCard
+      supplements={wellnessData?.supplements || { morning: [], evening: [], with_meal: [], total: 0, taken: 0 }}
+      todayMood={wellnessData?.todayMood}
+      todaySleep={wellnessData?.todaySleep}
+      moodHistory={wellnessData?.moodHistory || []}
+      sleepHistory={wellnessData?.sleepHistory || []}
+    />
+  );
+
+  const recentTxCard = (
+    <RecentTxCard
+      transactions={budgetData?.recentTransactions || []}
+      upcomingPayments={budgetData?.upcomingPayments || []}
+    />
+  );
+
+  const shoppingCard = (
+    <ShoppingListCard
+      items={shoppingData?.items || []}
+      summary={shoppingData?.summary || { total: 0, remaining: 0, done: 0, totalEstimated: 0, remainingEstimated: 0 }}
+      byCategory={shoppingData?.byCategory || {}}
+    />
+  );
+
+  const libraryCard = (
+    <LibraryHeroCard
+      profile={libraryData?.profile || { yearly_target_books: 24, completedBooksCount: 0, targetProgressPercent: 0, calibrated_avg_wpm: 220, avgMinutesPerPage: '1.4' }}
+      activeBook={libraryData?.activeReadingBook}
+      onOpenSession={() => setIsSessionOpen(true)}
+      onOpenQuotes={() => {}}
+    />
+  );
+
+  const portfolioCard = (
+    <PortfolioHeroCard
+      summary={investData?.summary || { totalPortfolioValueTRY: 0, unreleasedPlTRY: 0, unreleasedPlPercent: 0 }}
+      allocation={investData?.allocation || []}
+      onOpenDividendModal={() => setIsDividendOpen(true)}
+      onOpenAddAssetModal={() => {}}
+    />
+  );
+
+  const vehicleCard = (
+    <VehicleFleetCard
+      data={vehicleData || { vehicles: [], maintenanceRecords: [] }}
+      onOpenHistory={() => setIsMaintHistOpen(true)}
+      onOpenFuelModal={() => setIsFuelOpen(true)}
+      onOpenServiceModal={() => setIsServiceOpen(true)}
+      onRefresh={handleUpdate}
+    />
+  );
+
   return (
     <SharedLayout notifications={notifData}>
       {/* Net Worth Hero — her zaman en üstte */}
       <NetWorthHero netWorth={budgetData?.netWorth || { totalNetWorthTRY: 0, totalNetWorthUSD: 0, totalNetWorthEUR: 0, currencyBreakdown: { TRY: 0, USD: 0, EUR: 0, Gold: 0, BTC: 0 } }} />
 
-      {/* Dashboard Grid */}
-      <div className="dashboard-grid">
-        {/* Sol Sütun */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* 📈 Portföy Özeti */}
-          <PortfolioHeroCard
-            summary={investData?.summary || { totalPortfolioValueTRY: 0, unreleasedPlTRY: 0, unreleasedPlPercent: 0 }}
-            allocation={investData?.allocation || []}
-            onOpenDividendModal={() => setIsDividendOpen(true)}
-            onOpenAddAssetModal={() => {}}
-          />
+      {/* Zaman Odaklı Akıllı Dashboard Akışı */}
+      <TimeContextualFeed
+        morningWidgets={
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+            {wellnessCard}
+            {fastingCard}
+          </div>
+        }
+        dayWidgets={
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+            {recentTxCard}
+            {shoppingCard}
+            {vehicleCard}
+          </div>
+        }
+        eveningWidgets={
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+            {recentTxCard}
+            {libraryCard}
+            {wellnessCard}
+          </div>
+        }
+        secondaryWidgets={
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+            {portfolioCard}
+            {vehicleCard}
+            {libraryCard}
+            {shoppingCard}
+          </div>
+        }
+      />
 
-          {/* ⏱️ Aralıklı Oruç Sayacı */}
-          <FastingTimerCard
-            fastingData={fastingData || { is_active: false, protocol: '16:8' }}
-            onToggleFasting={handleToggleFasting}
-          />
+      {/* ⚡ 1-Dokunuşlu Quick Ingest Hub (Sağ Alt FAB) */}
+      <QuickIngestHub
+        onOpenReceiptScan={() => setIsReceiptScanOpen(true)}
+        onOpenFoodScan={() => setIsFoodScanOpen(true)}
+        onOpenVoiceCommand={() => setIsVoiceOpen(true)}
+        onOpenReadingSession={() => setIsSessionOpen(true)}
+        onQuickAddWater={handleQuickAddWater}
+        onQuickTakeSupplements={handleQuickTakeSupplements}
+      />
 
-          {/* 📚 Aktif Kitap & WPM */}
-          <LibraryHeroCard
-            profile={libraryData?.profile || { yearly_target_books: 24, completedBooksCount: 0, targetProgressPercent: 0, calibrated_avg_wpm: 220, avgMinutesPerPage: '1.4' }}
-            activeBook={libraryData?.activeReadingBook}
-            onOpenSession={() => setIsSessionOpen(true)}
-            onOpenQuotes={() => {}}
-          />
-
-          {/* 💊 Takviye Rutini */}
-          <WellnessCard
-            supplements={wellnessData?.supplements || { morning: [], evening: [], with_meal: [], total: 0, taken: 0 }}
-            todayMood={wellnessData?.todayMood}
-            todaySleep={wellnessData?.todaySleep}
-            moodHistory={wellnessData?.moodHistory || []}
-            sleepHistory={wellnessData?.sleepHistory || []}
-          />
-        </div>
-
-        {/* Sağ Sütun */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* 🚗 Araç Filosu */}
-          <VehicleFleetCard
-            data={vehicleData || { vehicles: [], maintenanceRecords: [] }}
-            onOpenHistory={() => setIsMaintHistOpen(true)}
-            onOpenFuelModal={() => setIsFuelOpen(true)}
-            onOpenServiceModal={() => setIsServiceOpen(true)}
-            onRefresh={handleUpdate}
-          />
-
-          {/* 💰 Son Harcamalar & Yaklaşan Ödemeler */}
-          <RecentTxCard
-            transactions={budgetData?.recentTransactions || []}
-            upcomingPayments={budgetData?.upcomingPayments || []}
-          />
-
-          {/* 🛒 Market Listesi */}
-          <ShoppingListCard
-            items={shoppingData?.items || []}
-            summary={shoppingData?.summary || { total: 0, remaining: 0, done: 0, totalEstimated: 0, remainingEstimated: 0 }}
-            byCategory={shoppingData?.byCategory || {}}
-          />
-        </div>
-      </div>
-
-      {/* Sayfa-Özel Modaller (SharedLayout'ta olmayanlar) */}
+      {/* Modaller */}
       <MaintenanceHistoryModal isOpen={isMaintHistOpen} onClose={() => setIsMaintHistOpen(false)} />
       <DividendModal
         isOpen={isDividendOpen} onClose={() => setIsDividendOpen(false)}
@@ -216,6 +284,22 @@ export default function HomePage() {
         currentKm={vehicleData?.vehicle?.current_km || 0}
         wallets={budgetData?.accounts || []}
         onSuccess={() => { setIsServiceOpen(false); handleUpdate(); }}
+      />
+      <ReceiptScanModal
+        isOpen={isReceiptScanOpen}
+        onClose={() => setIsReceiptScanOpen(false)}
+        accounts={budgetData?.accounts || []}
+        onSuccess={() => { setIsReceiptScanOpen(false); handleUpdate(); }}
+      />
+      <PlateScanModal
+        isOpen={isFoodScanOpen}
+        onClose={() => setIsFoodScanOpen(false)}
+        onSuccess={() => { setIsFoodScanOpen(false); handleUpdate(); }}
+      />
+      <VoiceCommandModal
+        isOpen={isVoiceOpen}
+        onClose={() => setIsVoiceOpen(false)}
+        onSuccess={() => { setIsVoiceOpen(false); handleUpdate(); }}
       />
     </SharedLayout>
   );

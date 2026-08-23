@@ -1,7 +1,10 @@
 :root {
+  /* Default Light Mode Token Set */
   --bg: #F8F9FA;
   --surface: #FFFFFF;
   --surface-subtle: #F3F4F6;
+  --glass-surface: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(229, 231, 235, 0.8);
   --border: #E5E7EB;
   --border-strong: #D1D5DB;
   --text-main: #111827;
@@ -29,6 +32,36 @@
   --shadow-lg: 0 16px 36px rgba(0, 0, 0, 0.07);
 }
 
+/* 🌙 OLED Deep Dark Mode & Glassmorphism Theme */
+[data-theme="dark"],
+body.dark-mode {
+  --bg: #090A0F;
+  --surface: #12141C;
+  --surface-subtle: #1A1D27;
+  --glass-surface: rgba(18, 20, 28, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --text-main: #F9FAFB;
+  --text-muted: #9CA3AF;
+  --text-subtle: #6B7280;
+
+  --emerald: #34D399;
+  --emerald-bg: rgba(16, 185, 129, 0.12);
+  --blue: #60A5FA;
+  --blue-bg: rgba(59, 130, 246, 0.12);
+  --indigo: #818CF8;
+  --indigo-bg: rgba(99, 102, 241, 0.12);
+  --amber: #FBBF24;
+  --amber-bg: rgba(245, 158, 11, 0.12);
+  --rose: #FB7185;
+  --rose-bg: rgba(244, 63, 94, 0.12);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 20px 45px rgba(0, 0, 0, 0.65);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -43,6 +76,7 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 .tabular-nums {

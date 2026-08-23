@@ -25,6 +25,40 @@ export async function parseReceiptImage(
 
   if (apiKey) {
     try {
+      const promptText = `Sen uzman bir finansal fiş, fatura ve POS slip OCR analizörüsün.
+Gönderilen görseldeki fişi, faturayı veya slipi son derece titiz analiz et.
+Buruşukluk, eksik ışık veya kısmi silinme durumunda dahi en mantıklı tahminleri çıkar.
+
+Örnek Çıktı Kalıpları (Few-Shot Examples):
+Örnek 1 (Market):
+{
+  "merchant": "MİGROS T.A.Ş.",
+  "amount": 485.50,
+  "currency": "TRY",
+  "date": "2026-08-20",
+  "category_suggestion": "Market & Gıda",
+  "items": [
+    {"name": "Süt 1L", "price": 38.50, "quantity": 2},
+    {"name": "Ekmek", "price": 15.00, "quantity": 1}
+  ],
+  "tax_amount": 35.0
+}
+
+Örnek 2 (Akaryakıt / İstasyon):
+{
+  "merchant": "SHELL PETROL A.Ş.",
+  "amount": 1850.00,
+  "currency": "TRY",
+  "date": "2026-08-21",
+  "category_suggestion": "Ulaşım & Akaryakıt",
+  "items": [
+    {"name": "V-Power Kurşunsuz 95 (41.5 Litre)", "price": 1850.00, "quantity": 1}
+  ],
+  "tax_amount": 308.33
+}
+
+Şimdi gönderilen görseli analiz et ve SADECE yukarıdaki gibi geçerli bir JSON çıktısı üret.`;
+
       // Gerçek Gemini 3.5 Flash API Çağrısı
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
@@ -36,18 +70,7 @@ export async function parseReceiptImage(
               {
                 parts: [
                   {
-                    text: `Sen bir profesyonel fiş/fatura okuyucususun. Gönderilen görseldeki fişi analiz et ve SADECE aşağıdaki JSON formatında geçerli bir JSON çıktısı üret, başka hiçbir metin ekleme:
-{
-  "merchant": "İşletme Adı (Örn: Migros, Shell, A101)",
-  "amount": 1485.50,
-  "currency": "TRY",
-  "date": "YYYY-MM-DD",
-  "category_suggestion": "Market & Gıda | Faturalar & Abonelikler | Ulaşım & Akaryakıt | Restoran & Keyif",
-  "items": [
-    {"name": "Ürün Adı", "price": 45.0, "quantity": 1}
-  ],
-  "tax_amount": 120.0
-}`
+                    text: promptText
                   },
                   ...base64Images.map((base64Image, index) => ({
                     inlineData: {

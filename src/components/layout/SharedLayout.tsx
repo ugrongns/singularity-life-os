@@ -42,6 +42,8 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
 
   const [isScreenLocked, setIsScreenLocked] = useState(false);
 
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
   const checkSession = async () => {
     try {
       const res = await fetch('/api/auth/session');
@@ -62,7 +64,18 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
   useEffect(() => {
     setMounted(true);
     checkSession();
+    // Tema tercihini yükle
+    const savedTheme = (localStorage.getItem('singularity_theme') as 'dark' | 'light') || 'dark';
+    setTheme(savedTheme);
+    document.documentElement.setAttribute('data-theme', savedTheme);
   }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    localStorage.setItem('singularity_theme', nextTheme);
+    document.documentElement.setAttribute('data-theme', nextTheme);
+  };
 
   const handleLock = () => {
     setIsScreenLocked(true);
@@ -219,6 +232,20 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* 🌙 / ☀️ Dark/Light Tema Butonu */}
+            <button
+              onClick={toggleTheme}
+              style={{
+                background: 'var(--surface-subtle)', border: '1px solid var(--border)',
+                borderRadius: '50%', width: '36px', height: '36px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', fontSize: '16px', transition: 'all 0.15s'
+              }}
+              title={theme === 'dark' ? 'Aydınlık Moda Geç' : 'Karanlık Moda Geç'}
+            >
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
+
             {/* Hızlı Sesli Komut Butonu */}
             <button
               onClick={() => setActiveModal('voice')}
