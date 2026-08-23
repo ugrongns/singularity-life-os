@@ -122,14 +122,22 @@ export async function POST() {
       appSettings
     ];
 
+    const isMaster = user.is_master_account === 1 || user.role === 'admin';
+
     for (const table of hierarchicalTables) {
       try {
-        if ('user_id' in (table as any)) {
-          await db.delete(table).where(eq((table as any).user_id, userId));
-        } else if ('created_by_user_id' in (table as any)) {
-          await db.delete(table).where(eq((table as any).created_by_user_id, userId));
-        } else {
+        if (isMaster) {
+          // Master yönetici hesabı sıfırladığında tüm tabloları tertemiz yapar (NULL user_id veya eski aile kayıtları dahil)
           await db.delete(table);
+        } else {
+          // Normal alt kullanıcı sadece kendi eklediklerini siler
+          if ('user_id' in (table as any)) {
+            await db.delete(table).where(eq((table as any).user_id, userId));
+          } else if ('created_by_user_id' in (table as any)) {
+            await db.delete(table).where(eq((table as any).created_by_user_id, userId));
+          } else {
+            await db.delete(table);
+          }
         }
       } catch (tableErr) {
         try {

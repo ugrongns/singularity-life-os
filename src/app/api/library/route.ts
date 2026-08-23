@@ -173,6 +173,7 @@ export async function POST(req: Request) {
         lent_to_name: is_lent_out ? lent_to_name : null,
         lent_date: is_lent_out ? (lent_date || now.split('T')[0]) : null,
         is_family_shared: 1,
+        user_id: user.id,
         created_at: now,
         updated_at: now,
         sync_status: 'synced',
