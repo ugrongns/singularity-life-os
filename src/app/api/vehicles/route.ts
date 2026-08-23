@@ -177,6 +177,34 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const today = now.split('T')[0];
 
+    // Yeni Araç Ekleme
+    if (action === 'add_vehicle') {
+      const vehicleId = `veh-${Date.now()}`;
+      await db.insert(vehicles).values({
+        id: vehicleId,
+        plate: (data.plate || '').toUpperCase().replace(/\s/g, ''),
+        make: data.make || 'Bilinmiyor',
+        model: data.model || 'Bilinmiyor',
+        year: parseInt(data.year) || new Date().getFullYear(),
+        current_km: parseFloat(data.current_km) || 0,
+        fuel_type: data.fuel_type || 'Benzin',
+        color: data.color || '#3B82F6',
+        is_family_shared: 1,
+        is_active: 1,
+        created_at: now,
+        updated_at: now,
+        sync_status: 'synced',
+        device_id: 'web-client',
+        user_id: user.id
+      } as any);
+
+      return NextResponse.json({
+        success: true,
+        message: `🚗 ${data.make} ${data.model} (${(data.plate || '').toUpperCase()}) garajınıza eklendi!`,
+        vehicle_id: vehicleId
+      });
+    }
+
     // KM Güncelleme
     if (action === 'update_km' || (!action && data.vehicle_id && data.current_km)) {
       const vehicleId = data.vehicle_id;

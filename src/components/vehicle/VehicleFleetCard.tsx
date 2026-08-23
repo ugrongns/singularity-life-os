@@ -7,6 +7,7 @@ interface VehicleFleetCardProps {
   onOpenFuelModal?: () => void;
   onOpenServiceModal?: () => void;
   onRefresh?: () => void;
+  onAddVehicle?: () => void;
 }
 
 export default function VehicleFleetCard({
@@ -14,7 +15,8 @@ export default function VehicleFleetCard({
   onOpenHistory,
   onOpenFuelModal,
   onOpenServiceModal,
-  onRefresh
+  onRefresh,
+  onAddVehicle
 }: VehicleFleetCardProps) {
   const [kmInput, setKmInput] = useState('');
   const [updatingKm, setUpdatingKm] = useState(false);
@@ -30,12 +32,24 @@ export default function VehicleFleetCard({
             <span>Araç Filosu & Bakım Takibi</span>
           </div>
         </div>
-        <div style={{ textAlign: 'center', padding: '24px 16px', background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-          <div style={{ fontSize: '32px', marginBottom: '8px' }}>🚗</div>
-          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)' }}>Henüz Kayıtlı Araç Bulunmuyor</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+        <div style={{ textAlign: 'center', padding: '32px 16px', background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '40px', marginBottom: '10px' }}>🚗</div>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>Henüz Kayıtlı Araç Bulunmuyor</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
             Garajınıza yeni bir araç ekleyerek KM, periyodik bakım ve yakıt giderlerinizi takip edebilirsiniz.
           </div>
+          {onAddVehicle && (
+            <button
+              onClick={onAddVehicle}
+              style={{
+                padding: '10px 20px', borderRadius: 'var(--radius-md)',
+                border: 'none', background: 'var(--blue)', color: 'white',
+                fontSize: '13px', fontWeight: 700, cursor: 'pointer'
+              }}
+            >
+              + Garajıma Araç Ekle
+            </button>
+          )}
         </div>
       </div>
     );

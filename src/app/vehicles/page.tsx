@@ -7,6 +7,7 @@ import MaintenanceHistoryModal from '@/components/vehicle/MaintenanceHistoryModa
 import AddFuelLogModal from '@/components/modals/AddFuelLogModal';
 import AddVehicleServiceModal from '@/components/modals/AddVehicleServiceModal';
 import AddHomeItemModal from '@/components/modals/AddHomeItemModal';
+import AddVehicleModal from '@/components/modals/AddVehicleModal';
 
 export default function VehiclesPage() {
   const [vehicleData, setVehicleData] = useState<any>(null);
@@ -20,6 +21,7 @@ export default function VehiclesPage() {
   const [isFuelModalOpen, setIsFuelModalOpen] = useState(false);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [isHomeModalOpen, setIsHomeModalOpen] = useState(false);
+  const [isAddVehicleOpen, setIsAddVehicleOpen] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -91,6 +93,7 @@ export default function VehiclesPage() {
             onOpenFuelModal={() => setIsFuelModalOpen(true)}
             onOpenServiceModal={() => setIsServiceModalOpen(true)}
             onRefresh={fetchData}
+            onAddVehicle={() => setIsAddVehicleOpen(true)}
           />
         </div>
 
@@ -133,6 +136,12 @@ export default function VehiclesPage() {
         isOpen={isHomeModalOpen}
         onClose={() => setIsHomeModalOpen(false)}
         onSuccess={(msg) => handleSuccess(msg)}
+      />
+
+      <AddVehicleModal
+        isOpen={isAddVehicleOpen}
+        onClose={() => setIsAddVehicleOpen(false)}
+        onSuccess={() => { fetchData(); showToast('Araç başarıyla garajınıza eklendi! 🚗'); }}
       />
     </SharedLayout>
   );

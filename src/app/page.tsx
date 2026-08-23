@@ -14,6 +14,7 @@ import MaintenanceHistoryModal from '@/components/vehicle/MaintenanceHistoryModa
 import ReadingSessionModal from '@/components/modals/ReadingSessionModal';
 import AddFuelLogModal from '@/components/modals/AddFuelLogModal';
 import AddVehicleServiceModal from '@/components/modals/AddVehicleServiceModal';
+import AddVehicleModal from '@/components/modals/AddVehicleModal';
 
 import TimeContextualFeed from '@/components/home/TimeContextualFeed';
 import QuickIngestHub from '@/components/home/QuickIngestHub';
@@ -38,6 +39,7 @@ export default function HomePage() {
   const [isSessionOpen,     setIsSessionOpen]     = useState(false);
   const [isFuelOpen,        setIsFuelOpen]        = useState(false);
   const [isServiceOpen,     setIsServiceOpen]     = useState(false);
+  const [isAddVehicleOpen,  setIsAddVehicleOpen]  = useState(false);
   const [isReceiptScanOpen, setIsReceiptScanOpen] = useState(false);
   const [isFoodScanOpen,    setIsFoodScanOpen]    = useState(false);
   const [isVoiceOpen,       setIsVoiceOpen]       = useState(false);
@@ -192,6 +194,7 @@ export default function HomePage() {
       onOpenFuelModal={() => setIsFuelOpen(true)}
       onOpenServiceModal={() => setIsServiceOpen(true)}
       onRefresh={handleUpdate}
+      onAddVehicle={() => setIsAddVehicleOpen(true)}
     />
   );
 
@@ -279,6 +282,11 @@ export default function HomePage() {
         isOpen={isVoiceOpen}
         onClose={() => setIsVoiceOpen(false)}
         onSuccess={() => { setIsVoiceOpen(false); handleUpdate(); }}
+      />
+      <AddVehicleModal
+        isOpen={isAddVehicleOpen}
+        onClose={() => setIsAddVehicleOpen(false)}
+        onSuccess={() => { setIsAddVehicleOpen(false); handleUpdate(); }}
       />
     </SharedLayout>
   );
