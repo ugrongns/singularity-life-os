@@ -88,16 +88,15 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
   };
 
   const sidebarPages = [
-    { href: '/',            icon: '🏠', label: 'Ana Sayfa' },
-    { href: '/budget',      icon: '💰', label: 'Finans & Bütçe' },
-    { href: '/investments', icon: '📈', label: 'Yatırımlar' },
-    { href: '/vehicles',    icon: '🚗', label: 'Araç & Ev' },
-    { href: '/library',     icon: '📚', label: 'Kütüphane' },
-    { href: '/health',      icon: '🧬', label: 'Sağlık & Beslenme' },
-    { href: '/wellness',    icon: '💊', label: 'Wellness & Rutin' },
-    { href: '/shopping',    icon: '🛒', label: 'Market Listesi' },
-    { href: '/vault',       icon: '🗂️', label: 'Dijital Kasa' },
-    { href: '/analytics',   icon: '📊', label: 'Yaşam Skoru' },
+    { href: '/',          icon: '🏠', label: 'Ana Sayfa' },
+    { href: '/budget',    icon: '💰', label: 'Finans & Bütçe' },
+    { href: '/vehicles',  icon: '🚗', label: 'Araç & Ev' },
+    { href: '/library',   icon: '📚', label: 'Kütüphane' },
+    { href: '/health',    icon: '🧬', label: 'Sağlık & Beslenme' },
+    { href: '/wellness',  icon: '💊', label: 'Wellness & Rutin' },
+    { href: '/shopping',  icon: '🛒', label: 'Market Listesi' },
+    { href: '/vault',     icon: '🗂️', label: 'Dijital Kasa' },
+    { href: '/analytics', icon: '📊', label: 'Yaşam Skoru' },
   ];
 
   const navItems = [

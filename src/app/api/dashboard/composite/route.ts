@@ -29,7 +29,6 @@ export async function GET(req: Request) {
     // Tüm dashboard verilerini paralel topla
     const [
       budgetRes,
-      investRes,
       vehicleRes,
       libraryRes,
       fastingRes,
@@ -38,7 +37,6 @@ export async function GET(req: Request) {
       notifRes
     ] = await Promise.allSettled([
       fetch(`${origin}/api/budget`, { headers }).then(r => r.json()),
-      fetch(`${origin}/api/investments`, { headers }).then(r => r.json()),
       fetch(`${origin}/api/vehicles`, { headers }).then(r => r.json()),
       fetch(`${origin}/api/library`, { headers }).then(r => r.json()),
       fetch(`${origin}/api/health/fasting`, { headers }).then(r => r.json()),
@@ -58,7 +56,6 @@ export async function GET(req: Request) {
           user
         },
         budget: getVal(budgetRes),
-        investments: getVal(investRes),
         vehicles: getVal(vehicleRes),
         library: getVal(libraryRes),
         fasting: getVal(fastingRes),

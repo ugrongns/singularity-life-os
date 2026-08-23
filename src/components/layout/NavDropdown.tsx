@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation';
 const ALL_PAGES = [
   { href: '/',            icon: '🏠', label: 'Ana Sayfa',       desc: 'Özet dashboard' },
   { href: '/budget',      icon: '💰', label: 'Finans & Bütçe',  desc: 'Hesaplar, harcamalar, bütçe limitleri' },
-  { href: '/investments', icon: '📈', label: 'Yatırımlar',      desc: 'Portföy, hisseler, BES, gayrimenkul' },
   { href: '/vehicles',    icon: '🚗', label: 'Araç & Ev',       desc: 'Araç bakımı, ev operasyonları' },
   { href: '/library',     icon: '📚', label: 'Kütüphane',       desc: 'Kitaplık, okuma hızı, alıntılar' },
   { href: '/health',      icon: '🧬', label: 'Sağlık',          desc: 'Beslenme, aralıklı oruç, gıda karnesi' },

@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import SharedLayout from '@/components/layout/SharedLayout';
 import NetWorthHero from '@/components/budget/NetWorthHero';
 import RecentTxCard from '@/components/budget/RecentTxCard';
-import PortfolioHeroCard from '@/components/investments/PortfolioHeroCard';
 import VehicleFleetCard from '@/components/vehicle/VehicleFleetCard';
 import LibraryHeroCard from '@/components/library/LibraryHeroCard';
 import FastingTimerCard from '@/components/health/FastingTimerCard';
@@ -12,7 +11,6 @@ import ShoppingListCard from '@/components/shopping/ShoppingListCard';
 import LandingPage from '@/components/landing/LandingPage';
 // Sayfa-özel Modaller (SharedLayout'ta olmayan modaller)
 import MaintenanceHistoryModal from '@/components/vehicle/MaintenanceHistoryModal';
-import DividendModal from '@/components/modals/DividendModal';
 import ReadingSessionModal from '@/components/modals/ReadingSessionModal';
 import AddFuelLogModal from '@/components/modals/AddFuelLogModal';
 import AddVehicleServiceModal from '@/components/modals/AddVehicleServiceModal';
@@ -26,7 +24,6 @@ import VoiceCommandModal from '@/components/modals/VoiceCommandModal';
 export default function HomePage() {
   const [session,      setSession]      = useState<any>(null);
   const [budgetData,   setBudgetData]   = useState<any>(null);
-  const [investData,   setInvestData]   = useState<any>(null);
   const [vehicleData,  setVehicleData]  = useState<any>(null);
   const [libraryData,  setLibraryData]  = useState<any>(null);
   const [fastingData,  setFastingData]  = useState<any>(null);
@@ -38,7 +35,6 @@ export default function HomePage() {
 
   // Modaller
   const [isMaintHistOpen,   setIsMaintHistOpen]   = useState(false);
-  const [isDividendOpen,    setIsDividendOpen]    = useState(false);
   const [isSessionOpen,     setIsSessionOpen]     = useState(false);
   const [isFuelOpen,        setIsFuelOpen]        = useState(false);
   const [isServiceOpen,     setIsServiceOpen]     = useState(false);
@@ -55,7 +51,6 @@ export default function HomePage() {
         const d = j.data;
         if (d.session)     setSession(d.session);
         if (d.budget)      setBudgetData(d.budget);
-        if (d.investments) setInvestData(d.investments);
         if (d.vehicles)    setVehicleData(d.vehicles);
         if (d.library)     setLibraryData(d.library);
         if (d.fasting)     setFastingData(d.fasting);
@@ -131,7 +126,7 @@ export default function HomePage() {
   }
 
   // Hata durumu
-  if (fetchError && !budgetData && !investData) {
+  if (fetchError && !budgetData) {
     return (
       <SharedLayout notifications={notifData}>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 20px' }}>
@@ -190,15 +185,6 @@ export default function HomePage() {
     />
   );
 
-  const portfolioCard = (
-    <PortfolioHeroCard
-      summary={investData?.summary || { totalPortfolioValueTRY: 0, unreleasedPlTRY: 0, unreleasedPlPercent: 0 }}
-      allocation={investData?.allocation || []}
-      onOpenDividendModal={() => setIsDividendOpen(true)}
-      onOpenAddAssetModal={() => {}}
-    />
-  );
-
   const vehicleCard = (
     <VehicleFleetCard
       data={vehicleData || { vehicles: [], maintenanceRecords: [] }}
@@ -238,7 +224,6 @@ export default function HomePage() {
         }
         secondaryWidgets={
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-            {portfolioCard}
             {vehicleCard}
             {libraryCard}
             {shoppingCard}
@@ -258,12 +243,6 @@ export default function HomePage() {
 
       {/* Modaller */}
       <MaintenanceHistoryModal isOpen={isMaintHistOpen} onClose={() => setIsMaintHistOpen(false)} />
-      <DividendModal
-        isOpen={isDividendOpen} onClose={() => setIsDividendOpen(false)}
-        assets={investData?.assets || []}
-        accounts={budgetData?.accounts || []}
-        onSuccess={() => handleUpdate()}
-      />
       <ReadingSessionModal
         isOpen={isSessionOpen} onClose={() => setIsSessionOpen(false)}
         books={libraryData?.books || []}

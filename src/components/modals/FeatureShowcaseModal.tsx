@@ -15,13 +15,6 @@ const MODULES_SHOWCASE = [
     description: 'Vadesiz hesaplar, kredi kartı ekstreleri, kategori limitleri ve AI Fiş/Fatura Tarama ile akıllı taksit bölme.'
   },
   {
-    href: '/investments',
-    icon: '📈',
-    title: 'Yatırımlar & Portföy',
-    badge: 'Blok 2',
-    description: 'Çoklu para birimli Net Değer (₺/$/Altın/BTC), hisse/fon takibi, BES dinamik devlet katkısı ve gayrimenkul kira motoru.'
-  },
-  {
     href: '/vehicles',
     icon: '🚗',
     title: 'Araç & Ev Operasyonları',
