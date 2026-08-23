@@ -115,11 +115,11 @@ export default function BackupStatusCard({ last_backup, backup_count, backups, d
       </div>
 
       {/* Bulut Bilgilendirme Notu */}
-      <div style={{ background: '#F0FDF4', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 'var(--radius-md)', padding: '10px 12px', marginBottom: '12px', fontSize: '12px', lineHeight: '1.5' }}>
-        <div style={{ color: '#065F46', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+      <div style={{ background: 'var(--emerald-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 12px', marginBottom: '12px', fontSize: '12px', lineHeight: '1.5' }}>
+        <div style={{ color: 'var(--emerald)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
           <span>✅</span> Verileriniz Supabase Bulutunda Güvende
         </div>
-        <div style={{ color: '#047857', fontSize: '11px' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
           Tüm verileriniz Supabase üzerinde otomatik olarak replike edilir. Dilediğiniz zaman aşağıdaki butonlarla bilgisayarınıza yerel bir kopya indirebilirsiniz.
         </div>
       </div>

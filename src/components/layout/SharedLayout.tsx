@@ -124,7 +124,9 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
       {/* Desktop Sidebar Navigation */}
       <aside className="sidebar-nav">
         <div className="sidebar-brand" onClick={() => setActiveModal('showcase')} title="Singularity Özellik Vitrini">
-          <div className="brand-icon">S</div>
+          <div style={{ width: '36px', height: '36px', borderRadius: '10px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-subtle)', border: '1px solid var(--border)', flexShrink: 0 }}>
+            <img src="/icon.svg" alt="Singularity" style={{ width: '28px', height: '28px' }} />
+          </div>
           <div>
             <div className="brand-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span>Singularity OS</span>
@@ -216,10 +218,12 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
             <div
               className="brand-badge"
               onClick={() => setActiveModal('showcase')}
-              style={{ cursor: 'pointer', userSelect: 'none' }}
+              style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}
               title="Singularity Özellik Vitrini"
             >
-              <div className="brand-icon">S</div>
+              <div style={{ width: '36px', height: '36px', borderRadius: '10px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-subtle)', border: '1px solid var(--border)', flexShrink: 0 }}>
+                <img src="/icon.svg" alt="Singularity" style={{ width: '28px', height: '28px' }} />
+              </div>
               <div>
                 <div className="brand-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span>Singularity Life OS</span>

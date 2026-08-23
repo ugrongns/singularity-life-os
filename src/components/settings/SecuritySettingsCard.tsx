@@ -254,8 +254,8 @@ export default function SecuritySettingsCard() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
               width: '44px', height: '44px', borderRadius: '14px', fontSize: '24px',
-              background: 'white', border: '1px solid var(--border)', display: 'flex',
-              alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+              background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)'
             }}>
               {currentUser.avatar_emoji || '👑'}
             </div>
@@ -277,7 +277,7 @@ export default function SecuritySettingsCard() {
               title="Hesabınıza görünüm amaçlı örnek veriler ekler"
               style={{
                 flex: '1 1 auto', padding: '8px 12px', fontSize: '11px', fontWeight: 800,
-                background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#2563EB',
+                background: 'var(--blue-bg)', border: '1px solid var(--border)', color: 'var(--blue)',
                 borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'center'
               }}
             >
@@ -289,7 +289,7 @@ export default function SecuritySettingsCard() {
               title="Hesabınızdaki tüm cüzdan, harcama ve kişisel verileri sıfırlar"
               style={{
                 flex: '1 1 auto', padding: '8px 12px', fontSize: '11px', fontWeight: 800,
-                background: '#FFF1F2', border: '1px solid #FECDD3', color: '#E11D48',
+                background: 'var(--rose-bg)', border: '1px solid var(--border)', color: 'var(--rose)',
                 borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'center'
               }}
             >
@@ -308,7 +308,7 @@ export default function SecuritySettingsCard() {
               onClick={handleLogout}
               style={{
                 flex: '1 1 auto', padding: '8px 12px', fontSize: '11px', fontWeight: 800,
-                background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626',
+                background: 'var(--rose-bg)', border: '1px solid var(--border)', color: 'var(--rose)',
                 borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'center'
               }}
             >

@@ -183,7 +183,7 @@ export default function DigitalVaultCard({
           placeholder={tab === 'vault' ? '🔍 Belge, kisi veya seri no ara...' : tab === 'dates' ? '🔍 Kişi, doğum günü veya hediye ara...' : '🔍 Evcil hayvan, çip no veya veteriner ara...'}
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          style={{ flex: 1, minWidth: '200px', padding: '8px 12px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
+          style={{ flex: 1, minWidth: '200px', padding: '8px 12px', fontSize: '12px', background: 'var(--surface)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
         />
 
         {tab === 'vault' && (
@@ -192,9 +192,9 @@ export default function DigitalVaultCard({
               onClick={() => setCategoryFilter('all')}
               style={{
                 padding: '4px 8px', fontSize: '11px', fontWeight: 700, borderRadius: '6px',
-                border: categoryFilter === 'all' ? '1px solid #4F46E5' : '1px solid var(--border)',
-                background: categoryFilter === 'all' ? '#EEF2FF' : 'white',
-                color: categoryFilter === 'all' ? '#4F46E5' : 'var(--text-main)', cursor: 'pointer'
+                border: categoryFilter === 'all' ? '1px solid var(--blue)' : '1px solid var(--border)',
+                background: categoryFilter === 'all' ? 'var(--blue)' : 'var(--surface)',
+                color: categoryFilter === 'all' ? '#FFFFFF' : 'var(--text-muted)', cursor: 'pointer'
               }}
             >
               Tümü
@@ -203,9 +203,9 @@ export default function DigitalVaultCard({
               onClick={() => setCategoryFilter('passport_id')}
               style={{
                 padding: '4px 8px', fontSize: '11px', fontWeight: 700, borderRadius: '6px',
-                border: categoryFilter === 'passport_id' ? '1px solid #4F46E5' : '1px solid var(--border)',
-                background: categoryFilter === 'passport_id' ? '#EEF2FF' : 'white',
-                color: categoryFilter === 'passport_id' ? '#4F46E5' : 'var(--text-main)', cursor: 'pointer'
+                border: categoryFilter === 'passport_id' ? '1px solid var(--blue)' : '1px solid var(--border)',
+                background: categoryFilter === 'passport_id' ? 'var(--blue)' : 'var(--surface)',
+                color: categoryFilter === 'passport_id' ? '#FFFFFF' : 'var(--text-muted)', cursor: 'pointer'
               }}
             >
               🛂 Pasaport & Kimlik
@@ -214,9 +214,9 @@ export default function DigitalVaultCard({
               onClick={() => setCategoryFilter('deed_contract')}
               style={{
                 padding: '4px 8px', fontSize: '11px', fontWeight: 700, borderRadius: '6px',
-                border: categoryFilter === 'deed_contract' ? '1px solid #4F46E5' : '1px solid var(--border)',
-                background: categoryFilter === 'deed_contract' ? '#EEF2FF' : 'white',
-                color: categoryFilter === 'deed_contract' ? '#4F46E5' : 'var(--text-main)', cursor: 'pointer'
+                border: categoryFilter === 'deed_contract' ? '1px solid var(--blue)' : '1px solid var(--border)',
+                background: categoryFilter === 'deed_contract' ? 'var(--blue)' : 'var(--surface)',
+                color: categoryFilter === 'deed_contract' ? '#FFFFFF' : 'var(--text-muted)', cursor: 'pointer'
               }}
             >
               🏠 Tapu & Kontrat
@@ -225,9 +225,9 @@ export default function DigitalVaultCard({
               onClick={() => setCategoryFilter('insurance_warranty')}
               style={{
                 padding: '4px 8px', fontSize: '11px', fontWeight: 700, borderRadius: '6px',
-                border: categoryFilter === 'insurance_warranty' ? '1px solid #4F46E5' : '1px solid var(--border)',
-                background: categoryFilter === 'insurance_warranty' ? '#EEF2FF' : 'white',
-                color: categoryFilter === 'insurance_warranty' ? '#4F46E5' : 'var(--text-main)', cursor: 'pointer'
+                border: categoryFilter === 'insurance_warranty' ? '1px solid var(--blue)' : '1px solid var(--border)',
+                background: categoryFilter === 'insurance_warranty' ? 'var(--blue)' : 'var(--surface)',
+                color: categoryFilter === 'insurance_warranty' ? '#FFFFFF' : 'var(--text-muted)', cursor: 'pointer'
               }}
             >
               🏥 Sigorta & Garanti

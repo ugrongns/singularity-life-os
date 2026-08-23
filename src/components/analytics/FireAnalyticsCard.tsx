@@ -99,28 +99,28 @@ export default function FireAnalyticsCard({ fireMetrics, inflationMetrics }: Pro
       </div>
 
       {/* 3. Kişisel Enflasyon Endeksi */}
-      <div style={{ background: '#FFFBEB', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: 'var(--radius-lg)', padding: '14px' }}>
+      <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 800, color: '#B45309' }}>
+          <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--amber)' }}>
             📊 Kişisel Enflasyon vs Resmi TÜFE
           </div>
-          <span style={{ fontSize: '11px', background: '#FEF3C7', color: '#92400E', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+          <span style={{ fontSize: '11px', background: 'var(--amber-bg)', color: 'var(--amber)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
             Reel Sepet
           </span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '8px', textAlign: 'center' }}>
-          <div style={{ background: 'white', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+          <div style={{ background: 'var(--surface)', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Kişisel Enflasyon</div>
-            <div style={{ fontSize: '15px', fontWeight: 900, color: '#D97706', marginTop: '2px' }}>%{personalInflationRate}</div>
+            <div style={{ fontSize: '15px', fontWeight: 900, color: 'var(--amber)', marginTop: '2px' }}>%{personalInflationRate}</div>
           </div>
-          <div style={{ background: 'white', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+          <div style={{ background: 'var(--surface)', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Resmi TÜİK TÜFE</div>
-            <div style={{ fontSize: '15px', fontWeight: 900, color: '#6B7280', marginTop: '2px' }}>%{officialTuikRate}</div>
+            <div style={{ fontSize: '15px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px' }}>%{officialTuikRate}</div>
           </div>
-          <div style={{ background: 'white', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+          <div style={{ background: 'var(--surface)', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: '10px', color: 'var(--emerald)' }}>Reel Avantaj</div>
-            <div style={{ fontSize: '15px', fontWeight: 900, color: '#059669', marginTop: '2px' }}>+%{savingVsOfficialTuikPercent}</div>
+            <div style={{ fontSize: '15px', fontWeight: 900, color: 'var(--emerald)', marginTop: '2px' }}>+%{savingVsOfficialTuikPercent}</div>
           </div>
         </div>
       </div>
