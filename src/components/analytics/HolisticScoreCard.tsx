@@ -43,22 +43,23 @@ export default function HolisticScoreCard({ scoreData }: Props) {
 
       {/* Büyük Skor Göstergesi */}
       <div style={{
-        background: 'linear-gradient(135deg, #111827, #1E293B)',
-        borderRadius: 'var(--radius-lg)', padding: '24px 20px', color: 'white',
+        background: 'var(--surface-subtle)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-lg)', padding: '24px 20px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         marginBottom: '16px', position: 'relative', overflow: 'hidden'
       }}>
         <div>
-          <div style={{ fontSize: '12px', color: '#94A3B8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             GÜNLÜK ENTEGRE YAŞAM PERFORMANSI
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '6px' }}>
-            <span style={{ fontSize: '48px', fontWeight: 900, color: scoreColor, lineHeight: 1 }}>
+            <span style={{ fontSize: '48px', fontWeight: 900, color: total === 0 ? 'var(--text-muted)' : scoreColor, lineHeight: 1 }}>
               {total}
             </span>
-            <span style={{ fontSize: '18px', color: '#64748B', fontWeight: 600 }}>/ 100</span>
+            <span style={{ fontSize: '18px', color: 'var(--text-muted)', fontWeight: 600 }}>/ 100</span>
           </div>
-          <div style={{ fontSize: '13px', color: '#E2E8F0', marginTop: '8px', fontWeight: 500 }}>
+          <div style={{ fontSize: '13px', color: 'var(--text-main)', marginTop: '8px', fontWeight: 600 }}>
             4 Ana Yaşam Sütununda Tam Senkronizasyon
           </div>
         </div>
@@ -66,14 +67,14 @@ export default function HolisticScoreCard({ scoreData }: Props) {
         {/* Dairesel Rozet */}
         <div style={{
           width: '84px', height: '84px', borderRadius: '50%',
-          border: `4px solid ${scoreColor}`, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)',
-          boxShadow: `0 0 24px ${scoreColor}40`
+          border: `4px solid ${total === 0 ? 'var(--border)' : scoreColor}`, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', background: 'var(--surface)',
+          boxShadow: total === 0 ? 'var(--shadow-sm)' : `0 0 24px ${scoreColor}30`
         }}>
           <span style={{ fontSize: '28px' }}>
             {total >= 90 ? '🏆' : total >= 75 ? '⭐' : '🌿'}
           </span>
-          <span style={{ fontSize: '10px', fontWeight: 800, color: scoreColor }}>
+          <span style={{ fontSize: '10px', fontWeight: 800, color: total === 0 ? 'var(--text-muted)' : scoreColor }}>
             %{total}
           </span>
         </div>
