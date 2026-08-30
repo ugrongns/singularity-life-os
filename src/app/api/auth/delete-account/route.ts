@@ -104,7 +104,6 @@ export async function POST(req: Request) {
     await db.delete(personalDebtsReceivables).where(eq(personalDebtsReceivables.user_id, userId));
     await db.delete(transactions).where(eq(transactions.user_id, userId));
     await db.delete(walletsAccounts).where(eq(walletsAccounts.user_id, userId));
-    await db.delete(sinkingFunds).where(eq(sinkingFunds.user_id, userId));
 
     // 5. Araç & Ev Operasyonları (Eğer aile admini ise ailesine ait kayıtları da temizle)
     const userVehicles = await db.select({ id: vehicles.id }).from(vehicles).where(
@@ -118,6 +117,7 @@ export async function POST(req: Request) {
     await db.delete(vehicles).where(isMasterAdmin ? or(eq(vehicles.user_id, userId), eq(vehicles.family_id, familyId)) : eq(vehicles.user_id, userId));
     
     if (isMasterAdmin) {
+      await db.delete(sinkingFunds).where(eq(sinkingFunds.family_id, familyId));
       await db.delete(homeMaintenanceRecords).where(eq(homeMaintenanceRecords.family_id, familyId));
       await db.delete(homeAppliances).where(eq(homeAppliances.family_id, familyId));
       await db.delete(shoppingListItems).where(eq(shoppingListItems.family_id, familyId));
