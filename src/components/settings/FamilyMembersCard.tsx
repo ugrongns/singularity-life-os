@@ -374,7 +374,7 @@ export default function FamilyMembersCard() {
                   required
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                  style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)', outline: 'none' }}
                 />
               </div>
 
@@ -384,7 +384,7 @@ export default function FamilyMembersCard() {
                 <select
                   value={role}
                   onChange={e => setRole(e.target.value)}
-                  style={{ width: '100%', padding: '10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)' }}
+                  style={{ width: '100%', padding: '10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)', outline: 'none' }}
                 >
                   <option value="admin">👑 Aile Lideri / Yönetici</option>
                   <option value="spouse">💍 Eş</option>
@@ -437,7 +437,7 @@ export default function FamilyMembersCard() {
                 <select
                   value={inviteRelationship}
                   onChange={e => setInviteRelationship(e.target.value)}
-                  style={{ width: '100%', padding: '10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)' }}
+                  style={{ width: '100%', padding: '10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)', outline: 'none' }}
                 >
                   <option value="spouse">💍 Eş</option>
                   <option value="child">👶 Çocuk</option>
@@ -458,7 +458,7 @@ export default function FamilyMembersCard() {
                   placeholder="Örn: Selin Yılmaz (Eşim), Can (Oğlum)"
                   value={inviteTargetName}
                   onChange={e => setInviteTargetName(e.target.value)}
-                  style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                  style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)', outline: 'none' }}
                 />
               </div>
 
