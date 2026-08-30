@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
 import LiveBarcodeScannerModal from './LiveBarcodeScannerModal';
-import { BOOK_CATEGORIES } from '@/lib/book-categories';
+import { BOOK_CATEGORIES, sortCategoriesInTurkish } from '@/lib/book-categories';
 
 interface AddBookModalProps {
   isOpen: boolean;
@@ -14,6 +14,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
   const [author, setAuthor] = useState('');
   const [publisher, setPublisher] = useState('');
   const [isbn, setIsbn] = useState('');
+  const [categoriesList, setCategoriesList] = useState<string[]>(() => sortCategoriesInTurkish(BOOK_CATEGORIES));
   const [category, setCategory] = useState('Kişisel Gelişim');
   const [totalPages, setTotalPages] = useState('200');
   const [currentPage, setCurrentPage] = useState('0');
@@ -41,11 +42,25 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
 
   if (!isOpen) return null;
 
+  const applyIncomingCategory = (incomingCategory?: string) => {
+    if (!incomingCategory) return;
+    const clean = incomingCategory.trim();
+    if (!clean) return;
+    setCategoriesList(prev => {
+      if (!prev.includes(clean)) {
+        return sortCategoriesInTurkish([...prev, clean]);
+      }
+      return prev;
+    });
+    setCategory(clean);
+  };
+
   const resetForm = () => {
     setTitle('');
     setAuthor('');
     setPublisher('');
     setIsbn('');
+    setCategoriesList(sortCategoriesInTurkish(BOOK_CATEGORIES));
     setCategory('Kişisel Gelişim');
     setTotalPages('200');
     setCurrentPage('0');
@@ -134,7 +149,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
         if (b.publisher) setPublisher(b.publisher);
         if (b.isbn) setIsbn(b.isbn);
         if (b.total_pages) setTotalPages(String(b.total_pages));
-        if (b.category) setCategory(b.category);
+        if (b.category) applyIncomingCategory(b.category);
         if (b.summary) setSummary(b.summary);
 
         setSuccessNotice(json.message || `📸 Kitap kapağından "${b.title}" okundu ve görsel eklendi!`);
@@ -173,7 +188,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
         if (b.author) setAuthor(b.author);
         if (b.publisher) setPublisher(b.publisher);
         if (b.total_pages) setTotalPages(String(b.total_pages));
-        if (b.category) setCategory(b.category);
+        if (b.category) applyIncomingCategory(b.category);
         if (b.summary) setSummary(b.summary);
         if (b.cover_url) setCoverUrl(b.cover_url);
 
@@ -479,7 +494,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
                       padding: '11px 14px', color: 'var(--text-main)', fontSize: '14px', outline: 'none'
                     }}
                   >
-                    {BOOK_CATEGORIES.map(cat => (
+                    {categoriesList.map(cat => (
                       <option key={cat} value={cat} style={{ background: 'var(--surface)', color: 'var(--text-main)' }}>{cat}</option>
                     ))}
                   </select>

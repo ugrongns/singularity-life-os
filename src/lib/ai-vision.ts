@@ -1,3 +1,5 @@
+import { normalizeBookCategory } from '@/lib/book-categories';
+
 export interface ParsedReceipt {
   merchant: string;
   amount: number;
@@ -439,14 +441,14 @@ export async function parseBookCoverOrISBNImage(
 
   if (apiKey) {
     try {
-      const promptText = `Sen uzman bir kütüphaneci ve OCR görsel analiz uzmanısın. Gönderilen fotoğraftaki kitap kapağını, arka kapağını veya ISBN barkodunu incele. Kitap bilgilerini çıkar ve SADECE aşağıdaki JSON formatında bir yanıt ver:
+      const promptText = `Sen uzman bir kütüphaneci ve OCR görsel analiz uzmanısın. Gönderilen fotoğraftaki kitap kapağını, arka kapağını veya ISBN barkodunu incele. Kitap bilgilerini çıkar ve kitabın gerçek konusuna göre en doğru Türkçe kategoriyi tespit et. SADECE aşağıdaki JSON formatında bir yanıt ver:
 {
   "title": "Kitap Tam Adı",
   "author": "Yazar Adı Soyadı",
   "publisher": "Yayınevi Adı",
   "isbn": "978... şeklinde 13 haneli ISBN veya boş string",
   "total_pages": 250,
-  "category": "Kişisel Gelişim | Felsefe & Hukuk | Edebiyat & Roman | Tarih | Bilim | İş & Ekonomi",
+  "category": "Kitabın Gerçek Türkçe Kategorisi (Örn: Psikoloji, Bilim, Tarih, Felsefe, Kurgu (Fiction), Beden, Zihin & Ruh, Kişisel Gelişim, İş & Ekonomi, Din, Tıp vb.)",
   "summary": "Kitap kapağında yazan özet veya genel konusu hakkında 1-2 cümlelik bilgi",
   "words_per_page": 250
 }`;
@@ -493,13 +495,14 @@ export async function parseBookCoverOrISBNImage(
 
               const detectedTitle = (parsed.title || '').trim();
               if (detectedTitle && detectedTitle !== 'Taranan Kitap' && detectedTitle !== 'Kitap Tam Adı' && detectedTitle.length >= 2) {
+                const resolvedCategory = normalizeBookCategory(parsed.category, detectedTitle, parsed.summary);
                 return {
                   title: detectedTitle,
                   author: (parsed.author || '').replace(/Yazar Adı Soyadı/i, '').trim(),
                   publisher: (parsed.publisher || '').replace(/Yayınevi Adı/i, '').trim(),
                   isbn: (parsed.isbn || '').replace(/[^0-9X]/gi, '').trim(),
                   total_pages: Number(parsed.total_pages) || 200,
-                  category: parsed.category || 'Kişisel Gelişim',
+                  category: resolvedCategory,
                   summary: parsed.summary || 'Yapay zeka görsel analizi ile taranan kitap.',
                   words_per_page: Number(parsed.words_per_page) || 250,
                   confidence: 0.95
@@ -523,7 +526,7 @@ export async function parseBookCoverOrISBNImage(
     publisher: '',
     isbn: '',
     total_pages: 200,
-    category: 'Kişisel Gelişim',
+    category: 'Kurgu (Fiction)',
     summary: 'Görselden kitap bilgisi okunamadı. Lütfen barkodu kameraya yaklaştırın veya ISBN girin.',
     words_per_page: 250,
     confidence: 0.10
