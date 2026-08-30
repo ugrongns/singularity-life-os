@@ -309,41 +309,44 @@ export async function GET(req: Request) {
     const idealWants = effectiveIncome * 0.30;
     const idealSavings = effectiveIncome * 0.20;
 
-    const needsPenalty = plannedNeeds > idealNeeds ? ((plannedNeeds - idealNeeds) / idealNeeds) * 35 : 0;
-    const wantsPenalty = plannedWants > idealWants ? ((plannedWants - idealWants) / idealWants) * 40 : 0;
-    const savingsPenalty = plannedSavings < idealSavings ? ((idealSavings - plannedSavings) / idealSavings) * 25 : 0;
+    let budgetScoreValue = 0;
+    let budgetScoreGrade = '⚪ Bütçe & Gelir Tanımlanmadı';
 
-    const rawScore = Math.round(100 - (needsPenalty + wantsPenalty + savingsPenalty));
-    const budgetScoreValue = Math.max(0, Math.min(100, rawScore));
+    if (effectiveIncome > 0) {
+      const needsPenalty = idealNeeds > 0 && plannedNeeds > idealNeeds ? ((plannedNeeds - idealNeeds) / idealNeeds) * 35 : 0;
+      const wantsPenalty = idealWants > 0 && plannedWants > idealWants ? ((plannedWants - idealWants) / idealWants) * 40 : 0;
+      const savingsPenalty = idealSavings > 0 && plannedSavings < idealSavings ? ((idealSavings - plannedSavings) / idealSavings) * 25 : 0;
 
-    const needsDiff = plannedNeeds - idealNeeds;
-    const wantsDiff = plannedWants - idealWants;
-    const savingsDiff = idealSavings - plannedSavings;
+      const rawScore = Math.round(100 - (needsPenalty + wantsPenalty + savingsPenalty));
+      budgetScoreValue = Math.max(0, Math.min(100, rawScore));
 
-    let budgetScoreGrade = '🟢 Mükemmel 50/30/20 Dengesi';
+      const needsDiff = plannedNeeds - idealNeeds;
+      const wantsDiff = plannedWants - idealWants;
+      const savingsDiff = idealSavings - plannedSavings;
 
-    if (budgetScoreValue >= 85) {
-      budgetScoreGrade = '🟢 Mükemmel 50/30/20 Dengesi';
-    } else if (budgetScoreValue >= 75) {
-      budgetScoreGrade = '🔵 Sağlıklı Bütçe Dağılımı';
-    } else {
-      // Sapma kaynağına göre dinamik ve doğru teşhis koy!
-      if (needsDiff > 0 && needsDiff >= wantsDiff) {
-        if (savingsDiff > 0) {
-          budgetScoreGrade = '🟡 İhtiyaç Bütçesi Yüksek & Birikim Yetersiz';
-        } else {
-          budgetScoreGrade = '🟡 Zorunlu İhtiyaç Bütçesi Yüksek';
-        }
-      } else if (wantsDiff > 0 && wantsDiff > needsDiff) {
-        if (savingsDiff > 0) {
-          budgetScoreGrade = '🟡 İstek Bütçesi Yüksek & Birikim Yetersiz';
-        } else {
-          budgetScoreGrade = '🟡 İstek / Yaşam Bütçesi Yüksek';
-        }
-      } else if (savingsDiff > 0) {
-        budgetScoreGrade = '🟡 Birikim / Borç Ödeme Payı Yetersiz';
+      if (budgetScoreValue >= 85) {
+        budgetScoreGrade = '🟢 Mükemmel 50/30/20 Dengesi';
+      } else if (budgetScoreValue >= 75) {
+        budgetScoreGrade = '🔵 Sağlıklı Bütçe Dağılımı';
       } else {
-        budgetScoreGrade = '🔴 Riskli Bütçe Yapısı';
+        // Sapma kaynağına göre dinamik ve doğru teşhis koy!
+        if (needsDiff > 0 && needsDiff >= wantsDiff) {
+          if (savingsDiff > 0) {
+            budgetScoreGrade = '🟡 İhtiyaç Bütçesi Yüksek & Birikim Yetersiz';
+          } else {
+            budgetScoreGrade = '🟡 Zorunlu İhtiyaç Bütçesi Yüksek';
+          }
+        } else if (wantsDiff > 0 && wantsDiff > needsDiff) {
+          if (savingsDiff > 0) {
+            budgetScoreGrade = '🟡 İstek Bütçesi Yüksek & Birikim Yetersiz';
+          } else {
+            budgetScoreGrade = '🟡 İstek / Yaşam Bütçesi Yüksek';
+          }
+        } else if (savingsDiff > 0) {
+          budgetScoreGrade = '🟡 Birikim / Borç Ödeme Payı Yetersiz';
+        } else {
+          budgetScoreGrade = '🔴 Riskli Bütçe Yapısı';
+        }
       }
     }
 
@@ -351,9 +354,9 @@ export async function GET(req: Request) {
       score: budgetScoreValue,
       grade: budgetScoreGrade,
       breakdown: {
-        needs: { planned: plannedNeeds, ideal: idealNeeds, pct: Math.round((plannedNeeds / (totalBudgetLimitSum || 1)) * 100) },
-        wants: { planned: plannedWants, ideal: idealWants, pct: Math.round((plannedWants / (totalBudgetLimitSum || 1)) * 100) },
-        savings: { planned: plannedSavings, ideal: idealSavings, pct: Math.round((plannedSavings / (totalBudgetLimitSum || 1)) * 100) }
+        needs: { planned: plannedNeeds, ideal: idealNeeds, pct: totalBudgetLimitSum > 0 ? Math.round((plannedNeeds / totalBudgetLimitSum) * 100) : 0 },
+        wants: { planned: plannedWants, ideal: idealWants, pct: totalBudgetLimitSum > 0 ? Math.round((plannedWants / totalBudgetLimitSum) * 100) : 0 },
+        savings: { planned: plannedSavings, ideal: idealSavings, pct: totalBudgetLimitSum > 0 ? Math.round((plannedSavings / totalBudgetLimitSum) * 100) : 0 }
       }
     };
 
@@ -441,8 +444,10 @@ export async function GET(req: Request) {
         else fTotalExpense += t.amount;
       }
 
-      const freeBudget = Math.max(0, totalBudgetLimitSum - committedAmount);
-      const commitmentPercentage = totalBudgetLimitSum > 0 ? Math.min(100, Math.round((committedAmount / totalBudgetLimitSum) * 100)) : 0;
+      const isColdStart = accounts.length === 0 && effectiveIncome === 0 && allRecentTx.length === 0;
+      const effectiveBudgetLimit = isColdStart ? 0 : totalBudgetLimitSum;
+      const freeBudget = Math.max(0, effectiveBudgetLimit - committedAmount);
+      const commitmentPercentage = effectiveBudgetLimit > 0 ? Math.min(100, Math.round((committedAmount / effectiveBudgetLimit) * 100)) : 0;
 
       futureForecast.push({
         monthStr: fMonthStr,
@@ -451,11 +456,13 @@ export async function GET(req: Request) {
         committedAmount,
         totalExpense: fTotalExpense,
         totalIncome: fTotalIncome,
-        totalBudgetLimit: totalBudgetLimitSum,
+        totalBudgetLimit: effectiveBudgetLimit,
         freeBudget,
         commitmentPercentage
       });
     }
+
+    const isColdStart = accounts.length === 0 && effectiveIncome === 0 && allRecentTx.length === 0;
 
     return NextResponse.json({
       success: true,
@@ -469,7 +476,7 @@ export async function GET(req: Request) {
           selectedMonth: currentMonthStr,
           totalExpense: totalMonthlyExpense,
           totalIncome: totalMonthlyIncome,
-          totalBudgetLimit: totalBudgetLimitSum,
+          totalBudgetLimit: isColdStart ? 0 : totalBudgetLimitSum,
           maxAllowedCap,
           totalCreditCardLimits,
           budgetScore,

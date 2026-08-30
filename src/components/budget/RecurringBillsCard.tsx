@@ -327,8 +327,8 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
           onClick={() => setFilter('all')}
           style={{
             padding: '5px 12px', fontSize: '11px', fontWeight: 700, borderRadius: 'var(--radius-full)', border: '1px solid var(--border)',
-            background: filter === 'all' ? 'var(--text-main)' : 'var(--surface-subtle)',
-            color: filter === 'all' ? 'white' : 'var(--text-muted)', cursor: 'pointer'
+            background: filter === 'all' ? '#4F46E5' : 'var(--surface-subtle)',
+            color: filter === 'all' ? '#FFFFFF' : 'var(--text-muted)', cursor: 'pointer'
           }}
         >
           Tümü ({bills.length})

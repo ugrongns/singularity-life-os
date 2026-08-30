@@ -136,7 +136,7 @@ export default function FutureForecastCard({ forecast, selectedMonth, onSelectMo
               </div>
 
               <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px', fontWeight: 600 }}>
-                Serbest: <strong>{formatTRY(item.freeBudget)}</strong>
+                Serbest: <strong>{formatTRY(item.freeBudget || 0)}</strong>
               </div>
             </div>
           );
