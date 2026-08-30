@@ -25,6 +25,11 @@ export default function SecuritySettingsCard() {
   const [newPin, setNewPin] = useState('');
   const [pinMasterAuth, setPinMasterAuth] = useState('');
 
+  // Hesabı Kalıcı Olarak Silme State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
   // Status message
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -245,6 +250,36 @@ export default function SecuritySettingsCard() {
     }
   };
 
+  const handleDeleteAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deletePassword) {
+      alert('Lütfen hesabınızı silmek için master parolanızı girin.');
+      return;
+    }
+
+    setDeletingAccount(true);
+    try {
+      const res = await fetch('/api/auth/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: deletePassword })
+      });
+      const json = await res.json();
+      if (json.success) {
+        localStorage.clear();
+        sessionStorage.clear();
+        alert(json.message);
+        window.location.href = '/';
+      } else {
+        alert('❌ ' + (json.error || 'Hesap silinemedi.'));
+      }
+    } catch (err) {
+      alert('❌ Bağlantı hatası.');
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
   if (loading) {
     return <div className="card" style={{ padding: '20px', textAlign: 'center' }}>Güvenlik ayarları yükleniyor...</div>;
   }
@@ -312,11 +347,11 @@ export default function SecuritySettingsCard() {
               title="Hesabınızdaki tüm cüzdan, harcama ve kişisel verileri sıfırlar"
               style={{
                 flex: '1 1 auto', padding: '8px 12px', fontSize: '11px', fontWeight: 800,
-                background: 'var(--rose-bg)', border: '1px solid var(--border)', color: 'var(--rose)',
+                background: 'var(--amber-bg)', border: '1px solid var(--border)', color: 'var(--amber)',
                 borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'center'
               }}
             >
-              🗑️ Verilerimi Sıfırla
+              🔄 Verilerimi Sıfırla
             </button>
             <button
               type="button"
@@ -331,11 +366,23 @@ export default function SecuritySettingsCard() {
               onClick={handleLogout}
               style={{
                 flex: '1 1 auto', padding: '8px 12px', fontSize: '11px', fontWeight: 800,
-                background: 'var(--rose-bg)', border: '1px solid var(--border)', color: 'var(--rose)',
+                background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-main)',
                 borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'center'
               }}
             >
               🚪 Çıkış Yap
+            </button>
+            <button
+              type="button"
+              onClick={() => { setDeletePassword(''); setShowDeleteModal(true); }}
+              title="Hesabınızı ve tüm verilerinizi kalıcı olarak siler"
+              style={{
+                flex: '1 1 auto', padding: '8px 12px', fontSize: '11px', fontWeight: 800,
+                background: 'var(--rose-bg)', border: '1px solid var(--border)', color: 'var(--rose)',
+                borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'center'
+              }}
+            >
+              🚨 Hesabımı Sil
             </button>
           </div>
         </div>
@@ -538,6 +585,76 @@ export default function SecuritySettingsCard() {
             {saving ? 'Güncelleniyor...' : '🔢 6 Haneli PIN Kodunu Güncelle'}
           </button>
         </form>
+      )}
+
+      {/* HESAP KALICI SİLME ONAY MODALI */}
+      {showDeleteModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '16px'
+        }}>
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--rose)',
+            borderRadius: 'var(--radius-lg)', maxWidth: '440px', width: '100%',
+            padding: '24px', boxShadow: 'var(--shadow-lg)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--rose)', marginBottom: '12px' }}>
+              <span style={{ fontSize: '28px' }}>🚨</span>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>Hesabı Kalıcı Olarak Sil</h3>
+            </div>
+
+            <div style={{ background: 'var(--rose-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px', fontSize: '12px', color: 'var(--rose)', lineHeight: '1.5', marginBottom: '16px' }}>
+              <strong>⚠️ DİKKAT: Bu işlem kesinlikle geri alınamaz!</strong>
+              <div style={{ marginTop: '4px' }}>
+                Hesabınız, cüzdanlarınız, işlemleriniz, araçlarınız, sağlık verileriniz ve kütüphaneniz veritabanından kalıcı olarak silinecektir.
+              </div>
+            </div>
+
+            <form onSubmit={handleDeleteAccount} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)' }}>
+                  ONAYLAMAK İÇİN MASTER PAROLANIZI GİRİN:
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Mevcut Master Parolanız"
+                  value={deletePassword}
+                  onChange={e => setDeletePassword(e.target.value)}
+                  style={{
+                    width: '100%', padding: '10px 12px', fontSize: '14px',
+                    border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
+                    marginTop: '6px', background: 'var(--surface-subtle)'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  disabled={deletingAccount}
+                  onClick={() => setShowDeleteModal(false)}
+                  className="btn-subtle"
+                  style={{ flex: 1, padding: '10px', fontSize: '12px', fontWeight: 700 }}
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  disabled={deletingAccount || !deletePassword}
+                  style={{
+                    flex: 1.5, padding: '10px', fontSize: '12px', fontWeight: 800,
+                    background: 'var(--rose)', color: 'white', border: 'none',
+                    borderRadius: 'var(--radius-md)', cursor: 'pointer'
+                  }}
+                >
+                  {deletingAccount ? 'Siliniyor...' : '🚨 Hesabımı Tamamen Sil'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
     </div>
