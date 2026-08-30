@@ -80,7 +80,25 @@ async function fetchFromOpenLibrary(cleanIsbn: string): Promise<BookSearchResult
   return null;
 }
 
-// 3. KAYNAK: Gemini AI Canlı Arama / Grounding & Künye Analizi
+function extractJsonFromText(text: string): any {
+  if (!text) return null;
+  const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/```\s*([\s\S]*?)\s*```/);
+  const raw = jsonMatch ? jsonMatch[1] : text;
+  try {
+    return JSON.parse(raw.trim());
+  } catch (e) {
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      try {
+        return JSON.parse(text.slice(firstBrace, lastBrace + 1));
+      } catch (err) {}
+    }
+  }
+  return null;
+}
+
+// 3. KAYNAK: Gemini AI Canlı Arama / Google Search Grounding & Künye Analizi
 async function fetchFromGeminiAI(
   cleanIsbn: string,
   seedTitle?: string,
@@ -91,7 +109,8 @@ async function fetchFromGeminiAI(
   if (!apiKey) return null;
 
   const contextHint = seedTitle ? ` (Kitap İpucu: "${seedTitle}" - ${seedAuthor || ''}, ${seedPublisher || ''})` : '';
-  const promptText = `Sen uzman bir kütüphaneci ve kitap kataloglama uzmanısın. ISBN numarası "${cleanIsbn}"${contextHint} olan kitabın Türkiye ve dünya kataloglarındaki tam adını, yazarını, yayınevini, sayfa sayısını, açıklayıcı Türkçe arka kapak özetini (2-3 cümle) ve kitabın gerçek konusuna/türüne göre en doğru Türkçe kategorisini (Örn: Tarih, Felsefe, Psikoloji, Bilim, Kişisel Gelişim, Kurgu (Fiction), Beden, Zihin & Ruh, İş & Ekonomi, Din, Sosyal Bilimler, Tıp, Sanat, Teknoloji & Mühendislik vb.) araştır ve SADECE geçerli bir JSON çıktısı ver:
+  const promptText = `Sen uzman bir kütüphanecisin. Canlı arama ile ISBN numarası "${cleanIsbn}"${contextHint} olan kitabın Türkiye ve dünya kataloglarındaki gerçek ve tam adını, yazarını, yayınevini, sayfa sayısını, açıklayıcı Türkçe arka kapak özetini (2-3 cümle) ve kitabın gerçek konusuna/türüne göre en doğru Türkçe kategorisini (Örn: Tarih, Felsefe, Psikoloji, Bilim, Kişisel Gelişim, Kurgu (Fiction), Beden, Zihin & Ruh, İş & Ekonomi, Din, Sosyal Bilimler, Tıp, Sanat, Teknoloji & Mühendislik vb.) araştır ve SADECE JSON formatında çıktı ver:
+\`\`\`json
 {
   "title": "Kitap Tam Adı",
   "author": "Yazar Adı",
@@ -99,7 +118,8 @@ async function fetchFromGeminiAI(
   "total_pages": 250,
   "category": "Kitabın Gerçek Türkçe Kategorisi",
   "summary": "Kitabın konusu, anlattıkları ve arka kapak metni hakkında 2-3 cümlelik açıklayıcı Türkçe özet."
-}`;
+}
+\`\`\``;
 
   const models = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
   for (const modelName of models) {
@@ -111,7 +131,8 @@ async function fetchFromGeminiAI(
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: promptText }] }],
-            generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
+            tools: [{ google_search: {} }],
+            generationConfig: { temperature: 0.0 }
           })
         }
       );
@@ -120,8 +141,8 @@ async function fetchFromGeminiAI(
         const json = await response.json();
         const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
         if (text) {
-          const parsed = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
-          if (parsed.title && parsed.title !== 'Kitap Tam Adı' && parsed.title.length >= 2) {
+          const parsed = extractJsonFromText(text);
+          if (parsed && parsed.title && parsed.title !== 'Kitap Tam Adı' && parsed.title.length >= 2) {
             const resolvedCategory = normalizeBookCategory(parsed.category, parsed.title, parsed.summary);
             return {
               title: parsed.title,
