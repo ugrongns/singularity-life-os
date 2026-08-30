@@ -65,6 +65,7 @@ export default function AddPetModal({ isOpen, item, onClose, onSuccess }: AddPet
 
       const json = await res.json();
       if (json.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         onSuccess(isEditing ? '🐾 Evcil hayvan karnesi güncellendi!' : '🐾 Evcil hayvan karnesi eklendi!');
         onClose();
       } else {

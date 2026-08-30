@@ -167,6 +167,7 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const { section, id, ...data } = body;
     const now = new Date().toISOString();
+    const familyId = user.family_id || `fam-${user.id}`;
 
     if (!id) return NextResponse.json({ success: false, error: 'ID gerekli' }, { status: 400 });
 
@@ -182,8 +183,16 @@ export async function PUT(request: Request) {
         document_number: data.document_number,
         document_image_url: data.document_image_url,
         notes: data.notes,
+        is_family_shared: data.is_family_shared !== undefined ? Number(data.is_family_shared) : undefined,
         updated_at: now
-      }).where(eq(digitalVaultItems.id, id));
+      }).where(
+        and(
+          eq(digitalVaultItems.id, id),
+          user.is_master_account === 1
+            ? eq(digitalVaultItems.family_id, familyId)
+            : or(eq(digitalVaultItems.user_id, user.id), and(eq(digitalVaultItems.family_id, familyId), eq(digitalVaultItems.is_family_shared, 1)))
+        )
+      );
     } else if (section === 'date') {
       await db.update(importantDates).set({
         title: data.title,
@@ -194,7 +203,12 @@ export async function PUT(request: Request) {
         gift_ideas: data.gift_ideas,
         notes: data.notes,
         updated_at: now
-      }).where(eq(importantDates.id, id));
+      }).where(
+        and(
+          eq(importantDates.id, id),
+          user.is_master_account === 1 ? eq(importantDates.family_id, familyId) : eq(importantDates.user_id, user.id)
+        )
+      );
     } else if (section === 'pet') {
       await db.update(petRecords).set({
         name: data.name,
@@ -208,7 +222,12 @@ export async function PUT(request: Request) {
         vet_next_date: data.vet_next_date,
         notes: data.notes,
         updated_at: now
-      }).where(eq(petRecords.id, id));
+      }).where(
+        and(
+          eq(petRecords.id, id),
+          user.is_master_account === 1 ? eq(petRecords.family_id, familyId) : eq(petRecords.user_id, user.id)
+        )
+      );
     }
 
     return NextResponse.json({ success: true, message: 'Güncellendi!' });
@@ -227,13 +246,29 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id');
     const section = searchParams.get('section');
     if (!id) return NextResponse.json({ success: false, error: 'ID required' }, { status: 400 });
+    const familyId = user.family_id || `fam-${user.id}`;
 
     if (section === 'vault') {
-      await db.delete(digitalVaultItems).where(user.is_master_account === 1 ? eq(digitalVaultItems.id, id) : and(eq(digitalVaultItems.id, id), eq(digitalVaultItems.user_id, user.id)));
+      await db.delete(digitalVaultItems).where(
+        and(
+          eq(digitalVaultItems.id, id),
+          user.is_master_account === 1 ? eq(digitalVaultItems.family_id, familyId) : eq(digitalVaultItems.user_id, user.id)
+        )
+      );
     } else if (section === 'date') {
-      await db.delete(importantDates).where(user.is_master_account === 1 ? eq(importantDates.id, id) : and(eq(importantDates.id, id), eq(importantDates.user_id, user.id)));
+      await db.delete(importantDates).where(
+        and(
+          eq(importantDates.id, id),
+          user.is_master_account === 1 ? eq(importantDates.family_id, familyId) : eq(importantDates.user_id, user.id)
+        )
+      );
     } else if (section === 'pet') {
-      await db.delete(petRecords).where(user.is_master_account === 1 ? eq(petRecords.id, id) : and(eq(petRecords.id, id), eq(petRecords.user_id, user.id)));
+      await db.delete(petRecords).where(
+        and(
+          eq(petRecords.id, id),
+          user.is_master_account === 1 ? eq(petRecords.family_id, familyId) : eq(petRecords.user_id, user.id)
+        )
+      );
     }
 
     return NextResponse.json({ success: true, message: 'Silindi!' });

@@ -56,6 +56,7 @@ export default function AddImportantDateModal({ isOpen, item, onClose, onSuccess
 
       const json = await res.json();
       if (json.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         onSuccess(isEditing ? '🎂 Önemli gün güncellendi!' : '🎂 Yeni önemli gün eklendi!');
         onClose();
       } else {

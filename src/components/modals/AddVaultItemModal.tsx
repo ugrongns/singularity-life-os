@@ -129,6 +129,7 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
 
       const json = await res.json();
       if (json.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         onSuccess(isEditing ? '📁 Belge güncellendi!' : '📁 Yeni belge kasaya eklendi!');
         onClose();
       } else {

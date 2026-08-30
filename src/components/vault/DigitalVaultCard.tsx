@@ -52,6 +52,7 @@ interface Props {
   onOpenAddDate: (item?: ImportantDate) => void;
   onOpenAddPet: (item?: Pet) => void;
   onRefresh: () => void;
+  onToast?: (msg: string) => void;
 }
 
 const TYPE_ICONS: Record<string, string> = {
@@ -76,21 +77,28 @@ export default function DigitalVaultCard({
   onOpenAddVault,
   onOpenAddDate,
   onOpenAddPet,
-  onRefresh
+  onRefresh,
+  onToast
 }: Props) {
   const [tab, setTab] = useState<'vault' | 'dates' | 'pets'>('vault');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [previewDocUrl, setPreviewDocUrl] = useState<string | null>(null);
 
+  const expiringCount = vaultItems.filter(item => item.alert_level === 'warning' || item.alert_level === 'critical' || item.visa_warning).length;
+
   const handleDelete = async (id: string, section: 'vault' | 'date' | 'pet') => {
     if (!confirm('Bu kaydı silmek istediğinize emin misiniz?')) return;
     try {
       const res = await fetch(`/api/digital-vault?id=${id}&section=${section}`, { method: 'DELETE' });
       const j = await res.json();
-      if (j.success) onRefresh();
+      if (j.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
+        if (onRefresh) onRefresh();
+        if (onToast) onToast('Kayıt başarıyla silindi.');
+      }
     } catch {
-      alert('Silme hatası.');
+      //
     }
   };
 
@@ -99,6 +107,7 @@ export default function DigitalVaultCard({
     const matchesSearch = (item.title + ' ' + (item.owner || '') + ' ' + (item.document_number || '') + ' ' + (item.notes || ''))
       .toLowerCase().includes(searchQuery.toLowerCase());
     
+    if (categoryFilter === 'expiring_soon') return matchesSearch && (item.alert_level === 'warning' || item.alert_level === 'critical' || Boolean(item.visa_warning));
     if (categoryFilter === 'passport_id') return matchesSearch && (item.type === 'passport' || item.type === 'id_card');
     if (categoryFilter === 'deed_contract') return matchesSearch && (item.type === 'title_deed' || item.type === 'contract');
     if (categoryFilter === 'insurance_warranty') return matchesSearch && (item.type === 'insurance' || item.type === 'warranty' || item.type === 'license');
@@ -199,6 +208,19 @@ export default function DigitalVaultCard({
             >
               Tümü
             </button>
+            {expiringCount > 0 && (
+              <button
+                onClick={() => setCategoryFilter('expiring_soon')}
+                style={{
+                  padding: '4px 8px', fontSize: '11px', fontWeight: 700, borderRadius: '6px',
+                  border: categoryFilter === 'expiring_soon' ? '1px solid var(--crimson)' : '1px solid #FECDD3',
+                  background: categoryFilter === 'expiring_soon' ? 'var(--crimson)' : '#FFF1F2',
+                  color: categoryFilter === 'expiring_soon' ? '#FFFFFF' : 'var(--crimson)', cursor: 'pointer'
+                }}
+              >
+                ⚠️ Süresi Yaklaşan ({expiringCount})
+              </button>
+            )}
             <button
               onClick={() => setCategoryFilter('passport_id')}
               style={{
