@@ -22,6 +22,7 @@ interface RecurringBill {
   period: 'monthly' | 'yearly' | 'quarterly';
   due_month: number | null;
   amount: number;
+  amount_type: 'fixed' | 'variable';
   is_auto_pay: number;
   auto_pay_wallet_id: string | null;
   category_id: string | null;
@@ -33,6 +34,11 @@ interface RecurringBill {
   is_billing_open: boolean;
   days_left: number;
   is_overdue: boolean;
+  overdue_days?: number;
+  next_due_date?: string;
+  next_billing_date?: string | null;
+  formatted_next_due?: string;
+  formatted_next_billing?: string | null;
   wallet_name: string | null;
   category_name: string | null;
   category_icon?: string;
@@ -50,6 +56,8 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
   const [bills, setBills] = useState<RecurringBill[]>([]);
   const [summary, setSummary] = useState({
     totalMonthly: 0,
+    fixedTotal: 0,
+    variableTotal: 0,
     paidThisMonth: 0,
     pendingThisMonth: 0,
     totalCount: 0,
@@ -69,6 +77,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
   const [period, setPeriod] = useState<'monthly' | 'yearly' | 'quarterly'>('monthly');
   const [dueMonth, setDueMonth] = useState<number | ''>('');
   const [amount, setAmount] = useState<number | ''>('');
+  const [amountType, setAmountType] = useState<'fixed' | 'variable'>('fixed');
   const [isAutoPay, setIsAutoPay] = useState(false);
   const [autoPayWalletId, setAutoPayWalletId] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -94,7 +103,8 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
       if (j.success && j.data) {
         setBills(j.data.bills || []);
         setSummary(j.data.summary || {
-          totalMonthly: 0, paidThisMonth: 0, pendingThisMonth: 0,
+          totalMonthly: 0, fixedTotal: 0, variableTotal: 0,
+          paidThisMonth: 0, pendingThisMonth: 0,
           totalCount: 0, paidCount: 0, pendingCount: 0
         });
       }
@@ -118,6 +128,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
     setPeriod('monthly');
     setDueMonth('');
     setAmount('');
+    setAmountType('fixed');
     setIsAutoPay(false);
     setAutoPayWalletId(accounts[0]?.id || '');
     setCategoryId(categories[0]?.id || '');
@@ -135,6 +146,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
     setPeriod(b.period);
     setDueMonth(b.due_month || '');
     setAmount(b.amount || '');
+    setAmountType(b.amount_type || 'fixed');
     setIsAutoPay(Boolean(b.is_auto_pay));
     setAutoPayWalletId(b.auto_pay_wallet_id || accounts[0]?.id || '');
     setCategoryId(b.category_id || '');
@@ -162,6 +174,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
       period,
       due_month: dueMonth ? Number(dueMonth) : null,
       amount: Number(amount) || 0,
+      amount_type: amountType,
       is_auto_pay: isAutoPay ? 1 : 0,
       auto_pay_wallet_id: isAutoPay && autoPayWalletId ? autoPayWalletId : null,
       category_id: categoryId || null,
@@ -301,7 +314,9 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
           <div style={{ fontSize: '16px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px' }}>
             {formatTRY(summary.totalMonthly)}
           </div>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>{summary.totalCount} Adet Fatura/Abonelik</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+            {summary.totalCount} Adet ({formatTRY(summary.fixedTotal)} Sabit + ≈{formatTRY(summary.variableTotal)} Tahmini)
+          </div>
         </div>
 
         <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 'var(--radius-md)', padding: '12px' }}>
@@ -382,6 +397,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {filteredBills.map(bill => {
             const icon = getBillIcon(bill);
+            const isVariable = bill.amount_type === 'variable';
 
             return (
               <div
@@ -420,6 +436,17 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                         {bill.type === 'subscription' ? 'Abonelik' : bill.type === 'tax' ? 'Vergi' : 'Fatura'}
                       </span>
 
+                      {/* Sabit / Değişken (Tahmini) Rozeti */}
+                      {isVariable ? (
+                        <span style={{ fontSize: '10px', background: '#FEF3C7', color: '#92400E', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          📊 Tahmini
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '10px', background: 'var(--surface-subtle)', color: 'var(--text-muted)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600, border: '1px solid var(--border)' }}>
+                          🔒 Sabit
+                        </span>
+                      )}
+
                       {/* Otomatik Ödeme Rozeti */}
                       {Boolean(bill.is_auto_pay) && (
                         <span style={{ fontSize: '10px', background: '#D1FAE5', color: '#065F46', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }} title={`Otomatik Ödeme: ${bill.wallet_name || 'Banka/Kart'}`}>
@@ -434,7 +461,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                         </span>
                       ) : bill.is_overdue ? (
                         <span style={{ fontSize: '10px', background: '#FEE2E2', color: '#991B1B', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
-                          ⚠️ {Math.abs(bill.days_left)} Gün Gecikmede!
+                          ⚠️ {bill.overdue_days || Math.abs(bill.days_left)} Gün Gecikmede!
                         </span>
                       ) : bill.is_billing_open ? (
                         <span style={{ fontSize: '10px', background: '#FEF3C7', color: '#92400E', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
@@ -442,16 +469,18 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                         </span>
                       ) : (
                         <span style={{ fontSize: '10px', background: 'var(--surface-subtle)', color: 'var(--text-muted)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
-                          📅 Ayın {bill.billing_day}. günü kesilecek
+                          📅 Gelecek Dönem ({bill.formatted_next_due || `${bill.days_left} gün kaldı`})
                         </span>
                       )}
                     </div>
 
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                      {bill.billing_day && (
+                      {bill.formatted_next_billing ? (
+                        <span>✂️ Tebliğ: <strong>{bill.formatted_next_billing}</strong></span>
+                      ) : bill.billing_day ? (
                         <span>✂️ Tebliğ: <strong>Her ayın {bill.billing_day}'i</strong></span>
-                      )}
-                      <span>📅 Son Ödeme: <strong>Her ayın {bill.due_day}'i</strong></span>
+                      ) : null}
+                      <span>📅 Son Ödeme: <strong>{bill.formatted_next_due || `Her ayın ${bill.due_day}'i`}</strong></span>
                       {bill.wallet_name && (
                         <span>💳 Hesap: <strong>{bill.wallet_name}</strong></span>
                       )}
@@ -463,10 +492,10 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '15px', fontWeight: 900, color: bill.is_paid_this_month ? 'var(--text-muted)' : 'var(--text-main)' }}>
-                      {formatTRY(bill.amount)}
+                      {isVariable ? `≈ ${formatTRY(bill.amount)}` : formatTRY(bill.amount)}
                     </div>
                     <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                      {bill.period === 'yearly' ? 'Yıllık' : 'Aylık'}
+                      {isVariable ? 'Tahmini Tutar' : bill.period === 'yearly' ? 'Yıllık Sabit' : 'Aylık Sabit'}
                     </div>
                   </div>
 
@@ -563,6 +592,48 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                 />
               </div>
 
+              {/* Sabit / Değişken Tutar Türü Seçimi */}
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>
+                  ÖDEME TUTARI TÜRÜ *
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setAmountType('fixed')}
+                    style={{
+                      padding: '10px',
+                      borderRadius: 'var(--radius-md)',
+                      border: `1.5px solid ${amountType === 'fixed' ? '#3B82F6' : 'var(--border)'}`,
+                      background: amountType === 'fixed' ? 'rgba(59, 130, 246, 0.1)' : 'var(--surface-subtle)',
+                      color: amountType === 'fixed' ? '#2563EB' : 'var(--text-muted)',
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, fontSize: '13px' }}>🔒 Sabit Tutar</div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Abonelik, kira, aidat gibi net tutar</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAmountType('variable')}
+                    style={{
+                      padding: '10px',
+                      borderRadius: 'var(--radius-md)',
+                      border: `1.5px solid ${amountType === 'variable' ? '#F59E0B' : 'var(--border)'}`,
+                      background: amountType === 'variable' ? 'rgba(245, 158, 11, 0.1)' : 'var(--surface-subtle)',
+                      color: amountType === 'variable' ? '#D97706' : 'var(--text-muted)',
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, fontSize: '13px' }}>📊 Değişken Tutar</div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Elektrik, su, doğalgaz vb. tahmini tutar</div>
+                  </button>
+                </div>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>TÜR</label>
@@ -626,17 +697,29 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                 </div>
               </div>
 
+              {/* Bilgilendirme Notu */}
+              <div style={{ fontSize: '11px', background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '8px 10px', color: 'var(--text-muted)' }}>
+                💡 <strong>Döngü Başlangıcı:</strong> Fatura takvimi tanımlandığı tarihten sonraki ilk denk gelen tarihten itibaren başlar. Geçmişe dönük ödenmemiş borç kaydı oluşturulmaz.
+              </div>
+
               {/* Tutar */}
               <div>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>TAHMİNİ / SABİT TUTAR (₺) *</label>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>
+                  {amountType === 'variable' ? '📊 TAHMİNİ / YAKLAŞIK TUTAR (₺) *' : '🔒 SABİT TUTAR (₺) *'}
+                </label>
                 <input
                   type="number"
                   required
-                  placeholder="Örn: 450"
+                  placeholder={amountType === 'variable' ? 'Örn: 450 (Tahmini ortalama fatura tutarı)' : 'Örn: 299 (Sabit çekilecek net tutar)'}
                   value={amount}
                   onChange={e => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
                   style={{ width: '100%', padding: '10px 12px', fontSize: '14px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 />
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  {amountType === 'variable'
+                    ? 'Sayaca/kullanıma göre fatura kesilene kadar bütçe planında tahmini yük olarak hesaplanır.'
+                    : 'Her dönem sabit olarak tahsil edilen kesin tutar olarak kaydedilir.'}
+                </div>
               </div>
 
               {/* Otomatik Ödeme Talimatı */}
@@ -715,13 +798,20 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
             <div style={{ background: 'var(--emerald-bg)', border: '1px solid var(--emerald)', borderRadius: 'var(--radius-md)', padding: '14px', marginBottom: '14px' }}>
               <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--emerald)' }}>{payModalBill.name}</div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Son Ödeme: Ayın {payModalBill.due_day}. günü
+                Son Ödeme: {payModalBill.formatted_next_due || `Ayın ${payModalBill.due_day}. günü`}
               </div>
+              {payModalBill.amount_type === 'variable' && (
+                <div style={{ fontSize: '11px', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#92400E', padding: '6px 10px', borderRadius: '6px', marginTop: '8px' }}>
+                  📊 <strong>Değişken Tutar:</strong> Tahmini tutar ≈ {formatTRY(payModalBill.amount)}. Gelen faturadaki kesin tutarı aşağıya yazabilirsiniz.
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>ÖDENEN NET TUTAR (₺)</label>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>
+                  {payModalBill.amount_type === 'variable' ? 'ÖDENEN GERÇEK / NET FATURA TUTARI (₺) *' : 'ÖDENEN NET TUTAR (₺) *'}
+                </label>
                 <input
                   type="number"
                   value={customPayAmount}
@@ -782,4 +872,5 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
     </div>
   );
 }
+
 

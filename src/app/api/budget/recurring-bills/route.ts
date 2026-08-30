@@ -7,6 +7,138 @@ import { getAuthUser } from '@/lib/auth';
 // ✅ Timezone-safe yerel YYYY-MM ve YYYY-MM-DD
 const localYYYYMM = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const localYYYYMMDD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const daysInMonth = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
+
+/**
+ * Fatura / Abonelik için bir sonraki ilk denk gelen vade ve tebliğ tarihlerini hesaplar.
+ * Yeni tanımlanan faturalar geçmiş tarihler için asla 'gecikmede / ödenmemiş' olarak işaretlenmez.
+ */
+export function calculateBillSchedule(bill: any, today: Date) {
+  const currYear = today.getFullYear();
+  const currMonth = today.getMonth(); // 0-11
+  const currDate = today.getDate();
+  const todayStart = new Date(currYear, currMonth, currDate);
+  const currentMonthStr = localYYYYMM(today);
+
+  const dueDay = Number(bill.due_day) || 1;
+  const billingDay = bill.billing_day ? Number(bill.billing_day) : null;
+  const period = bill.period || 'monthly';
+  const dueMonthParam = bill.due_month ? Number(bill.due_month) : null;
+
+  let candDueDate: Date;
+  let nextDueDate: Date;
+  let isOverdue = false;
+  let overdueDays = 0;
+
+  if (period === 'yearly') {
+    const targetMonth = dueMonthParam && dueMonthParam >= 1 && dueMonthParam <= 12 ? dueMonthParam - 1 : 0;
+    const clampedDue = Math.min(dueDay, daysInMonth(currYear, targetMonth));
+    candDueDate = new Date(currYear, targetMonth, clampedDue);
+
+    if (candDueDate < todayStart) {
+      const clampedNextDue = Math.min(dueDay, daysInMonth(currYear + 1, targetMonth));
+      nextDueDate = new Date(currYear + 1, targetMonth, clampedNextDue);
+    } else {
+      nextDueDate = candDueDate;
+    }
+  } else if (period === 'quarterly') {
+    const baseMonth = dueMonthParam && dueMonthParam >= 1 && dueMonthParam <= 12 ? (dueMonthParam - 1) % 3 : 0;
+    const quarterMonths = [baseMonth, baseMonth + 3, baseMonth + 6, baseMonth + 9].filter(m => m < 12);
+    const targetMonth = quarterMonths.find(m => {
+      const d = new Date(currYear, m, Math.min(dueDay, daysInMonth(currYear, m)));
+      return d >= todayStart;
+    }) ?? quarterMonths[0];
+
+    const clampedDue = Math.min(dueDay, daysInMonth(currYear, targetMonth));
+    candDueDate = new Date(currYear, targetMonth, clampedDue);
+
+    if (candDueDate < todayStart) {
+      const nextQMonth = quarterMonths[0];
+      candDueDate = new Date(currYear + 1, nextQMonth, Math.min(dueDay, daysInMonth(currYear + 1, nextQMonth)));
+      nextDueDate = candDueDate;
+    } else {
+      nextDueDate = candDueDate;
+    }
+  } else {
+    // Aylık (monthly) - varsayılan
+    const clampedDue = Math.min(dueDay, daysInMonth(currYear, currMonth));
+    candDueDate = new Date(currYear, currMonth, clampedDue);
+
+    if (candDueDate < todayStart) {
+      // Faturanın oluşturulma tarihi bu ayki vade gününden sonra mı?
+      const createdDate = bill.created_at ? new Date(bill.created_at) : null;
+      const createdStart = createdDate ? new Date(createdDate.getFullYear(), createdDate.getMonth(), createdDate.getDate()) : null;
+      const isCreatedAfterPastDue = createdStart ? createdStart > candDueDate : false;
+
+      const isPaidForThisMonth = bill.last_paid_month === localYYYYMM(candDueDate);
+
+      if (isCreatedAfterPastDue || isPaidForThisMonth) {
+        // Fatura bu vadeden sonra oluşturulduğu veya zaten ödendiği için gecikmede değil;
+        // Bir sonraki ayın ilk denk gelen gününe ayarlanır.
+        isOverdue = false;
+        const nextMonth = currMonth + 1;
+        const nextYear = nextMonth > 11 ? currYear + 1 : currYear;
+        const nextMonthNorm = nextMonth % 12;
+        nextDueDate = new Date(nextYear, nextMonthNorm, Math.min(dueDay, daysInMonth(nextYear, nextMonthNorm)));
+      } else {
+        // Fatura geçmişte zaten vardı ve ödenmedi -> Gecikmede!
+        isOverdue = true;
+        overdueDays = Math.round((todayStart.getTime() - candDueDate.getTime()) / (1000 * 60 * 60 * 24));
+        nextDueDate = candDueDate;
+      }
+    } else {
+      nextDueDate = candDueDate;
+      isOverdue = false;
+    }
+  }
+
+  // Kalan gün sayısı
+  const diffMs = nextDueDate.getTime() - todayStart.getTime();
+  const daysLeft = isOverdue ? -overdueDays : Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  // Tebliğ / Kesim Günü Hesabı
+  let nextBillingDate: Date | null = null;
+  let isBillingOpen = true;
+
+  if (billingDay) {
+    if (billingDay <= dueDay) {
+      // Tebliğ günü son ödeme ile aynı ayda
+      const bMonth = nextDueDate.getMonth();
+      const bYear = nextDueDate.getFullYear();
+      nextBillingDate = new Date(bYear, bMonth, Math.min(billingDay, daysInMonth(bYear, bMonth)));
+    } else {
+      // Tebliğ günü son ödemeden bir önceki ayda (örn: kesim 25, son ödeme 5)
+      const prevM = nextDueDate.getMonth() - 1;
+      const prevY = prevM < 0 ? nextDueDate.getFullYear() - 1 : nextDueDate.getFullYear();
+      const prevMNorm = (prevM + 12) % 12;
+      nextBillingDate = new Date(prevY, prevMNorm, Math.min(billingDay, daysInMonth(prevY, prevMNorm)));
+    }
+
+    isBillingOpen = isOverdue || nextBillingDate <= todayStart;
+  }
+
+  const nextDueMonthStr = localYYYYMM(nextDueDate);
+  const isPaidThisMonth = bill.last_paid_month === currentMonthStr || (bill.last_paid_month && bill.last_paid_month >= nextDueMonthStr);
+  const isDueThisMonth = isOverdue || nextDueMonthStr === currentMonthStr;
+
+  const formattedNextDue = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }).format(nextDueDate);
+  const formattedNextBilling = nextBillingDate
+    ? new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long' }).format(nextBillingDate)
+    : null;
+
+  return {
+    next_due_date: localYYYYMMDD(nextDueDate),
+    next_billing_date: nextBillingDate ? localYYYYMMDD(nextBillingDate) : null,
+    days_left: daysLeft,
+    is_overdue: isOverdue,
+    overdue_days: overdueDays,
+    is_billing_open: isBillingOpen,
+    is_paid_this_month: Boolean(isPaidThisMonth),
+    is_due_this_month: Boolean(isDueThisMonth),
+    formatted_next_due: formattedNextDue,
+    formatted_next_billing: formattedNextBilling
+  };
+}
 
 export async function GET(req: Request) {
   try {
@@ -17,7 +149,6 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url, 'http://localhost');
     const today = new Date();
     const currentMonthStr = searchParams.get('month') || localYYYYMM(today);
-    const currentDay = today.getDate();
 
     const userId = user.id;
     const familyId = user.family_id || `fam-${user.id}`;
@@ -40,31 +171,31 @@ export async function GET(req: Request) {
     const categoryMap = new Map((rawCats).map((c: any) => [c.id, { name: c.name, icon: c.icon, color: c.color }]));
 
     let totalMonthly = 0;
+    let fixedTotal = 0;
+    let variableTotal = 0;
     let paidThisMonth = 0;
     let pendingThisMonth = 0;
     let paidCount = 0;
     let pendingCount = 0;
 
     const enrichedBills = (rawBills).map((bill: any) => {
-      const isPaidThisMonth = bill.last_paid_month === currentMonthStr;
-      
-      // Fatura kesim günü (tebliğ günü) geçti mi veya tanımlı değil mi?
-      const isBillingOpen = !bill.billing_day || currentDay >= bill.billing_day;
-      
-      // Son ödeme gününe kalan gün sayısı
-      const daysLeft = bill.due_day - currentDay;
-      const isOverdue = !isPaidThisMonth && daysLeft < 0;
+      const schedule = calculateBillSchedule(bill, today);
+      const amountType = bill.amount_type || 'fixed';
+      const amount = Number(bill.amount) || 0;
 
-      // İstatistik toplamları (Yıllık ise sadece o ayda ise topla)
-      const isDueThisMonth = bill.period === 'yearly' ? (bill.due_month === (today.getMonth() + 1)) : true;
-      
-      if (isDueThisMonth) {
-        totalMonthly += bill.amount;
-        if (isPaidThisMonth) {
-          paidThisMonth += bill.amount;
+      if (schedule.is_due_this_month) {
+        totalMonthly += amount;
+        if (amountType === 'variable') {
+          variableTotal += amount;
+        } else {
+          fixedTotal += amount;
+        }
+
+        if (schedule.is_paid_this_month) {
+          paidThisMonth += amount;
           paidCount++;
         } else {
-          pendingThisMonth += bill.amount;
+          pendingThisMonth += amount;
           pendingCount++;
         }
       }
@@ -73,10 +204,8 @@ export async function GET(req: Request) {
 
       return {
         ...bill,
-        is_paid_this_month: isPaidThisMonth,
-        is_billing_open: isBillingOpen,
-        days_left: daysLeft,
-        is_overdue: isOverdue,
+        amount_type: amountType,
+        ...schedule,
         wallet_name: bill.auto_pay_wallet_id ? walletMap.get(bill.auto_pay_wallet_id) || null : null,
         category_name: catInfo?.name || null,
         category_icon: catInfo?.icon || '⚡',
@@ -91,6 +220,8 @@ export async function GET(req: Request) {
         summary: {
           currentMonth: currentMonthStr,
           totalMonthly,
+          fixedTotal,
+          variableTotal,
           paidThisMonth,
           pendingThisMonth,
           totalCount: rawBills.length,
@@ -115,6 +246,7 @@ export async function POST(req: Request) {
     const {
       name, type = 'utility', billing_day, due_day,
       period = 'monthly', due_month, amount = 0,
+      amount_type = 'fixed',
       is_auto_pay = 0, auto_pay_wallet_id, category_id, notes
     } = body;
 
@@ -135,6 +267,7 @@ export async function POST(req: Request) {
       period,
       due_month: due_month ? Number(due_month) : null,
       amount: Number(amount) || 0,
+      amount_type: amount_type === 'variable' ? 'variable' : 'fixed',
       is_auto_pay: is_auto_pay ? 1 : 0,
       auto_pay_wallet_id: auto_pay_wallet_id || null,
       category_id: category_id || null,
@@ -148,7 +281,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `✅ ${name.trim()} fatura/abonelik takvimine eklendi!`,
+      message: `✅ ${name.trim()} (${amount_type === 'variable' ? 'Tahmini' : 'Sabit'}) fatura/abonelik takvimine eklendi!`,
       data: { id: newId }
     });
   } catch (error: any) {
@@ -166,7 +299,7 @@ export async function PUT(req: Request) {
     const body = await req.json();
     const {
       id, name, type, billing_day, due_day,
-      period, due_month, amount,
+      period, due_month, amount, amount_type,
       is_auto_pay, auto_pay_wallet_id, category_id, notes, status
     } = body;
 
@@ -185,6 +318,7 @@ export async function PUT(req: Request) {
         period: period || 'monthly',
         due_month: due_month ? Number(due_month) : null,
         amount: Number(amount) || 0,
+        amount_type: amount_type === 'variable' ? 'variable' : 'fixed',
         is_auto_pay: is_auto_pay ? 1 : 0,
         auto_pay_wallet_id: auto_pay_wallet_id || null,
         category_id: category_id || null,
@@ -219,14 +353,15 @@ export async function PATCH(req: Request) {
     if (!bill) return NextResponse.json({ success: false, error: 'Fatura bulunamadı.' }, { status: 404 });
 
     const today = new Date();
-    const currentMonthStr = localYYYYMM(today);
+    const schedule = calculateBillSchedule(bill, today);
+    const targetPaidMonth = schedule.next_due_date.slice(0, 7) || localYYYYMM(today);
     const todayISO = localYYYYMMDD(today);
     const now = new Date().toISOString();
 
     if (action === 'mark_paid') {
       await db.update(recurringBills)
         .set({
-          last_paid_month: currentMonthStr,
+          last_paid_month: targetPaidMonth,
           last_paid_date: todayISO,
           updated_at: now
         })
@@ -258,7 +393,7 @@ export async function PATCH(req: Request) {
             amount: paymentAmount,
             currency: 'TRY',
             transaction_date: todayISO,
-            notes: `${bill.name} - ${currentMonthStr} dönemi faturası ödendi`,
+            notes: `${bill.name} - ${targetPaidMonth} dönemi faturası ödendi${bill.amount_type === 'variable' ? ' (Net Tutar)' : ''}`,
             is_installment: 0,
             is_verified: 1,
             is_family_shared: 1,
@@ -272,7 +407,7 @@ export async function PATCH(req: Request) {
 
       return NextResponse.json({
         success: true,
-        message: `✅ ${bill.name} faturası ${currentMonthStr} dönemi için ödendi işaretlendi!`
+        message: `✅ ${bill.name} faturası ${targetPaidMonth} dönemi için ödendi işaretlendi!`
       });
     } else if (action === 'unmark_paid') {
       await db.update(recurringBills)

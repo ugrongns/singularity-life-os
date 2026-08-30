@@ -644,6 +644,7 @@ async function _runInit(): Promise<void> {
         period TEXT NOT NULL DEFAULT 'monthly',
         due_month INTEGER,
         amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+        amount_type TEXT NOT NULL DEFAULT 'fixed',
         is_auto_pay INTEGER DEFAULT 0,
         auto_pay_wallet_id TEXT REFERENCES wallets_accounts(id),
         category_id TEXT REFERENCES categories(id),
@@ -714,6 +715,7 @@ async function _runInit(): Promise<void> {
       ALTER TABLE water_intake_logs ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE biometrics ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE smart_scale_logs ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE recurring_bills ADD COLUMN IF NOT EXISTS amount_type TEXT DEFAULT 'fixed';
     `;
 
     const enableRlsSQL = `

@@ -4,6 +4,8 @@ import { walletsAccounts, categories, transactions, vehicleLegalReminders, famil
 import { desc, asc, eq, and, sql , or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
+import { calculateBillSchedule } from '@/app/api/budget/recurring-bills/route';
+
 export async function GET(req: Request) {
   try {
     await initDatabase();
@@ -176,24 +178,21 @@ export async function GET(req: Request) {
       : [];
 
     for (const bill of userBills) {
-      const isPaid = bill.last_paid_month === currentMonthStr;
-      if (!isPaid && bill.due_day) {
-        let billDueDate = new Date(today.getFullYear(), today.getMonth(), bill.due_day);
-        if (billDueDate < today) {
-          billDueDate = new Date(today.getFullYear(), today.getMonth() + 1, bill.due_day);
-        }
-        const diffDays = Math.ceil((billDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        const dueDateStr = localYYYYMMDD(billDueDate);
+      const schedule = calculateBillSchedule(bill, today);
+      if (!schedule.is_paid_this_month) {
+        const isVariable = bill.amount_type === 'variable';
+        const typeBadge = bill.type === 'subscription' ? '📱 Abonelik' : '🧾 Fatura';
+        const badge = isVariable ? `${typeBadge} (Tahmini)` : typeBadge;
 
         upcomingList.push({
           id: `bill-${bill.id}`,
           title: bill.name,
           category: bill.type === 'subscription' ? 'Abonelik' : 'Fatura',
           amount: bill.amount,
-          due_date: dueDateStr,
-          days_left: diffDays,
+          due_date: schedule.next_due_date,
+          days_left: schedule.days_left,
           type: 'bill',
-          badge: bill.type === 'subscription' ? '📱 Abonelik' : '🧾 Fatura'
+          badge
         });
       }
     }

@@ -730,6 +730,7 @@ export const recurringBills = pgTable('recurring_bills', {
   period: text('period').notNull().default('monthly'), // 'monthly' | 'yearly' | 'quarterly'
   due_month: integer('due_month'),                // 1-12 (Yıllık ödemeler için ay)
   amount: doublePrecision('amount').notNull().default(0),
+  amount_type: text('amount_type').notNull().default('fixed'), // 'fixed' | 'variable'
   is_auto_pay: integer('is_auto_pay').default(0), // 1: Otomatik ödeme talimatı var
   auto_pay_wallet_id: text('auto_pay_wallet_id').references(() => walletsAccounts.id),
   category_id: text('category_id').references(() => categories.id),
