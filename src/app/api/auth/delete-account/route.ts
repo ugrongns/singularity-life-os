@@ -90,7 +90,6 @@ export async function POST(req: Request) {
     await db.delete(fastingSessions).where(eq(fastingSessions.user_id, userId));
     await db.delete(packagedFoodScans).where(eq(packagedFoodScans.user_id, userId));
     await db.delete(foodNutrientProfiles).where(eq(foodNutrientProfiles.user_id, userId));
-    await db.delete(dietMealOptions).where(eq(dietMealOptions.user_id, userId));
     await db.delete(waterIntakeLogs).where(eq(waterIntakeLogs.user_id, userId));
     await db.delete(smartScaleLogs).where(eq(smartScaleLogs.user_id, userId));
     await db.delete(biometrics).where(eq(biometrics.user_id, userId));
