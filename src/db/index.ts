@@ -662,13 +662,13 @@ async function _runInit(): Promise<void> {
       INSERT INTO categories (id, name, type, monthly_budget_limit, group_50_30_20, icon, color, is_family_shared, created_at, updated_at)
       VALUES 
         ('cat-maas', 'Maaş & Gelir', 'income', 0, 'income', '💰', '#10B981', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        ('cat-market', 'Market & Gıda', 'expense', 15000, 'needs', '🛒', '#F59E0B', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        ('cat-kira', 'Kira & Konut', 'expense', 20000, 'needs', '🏠', '#EF4444', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        ('cat-fatura', 'Faturalar & Abonelikler', 'expense', 5000, 'needs', '⚡', '#3B82F6', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        ('cat-ulasim', 'Ulaşım & Yakıt', 'expense', 7500, 'needs', '🚗', '#8B5CF6', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        ('cat-eeglence', 'Eğlence & Dışarıda Yeme', 'expense', 6000, 'wants', '🍔', '#EC4899', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        ('cat-saglik', 'Sağlık & Kişisel Bakım', 'expense', 4000, 'needs', '💊', '#06B6D4', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        ('cat-diger', 'Diğer Harcamalar', 'expense', 5000, 'wants', '🏷️', '#6B7280', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')
+        ('cat-market', 'Market & Gıda', 'expense', 0, 'needs', '🛒', '#F59E0B', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('cat-kira', 'Kira & Konut', 'expense', 0, 'needs', '🏠', '#EF4444', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('cat-fatura', 'Faturalar & Abonelikler', 'expense', 0, 'needs', '⚡', '#3B82F6', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('cat-ulasim', 'Ulaşım & Yakıt', 'expense', 0, 'needs', '🚗', '#8B5CF6', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('cat-eeglence', 'Eğlence & Dışarıda Yeme', 'expense', 0, 'wants', '🍔', '#EC4899', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('cat-saglik', 'Sağlık & Kişisel Bakım', 'expense', 0, 'needs', '💊', '#06B6D4', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('cat-diger', 'Diğer Harcamalar', 'expense', 0, 'wants', '🏷️', '#6B7280', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')
       ON CONFLICT (id) DO NOTHING;
     `;
 
@@ -731,6 +731,12 @@ async function _runInit(): Promise<void> {
     await pgClient.unsafe(createTablesSQL);
     await pgClient.unsafe(alterMissingColumnsSQL);
     await pgClient.unsafe(seedCategoriesSQL);
+    await pgClient.unsafe(`
+      UPDATE categories 
+      SET monthly_budget_limit = 0 
+      WHERE id IN ('cat-market', 'cat-kira', 'cat-fatura', 'cat-ulasim', 'cat-eeglence', 'cat-saglik', 'cat-diger') 
+        AND (family_id IS NULL OR family_id = '');
+    `);
     await pgClient.unsafe(enableRlsSQL);
   } catch (err) {
     _initPromise = null; // Hata durumunda sıfırla, bir sonraki istekte tekrar denensin

@@ -254,7 +254,7 @@ export default function BudgetLimitsCard({ categories, monthlySummary, onUpdate,
       <div style={{ background: 'var(--surface-subtle)', padding: '12px', borderRadius: 'var(--radius-md)', marginBottom: '12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, marginBottom: '6px' }}>
           <span>Harcama: {formatTRY(monthlySummary.totalExpense)}</span>
-          <span style={{ color: 'var(--text-muted)' }}>Bütçe Tavanı: {formatTRY(displayBudgetLimit)}</span>
+          <span style={{ color: 'var(--text-muted)' }}>Bütçe Tavanı: {displayBudgetLimit > 0 ? formatTRY(displayBudgetLimit) : 'Tanımsız (₺0)'}</span>
         </div>
         <div className="budget-bar-track" style={{ height: '8px' }}>
           <div 
@@ -351,7 +351,7 @@ export default function BudgetLimitsCard({ categories, monthlySummary, onUpdate,
                 )}
               </div>
               <span className="tabular-nums" style={{ color: 'var(--text-muted)' }}>
-                <strong>{formatTRY(cat.spent_this_month)}</strong> / {formatTRY(cat.monthly_budget_limit)}
+                <strong>{formatTRY(cat.spent_this_month)}</strong> / {cat.monthly_budget_limit > 0 ? formatTRY(cat.monthly_budget_limit) : 'Tanımsız (₺0)'}
               </span>
             </div>
             <div className="budget-bar-track">
