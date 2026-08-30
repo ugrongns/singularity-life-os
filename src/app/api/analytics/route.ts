@@ -9,9 +9,10 @@ import {
   supplementRoutines,
   sleepLogs,
   moodLogs,
-  books
+  books,
+  recurringBills
 } from '@/db/schema';
-import { eq, and , or } from 'drizzle-orm';
+import { eq, and, or, desc } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 export async function GET() {
@@ -19,7 +20,11 @@ export async function GET() {
     await initDatabase();
     const user = await getAuthUser();
     const userId = user?.id;
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+    }
 
+    const familyId = user?.family_id || `fam-${userId}`;
     const today = new Date().toISOString().split('T')[0];
     const currentMonth = today.slice(0, 7);
 
@@ -28,24 +33,45 @@ export async function GET() {
     // ==========================================
     let liquidBalance = 0;
     let ccDebt = 0;
+    let totalMonthlyPassiveIncome = 0;
     try {
-      const wallets = userId
-        ? await db.select().from(walletsAccounts).where(or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))
-        : [];
-      liquidBalance = (wallets).reduce((sum: number, w: any) => sum + (w.type !== 'credit_card' ? (w.balance || 0) : 0), 0);
-      ccDebt = (wallets).reduce((sum: number, w: any) => sum + (w.type === 'credit_card' ? Math.abs(w.balance || 0) : 0), 0);
+      const wallets = await db.select().from(walletsAccounts)
+        .where(
+          and(
+            eq(walletsAccounts.is_active, 1),
+            familyId
+              ? or(eq(walletsAccounts.user_id, userId), and(eq(walletsAccounts.family_id, familyId), eq(walletsAccounts.is_family_shared, 1)))
+              : eq(walletsAccounts.user_id, userId)
+          )
+        );
+      
+      liquidBalance = wallets.reduce((sum: number, w: any) => sum + (w.type !== 'credit_card' ? (w.balance || 0) : 0), 0);
+      ccDebt = wallets.reduce((sum: number, w: any) => sum + (w.type === 'credit_card' ? Math.abs(w.balance || 0) : 0), 0);
+
+      // Vadeli mevduat veya pasif getiri hesaplama
+      const timeDeposits = wallets.filter((w: any) => w.type === 'time_deposit');
+      totalMonthlyPassiveIncome = timeDeposits.reduce((sum: number, w: any) => {
+        const principal = Number(w.balance) || 0;
+        const interestRate = Number(w.interest_rate) || 45; // %45 yıllık
+        const monthlyYield = (principal * (interestRate / 100)) / 12;
+        return sum + Math.round(monthlyYield);
+      }, 0);
     } catch (e) {}
 
     let totalSpentThisMonth = 0;
     let totalBudgetLimit = 0;
     try {
-      const allCats = await db.select().from(categories);
-      totalBudgetLimit = (allCats).reduce((sum: number, c: any) => sum + (c.monthly_budget_limit || 0), 0);
+      const allCats = await db.select().from(categories)
+        .where(familyId ? or(eq(categories.user_id, userId), eq(categories.family_id, familyId)) : eq(categories.user_id, userId));
+      totalBudgetLimit = allCats.reduce((sum: number, c: any) => sum + (c.monthly_budget_limit || 0), 0);
 
-      const txs = userId
-        ? await db.select().from(transactions).where(or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)))
-        : [];
-      const thisMonthTxs = (txs).filter((t: any) => t.transaction_date && t.transaction_date.startsWith(currentMonth));
+      const txs = await db.select().from(transactions)
+        .where(
+          familyId
+            ? or(eq(transactions.user_id, userId), and(eq(transactions.family_id, familyId), eq(transactions.is_family_shared, 1)))
+            : eq(transactions.user_id, userId)
+        );
+      const thisMonthTxs = txs.filter((t: any) => t.transaction_date && t.transaction_date.startsWith(currentMonth));
       totalSpentThisMonth = thisMonthTxs.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
     } catch (e) {}
 
@@ -58,9 +84,12 @@ export async function GET() {
     // ==========================================
     let healthScore = 18;
     try {
-      const hp = (await db.select().from(userHealthProfile).limit(1))[0];
-      if (hp && hp.consumed_water_ml >= hp.daily_water_target_ml) healthScore += 4;
-      const fasting = (await db.select().from(fastingSessions).limit(1))[0];
+      const hpList = await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1);
+      const hp = hpList[0];
+      if (hp && (hp.consumed_water_ml || 0) >= (hp.daily_water_target_ml || 2500)) healthScore += 4;
+      
+      const fastingList = await db.select().from(fastingSessions).where(eq(fastingSessions.user_id, userId)).orderBy(desc(fastingSessions.created_at)).limit(1);
+      const fasting = fastingList[0];
       if (fasting && fasting.is_active === 0) healthScore += 3;
     } catch (e) {}
 
@@ -69,10 +98,13 @@ export async function GET() {
     // ==========================================
     let wellnessScore = 20;
     try {
-      const lastSleep = (await db.select().from(sleepLogs).limit(1))[0];
-      if (lastSleep && lastSleep.duration_hours >= 7) wellnessScore += 3;
-      const lastMood = (await db.select().from(moodLogs).limit(1))[0];
-      if (lastMood && lastMood.mood_score >= 4) wellnessScore += 2;
+      const sleepList = await db.select().from(sleepLogs).where(eq(sleepLogs.user_id, userId)).orderBy(desc(sleepLogs.date)).limit(1);
+      const lastSleep = sleepList[0];
+      if (lastSleep && (lastSleep.duration_hours || 0) >= 7) wellnessScore += 3;
+      
+      const moodList = await db.select().from(moodLogs).where(eq(moodLogs.user_id, userId)).orderBy(desc(moodLogs.date)).limit(1);
+      const lastMood = moodList[0];
+      if (lastMood && (lastMood.mood_score || 0) >= 4) wellnessScore += 2;
     } catch (e) {}
 
     // ==========================================
@@ -80,9 +112,7 @@ export async function GET() {
     // ==========================================
     let mindScore = 17;
     try {
-      const activeBooks = userId
-        ? await db.select().from(books).where(and(eq(books.user_id, userId), eq(books.status, 'reading')))
-        : [];
+      const activeBooks = await db.select().from(books).where(and(eq(books.user_id, userId), eq(books.status, 'reading')));
       if (activeBooks.length > 0) mindScore += 8;
     } catch (e) {}
 
@@ -92,9 +122,8 @@ export async function GET() {
     // ==========================================
     // 5. 🎯 FIRE (FİNANSAL ÖZGÜRLÜK) ANALİTİĞİ
     // ==========================================
-    const totalMonthlyPassiveIncome = 0;
-    const monthlyLivingExpenseEst = totalSpentThisMonth > 0 ? totalSpentThisMonth : (totalBudgetLimit > 0 ? totalBudgetLimit : 0);
-    const passiveCoveragePercent = 0;
+    const monthlyLivingExpenseEst = totalSpentThisMonth > 0 ? totalSpentThisMonth : (totalBudgetLimit > 0 ? totalBudgetLimit : 25000);
+    const passiveCoveragePercent = monthlyLivingExpenseEst > 0 ? Math.min(100, Math.round((totalMonthlyPassiveIncome / monthlyLivingExpenseEst) * 100)) : 0;
 
     // FIRE Numarası (%4 Kuralı = Yıllık Gider x 25)
     const annualExpense = monthlyLivingExpenseEst * 12;
@@ -140,7 +169,7 @@ export async function GET() {
             } else if (lowest === wellnessScore) {
               return '💡 Günlük takviye rutininizi tamamlayarak ve 8 saatlik uyku ritmini koruyarak wellness puanınızı 25\'e çıkarabilirsiniz.';
             } else if (lowest === healthScore) {
-              return '💡 Günlük 2.5L su hedefinizi tamamlayarak ve 16:8 oruç seansını sürdürerek sağlık puanınızı 25\'e taşıyabilirsiniz.';
+              return '💡 Günlük su hedefinizi tamamlayarak ve aralıklı oruç seansını sürdürerek sağlık puanınızı 25\'e taşıyabilirsiniz.';
             } else {
               return '💡 Akşam 30 dk kitap okuyup ilerleme kaydederek zihinsel gelişim puanınızı 25\'e çıkarabilirsiniz.';
             }

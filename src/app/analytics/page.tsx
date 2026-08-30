@@ -32,6 +32,12 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     fetchData();
+
+    const handleRefresh = () => {
+      fetchData();
+    };
+    window.addEventListener('singularity-refresh', handleRefresh);
+    return () => window.removeEventListener('singularity-refresh', handleRefresh);
   }, []);
 
   if (loading) {
