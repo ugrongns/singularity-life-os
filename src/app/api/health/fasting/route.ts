@@ -110,6 +110,8 @@ export async function POST(req: Request) {
     const now = new Date();
     const nowISO = now.toISOString();
 
+    const familyId = user?.family_id || (user?.id ? `fam-${user.id}` : null);
+
     if (action === 'start') {
       // Önceki tüm aktif seansları kapat
       if (user?.id) {
@@ -139,15 +141,17 @@ export async function POST(req: Request) {
         is_active: 1,
         created_at: nowISO,
         updated_at: nowISO,
-        user_id: user?.id || null
+        user_id: user?.id || null,
+        family_id: familyId
       });
 
       return NextResponse.json({ success: true, message: `${protocol} Oruç seansı başlatıldı! ⏳` });
     } else if (action === 'end') {
-      await db.update(fastingSessions)
-        .set({ is_active: 0, actual_end_time: nowISO, updated_at: nowISO })
-        .where(eq(fastingSessions.is_active, 1))
-        ;
+      if (user?.id) {
+        await db.update(fastingSessions)
+          .set({ is_active: 0, actual_end_time: nowISO, updated_at: nowISO })
+          .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id)));
+      }
 
       return NextResponse.json({ success: true, message: 'Oruç seansı tamamlandı ve günlüğe kaydedildi. 🥗' });
     }

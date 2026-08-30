@@ -67,10 +67,17 @@ export default function HealthPage() {
 
   useEffect(() => {
     fetchData();
+
+    const handleRefresh = () => {
+      fetchData();
+    };
+    window.addEventListener('singularity-refresh', handleRefresh);
+    return () => window.removeEventListener('singularity-refresh', handleRefresh);
   }, []);
 
   const handleUpdate = (msg?: string) => {
     fetchData();
+    window.dispatchEvent(new CustomEvent('singularity-refresh'));
     if (msg) showToast(msg);
   };
 
@@ -82,7 +89,10 @@ export default function HealthPage() {
         body: JSON.stringify({ amount_ml: amount })
       });
       const json = await res.json();
-      if (json.success) handleUpdate(json.message);
+      if (json.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
+        handleUpdate(json.message);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -96,7 +106,10 @@ export default function HealthPage() {
         body: JSON.stringify({ action, protocol })
       });
       const json = await res.json();
-      if (json.success) handleUpdate(json.message);
+      if (json.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
+        handleUpdate(json.message);
+      }
     } catch (err) {
       console.error(err);
     }

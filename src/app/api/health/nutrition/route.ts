@@ -9,6 +9,7 @@ export async function GET() {
     await initDatabase();
     const user = await getAuthUser();
     const userId = user?.id;
+    const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
     const today = new Date().toISOString().split('T')[0];
 
     let profile = userId
@@ -34,7 +35,15 @@ export async function GET() {
     const todayMeals = userId
       ? await db.select()
           .from(nutritionMeals)
-          .where(and(eq(nutritionMeals.date, today), or(eq(nutritionMeals.user_id, userId), eq(nutritionMeals.is_family_shared, 1))))
+          .where(
+            and(
+              eq(nutritionMeals.date, today),
+              or(
+                eq(nutritionMeals.user_id, userId),
+                familyId ? and(eq(nutritionMeals.family_id, familyId), eq(nutritionMeals.is_family_shared, 1)) : undefined
+              )
+            )
+          )
           .orderBy(desc(nutritionMeals.created_at))
       : [];
 
@@ -97,10 +106,11 @@ export async function POST(req: Request) {
     const { action, ...data } = body;
     const now = new Date().toISOString();
     const today = now.split('T')[0];
+    const familyId = user.family_id || `fam-${user.id}`;
 
     // Günlük Makro Hedeflerini Güncelleme
     if (action === 'update_profile') {
-      const existing = (await db.select().from(userHealthProfile).limit(1))[0];
+      const existing = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, user.id)).limit(1))[0];
 
       if (existing) {
         await db.update(userHealthProfile).set({
@@ -112,11 +122,13 @@ export async function POST(req: Request) {
         }).where(eq(userHealthProfile.id, existing.id));
       } else {
         await db.insert(userHealthProfile).values({
-          id: `hp-${Date.now()}`,
+          id: `hp-${user.id}`,
           daily_calorie_target: Number(data.daily_calorie_target) || 2200,
           target_protein_g: Number(data.target_protein_g) || 140,
           target_carbs_g: Number(data.target_carbs_g) || 180,
           target_fat_g: Number(data.target_fat_g) || 65,
+          user_id: user.id,
+          family_id: familyId,
           created_at: now,
           updated_at: now
         });
@@ -127,7 +139,7 @@ export async function POST(req: Request) {
 
     // Öğün Silme
     if (action === 'delete_meal') {
-      await db.delete(nutritionMeals).where(eq(nutritionMeals.id, data.id));
+      await db.delete(nutritionMeals).where(and(eq(nutritionMeals.id, data.id), eq(nutritionMeals.user_id, user.id)));
       return NextResponse.json({ success: true, message: 'Öğün silindi.' });
     }
 
@@ -161,7 +173,8 @@ export async function POST(req: Request) {
       updated_at: now,
       sync_status: 'synced',
       device_id: 'web-client',
-      user_id: user.id
+      user_id: user.id,
+      family_id: familyId
     });
 
     // Event Bus üzerinden beslenme olayını bildir

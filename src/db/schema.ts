@@ -367,6 +367,7 @@ export const nutritionMeals = pgTable('nutrition_meals', {
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client'),
   user_id: text('user_id'),
+  family_id: text('family_id'),
   micronutrient_data: text('micronutrient_data')
 });
 
@@ -404,7 +405,8 @@ export const fastingSessions = pgTable('fasting_sessions', {
   notes: text('notes'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 export const packagedFoodScans = pgTable('packaged_food_scans', {
@@ -452,7 +454,8 @@ export const userHealthProfile = pgTable('user_health_profile', {
   active_fasting_protocol: text('active_fasting_protocol').notNull().default('16:8'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 export const workoutSessions = pgTable('workout_sessions', {
