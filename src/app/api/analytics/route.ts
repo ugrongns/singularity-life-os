@@ -10,6 +10,7 @@ import {
   waterIntakeLogs,
   smartScaleLogs,
   biometrics,
+  workoutSessions,
   supplementRoutines,
   sleepLogs,
   moodLogs,
@@ -89,15 +90,23 @@ export async function GET() {
     } catch (e) {}
 
     let financeScore = 0;
-    if (walletsCount > 0) financeScore += 5; // Cüzdan / Hesap Tanımlı
-    if (totalBudgetLimit > 0) financeScore += 5; // Bütçe Limiti Belirlenmiş
-    if (totalBudgetLimit > 0 && totalSpentThisMonth <= totalBudgetLimit) {
-      financeScore += 8; // Bütçe aşılmadı
+    // 1. Pozitif bakiye veya aktif işlem yapılması (+5 puan)
+    if (walletsCount > 0 && (liquidBalance > 0 || txCountThisMonth > 0)) {
+      financeScore += 5;
+    }
+    // 2. Bütçe limiti belirlenmiş ve aktif işlem takip ediliyor (+5 puan)
+    if (totalBudgetLimit > 0 && txCountThisMonth > 0) {
+      financeScore += 5;
+    }
+    // 3. Bütçe disiplini: Bu ay işlem var ve harcamalar bütçeyi aşmadı (+8 puan)
+    if (totalBudgetLimit > 0 && txCountThisMonth > 0 && totalSpentThisMonth <= totalBudgetLimit) {
+      financeScore += 8;
     } else if (totalBudgetLimit === 0 && txCountThisMonth > 0) {
       financeScore += 4; // Bütçe yok ama harcama kaydı tutuluyor
     }
+    // 4. Net likidite borçtan fazla (+7 puan)
     if (liquidBalance > 0 && liquidBalance >= ccDebt) {
-      financeScore += 7; // Likidite pozitif & borçtan fazla
+      financeScore += 7;
     }
 
     // ==========================================
@@ -105,9 +114,11 @@ export async function GET() {
     // ==========================================
     let healthScore = 0;
     try {
-      const hpList = await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1);
-      const hp = hpList[0];
-      if (hp) healthScore += 5; // Profil oluşturulmuş
+      // Antrenman / Egzersiz kaydı (+5 puan)
+      const workouts = await db.select().from(workoutSessions).where(eq(workoutSessions.user_id, userId)).limit(1);
+      if (workouts.length > 0) {
+        healthScore += 5;
+      }
 
       // Su tüketimi (Bugün)
       const waterList = await db.select().from(waterIntakeLogs).where(and(eq(waterIntakeLogs.date, today), eq(waterIntakeLogs.user_id, userId))).limit(1);
