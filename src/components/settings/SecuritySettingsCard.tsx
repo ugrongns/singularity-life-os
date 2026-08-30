@@ -28,6 +28,7 @@ export default function SecuritySettingsCard() {
   // Hesabı Kalıcı Olarak Silme State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   // Status message
@@ -503,7 +504,7 @@ export default function SecuritySettingsCard() {
               placeholder="••••••••"
               value={currentPassword}
               onChange={e => setCurrentPassword(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             />
           </div>
 
@@ -515,7 +516,7 @@ export default function SecuritySettingsCard() {
               placeholder="En az 6 karakter"
               value={newPassword}
               onChange={e => setNewPassword(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             />
           </div>
 
@@ -527,7 +528,7 @@ export default function SecuritySettingsCard() {
               placeholder="Yeni parolayı tekrar girin"
               value={confirmNewPassword}
               onChange={e => setConfirmNewPassword(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             />
           </div>
 
@@ -552,7 +553,7 @@ export default function SecuritySettingsCard() {
               placeholder="Mevcut PIN kodunuz veya Master Parolanız"
               value={currentPin}
               onChange={e => setCurrentPin(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             />
           </div>
 
@@ -616,18 +617,32 @@ export default function SecuritySettingsCard() {
                 <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)' }}>
                   ONAYLAMAK İÇİN MASTER PAROLANIZI GİRİN:
                 </label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Mevcut Master Parolanız"
-                  value={deletePassword}
-                  onChange={e => setDeletePassword(e.target.value)}
-                  style={{
-                    width: '100%', padding: '10px 12px', fontSize: '14px',
-                    border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
-                    marginTop: '6px', background: 'var(--surface-subtle)'
-                  }}
-                />
+                <div style={{ position: 'relative', marginTop: '6px' }}>
+                  <input
+                    type={showDeletePassword ? 'text' : 'password'}
+                    required
+                    placeholder="Mevcut Master Parolanız"
+                    value={deletePassword}
+                    onChange={e => setDeletePassword(e.target.value)}
+                    style={{
+                      width: '100%', padding: '10px 40px 10px 12px', fontSize: '14px',
+                      border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
+                      background: 'var(--surface-subtle)', color: 'var(--text-main)'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowDeletePassword(!showDeletePassword)}
+                    style={{
+                      position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px',
+                      padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}
+                    title={showDeletePassword ? 'Şifreyi Gizle' : 'Şifreyi Göster'}
+                  >
+                    {showDeletePassword ? '🙈' : '👁️'}
+                  </button>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
