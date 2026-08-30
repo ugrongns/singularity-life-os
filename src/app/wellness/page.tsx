@@ -46,10 +46,17 @@ export default function WellnessPage() {
 
   useEffect(() => {
     fetchData();
+
+    const handleRefresh = () => {
+      fetchData();
+    };
+    window.addEventListener('singularity-refresh', handleRefresh);
+    return () => window.removeEventListener('singularity-refresh', handleRefresh);
   }, []);
 
   const handleSuccess = (msg?: string) => {
     fetchData();
+    window.dispatchEvent(new CustomEvent('singularity-refresh'));
     if (msg) showToast(msg);
   };
 

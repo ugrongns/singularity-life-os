@@ -16,37 +16,48 @@ export async function GET() {
       ? await db.select().from(supplementRoutines).where(and(eq(supplementRoutines.is_active, 1), eq(supplementRoutines.user_id, userId)))
       : [];
 
-    const todayMood = await db.select().from(moodLogs)
-      .where(eq(moodLogs.date, today));
+    const todayMood = userId
+      ? await db.select().from(moodLogs).where(and(eq(moodLogs.date, today), eq(moodLogs.user_id, userId)))
+      : [];
 
-    const todaySleep = await db.select().from(sleepLogs)
-      .where(eq(sleepLogs.date, today));
+    const todaySleep = userId
+      ? await db.select().from(sleepLogs).where(and(eq(sleepLogs.date, today), eq(sleepLogs.user_id, userId)))
+      : [];
 
-    const todayWaterList = await db.select().from(waterIntakeLogs)
-      .where(eq(waterIntakeLogs.date, today));
+    const todayWaterList = userId
+      ? await db.select().from(waterIntakeLogs).where(and(eq(waterIntakeLogs.date, today), eq(waterIntakeLogs.user_id, userId)))
+      : [];
 
     const todayWater = todayWaterList[0] || { amount_ml: 0, goal_ml: 2500 };
 
     // Son 7 gün trendler
     const last7Days = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
-    const moodHistory = await db.select().from(moodLogs)
-      .where(sql`${moodLogs.date} >= ${last7Days}`)
-      .orderBy(desc(moodLogs.date));
+    const moodHistory = userId
+      ? await db.select().from(moodLogs)
+          .where(and(sql`${moodLogs.date} >= ${last7Days}`, eq(moodLogs.user_id, userId)))
+          .orderBy(desc(moodLogs.date))
+      : [];
 
-    const sleepHistory = await db.select().from(sleepLogs)
-      .where(sql`${sleepLogs.date} >= ${last7Days}`)
-      .orderBy(desc(sleepLogs.date));
+    const sleepHistory = userId
+      ? await db.select().from(sleepLogs)
+          .where(and(sql`${sleepLogs.date} >= ${last7Days}`, eq(sleepLogs.user_id, userId)))
+          .orderBy(desc(sleepLogs.date))
+      : [];
 
-    const waterHistory = await db.select().from(waterIntakeLogs)
-      .where(sql`${waterIntakeLogs.date} >= ${last7Days}`)
-      .orderBy(desc(waterIntakeLogs.date));
+    const waterHistory = userId
+      ? await db.select().from(waterIntakeLogs)
+          .where(and(sql`${waterIntakeLogs.date} >= ${last7Days}`, eq(waterIntakeLogs.user_id, userId)))
+          .orderBy(desc(waterIntakeLogs.date))
+      : [];
 
     // Son biyometri
-    const latestBiometric = (await db.select().from(biometrics)
-      .orderBy(desc(biometrics.date)).limit(1))[0];
+    const latestBiometric = userId
+      ? (await db.select().from(biometrics).where(eq(biometrics.user_id, userId)).orderBy(desc(biometrics.date)).limit(1))[0]
+      : null;
 
-    const scaleLogs = await db.select().from(smartScaleLogs)
-      .orderBy(desc(smartScaleLogs.measurement_date));
+    const scaleLogs = userId
+      ? await db.select().from(smartScaleLogs).where(eq(smartScaleLogs.user_id, userId)).orderBy(desc(smartScaleLogs.measurement_date))
+      : [];
 
     const morningSupps = (supplements).filter((s: any) => s.timing === 'morning');
     const eveningSupps = (supplements).filter((s: any) => s.timing === 'evening');
@@ -95,9 +106,10 @@ export async function POST(request: Request) {
     const { action, ...data } = body;
     const now = new Date().toISOString();
     const today = now.split('T')[0];
+    const familyId = user.family_id || `fam-${user.id}`;
 
     if (action === 'take_supplement') {
-      const suppList = await db.select().from(supplementRoutines).where(eq(supplementRoutines.id, data.id));
+      const suppList = await db.select().from(supplementRoutines).where(and(eq(supplementRoutines.id, data.id), eq(supplementRoutines.user_id, user.id)));
       const supp = suppList[0];
       if (supp) {
         const lastDate = supp.last_taken_date;
@@ -113,13 +125,13 @@ export async function POST(request: Request) {
           remaining_pills: newRemaining,
           last_taken_date: today,
           updated_at: now
-        }).where(eq(supplementRoutines.id, data.id));
+        }).where(and(eq(supplementRoutines.id, data.id), eq(supplementRoutines.user_id, user.id)));
       }
       return NextResponse.json({ success: true, message: 'Takviye alındı!' });
     }
 
     if (action === 'log_water') {
-      const existingList = await db.select().from(waterIntakeLogs).where(eq(waterIntakeLogs.date, today));
+      const existingList = await db.select().from(waterIntakeLogs).where(and(eq(waterIntakeLogs.date, today), eq(waterIntakeLogs.user_id, user.id)));
       const existing = existingList[0];
       const newAmount = Math.max(0, Number(data.amount_ml) || 0);
       const goal = Number(data.goal_ml) || 2500;
@@ -129,7 +141,7 @@ export async function POST(request: Request) {
           amount_ml: newAmount,
           goal_ml: goal,
           updated_at: now
-        }).where(eq(waterIntakeLogs.id, existing.id));
+        }).where(and(eq(waterIntakeLogs.id, existing.id), eq(waterIntakeLogs.user_id, user.id)));
       } else {
         const id = `water-${Date.now()}`;
         await db.insert(waterIntakeLogs).values({
@@ -137,6 +149,8 @@ export async function POST(request: Request) {
           date: today,
           amount_ml: newAmount,
           goal_ml: goal,
+          user_id: user.id,
+          family_id: familyId,
           created_at: now,
           updated_at: now
         });
@@ -157,6 +171,8 @@ export async function POST(request: Request) {
         is_taken_today: 0,
         streak_days: 0,
         is_active: 1,
+        user_id: user.id,
+        family_id: familyId,
         created_at: now,
         updated_at: now
       });
@@ -172,17 +188,17 @@ export async function POST(request: Request) {
         remaining_pills: parseInt(data.remaining_pills) || 0,
         notes: data.notes || null,
         updated_at: now
-      }).where(eq(supplementRoutines.id, data.id));
+      }).where(and(eq(supplementRoutines.id, data.id), eq(supplementRoutines.user_id, user.id)));
       return NextResponse.json({ success: true, message: 'Takviye güncellendi!' });
     }
 
     if (action === 'delete_supplement') {
-      await db.update(supplementRoutines).set({ is_active: 0, updated_at: now }).where(eq(supplementRoutines.id, data.id));
+      await db.update(supplementRoutines).set({ is_active: 0, updated_at: now }).where(and(eq(supplementRoutines.id, data.id), eq(supplementRoutines.user_id, user.id)));
       return NextResponse.json({ success: true, message: 'Takviye silindi!' });
     }
 
     if (action === 'reset_supplements') {
-      await db.update(supplementRoutines).set({ is_taken_today: 0, updated_at: now });
+      await db.update(supplementRoutines).set({ is_taken_today: 0, updated_at: now }).where(eq(supplementRoutines.user_id, user.id));
       return NextResponse.json({ success: true });
     }
 
@@ -196,6 +212,8 @@ export async function POST(request: Request) {
         stress_level: Number(data.stress_level) || 2,
         note: data.note || null,
         date: today,
+        user_id: user.id,
+        family_id: familyId,
         created_at: now,
         updated_at: now
       });
@@ -217,6 +235,8 @@ export async function POST(request: Request) {
         notes: data.notes || null,
         duration_hours,
         date: today,
+        user_id: user.id,
+        family_id: familyId,
         created_at: now,
         updated_at: now
       });

@@ -125,8 +125,8 @@ export default function WellnessCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'take_supplement', id })
       });
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
-      else window.location.reload();
     } finally {
       setTaking(null);
     }
@@ -139,8 +139,8 @@ export default function WellnessCard({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'delete_supplement', id })
     });
+    window.dispatchEvent(new CustomEvent('singularity-refresh'));
     if (onRefresh) onRefresh();
-    else window.location.reload();
   };
 
   const handleUpdateWater = async (deltaMl: number) => {
@@ -153,6 +153,8 @@ export default function WellnessCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'log_water', amount_ml: newAmount, goal_ml: waterGoal })
       });
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      if (onRefresh) onRefresh();
     } finally {
       setSavingWater(false);
     }
@@ -167,8 +169,8 @@ export default function WellnessCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'add_sleep', ...sleepForm })
       });
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
-      else window.location.reload();
     } finally {
       setSavingSleep(false);
     }
@@ -192,8 +194,8 @@ export default function WellnessCard({
           note: wellnessNote
         })
       });
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
-      else window.location.reload();
     } finally {
       setSavingMood(false);
     }

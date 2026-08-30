@@ -564,12 +564,14 @@ export const supplementRoutines = pgTable('supplement_routines', {
   is_active: integer('is_active').notNull().default(1),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 export const sleepLogs = pgTable('sleep_logs', {
   id: text('id').primaryKey(),
   user_id: text('user_id'),
+  family_id: text('family_id'),
   member_id: text('member_id'),
   bedtime: text('bedtime').notNull(),
   wake_time: text('wake_time').notNull(),
@@ -584,6 +586,7 @@ export const sleepLogs = pgTable('sleep_logs', {
 export const moodLogs = pgTable('mood_logs', {
   id: text('id').primaryKey(),
   user_id: text('user_id'),
+  family_id: text('family_id'),
   member_id: text('member_id'),
   mood_emoji: text('mood_emoji').notNull(),
   mood_score: integer('mood_score').notNull(),
@@ -598,6 +601,7 @@ export const moodLogs = pgTable('mood_logs', {
 export const waterIntakeLogs = pgTable('water_intake_logs', {
   id: text('id').primaryKey(),
   user_id: text('user_id'),
+  family_id: text('family_id'),
   member_id: text('member_id'),
   date: text('date').notNull(),
   amount_ml: integer('amount_ml').notNull().default(0),
@@ -609,6 +613,7 @@ export const waterIntakeLogs = pgTable('water_intake_logs', {
 export const biometrics = pgTable('biometrics', {
   id: text('id').primaryKey(),
   user_id: text('user_id'),
+  family_id: text('family_id'),
   member_id: text('member_id'),
   weight_kg: doublePrecision('weight_kg'),
   waist_cm: doublePrecision('waist_cm'),
@@ -626,6 +631,7 @@ export const smartScaleLogs = pgTable('smart_scale_logs', {
   id: text('id').primaryKey(),
   member_id: text('member_id'),
   user_id: text('user_id'),
+  family_id: text('family_id'),
   measurement_date: text('measurement_date').notNull(),
   weight_kg: doublePrecision('weight_kg').notNull(),
   bmi: doublePrecision('bmi'),

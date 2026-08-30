@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { smartScaleLogs, biometrics } from '@/db/schema';
 import { getAuthUser } from '@/lib/auth';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, and } from 'drizzle-orm';
 
 export async function GET(req: Request) {
   try {
@@ -15,11 +15,13 @@ export async function GET(req: Request) {
     // Duplicate kontrol modu: belirli bir tarihteki kayıt sayısını döndür
     if (checkDate) {
       const existing = await db.select().from(smartScaleLogs)
-        .where(eq(smartScaleLogs.measurement_date, checkDate));
+        .where(and(eq(smartScaleLogs.measurement_date, checkDate), eq(smartScaleLogs.user_id, user.id)));
       return NextResponse.json({ exists: existing.length > 0, count: existing.length, date: checkDate });
     }
 
-    const logs = await db.select().from(smartScaleLogs).orderBy(desc(smartScaleLogs.measurement_date));
+    const logs = await db.select().from(smartScaleLogs)
+      .where(eq(smartScaleLogs.user_id, user.id))
+      .orderBy(desc(smartScaleLogs.measurement_date));
     return NextResponse.json({ success: true, data: logs });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -37,6 +39,7 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const logId = `scale-${Date.now()}`;
     const todayStr = now.split('T')[0];
+    const familyId = user.family_id || `fam-${user.id}`;
     let measurementDate = body.measurement_date || todayStr;
     // Eğer tarih 2026 yılından eskiyse veya geçersizse bugünün tarihini atayalım
     if (!measurementDate || measurementDate.startsWith('2025') || measurementDate.startsWith('2024')) {
@@ -49,6 +52,7 @@ export async function POST(req: Request) {
     await db.insert(smartScaleLogs).values({
       id: logId,
       user_id: user.id,
+      family_id: familyId,
       measurement_date: measurementDate,
       weight_kg: weightKg,
       bmi: body.bmi ? Number(body.bmi) : null,
@@ -79,6 +83,8 @@ export async function POST(req: Request) {
       try {
         await db.insert(biometrics).values({
           id: `bio-${Date.now()}`,
+          user_id: user.id,
+          family_id: familyId,
           date: measurementDate,
           weight_kg: weightKg,
           body_fat_percent: bodyFatPercent,
