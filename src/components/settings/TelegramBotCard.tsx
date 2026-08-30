@@ -175,7 +175,7 @@ export default function TelegramBotCard() {
                 } catch (err) {}
               }
             }}
-            style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
+            style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
           />
         </div>
 
@@ -186,7 +186,7 @@ export default function TelegramBotCard() {
             placeholder="Otomatik algılanır veya 123456789"
             value={chatId}
             onChange={e => setChatId(e.target.value)}
-            style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
+            style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
           />
         </div>
 
@@ -212,8 +212,8 @@ export default function TelegramBotCard() {
         {statusMsg && (
           <div style={{
             fontSize: '12px', padding: '8px 12px', borderRadius: 'var(--radius-md)',
-            background: statusMsg.type === 'success' ? '#ECFDF5' : '#FEF2F2',
-            color: statusMsg.type === 'success' ? '#065F46' : '#991B1B',
+            background: statusMsg.type === 'success' ? 'var(--emerald-bg)' : 'var(--rose-bg)',
+            color: statusMsg.type === 'success' ? 'var(--emerald)' : 'var(--rose)',
             fontWeight: 600
           }}>
             {statusMsg.text}
@@ -222,10 +222,10 @@ export default function TelegramBotCard() {
       </div>
 
       {/* Telegram Canlı Bot Simülatörü */}
-      <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 'var(--radius-lg)', padding: '14px' }}>
+      <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 800, color: '#166534' }}>💬 Telegram Bot Canlı Test Simülatörü</div>
-          <span style={{ fontSize: '10px', background: '#DCFCE7', color: '#15803D', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+          <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--emerald)' }}>💬 Telegram Bot Canlı Test Simülatörü</div>
+          <span style={{ fontSize: '10px', background: 'var(--emerald-bg)', color: 'var(--emerald)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
             İnteraktif
           </span>
         </div>
@@ -237,11 +237,12 @@ export default function TelegramBotCard() {
               key={idx}
               style={{
                 alignSelf: m.sender === 'user' ? 'flex-end' : 'flex-start',
-                background: m.sender === 'user' ? '#10B981' : 'white',
-                color: m.sender === 'user' ? 'white' : 'var(--text-main)',
+                background: m.sender === 'user' ? 'var(--emerald)' : 'var(--surface)',
+                color: m.sender === 'user' ? '#FFFFFF' : 'var(--text-main)',
+                border: m.sender === 'user' ? 'none' : '1px solid var(--border)',
                 padding: '8px 12px', borderRadius: '12px',
                 maxWidth: '85%', fontSize: '12px', lineHeight: '1.4',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                boxShadow: 'var(--shadow-sm)',
                 whiteSpace: 'pre-line'
               }}
             >
@@ -259,7 +260,7 @@ export default function TelegramBotCard() {
             value={simInput}
             onChange={e => setSimInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSimulateMessage()}
-            style={{ flex: 1, padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'white' }}
+            style={{ flex: 1, padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-main)' }}
           />
           <button
             onClick={handleSimulateMessage}
