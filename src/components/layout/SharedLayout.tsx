@@ -41,8 +41,29 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
   });
 
   const [isScreenLocked, setIsScreenLocked] = useState(false);
-
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  // Hızlı işlem modalları için hesap + kategori verisi (lazy yüklenir)
+  const [quickData, setQuickData] = useState<{ accounts: any[]; categories: any[] }>({ accounts: [], categories: [] });
+  const [quickDataLoaded, setQuickDataLoaded] = useState(false);
+
+  const loadQuickData = async () => {
+    if (quickDataLoaded) return;
+    try {
+      // Composite API zaten bütçe bilgisini içeriyor; sadece accounts ve categories için budget endpoint'ini çağır
+      const res = await fetch('/api/budget');
+      const json = await res.json();
+      if (json.success && json.data) {
+        setQuickData({
+          accounts: json.data.accounts || [],
+          categories: json.data.categories || [],
+        });
+        setQuickDataLoaded(true);
+      }
+    } catch {
+      // sessizce geç — modal boş gösterecek
+    }
+  };
 
   const checkSession = async () => {
     try {
@@ -140,7 +161,10 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
         {/* Hızlı Ekle / Tara Butonu */}
         <button
           className="sidebar-quick-btn"
-          onClick={() => setIsQuickMenuOpen(!isQuickMenuOpen)}
+          onClick={() => {
+            loadQuickData();
+            setIsQuickMenuOpen(!isQuickMenuOpen);
+          }}
         >
           <span>＋</span>
           <span>Hızlı İşlem / Tara</span>
@@ -376,7 +400,10 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <button
               id="quick-scan-btn"
-              onClick={() => setIsQuickMenuOpen(!isQuickMenuOpen)}
+              onClick={() => {
+                loadQuickData();
+                setIsQuickMenuOpen(!isQuickMenuOpen);
+              }}
               style={{
                 width: '48px', height: '48px', borderRadius: '50%',
                 background: isQuickMenuOpen ? 'var(--text-main)' : 'linear-gradient(135deg, #10B981, #059669)',
@@ -531,7 +558,10 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
       <VoiceCommandModal
         isOpen={activeModal === 'voice'}
         onClose={() => setActiveModal(null)}
-        onSuccess={(msg) => { showToast(msg || '✅ Sesli işlem kaydedildi!'); setTimeout(() => window.location.reload(), 1200); }}
+        onSuccess={(msg) => {
+          showToast(msg || '✅ Sesli işlem kaydedildi!');
+          window.dispatchEvent(new CustomEvent('singularity-refresh'));
+        }}
       />
       <FeatureShowcaseModal
         isOpen={activeModal === 'showcase'}
@@ -540,25 +570,37 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
       <ReceiptScanModal
         isOpen={activeModal === 'receipt'}
         onClose={() => setActiveModal(null)}
-        accounts={[]}
-        onSuccess={(msg) => { showToast(msg || '✅ Fiş kaydedildi!'); setTimeout(() => window.location.reload(), 1200); }}
+        accounts={quickData.accounts}
+        onSuccess={(msg) => {
+          showToast(msg || '✅ Fiş kaydedildi!');
+          window.dispatchEvent(new CustomEvent('singularity-refresh'));
+        }}
       />
       <ManualExpenseModal
         isOpen={activeModal === 'manual'}
         onClose={() => setActiveModal(null)}
-        accounts={[]}
-        categories={[]}
-        onSuccess={(msg) => { showToast(msg || '✅ Harcama kaydedildi!'); setTimeout(() => window.location.reload(), 1200); }}
+        accounts={quickData.accounts}
+        categories={quickData.categories}
+        onSuccess={(msg) => {
+          showToast(msg || '✅ Harcama kaydedildi!');
+          window.dispatchEvent(new CustomEvent('singularity-refresh'));
+        }}
       />
       <PlateScanModal
         isOpen={activeModal === 'plate'}
         onClose={() => setActiveModal(null)}
-        onSuccess={(msg) => { showToast(msg || '✅ Plaka kaydedildi!'); setTimeout(() => window.location.reload(), 1200); }}
+        onSuccess={(msg) => {
+          showToast(msg || '✅ Plaka kaydedildi!');
+          window.dispatchEvent(new CustomEvent('singularity-refresh'));
+        }}
       />
       <BarcodeScanModal
         isOpen={activeModal === 'barcode'}
         onClose={() => setActiveModal(null)}
-        onSuccess={(msg) => { showToast(msg || '✅ Barkod kaydedildi!'); setTimeout(() => window.location.reload(), 1200); }}
+        onSuccess={(msg) => {
+          showToast(msg || '✅ Barkod kaydedildi!');
+          window.dispatchEvent(new CustomEvent('singularity-refresh'));
+        }}
       />
       <PwaManager />
 

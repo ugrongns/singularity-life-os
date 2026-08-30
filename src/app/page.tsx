@@ -71,6 +71,13 @@ export default function HomePage() {
 
   useEffect(() => { fetchData(); }, []);
 
+  // SharedLayout'taki modalların veriyi güncellediğini bildirmesi için dinleyici
+  useEffect(() => {
+    const handler = () => fetchData();
+    window.addEventListener('singularity-refresh', handler);
+    return () => window.removeEventListener('singularity-refresh', handler);
+  }, []);
+
   const handleUpdate = () => { fetchData(); };
 
   const handleToggleFasting = async (action: 'start' | 'end', protocol: string = '16:8') => {
@@ -221,11 +228,28 @@ export default function HomePage() {
             {wellnessCard}
           </div>
         }
-        secondaryWidgets={
+        /* Sabah primary'de wellness+oruç var -> secondary'de finans+araç+alışveriş */
+        morningSecondary={
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+            {recentTxCard}
+            {vehicleCard}
+            {shoppingCard}
+          </div>
+        }
+        /* Gün içi primary'de finans+alışveriş+araç var -> secondary'de sağlık+kütüphane */
+        daySecondary={
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+            {wellnessCard}
+            {fastingCard}
+            {libraryCard}
+          </div>
+        }
+        /* Akşam primary'de finans+kütüphane+wellness var -> secondary'de araç+alışveriş */
+        eveningSecondary={
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
             {vehicleCard}
-            {libraryCard}
             {shoppingCard}
+            {fastingCard}
           </div>
         }
       />

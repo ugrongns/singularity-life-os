@@ -7,14 +7,19 @@ interface TimeContextualFeedProps {
   morningWidgets: ReactNode;
   dayWidgets: ReactNode;
   eveningWidgets: ReactNode;
-  secondaryWidgets: ReactNode;
+  /** Her dönem için ayrı secondary — primary ile çakışmayı önler */
+  morningSecondary: ReactNode;
+  daySecondary: ReactNode;
+  eveningSecondary: ReactNode;
 }
 
 export default function TimeContextualFeed({
   morningWidgets,
   dayWidgets,
   eveningWidgets,
-  secondaryWidgets
+  morningSecondary,
+  daySecondary,
+  eveningSecondary,
 }: TimeContextualFeedProps) {
   const [mode, setMode] = useState<TimeContextMode>('auto');
   const [currentPeriod, setCurrentPeriod] = useState<'morning' | 'day' | 'evening'>('day');
@@ -35,6 +40,12 @@ export default function TimeContextualFeed({
     morning: { title: 'Günaydın 🌅', desc: 'Rutinlerini tamamla, güne zinde ve planlı başla.' },
     day:     { title: 'İyi Günler ☀️', desc: 'Harcamalarını kaydet, hedeflerine ve görevlerine odaklan.' },
     evening: { title: 'İyi Akşamlar 🌙', desc: 'Günün finans özetini incele, kitabını oku ve dinlen.' },
+  };
+
+  const secondaryByPeriod = {
+    morning: morningSecondary,
+    day: daySecondary,
+    evening: eveningSecondary,
   };
 
   return (
@@ -143,7 +154,7 @@ export default function TimeContextualFeed({
             <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.6px', textTransform: 'uppercase', marginTop: '12px' }}>
               📊 Genel Yaşam Panosu
             </div>
-            {secondaryWidgets}
+            {secondaryByPeriod.morning}
           </>
         )}
 
@@ -156,7 +167,7 @@ export default function TimeContextualFeed({
             <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.6px', textTransform: 'uppercase', marginTop: '12px' }}>
               📊 Genel Yaşam Panosu
             </div>
-            {secondaryWidgets}
+            {secondaryByPeriod.day}
           </>
         )}
 
@@ -169,7 +180,7 @@ export default function TimeContextualFeed({
             <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.6px', textTransform: 'uppercase', marginTop: '12px' }}>
               📊 Genel Yaşam Panosu
             </div>
-            {secondaryWidgets}
+            {secondaryByPeriod.evening}
           </>
         )}
       </div>
