@@ -152,19 +152,39 @@ export async function POST(req: Request) {
       updated_at: now
     });
 
-    // Aile Üyesi Profilini Oluştur
-    await db.insert(familyMembers).values({
-      id: `fm-${userId}`,
-      family_id: familyId,
-      user_id: userId,
-      name: full_name.trim(),
-      role: userRole,
-      relationship_type: userRelationship,
-      avatar: avatar_emoji || (isMaster ? '👑' : '👤'),
-      is_active: 1,
-      created_at: now,
-      updated_at: now
-    });
+    // Aile Üyesi Profilini Bağla veya Oluştur
+    let existingMember: any = null;
+    if (validInvite) {
+      const familyMemberList = await db.select().from(familyMembers).where(eq(familyMembers.family_id, familyId));
+      if (validInvite.target_name) {
+        existingMember = familyMemberList.find((m: any) => !m.user_id && m.name.toLowerCase().trim() === validInvite.target_name.toLowerCase().trim());
+      }
+      if (!existingMember) {
+        existingMember = familyMemberList.find((m: any) => !m.user_id && (m.relationship_type === userRelationship || m.role === userRole));
+      }
+    }
+
+    if (existingMember) {
+      await db.update(familyMembers).set({
+        user_id: userId,
+        name: full_name.trim(),
+        avatar: avatar_emoji || existingMember.avatar || '👤',
+        updated_at: now
+      }).where(eq(familyMembers.id, existingMember.id));
+    } else {
+      await db.insert(familyMembers).values({
+        id: `fm-${userId}`,
+        family_id: familyId,
+        user_id: userId,
+        name: full_name.trim(),
+        role: userRole,
+        relationship_type: userRelationship,
+        avatar: avatar_emoji || (isMaster ? '👑' : '👤'),
+        is_active: 1,
+        created_at: now,
+        updated_at: now
+      });
+    }
 
     // Health Profile başlangıç kaydı (Kişiye Özel)
     try {

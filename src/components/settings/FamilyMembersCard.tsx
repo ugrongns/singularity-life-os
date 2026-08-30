@@ -5,13 +5,20 @@ interface FamilyMember {
   id: string;
   name: string;
   role: string;
+  relationship_type?: string;
   avatar: string;
   is_active: number;
+  user_id?: string | null;
+  has_registered?: boolean;
+  is_current_user?: boolean;
+  invite_code?: string | null;
+  invite_expires_at?: string | null;
   transaction_count?: number;
   total_spent?: number;
 }
 
-const EMOJI_OPTIONS = ['👑', '👨', '👩', '💍', '👦', '👧', '👵', '👴', '👶', '🐶', '🐱', '👤'];
+const EMOJI_OPTIONS = ['💍', '👩', '👨', '👦', '👧', '👶', '👵', '👴', '👑', '🤝', '🐶', '🐱', '👤'];
+
 const ROLE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   admin: { label: '👑 Aile Lideri', color: '#B45309', bg: '#FEF3C7' },
   leader: { label: '👑 Aile Lideri', color: '#B45309', bg: '#FEF3C7' },
@@ -36,13 +43,14 @@ export default function FamilyMembersCard() {
   // Form State
   const [name, setName] = useState('');
   const [role, setRole] = useState('spouse');
-  const [avatar, setAvatar] = useState('👩');
+  const [avatar, setAvatar] = useState('💍');
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [generatedInvite, setGeneratedInvite] = useState<{ code: string; name: string; role: string; expires_at: string } | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 3500);
   };
 
   const fetchMembers = async () => {
@@ -73,21 +81,25 @@ export default function FamilyMembersCard() {
     setEditingId(null);
     setName('');
     setRole('spouse');
-    setAvatar('👩');
+    setAvatar('💍');
     setIsModalOpen(true);
   };
 
   const handleOpenEditModal = (m: FamilyMember) => {
     setEditingId(m.id);
     setName(m.name);
-    setRole(m.role || 'member');
+    setRole(m.role || 'spouse');
     setAvatar(m.avatar || '👤');
     setIsModalOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    const cleanName = name.trim();
+    if (!cleanName) {
+      showToast('⚠️ Lütfen aile üyesinin Adı Soyadını girin.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -95,8 +107,8 @@ export default function FamilyMembersCard() {
       const url = '/api/family-members';
       const method = isEdit ? 'PUT' : 'POST';
       const payload = isEdit
-        ? { id: editingId, name, role, avatar }
-        : { name, role, avatar };
+        ? { id: editingId, name: cleanName, role, relationship_type: role, avatar }
+        : { name: cleanName, role, relationship_type: role, avatar };
 
       const res = await fetch(url, {
         method,
@@ -109,7 +121,18 @@ export default function FamilyMembersCard() {
         setIsModalOpen(false);
         fetchMembers();
         window.dispatchEvent(new CustomEvent('singularity-refresh'));
-        showToast(json.message || (isEdit ? '✅ Üye güncellendi!' : '🎉 Üye eklendi!'));
+
+        if (!isEdit && json.data?.invite_code) {
+          setGeneratedInvite({
+            code: json.data.invite_code,
+            name: cleanName,
+            role: role,
+            expires_at: json.data.expires_at
+          });
+          showToast(`🎉 ${cleanName} eklendi ve Davet Kodu (${json.data.invite_code}) üretildi!`);
+        } else {
+          showToast(json.message || '✅ Üye güncellendi!');
+        }
       } else {
         alert(json.error || 'İşlem başarısız.');
       }
@@ -129,65 +152,16 @@ export default function FamilyMembersCard() {
       if (json.success) {
         fetchMembers();
         window.dispatchEvent(new CustomEvent('singularity-refresh'));
-        showToast('✅ Aile üyesi deaktif edildi.');
+        showToast('✅ Aile üyesi silindi.');
       }
     } catch (err) {
       alert('Silme işlemi başarısız.');
     }
   };
 
-  const [generatedInvite, setGeneratedInvite] = useState<{ code: string; expires_at: string; family_role: string; target_name?: string } | null>(null);
-  const [generatingInvite, setGeneratingInvite] = useState(false);
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-
-  // Invite Form State
-  const [inviteRelationship, setInviteRelationship] = useState('spouse');
-  const [inviteTargetName, setInviteTargetName] = useState('');
-
-  const handleOpenInviteModal = () => {
-    setInviteRelationship('spouse');
-    setInviteTargetName('');
-    setIsInviteModalOpen(true);
-  };
-
-  const handleGenerateInvite = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setGeneratingInvite(true);
-    try {
-      const res = await fetch('/api/family-invites', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          family_role: 'member',
-          relationship_type: inviteRelationship,
-          target_name: inviteTargetName
-        })
-      });
-      const json = await res.json();
-      if (json.success && json.data) {
-        setGeneratedInvite({
-          code: json.data.invite_code,
-          expires_at: json.data.expires_at,
-          family_role: json.data.family_role,
-          target_name: json.data.target_name
-        });
-        setIsInviteModalOpen(false);
-        showToast(`🎉 Aile Davet Kodu Üretildi: ${json.data.invite_code}`);
-      } else {
-        alert(json.error || 'Davet kodu üretilemedi.');
-      }
-    } catch (e) {
-      alert('Sunucu hatası.');
-    } finally {
-      setGeneratingInvite(false);
-    }
-  };
-
-  const copyInviteToClipboard = () => {
-    if (generatedInvite) {
-      navigator.clipboard.writeText(generatedInvite.code);
-      showToast('📋 Davet kodu panoya kopyalandı!');
-    }
+  const copyCode = (code: string, memberName?: string) => {
+    navigator.clipboard.writeText(code);
+    showToast(`📋 ${memberName ? `${memberName} için d` : 'D'}avet kodu (${code}) panoya kopyalandı!`);
   };
 
   if (loading) {
@@ -201,7 +175,7 @@ export default function FamilyMembersCard() {
   return (
     <div className="card">
       {toast && (
-        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--text-main)', color: 'white', padding: '10px 20px', borderRadius: 'var(--radius-full)', fontSize: '13px', fontWeight: 600, boxShadow: 'var(--shadow-lg)', zIndex: 999 }}>
+        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--text-main)', color: 'var(--bg)', padding: '10px 20px', borderRadius: 'var(--radius-full)', fontSize: '13px', fontWeight: 700, boxShadow: 'var(--shadow-lg)', zIndex: 9999, border: '1px solid var(--border)' }}>
           {toast}
         </div>
       )}
@@ -212,46 +186,40 @@ export default function FamilyMembersCard() {
           <span>👨‍👩‍👧‍👦</span>
           <span>Aile Üyeleri & Üyelik Yönetimi</span>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button
-            className="btn-subtle"
-            onClick={handleOpenInviteModal}
-            style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, borderRadius: 'var(--radius-full)', background: '#EEF2FF', color: '#4F46E5', borderColor: '#C7D2FE' }}
-          >
-            💌 Aileye Davet Kodu Üret
-          </button>
+        <div>
           <button
             className="btn-primary"
             onClick={handleOpenNewModal}
-            style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, borderRadius: 'var(--radius-full)' }}
+            style={{ padding: '7px 16px', fontSize: '12px', fontWeight: 700, borderRadius: 'var(--radius-full)', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            ＋ Yeni Üye Ekle
+            <span>＋</span>
+            <span>Yeni Aile Üyesi Ekle</span>
           </button>
         </div>
       </div>
 
-      <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 14px' }}>
-        Aile bireylerinizi tanımlayın. Sisteme yapılan harcamalar ve veriler o an oturum açan aile üyesine otomatik atanır.
+      <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 14px', lineHeight: '1.5' }}>
+        Aile bireylerinizi ad-soyad ve rolüyle ekleyin. Sistem otomatik olarak kişiye özel <strong>Aile Davet Kodu</strong> üretir ve üyeyi hesaba bağlar.
       </p>
 
-      {/* Üretilen Davet Kodu Kutusu */}
+      {/* Yeni Üretilen Davet Kodu Kutusu (Varsa) */}
       {generatedInvite && (
-        <div style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 'var(--radius-md)', padding: '14px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+        <div style={{ background: 'var(--indigo-bg)', border: '1px solid var(--indigo)', borderRadius: 'var(--radius-md)', padding: '14px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#4F46E5' }}>
-              💌 YENİ AİLE DAVET KODU ({ROLE_LABELS[generatedInvite.family_role]?.label || '👤 Üye'} {generatedInvite.target_name ? `— ${generatedInvite.target_name}` : ''}):
+            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--indigo)' }}>
+              💌 {generatedInvite.name.toUpperCase()} İÇİN AİLE DAVET KODU ({ROLE_LABELS[generatedInvite.role]?.label || '👤 Üye'}):
             </div>
-            <div style={{ fontSize: '22px', fontWeight: 900, color: '#312E81', letterSpacing: '2px', marginTop: '2px' }}>
+            <div style={{ fontSize: '24px', fontWeight: 900, color: 'var(--text-main)', letterSpacing: '3px', marginTop: '2px' }}>
               {generatedInvite.code}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Davet ettiğiniz aile üyesi kayıt ekranında bu kodu girerek belirtilen rol ile ailenize dahil olur (7 Gün Geçerli).
+              {generatedInvite.name} kayıt ekranında bu kodu girerek doğrudan <strong>{ROLE_LABELS[generatedInvite.role]?.label}</strong> olarak ailenize dahil olur (7 Gün Geçerli).
             </div>
           </div>
           <button
-            onClick={copyInviteToClipboard}
+            onClick={() => copyCode(generatedInvite.code, generatedInvite.name)}
             className="btn-primary"
-            style={{ padding: '8px 16px', fontSize: '12px', background: '#4F46E5', color: 'white', border: 'none' }}
+            style={{ padding: '8px 16px', fontSize: '12px', background: 'var(--indigo)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 800 }}
           >
             📋 Kodu Kopyala
           </button>
@@ -259,7 +227,7 @@ export default function FamilyMembersCard() {
       )}
 
       {/* Üye Listesi Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
         {members.map(m => {
           const roleBadge = ROLE_LABELS[m.role] || ROLE_LABELS.member;
           return (
@@ -271,91 +239,128 @@ export default function FamilyMembersCard() {
                 borderRadius: 'var(--radius-md)',
                 padding: '14px',
                 display: 'flex',
-                alignItems: 'center',
+                flexDirection: 'column',
                 justifyContent: 'space-between',
                 gap: '10px'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ fontSize: '32px', background: 'var(--surface)', borderRadius: '50%', width: '46px', height: '46px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
-                  {m.avatar || '👤'}
-                </div>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)' }}>
-                    {m.name}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ fontSize: '30px', background: 'var(--surface)', borderRadius: '50%', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+                    {m.avatar || '👤'}
                   </div>
-                  <span
-                    style={{
-                      fontSize: '10px',
-                      fontWeight: 700,
-                      color: roleBadge.color,
-                      background: roleBadge.bg,
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      marginTop: '3px',
-                      display: 'inline-block'
-                    }}
-                  >
-                    {roleBadge.label}
-                  </span>
-                  {(m.transaction_count || 0) > 0 && (
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      {m.transaction_count} harcama ({m.total_spent?.toLocaleString('tr-TR')} ₺)
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)' }}>
+                      {m.name}
                     </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          color: roleBadge.color,
+                          background: roleBadge.bg,
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          display: 'inline-block'
+                        }}
+                      >
+                        {roleBadge.label}
+                      </span>
+                      {m.has_registered ? (
+                        <span style={{ fontSize: '9px', fontWeight: 700, background: 'var(--emerald-bg)', color: 'var(--emerald)', padding: '2px 6px', borderRadius: '4px' }}>
+                          ● Aktif Hesap
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '9px', fontWeight: 700, background: 'var(--amber-bg)', color: 'var(--amber)', padding: '2px 6px', borderRadius: '4px' }}>
+                          ⏳ Kayıt Bekleniyor
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Düzenle / Sil Butonları */}
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button
+                    onClick={() => handleOpenEditModal(m)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '4px' }}
+                    title="Düzenle"
+                  >
+                    ✏️
+                  </button>
+                  {m.role !== 'admin' && !m.is_current_user && (
+                    <button
+                      onClick={() => handleDelete(m.id, m.name)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '4px', color: 'var(--rose)' }}
+                      title="Sil"
+                    >
+                      🗑️
+                    </button>
                   )}
                 </div>
               </div>
 
-              {/* Aksiyon Butonları */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <button
-                  onClick={() => handleOpenEditModal(m)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
-                  title="Düzenle"
-                >
-                  ✏️
-                </button>
-                {m.role !== 'admin' && (
+              {/* Bekleyen Davet Kodu Varsa Doğrudan Kart Üzerinde Göster */}
+              {!m.has_registered && m.invite_code && (
+                <div style={{ background: 'var(--surface)', border: '1px dashed var(--indigo)', borderRadius: 'var(--radius-sm)', padding: '8px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: '9px', fontWeight: 700, color: 'var(--indigo)' }}>💌 Aile Davet Kodu:</div>
+                    <div style={{ fontSize: '13px', fontWeight: 900, color: 'var(--text-main)', letterSpacing: '1px' }}>{m.invite_code}</div>
+                  </div>
                   <button
-                    onClick={() => handleDelete(m.id, m.name)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', color: '#EF4444' }}
-                    title="Sil"
+                    onClick={() => copyCode(m.invite_code!, m.name)}
+                    className="btn-subtle"
+                    style={{ padding: '4px 8px', fontSize: '10px', fontWeight: 700 }}
                   >
-                    🗑️
+                    📋 Kopyala
                   </button>
-                )}
-              </div>
+                </div>
+              )}
+
+              {/* İstatistik */}
+              {(m.transaction_count || 0) > 0 && (
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: '6px' }}>
+                  💰 Toplam Harcama: <strong>{m.total_spent?.toLocaleString('tr-TR')} ₺</strong> ({m.transaction_count} işlem)
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* Ekleme / Düzenleme Modalı */}
+      {/* Tekil Ekleme / Düzenleme Modalı */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="bottom-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '420px', width: '90%' }}>
+          <div className="bottom-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px', width: '90%' }}>
             <div className="sheet-handle"></div>
 
-            <div style={{ fontSize: '16px', fontWeight: 800, marginBottom: '14px' }}>
-              {editingId ? '✏️ Aile Üyesini Düzenle' : '➕ Yeni Aile Üyesi Ekle'}
+            <div style={{ fontSize: '16px', fontWeight: 800, marginBottom: '4px' }}>
+              {editingId ? '✏️ Aile Üyesini Düzenle' : '➕ Yeni Aile Üyesi Ekle & Davet Et'}
             </div>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '14px', lineHeight: '1.4' }}>
+              {editingId 
+                ? 'Aile bireyinin adı, avatarı ve rolünü güncelleyin.' 
+                : 'Üyenin adını ve rolünü girin. Otomatik olarak kişiye özel Aile Davet Kodu oluşturulacaktır.'}
+            </p>
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {/* Avatar Emoji Seçimi */}
               <div>
-                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>Profil Resmi / Emoji *</label>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Profil Resmi / Emoji *</label>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
                   {EMOJI_OPTIONS.map(emo => (
                     <button
                       key={emo}
                       type="button"
                       onClick={() => setAvatar(emo)}
                       style={{
-                        fontSize: '22px',
-                        padding: '6px 10px',
+                        fontSize: '20px',
+                        width: '36px',
+                        height: '36px',
                         borderRadius: '8px',
                         border: avatar === emo ? '2px solid var(--emerald)' : '1px solid var(--border)',
-                        background: avatar === emo ? 'var(--emerald-bg)' : 'var(--surface)',
+                        background: avatar === emo ? 'var(--emerald-bg)' : 'var(--surface-subtle)',
                         cursor: 'pointer'
                       }}
                     >
@@ -367,29 +372,36 @@ export default function FamilyMembersCard() {
 
               {/* İsim */}
               <div>
-                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>Adı Soyadı / Unvanı *</label>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Adı Soyadı / Unvanı *</label>
                 <input
                   type="text"
-                  placeholder="Örn: Ayşe Yılmaz, Efe (Oğlum)"
+                  placeholder="Örn: Hatice İlknur Onganlar, Can (Oğlum)"
                   required
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)', outline: 'none' }}
+                  style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)', outline: 'none' }}
                 />
               </div>
 
               {/* Rol Seçimi */}
               <div>
-                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>Aile Rolü *</label>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Aile Rolü / Yakınlık *</label>
                 <select
                   value={role}
-                  onChange={e => setRole(e.target.value)}
-                  style={{ width: '100%', padding: '10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)', outline: 'none' }}
+                  onChange={e => {
+                    setRole(e.target.value);
+                    if (e.target.value === 'spouse' && avatar === '👤') setAvatar('💍');
+                    if (e.target.value === 'child' && avatar === '👤') setAvatar('👶');
+                    if (e.target.value === 'parent' && avatar === '👤') setAvatar('👵');
+                  }}
+                  style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)', outline: 'none' }}
                 >
-                  <option value="admin">👑 Aile Lideri / Yönetici</option>
                   <option value="spouse">💍 Eş</option>
-                  <option value="child">👦 Çocuk</option>
-                  <option value="parent">👴 Ebeveyn / Aile Büyüğü</option>
+                  <option value="child">👶 Çocuk</option>
+                  <option value="parent">👵 Ebeveyn / Aile Büyüğü</option>
+                  <option value="sibling">👫 Kardeş</option>
+                  <option value="roommate">🏠 Ev Arkadaşı</option>
+                  <option value="friend">🤝 Arkadaş</option>
                   <option value="member">👤 Diğer Aile Bireyi</option>
                 </select>
               </div>
@@ -399,7 +411,7 @@ export default function FamilyMembersCard() {
                   type="button"
                   onClick={() => setIsModalOpen(false)}
                   className="btn-subtle"
-                  style={{ flex: 1, padding: '12px' }}
+                  style={{ flex: 1, padding: '12px', fontWeight: 600 }}
                 >
                   İptal
                 </button>
@@ -409,75 +421,7 @@ export default function FamilyMembersCard() {
                   className="btn-primary"
                   style={{ flex: 2, padding: '12px', fontWeight: 800 }}
                 >
-                  {submitting ? 'Kaydediliyor...' : editingId ? 'Güncelle' : '🎉 Kaydet'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Davet Kodu Üretme Modalı */}
-      {isInviteModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsInviteModalOpen(false)}>
-          <div className="bottom-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '420px', width: '90%' }}>
-            <div className="sheet-handle"></div>
-
-            <div style={{ fontSize: '16px', fontWeight: 800, marginBottom: '6px' }}>
-              💌 Aile Davet Kodu Üret
-            </div>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 14px' }}>
-              Davet edilecek aile bireyinin sistemdeki rolünü seçin. Üretilen davet kodu ile kayıt olan üye bu role sahip olacaktır.
-            </p>
-
-            <form onSubmit={handleGenerateInvite} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* İlişki / Tanım Seçimi */}
-              <div>
-                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>Davet Edilen Bireyin İlişki Tipi / Rolü *</label>
-                <select
-                  value={inviteRelationship}
-                  onChange={e => setInviteRelationship(e.target.value)}
-                  style={{ width: '100%', padding: '10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)', outline: 'none' }}
-                >
-                  <option value="spouse">💍 Eş</option>
-                  <option value="child">👶 Çocuk</option>
-                  <option value="roommate">🏠 Ev Arkadaşı</option>
-                  <option value="friend">🤝 Arkadaş</option>
-                  <option value="mother">👩 Anne</option>
-                  <option value="father">👨 Baba</option>
-                  <option value="sibling">👫 Kardeş</option>
-                  <option value="member">👤 Diğer Aile Üyesi</option>
-                </select>
-              </div>
-
-              {/* İsim / Not (Opsiyonel) */}
-              <div>
-                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>Davet Edilen Üyenin İsmi / Unvanı (Opsiyonel)</label>
-                <input
-                  type="text"
-                  placeholder="Örn: Selin Yılmaz (Eşim), Can (Oğlum)"
-                  value={inviteTargetName}
-                  onChange={e => setInviteTargetName(e.target.value)}
-                  style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)', outline: 'none' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => setIsInviteModalOpen(false)}
-                  className="btn-subtle"
-                  style={{ flex: 1, padding: '12px' }}
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  disabled={generatingInvite}
-                  className="btn-primary"
-                  style={{ flex: 2, padding: '12px', fontWeight: 800, background: '#4F46E5', color: 'white', border: 'none' }}
-                >
-                  {generatingInvite ? 'Üretiliyor...' : '🎉 Davet Kodu Üret'}
+                  {submitting ? 'Kaydediliyor...' : editingId ? 'Güncelle' : '🎉 Üyeyi Ekle & Davet Kodu Üret'}
                 </button>
               </div>
             </form>

@@ -1,8 +1,19 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { familyMembers, users, transactions } from '@/db/schema';
+import { familyMembers, familyInvites, users, transactions } from '@/db/schema';
 import { getAuthUser } from '@/lib/auth';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, gt } from 'drizzle-orm';
+import crypto from 'crypto';
+
+function generateInviteCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.randomBytes(6);
+  let randomStr = '';
+  for (let i = 0; i < 6; i++) {
+    randomStr += chars[bytes[i] % chars.length];
+  }
+  return `FAM-${randomStr}`;
+}
 
 export async function GET() {
   try {
@@ -13,6 +24,7 @@ export async function GET() {
     }
 
     const familyId = user.family_id || `fam-${user.id}`;
+    const nowISO = new Date().toISOString();
     
     // Yalnızca bu kullanıcının ailesine ait aktif üyeleri getir
     let members = await db.select().from(familyMembers).where(
@@ -21,6 +33,17 @@ export async function GET() {
         eq(familyMembers.family_id, familyId)
       )
     );
+
+    // Aktif ve süresi dolmamış davet kodlarını çek
+    const activeInvites = await db.select()
+      .from(familyInvites)
+      .where(
+        and(
+          eq(familyInvites.family_id, familyId),
+          eq(familyInvites.is_used, 0),
+          gt(familyInvites.expires_at, nowISO)
+        )
+      );
 
     // Eğer bu ailede henüz üye kaydı yoksa kullanıcının kendisini otomatik Aile Lideri olarak ekle
     if (members.length === 0) {
@@ -49,11 +72,24 @@ export async function GET() {
       );
     }
 
-    // Her üyenin toplam harcama adedini ve son harcama tarihini hesapla
+    // Her üyenin toplam harcama adedini ve bağlı davet kodunu hesapla
     const membersWithStats = await Promise.all((members).map(async (m: any) => {
       const memberTxs = await db.select().from(transactions).where(eq(transactions.member_id, m.id));
+      
+      // Bu üyeye ait bekleyen davet kodunu bul (Kayıt olmamışsa)
+      let matchingInvite = null;
+      if (!m.user_id) {
+        matchingInvite = activeInvites.find((inv: any) => 
+          inv.target_name && inv.target_name.toLowerCase().trim() === m.name.toLowerCase().trim()
+        ) || activeInvites.find((inv: any) => inv.relationship_type === (m.relationship_type || m.role));
+      }
+
       return {
         ...m,
+        invite_code: matchingInvite ? matchingInvite.invite_code : null,
+        invite_expires_at: matchingInvite ? matchingInvite.expires_at : null,
+        has_registered: Boolean(m.user_id),
+        is_current_user: m.user_id === user.id,
         transaction_count: memberTxs.length,
         total_spent: (memberTxs).reduce((sum: number, t: any) => sum + (t.amount || 0), 0)
       };
@@ -78,32 +114,59 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { name, role = 'member', relationship_type = 'spouse', avatar = '👤' } = body;
+    const { name, role = 'spouse', avatar = '👩' } = body;
+    const cleanName = (name || '').trim();
 
-    if (!name || !name.trim()) {
-      return NextResponse.json({ success: false, error: 'Üye adı zorunludur.' }, { status: 400 });
+    if (!cleanName) {
+      return NextResponse.json({ success: false, error: 'Lütfen aile üyesinin adını ve soyadını girin.' }, { status: 400 });
     }
 
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowISO = now.toISOString();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 gün geçerli
+    const code = generateInviteCode();
     const newId = `fm-${Date.now()}`;
     const familyId = user.family_id || `fam-${user.id}`;
+    const inviteId = `inv-${Date.now()}`;
 
+    // 1. Aile Üyesi Profil Kaydını Oluştur
     await db.insert(familyMembers).values({
       id: newId,
       family_id: familyId,
-      name: name.trim(),
+      name: cleanName,
       role: role || 'member',
-      relationship_type: relationship_type || 'spouse',
+      relationship_type: role || 'spouse',
       avatar: avatar || '👤',
       is_active: 1,
-      created_at: now,
-      updated_at: now
+      created_at: nowISO,
+      updated_at: nowISO
+    });
+
+    // 2. Bu Üyeye Özel Aile Davet Kodunu Oluştur ve Bağla
+    await db.insert(familyInvites).values({
+      id: inviteId,
+      family_id: familyId,
+      invite_code: code,
+      created_by_user_id: user.id,
+      family_role: role || 'member',
+      relationship_type: role || 'spouse',
+      target_name: cleanName,
+      expires_at: expiresAt,
+      is_used: 0,
+      created_at: nowISO
     });
 
     return NextResponse.json({
       success: true,
-      message: `🎉 ${name.trim()} aile üyelerine eklendi!`,
-      data: { id: newId, name, role, relationship_type, avatar }
+      message: `🎉 ${cleanName} aileye eklendi ve özel davet kodu (${code}) üretildi!`,
+      data: {
+        id: newId,
+        name: cleanName,
+        role: role,
+        avatar: avatar,
+        invite_code: code,
+        expires_at: expiresAt
+      }
     });
   } catch (error: any) {
     console.error('Family Members POST API Error:', error);
