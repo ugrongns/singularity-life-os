@@ -13,7 +13,7 @@ interface ParsedAction {
 
 export async function POST(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const internalKey = process.env.INTERNAL_SERVICE_KEY;
     const incomingInternalKey = req.headers.get('x-internal-service-key');
     const isInternalService = Boolean(internalKey && incomingInternalKey && incomingInternalKey === internalKey);

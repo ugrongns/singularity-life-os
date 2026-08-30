@@ -876,7 +876,7 @@ export async function GET(req: Request) {
     }
 
     try { 
-      initDatabase(); 
+      await initDatabase(); 
     } catch (e) {}
 
     // 2. VERİTABANI ÖNBELLEĞİ KONTROLÜ

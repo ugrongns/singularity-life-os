@@ -45,7 +45,7 @@ import { eq, and, inArray } from 'drizzle-orm';
 
 export async function POST(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
 
     if (!user || !user.id) {

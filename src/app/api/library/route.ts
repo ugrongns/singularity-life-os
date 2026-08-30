@@ -6,7 +6,7 @@ import { getAuthUser } from '@/lib/auth';
 
 export async function GET() {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     const userId = user?.id;
 
@@ -113,7 +113,7 @@ export async function GET() {
 // Kitap Sayfası İlerletme, Emanet Güncelleme veya Yeni Kitap Ekleme
 export async function POST(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     const body = await req.json();
@@ -283,7 +283,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 

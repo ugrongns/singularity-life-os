@@ -7,7 +7,7 @@ import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const body = await req.json();
     const {
       full_name,
@@ -37,10 +37,10 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    if (password.length < 6) {
+    if (password.length < 8) {
       return NextResponse.json({
         success: false,
-        error: 'Master Parola en az 6 karakter olmalıdır.'
+        error: 'Master Parola en az 8 karakter olmalıdır.'
       }, { status: 400 });
     }
 
@@ -233,12 +233,12 @@ export async function POST(req: Request) {
       created_at: now
     });
 
-    // Set cookie
+    // Set cookie (token response body'de döndürülmez — sadece httpOnly cookie kullanılır)
     const cookieStore = await cookies();
     cookieStore.set('singularity_session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',  // 'lax' → 'strict' (daha güçlü CSRF koruması)
       path: '/',
       maxAge: 30 * 86400
     });
@@ -247,7 +247,6 @@ export async function POST(req: Request) {
       success: true,
       message: 'Master kullanıcı başarıyla oluşturuldu!',
       data: {
-        token,
         user: {
           id: userId,
           username: username.toLowerCase().trim(),

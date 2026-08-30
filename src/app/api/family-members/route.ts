@@ -6,7 +6,7 @@ import { eq, desc, and } from 'drizzle-orm';
 
 export async function GET() {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     if (!user) {
       return NextResponse.json({ success: false, error: 'Oturum bulunamadı.' }, { status: 401 });
@@ -71,7 +71,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     if (!user) {
       return NextResponse.json({ success: false, error: 'Oturum bulunamadı.' }, { status: 401 });
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const body = await req.json();
     const { id, name, role, relationship_type, avatar, is_active } = body;
 
@@ -146,7 +146,7 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const { searchParams } = new URL(req.url, 'http://localhost');
     const id = searchParams.get('id');
 

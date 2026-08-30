@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { authSessions } from '@/db/schema';
-import { eq , or } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
 export async function POST() {
   try {
-    initDatabase();
+    await initDatabase();
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get('singularity_session')?.value;
 

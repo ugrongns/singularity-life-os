@@ -21,7 +21,7 @@ interface Notification {
 
 export async function GET() {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     const userId = user?.id;
 

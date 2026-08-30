@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { users, authSessions } from '@/db/schema';
 import { verifyPassword, verifyPin, generateSessionToken } from '@/lib/auth';
-import { eq, or } from 'drizzle-orm';
+import { eq, or, lt } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const body = await req.json();
     const { pin, username, email, password, action } = body;
 
@@ -43,7 +43,8 @@ export async function POST(req: Request) {
       if (targetUserId) {
         targetUser = (await db.select().from(users).where(eq(users.id, targetUserId)).limit(1))[0];
       } else {
-        targetUser = (await db.select().from(users).where(eq(users.is_master_account, 1)).limit(1))[0] || (await db.select().from(users).limit(1))[0];
+        targetUser = (await db.select().from(users).where(eq(users.is_master_account, 1)).limit(1))[0]
+          || (await db.select().from(users).limit(1))[0];
       }
 
       if (!targetUser) {
@@ -63,6 +64,11 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
+    // ── Eski Oturumları Temizle (Session Birikmesini Önle) ─────────────────────
+    // 30 günden eski tüm oturumları sil
+    const cutoff = new Date(Date.now() - 30 * 86400000).toISOString();
+    await db.delete(authSessions).where(lt(authSessions.expires_at, cutoff));
+
     // Başarılı Giriş / Kilit Açma: Oturum Oluştur
     const token = generateSessionToken();
     const now = new Date().toISOString();
@@ -80,16 +86,16 @@ export async function POST(req: Request) {
     cookieStore.set('singularity_session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',  // 'lax' → 'strict' (daha güçlü CSRF koruması)
       path: '/',
       maxAge: 30 * 86400
     });
 
+    // Token'ı response body'de DÖNDÜRME — sadece cookie kullan
     return NextResponse.json({
       success: true,
       message: 'Giriş başarılı!',
       data: {
-        token,
         user: {
           id: targetUser.id,
           username: targetUser.username,

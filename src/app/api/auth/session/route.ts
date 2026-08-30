@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { users, authSessions } from '@/db/schema';
-import { eq, gt , or } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
 export async function GET() {
   try {
-    initDatabase();
+    await initDatabase();
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get('singularity_session')?.value;
 

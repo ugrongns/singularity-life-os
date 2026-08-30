@@ -28,7 +28,7 @@ export default function RegisterPage() {
   const getPasswordStrength = () => {
     if (!password) return 0;
     let score = 0;
-    if (password.length >= 6) score += 25;
+    if (password.length >= 8) score += 25;
     if (password.length >= 10) score += 25;
     if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score += 25;
     if (/[0-9]/.test(password) || /[^A-Za-z0-9]/.test(password)) score += 25;
@@ -58,8 +58,8 @@ export default function RegisterPage() {
         setErrorMsg('Hızlı PIN tam olarak 6 haneli rakamlardan oluşmalıdır.');
         return false;
       }
-      if (!password || password.length < 6) {
-        setErrorMsg('Master parola en az 6 karakter olmalıdır.');
+      if (!password || password.length < 8) {
+        setErrorMsg('Master parola en az 8 karakter olmalıdır.');
         return false;
       }
       if (password !== confirmPassword) {

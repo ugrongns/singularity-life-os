@@ -6,7 +6,7 @@ import { desc, eq } from 'drizzle-orm';
 
 export async function GET(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     const { searchParams } = new URL(req.url);
@@ -29,7 +29,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     const body = await req.json();

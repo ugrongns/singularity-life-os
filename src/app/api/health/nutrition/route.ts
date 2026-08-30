@@ -6,7 +6,7 @@ import { getAuthUser } from '@/lib/auth';
 
 export async function GET() {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     const userId = user?.id;
     const today = new Date().toISOString().split('T')[0];
@@ -87,7 +87,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     if (!user) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });

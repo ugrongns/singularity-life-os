@@ -6,7 +6,7 @@ import { getAuthUser } from '@/lib/auth';
 
 export async function GET() {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     const userId = user?.id;
 
@@ -102,7 +102,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     const body = await req.json();
     const { action, protocol = '16:8' } = body;

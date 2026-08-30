@@ -16,7 +16,7 @@ import { eq , or } from 'drizzle-orm';
 
 export async function POST() {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
 
     if (!user || !user.id) {

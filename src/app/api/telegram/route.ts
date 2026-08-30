@@ -24,7 +24,7 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
     }
 
-    initDatabase();
+    await initDatabase();
     const token = (await getSetting('telegram_bot_token')) || process.env.TELEGRAM_BOT_TOKEN || '';
     const chatId = (await getSetting('telegram_chat_id')) || process.env.TELEGRAM_CHAT_ID || '';
     const isEnabled = (await getSetting('telegram_enabled')) === 'true' || !!token;
@@ -54,7 +54,7 @@ export async function GET() {
 // 2. POST: Webhook veya Yönetim İşlemleri
 export async function POST(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const body = await req.json().catch(() => ({}));
 
     // A. AYARLARI KAYDET (Oturum zorunlu)

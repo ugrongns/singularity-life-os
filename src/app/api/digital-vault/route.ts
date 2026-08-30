@@ -6,7 +6,7 @@ import { getAuthUser } from '@/lib/auth';
 
 export async function GET() {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     const userId = user?.id;
 
@@ -83,7 +83,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     if (!user) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
@@ -158,7 +158,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     if (!user) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
@@ -219,7 +219,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 

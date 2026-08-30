@@ -10,7 +10,7 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     const userId = user?.id;
 
@@ -25,7 +25,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const body = await req.json();
     const { type = 'plate', base64, mimeType = 'image/jpeg', barcode_text } = body;
 
@@ -379,7 +379,7 @@ SADECE aşağıdaki JSON formatında yanıt ver:
 
 export async function DELETE(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     const clearJunk = searchParams.get('clear_junk') === 'true';

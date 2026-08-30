@@ -74,18 +74,18 @@ const MODULES_SHOWCASE = [
     title: 'Askeri Düzey Güvenlik',
     badge: 'Blok 4',
     color: '#64748B',
-    features: ['%100 Yerel SQLite Veritabanı', 'PBKDF2-SHA256 Şifreleme', '6 Haneli Hızlı PIN Kilit Ekranı', 'Şifreli Otomatik Yedekleme']
+    features: ['Supabase RLS ile Tam Veri İzolasyonu', 'PBKDF2-SHA256 Şifreleme', '6 Haneli Hızlı PIN Kilit Ekranı', 'AES-256-GCM Şifreli Otomatik Yedekleme']
   }
 ];
 
 const FAQS = [
   {
     q: 'Verilerim nereye kaydediliyor?',
-    a: 'Tüm verileriniz %100 yerel cihazınızda SQLite veritabanında (singularity.db) saklanır. Hiçbir veriniz üçüncü taraf sunuculara veya buluta aktarılmaz.'
+    a: 'Verileriniz Supabase altyapısı üzerinde çalışan şifreli bir PostgreSQL veritabanında saklanır. Row-Level Security (RLS) ile her kullanıcı yalnızca kendi verilerine erişebilir. Yedeklerinizi AES-256-GCM ile şifreli olarak indirip geri yükleyebilirsiniz.'
   },
   {
-    q: 'İnternetim kesilirse uygulamayı kullanabilir miyim?',
-    a: 'Evet! Singularity tam Offline-First PWA (Progressive Web App) mimarisiyle inşa edilmiştir. Uçak modunda bile tüm modülleri kullanabilirsiniz.'
+    q: 'Hesap güvenliğim nasıl sağlanıyor?',
+    a: 'Parolanız PBKDF2-SHA256 (100.000 iterasyon) ile, PIN\'iniz ise ayrı bir tuzlama yöntemiyle hashlenerek saklanır. Düz metin parola hiçbir zaman sunucuya iletilmez. Oturum tokenleri 256-bit kriptografik rastgelelikle üretilir ve httpOnly cookie\'de tutulur.'
   },
   {
     q: 'Mobil cihazıma uygulama olarak yükleyebilir miyim?',
@@ -123,8 +123,8 @@ export default function LandingPage() {
       setErrorMsg('Lütfen geçerli bir e-posta adresi girin (örn: ahmet@ornek.com).');
       return;
     }
-    if (!password || password.length < 6) {
-      setErrorMsg('Master parola en az 6 karakter olmalıdır.');
+    if (!password || password.length < 8) {
+      setErrorMsg('Master parola en az 8 karakter olmalıdır.');
       return;
     }
     if (quickPin.length !== 6 || !/^\d{6}$/.test(quickPin)) {
@@ -349,7 +349,7 @@ export default function LandingPage() {
                 <label style={{ fontSize: '11px', fontWeight: 700, color: (password && quickPin && password.trim() === quickPin.trim()) ? '#F87171' : '#94A3B8' }}>MASTER PAROLA *</label>
                 <input
                   type="password" required value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder="En az 6 karakter"
+                  placeholder="En az 8 karakter"
                   style={{
                     width: '100%', padding: '10px 12px', fontSize: '13px', marginTop: '4px',
                     borderRadius: '10px',
@@ -398,6 +398,16 @@ export default function LandingPage() {
         )}
 
         {/* INTERACTIVE CANLI DEMO KARTLARI */}
+        <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+          <span style={{
+            display: 'inline-block', fontSize: '10px', fontWeight: 700,
+            color: '#94A3B8', background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px',
+            padding: '3px 10px', letterSpacing: '0.5px'
+          }}>
+            📊 ÖRNEK VERİ — Gerçek hesabınızdaki verilerinizi gösterir
+          </span>
+        </div>
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
           gap: '14px', maxWidth: '1000px', margin: '0 auto 60px'
@@ -489,9 +499,9 @@ export default function LandingPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '24px' }}>
             <div style={{ padding: '20px' }}>
               <div style={{ fontSize: '32px', marginBottom: '10px' }}>🛡️</div>
-              <div style={{ fontWeight: 800, fontSize: '15px', marginBottom: '6px' }}>%100 Yerel Veri</div>
+              <div style={{ fontWeight: 800, fontSize: '15px', marginBottom: '6px' }}>Güvenli & Şifreli Veri</div>
               <div style={{ fontSize: '12px', color: '#94A3B8', lineHeight: 1.5 }}>
-                Verileriniz sadece sizin cihazınızda SQLite veritabanında saklanır. Bulut bağımlılığı yoktur.
+                Verileriniz şifreli bir bulut veritabanında (Supabase PostgreSQL) güvenle saklanır. Row-Level Security ile yalnızca siz erişebilirsiniz.
               </div>
             </div>
 
@@ -513,9 +523,9 @@ export default function LandingPage() {
 
             <div style={{ padding: '20px' }}>
               <div style={{ fontSize: '32px', marginBottom: '10px' }}>📱</div>
-              <div style={{ fontWeight: 800, fontSize: '15px', marginBottom: '6px' }}>PWA & Offline</div>
+              <div style={{ fontWeight: 800, fontSize: '15px', marginBottom: '6px' }}>PWA & Mobil Uyumlu</div>
               <div style={{ fontSize: '12px', color: '#94A3B8', lineHeight: 1.5 }}>
-                Telefonunuza uygulama olarak kurun. İnternetiniz olmasa bile tüm cihazlarda kesintisiz çalışır.
+                Telefonunuza uygulama olarak kurun. Tüm cihazlarda sorunsuz çalışır, mobil tarayıcıdan ana ekrana eklenebilir.
               </div>
             </div>
           </div>

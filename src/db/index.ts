@@ -19,10 +19,17 @@ const pgClient = postgres(databaseUrl, { ssl: 'require', max: 10, prepare: false
 export const db = drizzle(pgClient, { schema });
 export const client = pgClient;
 
-let isInitDone = false;
-export async function initDatabase() {
-  if (isInitDone) return;
-  isInitDone = true;
+let _initPromise: Promise<void> | null = null;
+
+/** DB tablolarını oluşturur. Singleton promise — paralel çağrılar aynı promise'i paylaşır. */
+export function initDatabase(): Promise<void> {
+  if (!_initPromise) {
+    _initPromise = _runInit();
+  }
+  return _initPromise;
+}
+
+async function _runInit(): Promise<void> {
   try {
     const createTablesSQL = `
       CREATE TABLE IF NOT EXISTS families (
@@ -673,10 +680,24 @@ export async function initDatabase() {
       ALTER TABLE shopping_list_items ADD COLUMN IF NOT EXISTS family_id TEXT;
     `;
 
+    const enableRlsSQL = `
+      DO $$ 
+      DECLARE 
+          r RECORD;
+      BEGIN 
+          FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') 
+          LOOP 
+              EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' ENABLE ROW LEVEL SECURITY;';
+          END LOOP; 
+      END $$;
+    `;
+
     await pgClient.unsafe(createTablesSQL);
     await pgClient.unsafe(alterMissingColumnsSQL);
     await pgClient.unsafe(seedCategoriesSQL);
+    await pgClient.unsafe(enableRlsSQL);
   } catch (err) {
+    _initPromise = null; // Hata durumunda sıfırla, bir sonraki istekte tekrar denensin
     console.warn('initDatabase notice:', err);
   }
 }

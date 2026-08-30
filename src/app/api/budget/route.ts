@@ -6,7 +6,7 @@ import { getAuthUser } from '@/lib/auth';
 
 export async function GET(req: Request) {
   try {
-    initDatabase();
+    await initDatabase();
     const user = await getAuthUser();
     const userId = user?.id;
 
