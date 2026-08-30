@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { supplementRoutines, sleepLogs, moodLogs, biometrics, waterIntakeLogs, smartScaleLogs } from '@/db/schema';
+import { supplementRoutines, sleepLogs, moodLogs, biometrics, waterIntakeLogs, smartScaleLogs, userHealthProfile } from '@/db/schema';
 import { desc, eq, and, sql , or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
@@ -24,11 +24,17 @@ export async function GET() {
       ? await db.select().from(sleepLogs).where(and(eq(sleepLogs.date, today), eq(sleepLogs.user_id, userId)))
       : [];
 
+    const userProfile = userId
+      ? (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1))[0]
+      : null;
+
+    const defaultGoal = userProfile?.daily_water_target_ml || 2500;
+
     const todayWaterList = userId
       ? await db.select().from(waterIntakeLogs).where(and(eq(waterIntakeLogs.date, today), eq(waterIntakeLogs.user_id, userId)))
       : [];
 
-    const todayWater = todayWaterList[0] || { amount_ml: 0, goal_ml: 2500 };
+    const todayWater = todayWaterList[0] || { amount_ml: userProfile?.consumed_water_ml || 0, goal_ml: defaultGoal };
 
     // Son 7 gün trendler
     const last7Days = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
@@ -155,7 +161,72 @@ export async function POST(request: Request) {
           updated_at: now
         });
       }
-      return NextResponse.json({ success: true, amount_ml: newAmount });
+
+      // userHealthProfile ile senkronize et
+      const profile = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, user.id)).limit(1))[0];
+      if (profile) {
+        await db.update(userHealthProfile).set({
+          consumed_water_ml: newAmount,
+          daily_water_target_ml: goal,
+          updated_at: now
+        }).where(eq(userHealthProfile.id, profile.id));
+      }
+
+      return NextResponse.json({ success: true, amount_ml: newAmount, goal_ml: goal });
+    }
+
+    if (action === 'set_water_goal') {
+      const newGoal = Math.max(500, Math.min(10000, Number(data.goal_ml) || 2500));
+      const existingList = await db.select().from(waterIntakeLogs).where(and(eq(waterIntakeLogs.date, today), eq(waterIntakeLogs.user_id, user.id)));
+      const existing = existingList[0];
+
+      if (existing) {
+        await db.update(waterIntakeLogs).set({
+          goal_ml: newGoal,
+          updated_at: now
+        }).where(and(eq(waterIntakeLogs.id, existing.id), eq(waterIntakeLogs.user_id, user.id)));
+      } else {
+        const id = `water-${Date.now()}`;
+        await db.insert(waterIntakeLogs).values({
+          id,
+          date: today,
+          amount_ml: 0,
+          goal_ml: newGoal,
+          user_id: user.id,
+          family_id: familyId,
+          created_at: now,
+          updated_at: now
+        });
+      }
+
+      const profile = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, user.id)).limit(1))[0];
+      if (profile) {
+        await db.update(userHealthProfile).set({
+          daily_water_target_ml: newGoal,
+          updated_at: now
+        }).where(eq(userHealthProfile.id, profile.id));
+      } else {
+        await db.insert(userHealthProfile).values({
+          id: `hp-${user.id}`,
+          daily_calorie_target: 2200,
+          target_protein_g: 140,
+          target_carbs_g: 180,
+          target_fat_g: 65,
+          daily_water_target_ml: newGoal,
+          consumed_water_ml: 0,
+          active_fasting_protocol: '16:8',
+          user_id: user.id,
+          family_id: familyId,
+          created_at: now,
+          updated_at: now
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `🎯 Günlük su içme hedefiniz ${newGoal} ml olarak güncellendi!`,
+        goal_ml: newGoal
+      });
     }
 
     if (action === 'add_supplement') {

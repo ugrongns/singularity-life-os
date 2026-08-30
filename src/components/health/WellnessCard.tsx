@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface Supplement {
   id: string;
@@ -86,7 +86,20 @@ export default function WellnessCard({
 
   // Water State
   const [waterAmount, setWaterAmount] = useState(todayWater?.amount_ml || 0);
+  const [waterGoal, setWaterGoal] = useState(todayWater?.goal_ml || 2500);
+  const [isEditingGoal, setIsEditingGoal] = useState(false);
+  const [goalInput, setGoalInput] = useState(String(todayWater?.goal_ml || 2500));
   const [savingWater, setSavingWater] = useState(false);
+  const [savingGoal, setSavingGoal] = useState(false);
+  const [goalMsg, setGoalMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (todayWater) {
+      setWaterAmount(todayWater.amount_ml || 0);
+      setWaterGoal(todayWater.goal_ml || 2500);
+      setGoalInput(String(todayWater.goal_ml || 2500));
+    }
+  }, [todayWater]);
 
   // Sleep State
   const [sleepForm, setSleepForm] = useState({
@@ -114,8 +127,7 @@ export default function WellnessCard({
   const totalDaily = dailySupps.length;
   const suppProgress = totalDaily > 0 ? Math.round((takenDaily / totalDaily) * 100) : 100;
 
-  const waterGoal = todayWater?.goal_ml || 2500;
-  const waterProgress = Math.min(100, Math.round((waterAmount / waterGoal) * 100));
+  const waterProgress = Math.min(100, Math.round((waterAmount / (waterGoal || 2500)) * 100));
 
   const handleTake = async (id: string) => {
     setTaking(id);
@@ -141,6 +153,47 @@ export default function WellnessCard({
     });
     window.dispatchEvent(new CustomEvent('singularity-refresh'));
     if (onRefresh) onRefresh();
+  };
+
+  const handleSaveWaterGoal = async (targetMl: number) => {
+    const val = Math.max(500, Math.min(10000, targetMl));
+    setWaterGoal(val);
+    setGoalInput(String(val));
+    setSavingGoal(true);
+    try {
+      const res = await fetch('/api/wellness', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_water_goal', goal_ml: val })
+      });
+      const j = await res.json();
+      if (j.success) {
+        setGoalMsg(`🎯 Günlük su hedefiniz ${val} ml olarak kaydedildi!`);
+        setTimeout(() => setGoalMsg(null), 3000);
+        setIsEditingGoal(false);
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
+        if (onRefresh) onRefresh();
+      }
+    } finally {
+      setSavingGoal(false);
+    }
+  };
+
+  const handleResetWater = async () => {
+    if (!confirm('Bugünkü su sayacını sıfırlamak istediğinize emin misiniz?')) return;
+    setWaterAmount(0);
+    setSavingWater(true);
+    try {
+      await fetch('/api/wellness', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'log_water', amount_ml: 0, goal_ml: waterGoal })
+      });
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      if (onRefresh) onRefresh();
+    } finally {
+      setSavingWater(false);
+    }
   };
 
   const handleUpdateWater = async (deltaMl: number) => {
@@ -474,20 +527,164 @@ export default function WellnessCard({
 
       {/* 2. SU TAKİBİ */}
       {tab === 'water' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {goalMsg && (
+            <div style={{ background: '#ECFDF5', border: '1px solid #10B981', color: '#065F46', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', textAlign: 'center', fontWeight: 700 }}>
+              {goalMsg}
+            </div>
+          )}
+
+          {/* Hedef Belirleme & Düzenleme Alanı */}
+          {isEditingGoal ? (
+            <div style={{ background: 'var(--surface)', border: '1.5px solid var(--primary)', padding: '16px', borderRadius: 'var(--radius-md)', boxShadow: '0 4px 14px rgba(0,0,0,0.08)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>🎯</span> Günlük Su Hedefinizi Belirleyin
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingGoal(false)}
+                  style={{ background: 'none', border: 'none', fontSize: '14px', cursor: 'pointer', color: 'var(--text-muted)' }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Hızlı Şablonlar */}
+              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                Hazır Şablonlar:
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '12px' }}>
+                {[
+                  { ml: 2000, label: '💧 2.000 ml (8 Bardak)' },
+                  { ml: 2500, label: '💧 2.500 ml (Standart)' },
+                  { ml: 3000, label: '💧 3.000 ml (12 Bardak)' },
+                  { ml: 3500, label: '💧 3.500 ml (Sporcu)' }
+                ].map(item => (
+                  <button
+                    key={item.ml}
+                    type="button"
+                    onClick={() => {
+                      setGoalInput(String(item.ml));
+                      handleSaveWaterGoal(item.ml);
+                    }}
+                    disabled={savingGoal}
+                    style={{
+                      padding: '8px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      borderRadius: 'var(--radius-md)',
+                      border: `1px solid ${waterGoal === item.ml ? 'var(--primary)' : 'var(--border)'}`,
+                      background: waterGoal === item.ml ? 'rgba(59, 130, 246, 0.12)' : 'var(--surface-subtle)',
+                      color: waterGoal === item.ml ? 'var(--primary)' : 'var(--text-main)',
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Özel Miktar Girişi */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSaveWaterGoal(Number(goalInput) || 2500);
+                }}
+                style={{ display: 'flex', gap: '8px', alignItems: 'center' }}
+              >
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <input
+                    type="number"
+                    min={500}
+                    max={10000}
+                    step={50}
+                    value={goalInput}
+                    onChange={(e) => setGoalInput(e.target.value)}
+                    placeholder="Örn: 2750"
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '9px 40px 9px 12px',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'var(--surface-subtle)',
+                      color: 'var(--text-main)'
+                    }}
+                  />
+                  <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>
+                    ml
+                  </span>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={savingGoal}
+                  className="btn-primary"
+                  style={{ padding: '9px 16px', fontSize: '12px', fontWeight: 800 }}
+                >
+                  {savingGoal ? '...' : 'Kaydet'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingGoal(false)}
+                  className="btn-subtle"
+                  style={{ padding: '9px 12px', fontSize: '12px' }}
+                >
+                  Vazgeç
+                </button>
+              </form>
+            </div>
+          ) : null}
+
+          {/* Ana Gösterge Kartı */}
           <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', padding: '20px 16px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
-            <div style={{ fontSize: '36px' }}>💧</div>
-            <div className="tabular-nums" style={{ fontSize: '30px', fontWeight: 900, color: 'var(--text-main)', marginTop: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '-24px' }}>
+              <button
+                type="button"
+                onClick={() => setIsEditingGoal(!isEditingGoal)}
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-full)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface)',
+                  color: 'var(--primary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <span>🎯</span> Hedefi Belirle / Değiştir
+              </button>
+            </div>
+
+            <div style={{ fontSize: '38px', marginTop: '8px' }}>💧</div>
+            <div className="tabular-nums" style={{ fontSize: '32px', fontWeight: 900, color: 'var(--text-main)', marginTop: '4px' }}>
               {waterAmount} <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--primary)' }}>/ {waterGoal} ml</span>
             </div>
-            <div style={{ fontSize: '13px', color: 'var(--primary)', fontWeight: 800, marginTop: '4px' }}>
-              %{waterProgress} Tamamlandı
+
+            <div style={{ fontSize: '13px', color: waterAmount >= waterGoal ? 'var(--emerald)' : 'var(--primary)', fontWeight: 800, marginTop: '4px' }}>
+              {waterAmount >= waterGoal ? `🎉 Hedef Tamamlandı! (%${waterProgress})` : `%{waterProgress} Tamamlandı`}
+            </div>
+
+            {/* Kalan Bilgisi */}
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+              {waterAmount >= waterGoal
+                ? `Hedefinizi ${waterAmount - waterGoal} ml aştınız, harika gidiyorsunuz!`
+                : `Günlük hedefe ulaşmak için ${waterGoal - waterAmount} ml (${Math.ceil((waterGoal - waterAmount) / 250)} bardak) kaldı.`}
             </div>
 
             <div className="progress-bar" style={{ height: '8px', marginTop: '14px', background: 'var(--border)' }}>
-              <div className="progress-fill" style={{ width: `${waterProgress}%`, backgroundColor: 'var(--primary)' }} />
+              <div className="progress-fill" style={{ width: `${waterProgress}%`, backgroundColor: waterAmount >= waterGoal ? 'var(--emerald)' : 'var(--primary)' }} />
             </div>
 
+            {/* Eylem Butonları */}
             <div style={{ display: 'flex', gap: '8px', marginTop: '18px', justifyContent: 'center', flexWrap: 'wrap' }}>
               <button
                 className="btn-primary"
@@ -510,8 +707,18 @@ export default function WellnessCard({
                 disabled={savingWater}
                 onClick={() => handleUpdateWater(-250)}
                 style={{ fontSize: '13px', padding: '9px 14px', background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                title="250 ml geri al"
               >
                 -250 ml
+              </button>
+              <button
+                className="btn-subtle"
+                disabled={savingWater}
+                onClick={handleResetWater}
+                style={{ fontSize: '13px', padding: '9px 12px', background: 'var(--surface)', color: '#DC2626', border: '1px solid var(--border)' }}
+                title="Bugünkü sayacı sıfırla"
+              >
+                🔄 Sıfırla
               </button>
             </div>
           </div>

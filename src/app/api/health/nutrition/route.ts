@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { nutritionMeals, userHealthProfile } from '@/db/schema';
+import { nutritionMeals, userHealthProfile, waterIntakeLogs } from '@/db/schema';
 import { eq, desc, and , or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
@@ -108,9 +108,10 @@ export async function POST(req: Request) {
     const today = now.split('T')[0];
     const familyId = user.family_id || `fam-${user.id}`;
 
-    // Günlük Makro Hedeflerini Güncelleme
+    // Günlük Makro ve Su Hedeflerini Güncelleme
     if (action === 'update_profile') {
       const existing = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, user.id)).limit(1))[0];
+      const waterTarget = data.daily_water_target_ml !== undefined ? Number(data.daily_water_target_ml) : existing?.daily_water_target_ml || 2500;
 
       if (existing) {
         await db.update(userHealthProfile).set({
@@ -118,6 +119,7 @@ export async function POST(req: Request) {
           target_protein_g: Number(data.target_protein_g) || existing.target_protein_g,
           target_carbs_g: Number(data.target_carbs_g) || existing.target_carbs_g,
           target_fat_g: Number(data.target_fat_g) || existing.target_fat_g,
+          daily_water_target_ml: waterTarget,
           updated_at: now
         }).where(eq(userHealthProfile.id, existing.id));
       } else {
@@ -127,6 +129,9 @@ export async function POST(req: Request) {
           target_protein_g: Number(data.target_protein_g) || 140,
           target_carbs_g: Number(data.target_carbs_g) || 180,
           target_fat_g: Number(data.target_fat_g) || 65,
+          daily_water_target_ml: waterTarget,
+          consumed_water_ml: 0,
+          active_fasting_protocol: '16:8',
           user_id: user.id,
           family_id: familyId,
           created_at: now,
@@ -134,7 +139,13 @@ export async function POST(req: Request) {
         });
       }
 
-      return NextResponse.json({ success: true, message: '⚙️ Günlük kalori ve makro hedefleriniz güncellendi!' });
+      // Bugünün su günlüğündeki hedefi de güncelle
+      const todayWaterLog = (await db.select().from(waterIntakeLogs).where(and(eq(waterIntakeLogs.date, today), eq(waterIntakeLogs.user_id, user.id))).limit(1))[0];
+      if (todayWaterLog) {
+        await db.update(waterIntakeLogs).set({ goal_ml: waterTarget, updated_at: now }).where(eq(waterIntakeLogs.id, todayWaterLog.id));
+      }
+
+      return NextResponse.json({ success: true, message: '⚙️ Günlük kalori, makro ve su hedefleriniz güncellendi!' });
     }
 
     // Öğün Silme

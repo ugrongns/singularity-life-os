@@ -7,6 +7,7 @@ interface HealthProfile {
   target_protein_g: number;
   target_carbs_g: number;
   target_fat_g: number;
+  daily_water_target_ml?: number;
 }
 
 interface EditHealthProfileModalProps {
@@ -26,6 +27,7 @@ export default function EditHealthProfileModal({
   const [proteinTarget, setProteinTarget] = useState(String(profile?.target_protein_g || 150));
   const [carbsTarget, setCarbsTarget] = useState(String(profile?.target_carbs_g || 200));
   const [fatTarget, setFatTarget] = useState(String(profile?.target_fat_g || 65));
+  const [waterTarget, setWaterTarget] = useState(String(profile?.daily_water_target_ml || 2500));
   const [submitting, setSubmitting] = useState(false);
 
   // Profile değiştiğinde state'leri senkronize et
@@ -35,6 +37,7 @@ export default function EditHealthProfileModal({
       setProteinTarget(String(profile.target_protein_g || 150));
       setCarbsTarget(String(profile.target_carbs_g || 200));
       setFatTarget(String(profile.target_fat_g || 65));
+      setWaterTarget(String(profile.daily_water_target_ml || 2500));
     }
   }, [profile]);
 
@@ -121,7 +124,8 @@ export default function EditHealthProfileModal({
           daily_calorie_target: Number(calorieTarget),
           target_protein_g: Number(proteinTarget),
           target_carbs_g: Number(carbsTarget),
-          target_fat_g: Number(fatTarget)
+          target_fat_g: Number(fatTarget),
+          daily_water_target_ml: Number(waterTarget) || 2500
         })
       });
 
@@ -146,7 +150,7 @@ export default function EditHealthProfileModal({
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>🧮</span> Günlük Kalori & Makro Hesaplayıcı
+            <span>🧮</span> Günlük Kalori, Makro & Su Hedefleri
           </div>
           <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✕</button>
         </div>
@@ -257,6 +261,57 @@ export default function EditHealthProfileModal({
             </div>
           </div>
 
+          {/* 💧 Günlük Su Tüketim Hedefi Bölümü */}
+          <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <label style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span>💧</span> GÜNLÜK SU TÜKETİM HEDEFİ (ML) *
+              </label>
+              <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--primary)' }}>
+                {waterTarget} ml ({Math.round(Number(waterTarget) / 250)} Bardak)
+              </span>
+            </div>
+
+            {/* Hızlı Su Şablon Butonları */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginBottom: '8px' }}>
+              {[
+                { ml: 2000, label: '2.000 ml' },
+                { ml: 2500, label: '2.500 ml' },
+                { ml: 3000, label: '3.000 ml' },
+                { ml: 3500, label: '3.500 ml' }
+              ].map(w => (
+                <button
+                  key={w.ml}
+                  type="button"
+                  onClick={() => setWaterTarget(String(w.ml))}
+                  style={{
+                    padding: '6px 4px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    borderRadius: '6px',
+                    border: `1px solid ${Number(waterTarget) === w.ml ? 'var(--primary)' : 'var(--border)'}`,
+                    background: Number(waterTarget) === w.ml ? 'rgba(59, 130, 246, 0.15)' : 'var(--surface)',
+                    color: Number(waterTarget) === w.ml ? 'var(--primary)' : 'var(--text-main)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {w.label}
+                </button>
+              ))}
+            </div>
+
+            <input
+              type="number"
+              min={500}
+              max={10000}
+              step={50}
+              value={waterTarget}
+              onChange={e => setWaterTarget(e.target.value)}
+              required
+              style={{ width: '100%', padding: '9px', fontSize: '13px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--primary)' }}
+            />
+          </div>
+
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface-subtle)', padding: '8px 10px', borderRadius: '6px' }}>
             💡 <strong>Atwater Standardı:</strong> Makroları değiştirdiğinizde toplam kalori otomatik güncellenir. Kaloriyi değiştirdiğinizde makro oranlarınız korunarak gramajlar hesaplanır.
           </div>
@@ -269,4 +324,5 @@ export default function EditHealthProfileModal({
     </div>
   );
 }
+
 

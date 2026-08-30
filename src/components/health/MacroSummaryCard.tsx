@@ -130,9 +130,21 @@ export default function MacroSummaryCard({
       {/* 💧 Günlük Su Tüketimi Takibi */}
       <div style={{ background: 'var(--blue-bg)', border: '1px solid var(--border)', padding: '10px 12px', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--blue)' }}>
-            💧 Su Tüketimi: {water.consumed_ml} / {water.target_ml} ml
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--blue)' }}>
+              💧 Su Tüketimi: {water.consumed_ml} / {water.target_ml} ml
+            </span>
+            {onOpenEditProfile && (
+              <button
+                type="button"
+                onClick={onOpenEditProfile}
+                style={{ background: 'none', border: 'none', fontSize: '11px', color: 'var(--blue)', cursor: 'pointer', opacity: 0.8, padding: 0 }}
+                title="Günlük Su Hedefini Düzenle"
+              >
+                ✏️
+              </button>
+            )}
+          </div>
           <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--blue)' }}>
             %{water.percentage}
           </span>
