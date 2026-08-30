@@ -181,27 +181,27 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
         </div>
 
         {/* Set Arası Kronometre / Dinlenme Barı */}
-        <div style={{ background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%)', border: '1px solid rgba(99, 102, 241, 0.3)', padding: '10px 14px', borderRadius: 'var(--radius-md)', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ background: 'var(--indigo-bg)', border: '1px solid var(--indigo)', padding: '10px 14px', borderRadius: 'var(--radius-md)', marginBottom: '14px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '160px' }}>
             <span style={{ fontSize: '18px' }}>⏱️</span>
             <div>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>Set Arası Dinlenme Zamanlayıcısı:</div>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: restSeconds !== null && restSeconds === 0 ? '#EF4444' : '#6366F1' }}>
-                {restSeconds !== null ? (restSeconds === 0 ? '🔔 DİNLENME BİTTİ! YENİ SETE BAŞLA!' : `${Math.floor(restSeconds / 60)} sa ${restSeconds % 60} sn`) : 'Başlatılmadı'}
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>Set Arası Dinlenme:</div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: restSeconds !== null && restSeconds === 0 ? 'var(--rose)' : 'var(--indigo)' }}>
+                {restSeconds !== null ? (restSeconds === 0 ? '🔔 DİNLENME BİTTİ!' : `${Math.floor(restSeconds / 60)} dk ${restSeconds % 60} sn`) : 'Başlatılmadı'}
               </div>
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: '4px' }}>
-            <button type="button" onClick={() => setRestSeconds(60)} style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 700, borderRadius: '6px', border: '1px solid #6366F1', background: '#6366F1', color: '#FFF', cursor: 'pointer' }}>60s</button>
-            <button type="button" onClick={() => setRestSeconds(90)} style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 700, borderRadius: '6px', border: '1px solid #6366F1', background: '#6366F1', color: '#FFF', cursor: 'pointer' }}>90s</button>
-            <button type="button" onClick={() => setRestSeconds(120)} style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 700, borderRadius: '6px', border: '1px solid #6366F1', background: '#6366F1', color: '#FFF', cursor: 'pointer' }}>120s</button>
+            <button type="button" onClick={() => setRestSeconds(60)} style={{ padding: '5px 10px', fontSize: '11px', fontWeight: 800, borderRadius: '6px', border: '1px solid var(--indigo)', background: 'var(--indigo)', color: '#FFF', cursor: 'pointer' }}>60s</button>
+            <button type="button" onClick={() => setRestSeconds(90)} style={{ padding: '5px 10px', fontSize: '11px', fontWeight: 800, borderRadius: '6px', border: '1px solid var(--indigo)', background: 'var(--indigo)', color: '#FFF', cursor: 'pointer' }}>90s</button>
+            <button type="button" onClick={() => setRestSeconds(120)} style={{ padding: '5px 10px', fontSize: '11px', fontWeight: 800, borderRadius: '6px', border: '1px solid var(--indigo)', background: 'var(--indigo)', color: '#FFF', cursor: 'pointer' }}>120s</button>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {/* Antrenman Başlığı & Tarih & Süre */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '10px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div>
               <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Antrenman Adı / Programı:</label>
               <input
@@ -210,28 +210,30 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                 onChange={e => setTitle(e.target.value)}
                 placeholder="Örn: Göğüs & Sırt Güç Antrenmanı"
                 required
-                style={{ width: '100%', padding: '8px 10px', fontSize: '13px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: '8px', marginTop: '2px' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', fontSize: '13px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: '8px', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               />
             </div>
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Tarih:</label>
-              <input
-                type="date"
-                value={workoutDate}
-                onChange={e => setWorkoutDate(e.target.value)}
-                required
-                style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '8px', marginTop: '2px' }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Süre (Dk):</label>
-              <input
-                type="number"
-                value={durationMinutes}
-                onChange={e => setDurationMinutes(e.target.value)}
-                placeholder="45"
-                style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '8px', marginTop: '2px' }}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Tarih:</label>
+                <input
+                  type="date"
+                  value={workoutDate}
+                  onChange={e => setWorkoutDate(e.target.value)}
+                  required
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '8px', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Süre (Dk):</label>
+                <input
+                  type="number"
+                  value={durationMinutes}
+                  onChange={e => setDurationMinutes(e.target.value)}
+                  placeholder="45"
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '8px', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+                />
+              </div>
             </div>
           </div>
 
@@ -240,20 +242,21 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
             <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
               Ekipmanlarınıza Özel Hareket Ekle:
             </label>
-            <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }}>
+            <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px', scrollbarWidth: 'thin' }}>
               {PRESET_EXERCISES.slice(0, 7).map(pe => (
                 <button
                   key={pe.name}
                   type="button"
                   onClick={() => addExercise(pe.name)}
                   style={{
-                    padding: '5px 10px',
+                    padding: '6px 10px',
                     borderRadius: '6px',
                     fontSize: '11px',
                     fontWeight: 700,
                     whiteSpace: 'nowrap',
                     border: '1px solid var(--border)',
                     background: 'var(--surface-subtle)',
+                    color: 'var(--text-main)',
                     cursor: 'pointer'
                   }}
                 >
@@ -272,12 +275,13 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                   background: 'var(--surface-subtle)',
                   border: '1px solid var(--border)',
                   borderRadius: '12px',
-                  padding: '14px'
+                  padding: '12px',
+                  overflow: 'hidden'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                    <span style={{ fontSize: '14px', fontWeight: 800 }}>#{exIndex + 1}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: '180px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-muted)' }}>#{exIndex + 1}</span>
                     <select
                       value={ex.exercise_name}
                       onChange={e => {
@@ -285,7 +289,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                         updated[exIndex].exercise_name = e.target.value;
                         setExerciseEntries(updated);
                       }}
-                      style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontWeight: 800, fontSize: '13px', width: '100%', maxWidth: '320px' }}
+                      style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontWeight: 800, fontSize: '12px', width: '100%', background: 'var(--surface)', color: 'var(--text-main)' }}
                     >
                       {PRESET_EXERCISES.map(p => (
                         <option key={p.name} value={p.name}>{p.icon} {p.name}</option>
@@ -295,43 +299,44 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                   <button
                     type="button"
                     onClick={() => removeExercise(exIndex)}
-                    style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                    style={{ background: 'none', border: 'none', color: 'var(--rose)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', padding: '4px 0' }}
                   >
                     🗑️ Hareketi Sil
                   </button>
                 </div>
 
                 {/* Setler Tablosu */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 1fr 40px', gap: '8px', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', overflow: 'hidden' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '28px minmax(0, 1fr) minmax(0, 1fr) 28px', gap: '6px', fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)', textAlign: 'center' }}>
                     <span>SET</span>
-                    <span>AĞIRLIK (KG / DİRENÇ)</span>
-                    <span>TEKRAR (REPS)</span>
+                    <span>AĞIRLIK (KG)</span>
+                    <span>TEKRAR</span>
                     <span></span>
                   </div>
 
                   {ex.sets.map((s, sIndex) => (
-                    <div key={sIndex} style={{ display: 'grid', gridTemplateColumns: '40px 1fr 1fr 40px', gap: '8px', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 800, textAlign: 'center' }}>{s.set_number}</span>
+                    <div key={sIndex} style={{ display: 'grid', gridTemplateColumns: '28px minmax(0, 1fr) minmax(0, 1fr) 28px', gap: '6px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 800, textAlign: 'center', color: 'var(--text-muted)' }}>{s.set_number}</span>
                       <input
                         type="number"
                         step="0.5"
                         value={s.weight_kg}
                         onChange={e => updateSetField(exIndex, sIndex, 'weight_kg', e.target.value)}
-                        placeholder="Örn: 17.5"
-                        style={{ padding: '6px 8px', fontSize: '12px', fontWeight: 800, borderRadius: '6px', border: '1px solid var(--border)', color: '#10B981' }}
+                        placeholder="17.5"
+                        style={{ minWidth: 0, width: '100%', boxSizing: 'border-box', padding: '8px 6px', fontSize: '13px', fontWeight: 800, borderRadius: '6px', border: '1px solid var(--border)', color: 'var(--emerald)', background: 'var(--surface)', textAlign: 'center' }}
                       />
                       <input
                         type="number"
                         value={s.reps}
                         onChange={e => updateSetField(exIndex, sIndex, 'reps', e.target.value)}
-                        placeholder="Örn: 10"
-                        style={{ padding: '6px 8px', fontSize: '12px', fontWeight: 800, borderRadius: '6px', border: '1px solid var(--border)', color: '#3B82F6' }}
+                        placeholder="10"
+                        style={{ minWidth: 0, width: '100%', boxSizing: 'border-box', padding: '8px 6px', fontSize: '13px', fontWeight: 800, borderRadius: '6px', border: '1px solid var(--border)', color: 'var(--primary)', background: 'var(--surface)', textAlign: 'center' }}
                       />
                       <button
                         type="button"
                         onClick={() => removeSet(exIndex, sIndex)}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}
+                        title="Seti Sil"
                       >
                         ✕
                       </button>
@@ -341,7 +346,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                   <button
                     type="button"
                     onClick={() => addSet(exIndex)}
-                    style={{ marginTop: '6px', padding: '6px', fontSize: '11px', fontWeight: 700, borderRadius: '6px', border: '1px stroke var(--border)', background: 'transparent', color: '#3B82F6', cursor: 'pointer', textAlign: 'left' }}
+                    style={{ marginTop: '6px', padding: '6px 10px', fontSize: '11px', fontWeight: 800, borderRadius: '6px', border: '1px solid var(--primary)', background: 'transparent', color: 'var(--primary)', cursor: 'pointer', textAlign: 'left', width: 'fit-content' }}
                   >
                     + Set Ekle
                   </button>
@@ -353,7 +358,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
           <button
             type="button"
             onClick={() => addExercise()}
-            style={{ padding: '10px', fontSize: '12px', fontWeight: 800, borderRadius: '8px', border: '1px dashed #3B82F6', background: 'rgba(59, 130, 246, 0.05)', color: '#3B82F6', cursor: 'pointer' }}
+            style={{ padding: '10px', fontSize: '12px', fontWeight: 800, borderRadius: '8px', border: '1px dashed var(--primary)', background: 'var(--indigo-bg)', color: 'var(--primary)', cursor: 'pointer' }}
           >
             ➕ Yeni Egzersiz Ekle
           </button>
@@ -365,7 +370,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
               onChange={e => setNotes(e.target.value)}
               placeholder="Örn: Incline Sehpa açısı 30 dereceydi. Dambıllar zorlamadı, haftaya 22.5 kg geçilebilir."
               rows={2}
-              style={{ width: '100%', padding: '8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '8px', marginTop: '2px' }}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '8px', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             />
           </div>
 

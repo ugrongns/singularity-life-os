@@ -48,18 +48,7 @@ export default function QuickIngestHub({
       )}
 
       {/* Floating Action Container */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: '28px',
-          right: '24px',
-          zIndex: 150,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-end',
-          gap: '12px'
-        }}
-      >
+      <div className="quick-ingest-container">
         {/* Radial Action Items Panel */}
         {isOpen && (
           <div

@@ -351,7 +351,7 @@ export default function WellnessCard({
               {/* PERİYODİK (KAÇ GÜNDE BİR) TAKVİYE & İLAÇLAR */}
               {intervalSupps.length > 0 && (
                 <div style={{ marginBottom: '16px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#3730A3', marginBottom: '8px', letterSpacing: '0.5px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--indigo)', marginBottom: '8px', letterSpacing: '0.5px' }}>
                     ⏳ PERİYODİK (BELİRLİ ARALIKLA ALINANLAR)
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -369,19 +369,19 @@ export default function WellnessCard({
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
-                            background: s.is_taken_today ? '#F0FDF4' : isDue ? '#FEF2F2' : '#EEF2FF',
-                            border: `1px solid ${s.is_taken_today ? '#A7F3D0' : isDue ? '#FECACA' : '#C7D2FE'}`,
+                            background: s.is_taken_today ? 'var(--emerald-bg)' : isDue ? 'var(--rose-bg)' : 'var(--indigo-bg)',
+                            border: `1px solid ${s.is_taken_today ? 'var(--emerald)' : isDue ? 'var(--rose)' : 'var(--indigo)'}`,
                             borderRadius: 'var(--radius-md)'
                           }}
                         >
                           <div>
                             <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
-                              ⏳ {s.name} <span style={{ fontSize: '11px', fontWeight: 600, color: '#4338CA' }}>({interval} Günde Bir)</span>
+                              ⏳ {s.name} <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--indigo)' }}>({interval} Günde Bir)</span>
                             </div>
                             <div style={{ fontSize: '11px', marginTop: '2px', display: 'flex', gap: '8px', alignItems: 'center' }}>
                               <span>💊 {s.dose}</span>
                               <span>•</span>
-                              <span style={{ fontWeight: 700, color: s.is_taken_today ? '#059669' : isDue ? '#DC2626' : '#4338CA' }}>
+                              <span style={{ fontWeight: 700, color: s.is_taken_today ? 'var(--emerald)' : isDue ? 'var(--rose)' : 'var(--indigo)' }}>
                                 {s.is_taken_today
                                   ? '✓ Bugün Alındı'
                                   : isDue
@@ -395,7 +395,7 @@ export default function WellnessCard({
                             {!s.is_taken_today ? (
                               <button
                                 className="btn-primary"
-                                style={{ fontSize: '11px', padding: '4px 10px', fontWeight: 800, background: isDue ? '#DC2626' : '#4F46E5' }}
+                                style={{ fontSize: '11px', padding: '4px 10px', fontWeight: 800, background: isDue ? 'var(--rose)' : 'var(--indigo)' }}
                                 onClick={() => handleTake(s.id)}
                                 disabled={taking === s.id}
                               >
@@ -419,7 +419,7 @@ export default function WellnessCard({
               {/* İHTİYAÇ HALİNDE / DÜZENSİZ İLAÇLAR */}
               {asNeededSupps.length > 0 && (
                 <div style={{ marginBottom: '16px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#D97706', marginBottom: '8px', letterSpacing: '0.5px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--amber)', marginBottom: '8px', letterSpacing: '0.5px' }}>
                     🚑 İHTİYAÇ HALİNDE (DÜZENSİZ KULLANILAN İLAÇ & TAKVİYELER)
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -433,8 +433,8 @@ export default function WellnessCard({
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
-                            background: '#FFFBEB',
-                            border: '1px solid #FDE68A',
+                            background: 'var(--amber-bg)',
+                            border: '1px solid var(--amber)',
                             borderRadius: 'var(--radius-md)'
                           }}
                         >
@@ -442,7 +442,7 @@ export default function WellnessCard({
                             <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
                               🚑 {s.name} <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>({s.dose})</span>
                             </div>
-                            <div style={{ fontSize: '11px', color: '#B45309', fontWeight: 700, marginTop: '2px' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--amber)', fontWeight: 700, marginTop: '2px' }}>
                               🕒 En Son Alındı: {s.last_taken_date ? `${daysPassed === 0 ? 'Bugün' : `${daysPassed} gün önce`} (${s.last_taken_date})` : 'Henüz Kayıt Yok'}
                             </div>
                           </div>
@@ -450,7 +450,7 @@ export default function WellnessCard({
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <button
                               className="btn-subtle"
-                              style={{ fontSize: '11px', padding: '4px 10px', fontWeight: 800, background: 'white', border: '1px solid #F59E0B', color: '#B45309' }}
+                              style={{ fontSize: '11px', padding: '4px 10px', fontWeight: 800, background: 'var(--surface)', border: '1px solid var(--amber)', color: 'var(--amber)' }}
                               onClick={() => handleTake(s.id)}
                               disabled={taking === s.id}
                             >
@@ -475,25 +475,25 @@ export default function WellnessCard({
       {/* 2. SU TAKİBİ */}
       {tab === 'water' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ background: '#EFF6FF', border: '1px solid rgba(59,130,246,0.3)', padding: '16px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
-            <div style={{ fontSize: '32px' }}>💧</div>
-            <div className="tabular-nums" style={{ fontSize: '28px', fontWeight: 900, color: '#1E40AF', marginTop: '4px' }}>
-              {waterAmount} <span style={{ fontSize: '16px', fontWeight: 500, color: '#3B82F6' }}>/ {waterGoal} ml</span>
+          <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', padding: '20px 16px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+            <div style={{ fontSize: '36px' }}>💧</div>
+            <div className="tabular-nums" style={{ fontSize: '30px', fontWeight: 900, color: 'var(--text-main)', marginTop: '4px' }}>
+              {waterAmount} <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--primary)' }}>/ {waterGoal} ml</span>
             </div>
-            <div style={{ fontSize: '12px', color: '#2563EB', fontWeight: 700, marginTop: '2px' }}>
+            <div style={{ fontSize: '13px', color: 'var(--primary)', fontWeight: 800, marginTop: '4px' }}>
               %{waterProgress} Tamamlandı
             </div>
 
-            <div className="progress-bar" style={{ height: '8px', marginTop: '12px' }}>
-              <div className="progress-fill" style={{ width: `${waterProgress}%`, backgroundColor: '#3B82F6' }} />
+            <div className="progress-bar" style={{ height: '8px', marginTop: '14px', background: 'var(--border)' }}>
+              <div className="progress-fill" style={{ width: `${waterProgress}%`, backgroundColor: 'var(--primary)' }} />
             </div>
 
-            <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '18px', justifyContent: 'center', flexWrap: 'wrap' }}>
               <button
                 className="btn-primary"
                 disabled={savingWater}
                 onClick={() => handleUpdateWater(250)}
-                style={{ background: '#2563EB', fontSize: '13px', padding: '8px 14px' }}
+                style={{ background: 'var(--primary)', color: 'white', fontSize: '13px', padding: '9px 16px', fontWeight: 800 }}
               >
                 +250 ml (Bardak)
               </button>
@@ -501,7 +501,7 @@ export default function WellnessCard({
                 className="btn-primary"
                 disabled={savingWater}
                 onClick={() => handleUpdateWater(500)}
-                style={{ background: '#1D4ED8', fontSize: '13px', padding: '8px 14px' }}
+                style={{ background: 'var(--emerald)', color: 'white', fontSize: '13px', padding: '9px 16px', fontWeight: 800 }}
               >
                 +500 ml (Şişe)
               </button>
@@ -509,7 +509,7 @@ export default function WellnessCard({
                 className="btn-subtle"
                 disabled={savingWater}
                 onClick={() => handleUpdateWater(-250)}
-                style={{ fontSize: '13px', padding: '8px 12px' }}
+                style={{ fontSize: '13px', padding: '9px 14px', background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
               >
                 -250 ml
               </button>
@@ -529,7 +529,7 @@ export default function WellnessCard({
                 value={sleepForm.bedtime}
                 onChange={e => setSleepForm({ ...sleepForm, bedtime: e.target.value })}
                 required
-                style={{ width: '100%', padding: '9px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '9px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               />
             </div>
             <div>
@@ -539,7 +539,7 @@ export default function WellnessCard({
                 value={sleepForm.wake_time}
                 onChange={e => setSleepForm({ ...sleepForm, wake_time: e.target.value })}
                 required
-                style={{ width: '100%', padding: '9px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '9px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               />
             </div>
           </div>
@@ -554,8 +554,8 @@ export default function WellnessCard({
                   onClick={() => setSleepForm({ ...sleepForm, quality_rating: star })}
                   style={{
                     flex: 1, padding: '8px', fontSize: '14px', borderRadius: '6px', border: '1px solid var(--border)',
-                    background: sleepForm.quality_rating === star ? '#FEF3C7' : 'white',
-                    color: sleepForm.quality_rating === star ? '#D97706' : 'var(--text-main)', cursor: 'pointer'
+                    background: sleepForm.quality_rating === star ? 'var(--amber-bg)' : 'var(--surface-subtle)',
+                    color: sleepForm.quality_rating === star ? 'var(--amber)' : 'var(--text-main)', cursor: 'pointer'
                   }}
                 >
                   {'⭐'.repeat(star)}
@@ -583,7 +583,7 @@ export default function WellnessCard({
                   onClick={() => setSelectedMood(m.score)}
                   style={{
                     padding: '8px 4px', textAlign: 'center', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                    background: selectedMood === m.score ? 'var(--surface-subtle)' : 'white',
+                    background: selectedMood === m.score ? 'var(--surface-subtle)' : 'var(--surface)',
                     outline: selectedMood === m.score ? `2px solid ${m.color}` : 'none', cursor: 'pointer'
                   }}
                 >
@@ -621,11 +621,11 @@ export default function WellnessCard({
 
       {/* 5. AI ANALİZ */}
       {tab === 'ai' && (
-        <div style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', padding: '14px', borderRadius: 'var(--radius-md)' }}>
-          <div style={{ fontSize: '13px', fontWeight: 800, color: '#3730A3', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ background: 'var(--indigo-bg)', border: '1px solid var(--indigo)', padding: '14px', borderRadius: 'var(--radius-md)' }}>
+          <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--indigo)', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span>✨ AI Wellness & Biyometrik Korelasyon Analizi</span>
           </div>
-          <p style={{ fontSize: '12px', color: '#4338CA', margin: '8px 0 0', lineHeight: 1.5 }}>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.5 }}>
             {aiInsight || 'Düzenli su, uyku ve takviye verileriniz toplandıkça AI modelimiz enerji seviyeniz ile uyku kaliteniz arasındaki bağı analiz edecektir.'}
           </p>
         </div>
