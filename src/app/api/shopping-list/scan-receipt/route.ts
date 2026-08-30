@@ -42,8 +42,10 @@ export async function POST(req: Request) {
     // AI Vision Pipeline ile Fişi Tara
     const parsedReceipt = await parseReceiptImage(base64Image, mimeType);
 
-    // Mevcut alışveriş listesindeki ürünleri al
-    const currentItems = await db.select().from(shoppingListItems);
+    // Mevcut alışveriş listesindeki ürünleri al (kullanıcı/aileye özel)
+    const familyId = user.family_id || `fam-${user.id}`;
+    const currentItems = await db.select().from(shoppingListItems)
+      .where(familyId ? eq(shoppingListItems.family_id, familyId) : eq(shoppingListItems.user_id, user.id));
     const now = new Date().toISOString();
     let matchedCount = 0;
     const matchedNames: string[] = [];

@@ -132,7 +132,8 @@ export async function POST(request: Request) {
     }
 
     if (action === 'clear_checked') {
-      const checked = await db.select().from(shoppingListItems).where(eq(shoppingListItems.is_checked, 1));
+      const checked = await db.select().from(shoppingListItems)
+        .where(and(eq(shoppingListItems.is_checked, 1), familyId ? eq(shoppingListItems.family_id, familyId) : eq(shoppingListItems.user_id, user.id)));
       for (const item of checked) {
         await db.delete(shoppingListItems).where(eq(shoppingListItems.id, item.id));
       }
@@ -140,7 +141,8 @@ export async function POST(request: Request) {
     }
 
     if (action === 'clear_all') {
-      await db.delete(shoppingListItems);
+      await db.delete(shoppingListItems)
+        .where(familyId ? eq(shoppingListItems.family_id, familyId) : eq(shoppingListItems.user_id, user.id));
       return NextResponse.json({ success: true, message: 'Tüm liste temizlendi!' });
     }
 
@@ -199,6 +201,8 @@ export async function POST(request: Request) {
             category: item.category,
             estimated_price: item.estimated_price,
             is_checked: 0,
+            user_id: user.id,
+            family_id: familyId,
             created_at: now,
             updated_at: now
           });
@@ -216,7 +220,8 @@ export async function POST(request: Request) {
     // Alışverişi Bitir & Cüzdana Harcama Olarak İşle
     if (action === 'checkout_to_wallet') {
       const walletId = data.wallet_id;
-      const checkedItems = await db.select().from(shoppingListItems).where(eq(shoppingListItems.is_checked, 1));
+      const checkedItems = await db.select().from(shoppingListItems)
+        .where(and(eq(shoppingListItems.is_checked, 1), familyId ? eq(shoppingListItems.family_id, familyId) : eq(shoppingListItems.user_id, user.id)));
       
       if (!walletId) {
         return NextResponse.json({ success: false, error: 'Lütfen harcama yapılacak cüzdanı seçin.' }, { status: 400 });
@@ -227,11 +232,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'Alınan ürün tutarı 0 TL. Harcama kaydedilemedi.' }, { status: 400 });
       }
 
-      // Cüzdanı al ve bakiyesini güncelle
+      // Cüzdanı al ve bakiyesini güncelle (Kredi kartı ise borç artar, nakit/vadesiz ise bakiye düşer)
       const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).limit(1))[0];
       if (wallet) {
+        const isCreditCard = wallet.type === 'credit_card';
+        const newBalance = isCreditCard
+          ? (wallet.balance || 0) + totalAmount
+          : (wallet.balance || 0) - totalAmount;
+
         await db.update(walletsAccounts).set({
-          balance: (wallet.balance || 0) - totalAmount,
+          balance: newBalance,
           updated_at: now
         }).where(eq(walletsAccounts.id, walletId));
       }
@@ -248,6 +258,11 @@ export async function POST(request: Request) {
         transaction_date: today,
         notes: `Market Listesi Alışverişi: ${itemNames.substring(0, 100)}...`,
         is_verified: 1,
+        is_family_shared: 1,
+        sync_status: 'synced',
+        device_id: 'web-client',
+        user_id: user.id,
+        family_id: familyId,
         created_at: now,
         updated_at: now
       });

@@ -51,6 +51,7 @@ export default function CheckoutToWalletModal({
 
       const json = await res.json();
       if (json.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         onSuccess(json.message || '💳 Harcama cüzdanınıza işlendi ve ürünler temizlendi!');
         onClose();
       } else {

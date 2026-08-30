@@ -29,6 +29,7 @@ interface Props {
   onOpenAddItem?: (item?: ShoppingItem) => void;
   onOpenCheckout?: () => void;
   onRefresh?: () => void;
+  onToast?: (msg: string) => void;
 }
 
 const CAT_ICONS: Record<string, string> = {
@@ -44,12 +45,14 @@ export default function ShoppingListCard({
   categoryTotals,
   onOpenAddItem,
   onOpenCheckout,
-  onRefresh
+  onRefresh,
+  onToast
 }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [filterView, setFilterView] = useState<'all' | 'unchecked' | 'checked'>('unchecked');
   const [scanningAI, setScanningAI] = useState(false);
+  const [addingPreset, setAddingPreset] = useState<string | null>(null);
   const [presetFilter, setPresetFilter] = useState<'all' | 'diet' | 'grocery' | 'produce'>('all');
 
   const handleToggle = async (id: string) => {
@@ -59,10 +62,10 @@ export default function ShoppingListCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'toggle', id })
       });
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
-      else window.location.reload();
     } catch {
-      alert('İşlem hatası.');
+      //
     }
   };
 
@@ -73,25 +76,47 @@ export default function ShoppingListCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete', id })
       });
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
-      else window.location.reload();
+      if (onToast) onToast('Ürün listeden silindi.');
     } catch {
-      alert('Silme hatası.');
+      //
     }
   };
 
   const handleClearChecked = async () => {
     if (!confirm('Alınan tüm ürünleri listeden temizlemek istediğinize emin misiniz?')) return;
     try {
-      await fetch('/api/shopping-list', {
+      const res = await fetch('/api/shopping-list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'clear_checked' })
       });
+      const j = await res.json();
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
-      else window.location.reload();
+      if (onToast) onToast(`🧹 ${j.deleted || 0} adet alınan ürün temizlendi.`);
     } catch {
-      alert('Temizleme hatası.');
+      //
+    }
+  };
+
+  const handleAddPreset = async (preset: 'diet' | 'grocery' | 'produce') => {
+    setAddingPreset(preset);
+    try {
+      const res = await fetch('/api/shopping-list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add_preset', preset })
+      });
+      const j = await res.json();
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      if (onRefresh) onRefresh();
+      if (onToast && j.message) onToast(j.message);
+    } catch {
+      //
+    } finally {
+      setAddingPreset(null);
     }
   };
 
@@ -109,15 +134,11 @@ export default function ShoppingListCard({
         body: formData
       });
       const json = await res.json();
-      if (json.success) {
-        alert(json.message || 'Fiş tarandı!');
-        if (onRefresh) onRefresh();
-        else window.location.reload();
-      } else {
-        alert(json.error || 'Fiş okuma başarısız.');
-      }
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      if (onRefresh) onRefresh();
+      if (onToast && json.message) onToast(json.message);
     } catch {
-      alert('Fiş AI tarama hatası.');
+      if (onToast) onToast('Fiş AI tarama hatası.');
     } finally {
       setScanningAI(false);
     }
@@ -158,10 +179,11 @@ export default function ShoppingListCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'clear_all' })
       });
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
-      else window.location.reload();
+      if (onToast) onToast('Tüm alışveriş listesi sıfırlandı.');
     } catch {
-      alert('Sıfırlama hatası.');
+      //
     }
   };
 
@@ -200,8 +222,8 @@ export default function ShoppingListCard({
           </div>
         </div>
 
-        <div className="progress-bar" style={{ height: '8px' }}>
-          <div className="progress-fill emerald" style={{ width: `${donePercent}%` }} />
+        <div className="budget-bar-track" style={{ height: '8px' }}>
+          <div className="budget-bar-fill" style={{ width: `${donePercent}%`, backgroundColor: donePercent === 100 ? '#10B981' : '#3B82F6' }} />
         </div>
 
         {/* Kategori Bazlı Fiyat Dağılımı Rozetleri */}
@@ -216,9 +238,9 @@ export default function ShoppingListCard({
         )}
       </div>
 
-      {/* Paket Filtreleme Barı (Sadece seçilen listeyi açar) */}
+      {/* Paket Filtreleme & Hızlı Paket Ekleme Barı */}
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', background: 'var(--surface-subtle)', padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)' }}>⚡ Paket Filtrele:</span>
+        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)' }}>⚡ Hazır Paketler:</span>
         
         <button
           type="button"
@@ -233,44 +255,86 @@ export default function ShoppingListCard({
           ✨ Tümü
         </button>
 
-        <button
-          type="button"
-          onClick={() => setPresetFilter('diet')}
-          style={{
-            fontSize: '11px', fontWeight: 800, padding: '5px 12px', borderRadius: '6px', cursor: 'pointer',
-            border: presetFilter === 'diet' ? '1px solid var(--emerald)' : '1px solid var(--border)',
-            background: presetFilter === 'diet' ? 'var(--emerald)' : 'var(--surface)',
-            color: presetFilter === 'diet' ? 'white' : 'var(--text-muted)'
-          }}
-        >
-          🥑 Diyet Paketi
-        </button>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+          <button
+            type="button"
+            onClick={() => setPresetFilter('diet')}
+            style={{
+              fontSize: '11px', fontWeight: 800, padding: '5px 10px', borderRadius: '6px 0 0 6px', cursor: 'pointer',
+              border: presetFilter === 'diet' ? '1px solid var(--emerald)' : '1px solid var(--border)',
+              background: presetFilter === 'diet' ? 'var(--emerald)' : 'var(--surface)',
+              color: presetFilter === 'diet' ? 'white' : 'var(--text-muted)'
+            }}
+          >
+            🥑 Diyet
+          </button>
+          <button
+            type="button"
+            title="Diyet Paketini Listeme Ekle"
+            disabled={Boolean(addingPreset)}
+            onClick={() => handleAddPreset('diet')}
+            style={{
+              fontSize: '10px', fontWeight: 800, padding: '5px 6px', borderRadius: '0 6px 6px 0', cursor: 'pointer',
+              border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--emerald)'
+            }}
+          >
+            + Ekle
+          </button>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => setPresetFilter('grocery')}
-          style={{
-            fontSize: '11px', fontWeight: 800, padding: '5px 12px', borderRadius: '6px', cursor: 'pointer',
-            border: presetFilter === 'grocery' ? '1px solid var(--amber)' : '1px solid var(--border)',
-            background: presetFilter === 'grocery' ? 'var(--amber)' : 'var(--surface)',
-            color: presetFilter === 'grocery' ? 'white' : 'var(--text-muted)'
-          }}
-        >
-          🍞 Temel Gıda Paketi
-        </button>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+          <button
+            type="button"
+            onClick={() => setPresetFilter('grocery')}
+            style={{
+              fontSize: '11px', fontWeight: 800, padding: '5px 10px', borderRadius: '6px 0 0 6px', cursor: 'pointer',
+              border: presetFilter === 'grocery' ? '1px solid var(--amber)' : '1px solid var(--border)',
+              background: presetFilter === 'grocery' ? 'var(--amber)' : 'var(--surface)',
+              color: presetFilter === 'grocery' ? 'white' : 'var(--text-muted)'
+            }}
+          >
+            🍞 Temel Gıda
+          </button>
+          <button
+            type="button"
+            title="Temel Gıda Paketini Listeme Ekle"
+            disabled={Boolean(addingPreset)}
+            onClick={() => handleAddPreset('grocery')}
+            style={{
+              fontSize: '10px', fontWeight: 800, padding: '5px 6px', borderRadius: '0 6px 6px 0', cursor: 'pointer',
+              border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--amber)'
+            }}
+          >
+            + Ekle
+          </button>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => setPresetFilter('produce')}
-          style={{
-            fontSize: '11px', fontWeight: 800, padding: '5px 12px', borderRadius: '6px', cursor: 'pointer',
-            border: presetFilter === 'produce' ? '1px solid var(--indigo)' : '1px solid var(--border)',
-            background: presetFilter === 'produce' ? 'var(--indigo)' : 'var(--surface)',
-            color: presetFilter === 'produce' ? 'white' : 'var(--text-muted)'
-          }}
-        >
-          🥗 Manav Paketi
-        </button>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+          <button
+            type="button"
+            onClick={() => setPresetFilter('produce')}
+            style={{
+              fontSize: '11px', fontWeight: 800, padding: '5px 10px', borderRadius: '6px 0 0 6px', cursor: 'pointer',
+              border: presetFilter === 'produce' ? '1px solid var(--indigo)' : '1px solid var(--border)',
+              background: presetFilter === 'produce' ? 'var(--indigo)' : 'var(--surface)',
+              color: presetFilter === 'produce' ? 'white' : 'var(--text-muted)'
+            }}
+          >
+            🥗 Manav
+          </button>
+          <button
+            type="button"
+            title="Manav Paketini Listeme Ekle"
+            disabled={Boolean(addingPreset)}
+            onClick={() => handleAddPreset('produce')}
+            style={{
+              fontSize: '10px', fontWeight: 800, padding: '5px 6px', borderRadius: '0 6px 6px 0', cursor: 'pointer',
+              border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--indigo)'
+            }}
+          >
+            + Ekle
+          </button>
+        </div>
       </div>
 
       {/* Arama & Kategori & Durum Filtreleme Çubuğu */}

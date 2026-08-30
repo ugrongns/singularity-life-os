@@ -45,10 +45,17 @@ export default function ShoppingPage() {
 
   useEffect(() => {
     fetchData();
+
+    const handleRefresh = () => {
+      fetchData();
+    };
+    window.addEventListener('singularity-refresh', handleRefresh);
+    return () => window.removeEventListener('singularity-refresh', handleRefresh);
   }, []);
 
   const handleSuccess = (msg?: string) => {
     fetchData();
+    window.dispatchEvent(new CustomEvent('singularity-refresh'));
     if (msg) showToast(msg);
   };
 
@@ -63,7 +70,7 @@ export default function ShoppingPage() {
   return (
     <SharedLayout notifications={notifData}>
       {toastMsg && (
-        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--text-main)', color: 'white', padding: '10px 20px', borderRadius: 'var(--radius-full)', fontSize: '13px', zIndex: 999 }}>
+        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--text-main)', color: 'white', padding: '10px 20px', borderRadius: 'var(--radius-full)', fontSize: '13px', zIndex: 999, boxShadow: 'var(--shadow-lg)' }}>
           {toastMsg}
         </div>
       )}
@@ -89,6 +96,7 @@ export default function ShoppingPage() {
               }}
               onOpenCheckout={() => setIsCheckoutOpen(true)}
               onRefresh={fetchData}
+              onToast={showToast}
             />
           )}
         </div>

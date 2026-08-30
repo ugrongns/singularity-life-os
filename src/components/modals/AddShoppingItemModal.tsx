@@ -50,6 +50,7 @@ export default function AddShoppingItemModal({ isOpen, item, onClose, onSuccess 
 
       const json = await res.json();
       if (json.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         onSuccess(isEditing ? '🛒 Ürün güncellendi!' : '🛒 Ürün sepete eklendi!');
         onClose();
       } else {
