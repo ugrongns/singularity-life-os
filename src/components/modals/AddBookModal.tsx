@@ -226,6 +226,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
 
       const json = await res.json();
       if (json.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         resetForm();
         onClose();
         onSuccess(json.message || `📚 "${title}" kütüphaneye başarıyla eklendi!`);
@@ -243,19 +244,19 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
     <>
       <div style={{
         position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(8px)',
+        background: 'rgba(0, 0, 0, 0.65)', backdropFilter: 'blur(8px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
       }}>
         <div style={{
-          background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '24px',
+          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '24px',
           maxWidth: '680px', width: '100%', maxHeight: '90vh', overflowY: 'auto',
-          color: '#111827', boxShadow: '0 20px 45px -15px rgba(0, 0, 0, 0.15)'
+          color: 'var(--text-main)', boxShadow: 'var(--shadow-lg)'
         }}>
           {/* Header */}
           <div style={{
-            padding: '20px 24px', borderBottom: '1px solid #F3F4F6',
+            padding: '20px 24px', borderBottom: '1px solid var(--border)',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            background: '#FAFAFA', borderTopLeftRadius: '24px', borderTopRightRadius: '24px'
+            background: 'var(--surface-subtle)', borderTopLeftRadius: '24px', borderTopRightRadius: '24px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{
@@ -265,8 +266,8 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
                 📚
               </div>
               <div>
-                <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#111827' }}>Yeni Kitap Ekle</h2>
-                <p style={{ fontSize: '13px', color: '#6B7280', margin: '2px 0 0 0' }}>Barkod tarayarak, fotoğraf çekerek veya manuel ekleyin</p>
+                <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Yeni Kitap Ekle</h2>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>Barkod tarayarak, fotoğraf çekerek veya manuel ekleyin</p>
               </div>
             </div>
             <button

@@ -301,7 +301,8 @@ export const books = pgTable('books', {
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client'),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 export const readingSessions = pgTable('reading_sessions', {
@@ -313,7 +314,9 @@ export const readingSessions = pgTable('reading_sessions', {
   duration_minutes: doublePrecision('duration_minutes').notNull(),
   session_date: text('session_date').notNull(),
   created_at: text('created_at').notNull(),
-  updated_at: text('updated_at').notNull()
+  updated_at: text('updated_at').notNull(),
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 export const bookQuotes = pgTable('book_quotes', {
@@ -325,7 +328,8 @@ export const bookQuotes = pgTable('book_quotes', {
   is_favorite: integer('is_favorite').notNull().default(0),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 export const userReadingProfile = pgTable('user_reading_profile', {
@@ -336,7 +340,8 @@ export const userReadingProfile = pgTable('user_reading_profile', {
   avg_seconds_per_page: doublePrecision('avg_seconds_per_page').notNull().default(84),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
+  user_id: text('user_id'),
+  family_id: text('family_id')
 });
 
 // ==========================================

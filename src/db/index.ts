@@ -700,6 +700,11 @@ async function _runInit(): Promise<void> {
       ALTER TABLE water_intake_logs ADD COLUMN IF NOT EXISTS user_id TEXT;
       ALTER TABLE biometrics ADD COLUMN IF NOT EXISTS user_id TEXT;
       ALTER TABLE shopping_list_items ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE books ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE reading_sessions ADD COLUMN IF NOT EXISTS user_id TEXT;
+      ALTER TABLE reading_sessions ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE book_quotes ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE user_reading_profile ADD COLUMN IF NOT EXISTS family_id TEXT;
     `;
 
     const enableRlsSQL = `

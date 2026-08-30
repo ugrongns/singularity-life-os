@@ -1,4 +1,4 @@
-'use client';
+import { useState } from 'react';
 
 interface LibraryHeroProps {
   profile: {
@@ -26,9 +26,14 @@ interface LibraryHeroProps {
   onOpenSession: () => void;
   onOpenQuotes: () => void;
   onOpenBookDetail?: (book: any) => void;
+  onUpdate?: (msg?: string) => void;
 }
 
-export default function LibraryHeroCard({ profile, activeBook, onOpenSession, onOpenQuotes, onOpenBookDetail }: LibraryHeroProps) {
+export default function LibraryHeroCard({ profile, activeBook, onOpenSession, onOpenQuotes, onOpenBookDetail, onUpdate }: LibraryHeroProps) {
+  const [isEditingTarget, setIsEditingTarget] = useState(false);
+  const [targetInput, setTargetInput] = useState(String(profile.yearly_target_books || 24));
+  const [savingTarget, setSavingTarget] = useState(false);
+
   const percent = activeBook
     ? (activeBook.eta?.progressPercent ?? (activeBook.total_pages > 0 ? Math.min(100, Math.round((activeBook.current_page / activeBook.total_pages) * 100)) : 0))
     : 0;
@@ -36,6 +41,29 @@ export default function LibraryHeroCard({ profile, activeBook, onOpenSession, on
     ? (activeBook.eta?.remainingPages ?? Math.max(0, activeBook.total_pages - activeBook.current_page))
     : 0;
   const etaText = activeBook?.eta?.text || '';
+
+  const handleSaveTarget = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetInput || isNaN(Number(targetInput))) return;
+    setSavingTarget(true);
+    try {
+      const res = await fetch('/api/library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update_target', yearly_target_books: Number(targetInput) })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setIsEditingTarget(false);
+        if (onUpdate) onUpdate(json.message);
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      }
+    } catch {
+      //
+    } finally {
+      setSavingTarget(false);
+    }
+  };
 
   return (
     <div className="card">
@@ -53,12 +81,43 @@ export default function LibraryHeroCard({ profile, activeBook, onOpenSession, on
       </div>
 
       {/* 2026 Yıllık Hedef & WPM Hızı */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '10px', background: 'var(--surface-subtle)', padding: '14px', borderRadius: 'var(--radius-md)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '10px', background: 'var(--surface-subtle)', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
         <div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>2026 Yıllık Okuma Hedefi</div>
-          <div style={{ fontSize: '16px', fontWeight: 800, marginTop: '2px' }}>
-            {profile.completedBooksCount} / {profile.yearly_target_books} Kitap Tamamlandı
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>2026 Yıllık Okuma Hedefi</div>
+            <button
+              type="button"
+              onClick={() => setIsEditingTarget(!isEditingTarget)}
+              style={{ background: 'none', border: 'none', color: 'var(--blue)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', padding: '0 4px' }}
+            >
+              {isEditingTarget ? 'Kapat' : '✏️ Hedefi Değiştir'}
+            </button>
           </div>
+
+          {isEditingTarget ? (
+            <form onSubmit={handleSaveTarget} style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px' }}>
+              <input
+                type="number"
+                min={1}
+                max={500}
+                value={targetInput}
+                onChange={e => setTargetInput(e.target.value)}
+                style={{ width: '70px', padding: '4px 8px', fontSize: '13px', fontWeight: 800, border: '1px solid var(--blue)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-main)' }}
+              />
+              <button
+                type="submit"
+                disabled={savingTarget}
+                style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 700, borderRadius: '6px', border: 'none', background: 'var(--blue)', color: 'white', cursor: 'pointer' }}
+              >
+                {savingTarget ? '...' : 'Kaydet'}
+              </button>
+            </form>
+          ) : (
+            <div style={{ fontSize: '16px', fontWeight: 800, marginTop: '2px', color: 'var(--text-main)' }}>
+              {profile.completedBooksCount} / {profile.yearly_target_books} Kitap Tamamlandı
+            </div>
+          )}
+
           <div className="budget-bar-track" style={{ height: '6px', marginTop: '8px' }}>
             <div className="budget-bar-fill" style={{ width: `${profile.targetProgressPercent}%`, backgroundColor: '#10B981' }} />
           </div>

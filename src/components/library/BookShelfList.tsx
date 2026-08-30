@@ -278,6 +278,7 @@ export default function BookShelfList({ books, onQuickPageUpdate, onOpenAddBookM
           onClose={() => setSelectedBookDetail(null)}
           onSuccess={(msg) => {
             setSelectedBookDetail(null);
+            window.dispatchEvent(new CustomEvent('singularity-refresh'));
             if (onUpdate) onUpdate(msg);
           }}
         />

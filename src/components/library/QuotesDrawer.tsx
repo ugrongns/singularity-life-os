@@ -72,10 +72,11 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
         setPageNumber('');
         setShowAddForm(false);
         fetchQuotes();
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         onQuoteAdded();
       }
     } catch (err) {
-      alert('Alıntı kaydedilemedi.');
+      console.error('Alıntı kaydetme hatası:', err);
     } finally {
       setIsSubmitting(false);
     }

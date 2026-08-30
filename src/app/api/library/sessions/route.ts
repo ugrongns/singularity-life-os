@@ -28,6 +28,7 @@ export async function POST(req: Request) {
 
     const now = new Date().toISOString();
     const sessionId = `session-${Date.now()}`;
+    const familyId = user.family_id || `fam-${user.id}`;
 
     // 1. Seans Kaydet
     await db.insert(readingSessions).values({
@@ -38,6 +39,8 @@ export async function POST(req: Request) {
       pages_read: pagesRead,
       duration_minutes: duration,
       session_date: now.split('T')[0],
+      user_id: user.id,
+      family_id: familyId,
       created_at: now,
       updated_at: now
     });
@@ -57,9 +60,10 @@ export async function POST(req: Request) {
         ;
     }
 
-    // 3. WPM ve Sayfa Başı Saniye Kalibrasyonu (Son 100 Seans Toplamı)
+    // 3. WPM ve Sayfa Başı Saniye Kalibrasyonu (Kullanıcının Son 100 Seansı)
     const recentSessions = await db.select()
       .from(readingSessions)
+      .where(eq(readingSessions.user_id, user.id))
       .orderBy(desc(readingSessions.created_at))
       .limit(100);
 
@@ -78,7 +82,7 @@ export async function POST(req: Request) {
     const calculatedAvgWpm = totalMinutes > 0 ? Math.round(totalWords / totalMinutes) : 220;
     const calculatedSecPerPage = totalPages > 0 ? Math.round((totalMinutes * 60) / totalPages) : 120;
 
-    const profile = (await db.select().from(userReadingProfile).limit(1))[0];
+    const profile = (await db.select().from(userReadingProfile).where(eq(userReadingProfile.user_id, user.id)).limit(1))[0];
     if (profile) {
       await db.update(userReadingProfile)
         .set({
@@ -88,11 +92,22 @@ export async function POST(req: Request) {
         })
         .where(eq(userReadingProfile.id, profile.id))
         ;
+    } else {
+      await db.insert(userReadingProfile).values({
+        id: `urp-${user.id}`,
+        yearly_target_books: 24,
+        calibrated_avg_wpm: calculatedAvgWpm,
+        avg_seconds_per_page: calculatedSecPerPage,
+        user_id: user.id,
+        family_id: familyId,
+        created_at: now,
+        updated_at: now
+      });
     }
 
     return NextResponse.json({
       success: true,
-      message: `${pagesRead} sayfa (${duration} dk) okundu. Hızınız (Son ${recentSessions.length} seans ortalaması): ${calculatedAvgWpm} WPM (${(calculatedSecPerPage / 60).toFixed(1)} dk/sayfa) olarak güncellendi! 🎯`
+      message: `${pagesRead} sayfa (${duration} dk) okundu. Hızınız: ${calculatedAvgWpm} WPM (${(calculatedSecPerPage / 60).toFixed(1)} dk/sayfa) olarak kalibre edildi! 🎯`
     });
   } catch (error: any) {
     console.error('Session API Error:', error);

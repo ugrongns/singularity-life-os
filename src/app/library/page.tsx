@@ -30,7 +30,16 @@ export default function LibraryPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+
+    const handleRefresh = () => {
+      fetchData();
+    };
+    window.addEventListener('singularity-refresh', handleRefresh);
+    return () => window.removeEventListener('singularity-refresh', handleRefresh);
+  }, []);
+
   const handleUpdate = (msg?: string) => { fetchData(); if (msg) showToast(msg); };
 
   const handleQuickPageUpdate = async (bookId: string, newPage: number) => {
@@ -49,7 +58,7 @@ export default function LibraryPage() {
   return (
     <SharedLayout notifications={notifData}>
       {toastMsg && (
-        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--text-main)', color: 'white', padding: '10px 20px', borderRadius: 'var(--radius-full)', fontSize: '13px', zIndex: 999 }}>
+        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--text-main)', color: 'white', padding: '10px 20px', borderRadius: 'var(--radius-full)', fontSize: '13px', zIndex: 999, boxShadow: 'var(--shadow-lg)' }}>
           {toastMsg}
         </div>
       )}
@@ -67,6 +76,7 @@ export default function LibraryPage() {
             onOpenSession={() => handleOpenSessionForBook(data?.activeReadingBook?.id)}
             onOpenQuotes={() => setIsQuotesOpen(true)}
             onOpenBookDetail={(b) => setSelectedBookDetail(b)}
+            onUpdate={handleUpdate}
           />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>

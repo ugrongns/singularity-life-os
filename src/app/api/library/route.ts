@@ -9,11 +9,19 @@ export async function GET() {
     await initDatabase();
     const user = await getAuthUser();
     const userId = user?.id;
+    const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
 
     const allBooks = userId
-      ? await db.select().from(books).where(eq(books.user_id, userId)).orderBy(desc(books.created_at))
+      ? await db.select().from(books).where(
+          or(
+            eq(books.user_id, userId),
+            familyId ? and(eq(books.family_id, familyId), eq(books.is_family_shared, 1)) : undefined
+          )
+        ).orderBy(desc(books.created_at))
       : [];
-    const allSessions = await db.select().from(readingSessions);
+    const allSessions = userId
+      ? await db.select().from(readingSessions).where(eq(readingSessions.user_id, userId))
+      : [];
     const profile = (userId ? (await db.select().from(userReadingProfile).where(eq(userReadingProfile.user_id, userId)).limit(1))[0] : null) || {
       yearly_target_books: 24,
       calibrated_avg_wpm: 220,
@@ -139,6 +147,30 @@ export async function POST(req: Request) {
     } = body;
 
     const now = new Date().toISOString();
+    const familyId = user.family_id || `fam-${user.id}`;
+
+    // 0. Yıllık Okuma Hedefi Güncelleme
+    if (action === 'update_target') {
+      const target = parseInt(body.yearly_target_books, 10) || 24;
+      const existing = (await db.select().from(userReadingProfile).where(eq(userReadingProfile.user_id, user.id)).limit(1))[0];
+      if (existing) {
+        await db.update(userReadingProfile)
+          .set({ yearly_target_books: target, updated_at: now })
+          .where(eq(userReadingProfile.id, existing.id));
+      } else {
+        await db.insert(userReadingProfile).values({
+          id: `urp-${user.id}`,
+          yearly_target_books: target,
+          calibrated_avg_wpm: 220,
+          avg_seconds_per_page: 84,
+          user_id: user.id,
+          family_id: familyId,
+          created_at: now,
+          updated_at: now
+        });
+      }
+      return NextResponse.json({ success: true, message: `🎯 2026 yılı okuma hedefiniz ${target} kitap olarak güncellendi!` });
+    }
 
     // 1. Yeni Kitap Ekleme (Manuel veya Kamera / ISBN)
     if (action === 'create_book' || (title && !book_id && action !== 'update_details')) {
@@ -174,6 +206,7 @@ export async function POST(req: Request) {
         lent_date: is_lent_out ? (lent_date || now.split('T')[0]) : null,
         is_family_shared: 1,
         user_id: user.id,
+        family_id: familyId,
         created_at: now,
         updated_at: now,
         sync_status: 'synced',

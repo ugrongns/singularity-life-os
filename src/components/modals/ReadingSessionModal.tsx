@@ -117,6 +117,7 @@ export default function ReadingSessionModal({
       });
       const json = await res.json();
       if (json.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         onSuccess(json.message);
         onClose();
       } else {
