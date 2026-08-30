@@ -17,7 +17,7 @@ interface Props {
 export default function HolisticScoreCard({ scoreData }: Props) {
   const { total, badge, breakdown, recommendation } = scoreData;
 
-  const scoreColor = total >= 90 ? '#10B981' : total >= 75 ? '#3B82F6' : total >= 60 ? '#F59E0B' : '#EF4444';
+  const scoreColor = total >= 90 ? '#10B981' : total >= 75 ? '#3B82F6' : total >= 50 ? '#F59E0B' : total > 0 ? '#EF4444' : 'var(--text-muted)';
 
   const pillars = [
     { key: 'finance', icon: '💰', color: '#10B981', ...breakdown.finance },
@@ -35,7 +35,9 @@ export default function HolisticScoreCard({ scoreData }: Props) {
         </div>
         <span style={{
           fontSize: '11px', fontWeight: 800, padding: '3px 10px', borderRadius: 'var(--radius-full)',
-          background: 'var(--emerald-bg)', color: 'var(--emerald)'
+          background: total === 0 ? 'var(--surface-subtle)' : 'var(--emerald-bg)',
+          color: total === 0 ? 'var(--text-muted)' : 'var(--emerald)',
+          border: total === 0 ? '1px solid var(--border)' : 'none'
         }}>
           {badge}
         </span>

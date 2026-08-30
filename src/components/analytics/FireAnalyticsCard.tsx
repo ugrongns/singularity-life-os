@@ -65,7 +65,9 @@ export default function FireAnalyticsCard({ fireMetrics, inflationMetrics }: Pro
           <div className="budget-bar-fill" style={{ width: `${Math.min(100, passiveCoveragePercent)}%`, backgroundColor: 'var(--emerald)' }} />
         </div>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-          Kira ve temettü gelirleriniz aylık zorunlu yaşam giderinizin <strong>%{passiveCoveragePercent}</strong>'ini tamamen pasif karşılıyor.
+          {monthlyLivingExpense > 0
+            ? `Kira ve temettü gelirleriniz aylık zorunlu yaşam giderinizin %${passiveCoveragePercent}'ini tamamen pasif karşılıyor.`
+            : 'Aylık bütçe veya harcama kaydı girdiğinizde pasif gelir karşılama oranı otomatik hesaplanacaktır.'}
         </div>
       </div>
 
@@ -93,7 +95,7 @@ export default function FireAnalyticsCard({ fireMetrics, inflationMetrics }: Pro
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', fontSize: '11px' }}>
           <span style={{ color: 'var(--text-muted)' }}>Mevcut tasarruf ve pasif getiri hızıyla:</span>
           <span style={{ fontWeight: 800, color: 'var(--indigo)', background: 'var(--indigo-bg)', padding: '2px 8px', borderRadius: '4px' }}>
-            ~{yearsToFire} Yıl Sonra FIRE
+            {fireTargetNumber > 0 && yearsToFire > 0 ? `~${yearsToFire} Yıl Sonra FIRE` : fireTargetNumber > 0 ? 'Hesaplanıyor' : 'Hedef İçin Veri Bekleniyor'}
           </span>
         </div>
       </div>
