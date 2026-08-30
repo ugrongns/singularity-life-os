@@ -18,7 +18,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
   const [category, setCategory] = useState('Kişisel Gelişim');
   const [totalPages, setTotalPages] = useState('200');
   const [currentPage, setCurrentPage] = useState('0');
-  const [status, setStatus] = useState<'reading' | 'wishlist' | 'completed'>('reading');
+  const [status, setStatus] = useState<'reading' | 'wishlist' | 'completed'>('wishlist');
   const [format, setFormat] = useState<'physical' | 'ebook' | 'audiobook'>('physical');
   const [shelfLocation, setShelfLocation] = useState('Salon Kitaplığı A-3');
   const [wordsPerPage, setWordsPerPage] = useState('250');
@@ -64,7 +64,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
     setCategory('Kişisel Gelişim');
     setTotalPages('200');
     setCurrentPage('0');
-    setStatus('reading');
+    setStatus('wishlist');
     setFormat('physical');
     setShelfLocation('Salon Kitaplığı A-3');
     setWordsPerPage('250');
@@ -559,8 +559,8 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
                       padding: '11px 14px', color: 'var(--text-main)', fontSize: '14px', outline: 'none'
                     }}
                   >
-                    <option value="reading" style={{ background: 'var(--surface)', color: 'var(--text-main)' }}>📖 Okunuyor</option>
                     <option value="wishlist" style={{ background: 'var(--surface)', color: 'var(--text-main)' }}>📌 Okunacak</option>
+                    <option value="reading" style={{ background: 'var(--surface)', color: 'var(--text-main)' }}>📖 Okunuyor</option>
                     <option value="completed" style={{ background: 'var(--surface)', color: 'var(--text-main)' }}>✅ Tamamlandı</option>
                   </select>
                 </div>

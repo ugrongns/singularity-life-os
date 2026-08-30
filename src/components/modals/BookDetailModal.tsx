@@ -404,9 +404,9 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
                   onChange={e => setStatus(e.target.value)}
                   style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 >
+                  <option value="wishlist">📌 Okunacak</option>
                   <option value="reading">📖 Okunuyor</option>
                   <option value="completed">🏆 Tamamlandı</option>
-                  <option value="wishlist">📌 İstek Listesi</option>
                 </select>
               </div>
               <div>

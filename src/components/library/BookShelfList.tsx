@@ -105,7 +105,7 @@ export default function BookShelfList({ books, onQuickPageUpdate, onOpenAddBookM
           onClick={() => setActiveTab('wishlist')}
           style={{ padding: '6px 2px', fontSize: '11px' }}
         >
-          İstek ({wishlistBooks.length})
+          Okunacak ({wishlistBooks.length})
         </button>
         <button 
           className={`choice-pill ${activeTab === 'lent' ? 'selected' : ''}`}
@@ -209,6 +209,10 @@ export default function BookShelfList({ books, onQuickPageUpdate, onOpenAddBookM
                   ) : book.status === 'completed' ? (
                     <span style={{ fontSize: '11px', background: 'var(--emerald-bg)', color: 'var(--emerald)', fontWeight: 800, padding: '2px 8px', borderRadius: 'var(--radius-full)' }}>
                       🏆 Tamamlandı
+                    </span>
+                  ) : book.status === 'wishlist' ? (
+                    <span style={{ fontSize: '11px', background: 'var(--indigo-bg)', color: 'var(--indigo)', fontWeight: 800, padding: '2px 8px', borderRadius: 'var(--radius-full)' }}>
+                      📌 Okunacak
                     </span>
                   ) : (
                     <span className="tabular-nums" style={{ fontSize: '12px', fontWeight: 800, color: 'var(--emerald)' }}>
