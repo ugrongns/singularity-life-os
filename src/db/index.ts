@@ -634,6 +634,28 @@ async function _runInit(): Promise<void> {
         device_name TEXT DEFAULT 'web-client',
         created_at TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS recurring_bills (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'utility',
+        billing_day INTEGER,
+        due_day INTEGER NOT NULL,
+        period TEXT NOT NULL DEFAULT 'monthly',
+        due_month INTEGER,
+        amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+        is_auto_pay INTEGER DEFAULT 0,
+        auto_pay_wallet_id TEXT REFERENCES wallets_accounts(id),
+        category_id TEXT REFERENCES categories(id),
+        last_paid_month TEXT,
+        last_paid_date TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        notes TEXT,
+        user_id TEXT,
+        family_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `;
 
     const seedCategoriesSQL = `

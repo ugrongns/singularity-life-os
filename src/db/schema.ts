@@ -703,3 +703,29 @@ export const authSessions = pgTable('auth_sessions', {
   created_at: text('created_at').notNull()
 });
 
+// ==========================================
+// 🧾 FAZ 16: PERİYODİK FATURA & ABONELİK TAKVİMİ
+// ==========================================
+
+export const recurringBills = pgTable('recurring_bills', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  type: text('type').notNull().default('utility'), // 'utility' | 'subscription' | 'tax' | 'other'
+  billing_day: integer('billing_day'),            // 1-31 (Tebliğ / kesim günü - ödeme penceresi açılışı)
+  due_day: integer('due_day').notNull(),           // 1-31 (Son ödeme günü)
+  period: text('period').notNull().default('monthly'), // 'monthly' | 'yearly' | 'quarterly'
+  due_month: integer('due_month'),                // 1-12 (Yıllık ödemeler için ay)
+  amount: doublePrecision('amount').notNull().default(0),
+  is_auto_pay: integer('is_auto_pay').default(0), // 1: Otomatik ödeme talimatı var
+  auto_pay_wallet_id: text('auto_pay_wallet_id').references(() => walletsAccounts.id),
+  category_id: text('category_id').references(() => categories.id),
+  last_paid_month: text('last_paid_month'),       // 'YYYY-MM'
+  last_paid_date: text('last_paid_date'),
+  status: text('status').notNull().default('active'), // 'active' | 'paused' | 'cancelled'
+  notes: text('notes'),
+  user_id: text('user_id'),
+  family_id: text('family_id'),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+});
+

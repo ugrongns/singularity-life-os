@@ -7,6 +7,7 @@ import BudgetLimitsCard from '@/components/budget/BudgetLimitsCard';
 import RecentTxCard from '@/components/budget/RecentTxCard';
 import FutureForecastCard from '@/components/budget/FutureForecastCard';
 import PersonalDebtsCard from '@/components/budget/PersonalDebtsCard';
+import RecurringBillsCard from '@/components/budget/RecurringBillsCard';
 import ReceiptScanModal from '@/components/modals/ReceiptScanModal';
 import ManualExpenseModal from '@/components/modals/ManualExpenseModal';
 import CreditCardStatementModal from '@/components/modals/CreditCardStatementModal';
@@ -153,6 +154,14 @@ export default function BudgetPage() {
         forecast={data?.monthlySummary?.futureForecast || []}
         selectedMonth={selectedMonth}
         onSelectMonth={handleMonthChange}
+      />
+
+      {/* Periyodik Fatura & Abonelik Takvimi */}
+      <RecurringBillsCard
+        accounts={data?.accounts || []}
+        categories={data?.categories || []}
+        onToast={showToast}
+        onUpdate={handleUpdate}
       />
 
       {/* Kişisel Borç & Alacak Takibi */}

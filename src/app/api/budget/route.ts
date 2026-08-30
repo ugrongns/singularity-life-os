@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { walletsAccounts, categories, transactions, vehicleLegalReminders, familyMembers } from '@/db/schema';
+import { walletsAccounts, categories, transactions, vehicleLegalReminders, familyMembers, recurringBills } from '@/db/schema';
 import { desc, asc, eq, and, sql , or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
@@ -161,6 +161,41 @@ export async function GET(req: Request) {
         type: 'vehicle_legal',
         badge: '🚗 Araç'
       });
+    }
+
+    // D. Periyodik Fatura & Abonelikler (Bu ay ödenmemiş olanlar)
+    const userBills = userId
+      ? await db.select().from(recurringBills).where(
+          and(
+            eq(recurringBills.status, 'active'),
+            familyId
+              ? or(eq(recurringBills.family_id, familyId), eq(recurringBills.user_id, userId))
+              : eq(recurringBills.user_id, userId)
+          )
+        )
+      : [];
+
+    for (const bill of userBills) {
+      const isPaid = bill.last_paid_month === currentMonthStr;
+      if (!isPaid && bill.due_day) {
+        let billDueDate = new Date(today.getFullYear(), today.getMonth(), bill.due_day);
+        if (billDueDate < today) {
+          billDueDate = new Date(today.getFullYear(), today.getMonth() + 1, bill.due_day);
+        }
+        const diffDays = Math.ceil((billDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const dueDateStr = localYYYYMMDD(billDueDate);
+
+        upcomingList.push({
+          id: `bill-${bill.id}`,
+          title: bill.name,
+          category: bill.type === 'subscription' ? 'Abonelik' : 'Fatura',
+          amount: bill.amount,
+          due_date: dueDateStr,
+          days_left: diffDays,
+          type: 'bill',
+          badge: bill.type === 'subscription' ? '📱 Abonelik' : '🧾 Fatura'
+        });
+      }
     }
 
     // Tarihe göre artan sırala (En yakın ödeme en üstte) ve ilk 5'i al
