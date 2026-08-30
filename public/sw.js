@@ -1,5 +1,5 @@
-// Singularity Life OS — Progressive Web App Service Worker (v2.0)
-const CACHE_NAME = 'singularity-cache-v2';
+// Singularity Life OS — Progressive Web App Service Worker (v3.0)
+const CACHE_NAME = 'singularity-cache-v3';
 const PRECACHE_ASSETS = [
   '/',
   '/budget',
@@ -14,7 +14,9 @@ const PRECACHE_ASSETS = [
   '/manifest.json',
   '/icon.svg',
   '/icon-192.png',
-  '/icon-512.png'
+  '/icon-512.png',
+  '/apple-touch-icon.png',
+  '/favicon.ico'
 ];
 
 // 1. Install Event: Core assets önbellekleme
