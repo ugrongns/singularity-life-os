@@ -103,7 +103,7 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
                 <select 
                   value={selectedBookId}
                   onChange={e => setSelectedBookId(e.target.value)}
-                  style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'white' }}
+                  style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 >
                   {books.map(b => (
                     <option key={b.id} value={b.id}>{b.title}</option>
@@ -117,7 +117,7 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
                   placeholder="Örn: 74"
                   value={pageNumber}
                   onChange={e => setPageNumber(e.target.value)}
-                  style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'white' }}
+                  style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 />
               </div>
             </div>
@@ -130,7 +130,7 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
                 required
                 value={quoteText}
                 onChange={e => setQuoteText(e.target.value)}
-                style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'white' }}
+                style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               />
             </div>
 
@@ -141,7 +141,7 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
                 placeholder="Bu fikri hayatıma nasıl uygularım?"
                 value={reflectionNote}
                 onChange={e => setReflectionNote(e.target.value)}
-                style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'white' }}
+                style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               />
             </div>
 

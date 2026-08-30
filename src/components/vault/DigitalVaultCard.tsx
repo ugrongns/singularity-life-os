@@ -327,7 +327,7 @@ export default function DigitalVaultCard({
                   </div>
 
                   {item.notes && (
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'white', padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface-subtle)', padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border)' }}>
                       📝 {item.notes}
                     </div>
                   )}
@@ -341,7 +341,7 @@ export default function DigitalVaultCard({
                           onClick={() => setPreviewDocUrl(item.document_image_url || null)}
                           style={{
                             display: 'inline-flex', alignItems: 'center', gap: '4px',
-                            background: '#EEF2FF', color: '#4F46E5', border: '1px solid #C7D2FE',
+                            background: 'var(--indigo-bg)', color: 'var(--indigo)', border: '1px solid var(--indigo)',
                             padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700, cursor: 'pointer'
                           }}
                         >
@@ -356,14 +356,14 @@ export default function DigitalVaultCard({
                       <button
                         type="button"
                         onClick={() => onOpenAddVault(item)}
-                        style={{ fontSize: '11px', padding: '3px 8px', background: 'white', border: '1px solid var(--border)', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
+                        style={{ fontSize: '11px', padding: '3px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
                       >
                         ✏️ Düzenle
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(item.id, 'vault')}
-                        style={{ fontSize: '11px', padding: '3px 8px', background: '#FEE2E2', color: '#DC2626', border: '1px solid #FCA5A5', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
+                        style={{ fontSize: '11px', padding: '3px 8px', background: 'var(--rose-bg)', color: 'var(--rose)', border: '1px solid var(--rose)', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
                       >
                         🗑️ Sil
                       </button>
@@ -392,8 +392,8 @@ export default function DigitalVaultCard({
                   key={item.id}
                   style={{
                     padding: '12px',
-                    background: item.days_left <= 7 ? '#FFFBEB' : 'var(--surface-subtle)',
-                    border: item.days_left <= 7 ? '1px solid rgba(245,158,11,0.4)' : '1px solid var(--border)',
+                    background: item.days_left <= 7 ? 'var(--amber-bg)' : 'var(--surface-subtle)',
+                    border: item.days_left <= 7 ? '1px solid var(--amber)' : '1px solid var(--border)',
                     borderRadius: 'var(--radius-md)',
                     display: 'flex',
                     flexDirection: 'column',
@@ -415,8 +415,8 @@ export default function DigitalVaultCard({
 
                     <span style={{
                       fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: 'var(--radius-full)',
-                      background: item.days_left <= 7 ? '#FDE68A' : '#E0E7FF',
-                      color: item.days_left <= 7 ? '#92400E' : '#3730A3'
+                      background: item.days_left <= 7 ? 'var(--amber-bg)' : 'var(--indigo-bg)',
+                      color: item.days_left <= 7 ? 'var(--amber)' : 'var(--indigo)'
                     }}>
                       {item.days_left === 0 ? '🎉 Bugün!' : `${item.days_left} Gün Kaldı`}
                     </span>
@@ -424,7 +424,7 @@ export default function DigitalVaultCard({
 
                   {/* Hediye Fikirleri Defteri Koyu Sarı Kutu */}
                   {item.gift_ideas && (
-                    <div style={{ background: '#FFFBEB', border: '1px solid rgba(245,158,11,0.3)', padding: '8px 10px', borderRadius: '6px', fontSize: '11px', color: '#92400E' }}>
+                    <div style={{ background: 'var(--amber-bg)', border: '1px solid var(--amber)', padding: '8px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--amber)' }}>
                       🎁 <strong>Hediye Fikirleri & Notlar:</strong> {item.gift_ideas}
                     </div>
                   )}
@@ -433,14 +433,14 @@ export default function DigitalVaultCard({
                     <button
                       type="button"
                       onClick={() => onOpenAddDate(item)}
-                      style={{ fontSize: '11px', padding: '3px 8px', background: 'white', border: '1px solid var(--border)', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
+                      style={{ fontSize: '11px', padding: '3px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
                     >
                       ✏️ Düzenle / Hediye Ekle
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDelete(item.id, 'date')}
-                      style={{ fontSize: '11px', padding: '3px 8px', background: '#FEE2E2', color: '#DC2626', border: '1px solid #FCA5A5', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
+                      style={{ fontSize: '11px', padding: '3px 8px', background: 'var(--rose-bg)', color: 'var(--rose)', border: '1px solid var(--rose)', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
                     >
                       🗑️ Sil
                     </button>
@@ -493,13 +493,13 @@ export default function DigitalVaultCard({
                   </div>
 
                   {pet.vet_next_date && (
-                    <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '6px 10px', borderRadius: '4px', fontSize: '11px', color: '#166534', fontWeight: 700 }}>
+                    <div style={{ background: 'var(--emerald-bg)', border: '1px solid var(--emerald)', padding: '6px 10px', borderRadius: '4px', fontSize: '11px', color: 'var(--emerald)', fontWeight: 700 }}>
                       🩺 Gelecek Veteriner / Aşı Randevusu: {pet.vet_next_date} {pet.vet_name ? `(${pet.vet_name})` : ''}
                     </div>
                   )}
 
                   {pet.vaccinations && (
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'white', padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface-subtle)', padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border)' }}>
                       💉 <strong>Aşılar & Notlar:</strong> {pet.vaccinations}
                     </div>
                   )}
@@ -508,14 +508,14 @@ export default function DigitalVaultCard({
                     <button
                       type="button"
                       onClick={() => onOpenAddPet(pet)}
-                      style={{ fontSize: '11px', padding: '3px 8px', background: 'white', border: '1px solid var(--border)', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
+                      style={{ fontSize: '11px', padding: '3px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
                     >
                       ✏️ Düzenle
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDelete(pet.id, 'pet')}
-                      style={{ fontSize: '11px', padding: '3px 8px', background: '#FEE2E2', color: '#DC2626', border: '1px solid #FCA5A5', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
+                      style={{ fontSize: '11px', padding: '3px 8px', background: 'var(--rose-bg)', color: 'var(--rose)', border: '1px solid var(--rose)', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
                     >
                       🗑️ Sil
                     </button>

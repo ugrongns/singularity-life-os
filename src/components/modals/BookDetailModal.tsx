@@ -402,7 +402,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
                 <select
                   value={status}
                   onChange={e => setStatus(e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'white' }}
+                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 >
                   <option value="reading">📖 Okunuyor</option>
                   <option value="completed">🏆 Tamamlandı</option>
@@ -415,7 +415,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
                   type="number"
                   value={currentPage}
                   onChange={e => setCurrentPage(e.target.value === '' ? '' : Number(e.target.value))}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'white' }}
+                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 />
               </div>
               <div>
@@ -424,7 +424,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
                   type="number"
                   value={totalPages}
                   onChange={e => setTotalPages(e.target.value === '' ? '' : Number(e.target.value))}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'white' }}
+                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 />
               </div>
             </div>
@@ -436,7 +436,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
             }}>
               <div>
                 <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>OKUMA HIZI (KİTABA ÖZEL)</div>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: '#6366F1', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--indigo)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span>⚡ {book.stats?.wpm || 220} WPM</span>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
                     (~{book.stats?.avgMinutesPerPage || '0.8'} dk / sayfa)
@@ -469,39 +469,39 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
           </div>
 
           {/* Satın Alım / Edinme Detayları */}
-          <div style={{ background: '#F0FDF4', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid #BBF7D0' }}>
-            <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '8px', color: '#166534' }}>
+          <div style={{ background: 'var(--emerald-bg)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--emerald)' }}>
+            <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '8px', color: 'var(--emerald)' }}>
               🛒 Satın Alım & Finans Bilgileri
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
               <div>
-                <label style={{ fontSize: '10px', fontWeight: 700, color: '#166534' }}>NEREDEN ALINDI?</label>
+                <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--emerald)' }}>NEREDEN ALINDI?</label>
                 <input
                   type="text"
                   placeholder="Ör. Amazon, D&R, Sahaf"
                   value={purchasedFrom}
                   onChange={e => setPurchasedFrom(e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid #86EFAC', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'white' }}
+                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: '10px', fontWeight: 700, color: '#166534' }}>ALIM FİYATI (₺)</label>
+                <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--emerald)' }}>ALIM FİYATI (₺)</label>
                 <input
                   type="number"
                   step="0.01"
                   placeholder="Ör. 185.50"
                   value={purchasePrice}
                   onChange={e => setPurchasePrice(e.target.value === '' ? '' : Number(e.target.value))}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid #86EFAC', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'white' }}
+                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: '10px', fontWeight: 700, color: '#166534' }}>ALIM TARİHİ</label>
+                <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--emerald)' }}>ALIM TARİHİ</label>
                 <input
                   type="date"
                   value={purchasedDate}
                   onChange={e => setPurchasedDate(e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid #86EFAC', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'white' }}
+                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
                 />
               </div>
             </div>

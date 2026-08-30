@@ -112,7 +112,7 @@ export default function AddImportantDateModal({ isOpen, item, onClose, onSuccess
               <select
                 value={eventType}
                 onChange={e => setEventType(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               >
                 <option value="birthday">🎂 Doğum Günü</option>
                 <option value="anniversary">💍 Yıldönümü</option>
@@ -131,7 +131,7 @@ export default function AddImportantDateModal({ isOpen, item, onClose, onSuccess
                 value={eventDate}
                 onChange={e => setEventDate(e.target.value)}
                 required
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               />
             </div>
 
@@ -141,14 +141,14 @@ export default function AddImportantDateModal({ isOpen, item, onClose, onSuccess
                 type="number"
                 value={remindDaysBefore}
                 onChange={e => setRemindDaysBefore(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               />
             </div>
           </div>
 
           {/* Hediye Fikirleri Defteri */}
-          <div style={{ background: '#FFFBEB', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-            <label style={{ fontSize: '11px', color: '#B45309', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+          <div style={{ background: 'var(--amber-bg)', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--amber)' }}>
+            <label style={{ fontSize: '11px', color: 'var(--amber)', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
               🎁 HEDİYE FİKİRLERİ & NOTLAR DEFTERİ
             </label>
             <textarea
@@ -156,7 +156,7 @@ export default function AddImportantDateModal({ isOpen, item, onClose, onSuccess
               placeholder="Beğendiği parfüm, kitaplar, saat, almak istediği kulaklık..."
               value={giftIdeas}
               onChange={e => setGiftIdeas(e.target.value)}
-              style={{ width: '100%', padding: '8px', fontSize: '12px', border: '1px solid rgba(245, 158, 11, 0.4)', borderRadius: 'var(--radius-md)', background: 'white' }}
+              style={{ width: '100%', padding: '8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-main)' }}
             />
           </div>
 

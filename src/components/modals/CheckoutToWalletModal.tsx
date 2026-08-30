@@ -82,7 +82,7 @@ export default function CheckoutToWalletModal({
           <div style={{ fontSize: '11px', color: '#166534', fontWeight: 800, textTransform: 'uppercase' }}>
             ALINAN {checkedCount} ADET ÜRÜN TOPLAMI
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 900, color: '#15803D', marginTop: '2px' }}>
+          <div style={{ fontSize: '24px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px' }}>
             {formatTRY(totalAmount)}
           </div>
         </div>
@@ -94,7 +94,7 @@ export default function CheckoutToWalletModal({
               value={selectedWalletId}
               onChange={e => setSelectedWalletId(e.target.value)}
               required
-              style={{ width: '100%', padding: '10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+              style={{ width: '100%', padding: '10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             >
               {wallets.map(w => (
                 <option key={w.id} value={w.id}>

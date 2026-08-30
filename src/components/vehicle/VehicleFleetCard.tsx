@@ -293,10 +293,10 @@ export default function VehicleFleetCard({
         </div>
 
         {/* 15.000 KM Periyodik Bakım Çubuğu */}
-        <div style={{ background: 'white', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+        <div style={{ background: 'var(--surface)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 800, marginBottom: '6px' }}>
             <span>Periyodik Bakım Hedefi ({nextServiceKm.toLocaleString('tr-TR')} KM)</span>
-            <span className="tabular-nums" style={{ color: isDueSoon ? '#DC2626' : '#059669' }}>
+            <span className="tabular-nums" style={{ color: isDueSoon ? 'var(--rose)' : 'var(--emerald)' }}>
               {remainingKm.toLocaleString('tr-TR')} KM Kaldı
             </span>
           </div>
@@ -325,17 +325,17 @@ export default function VehicleFleetCard({
               <div 
                 key={rem.id}
                 style={{
-                  background: isUrgent ? '#FEF2F2' : 'var(--surface-subtle)',
-                  border: isUrgent ? '1px solid #FCA5A5' : '1px solid var(--border)',
+                  background: isUrgent ? 'var(--rose-bg)' : 'var(--surface-subtle)',
+                  border: isUrgent ? '1px solid var(--rose)' : '1px solid var(--border)',
                   padding: '10px 8px',
                   borderRadius: 'var(--radius-md)',
                   textAlign: 'center'
                 }}
               >
-                <div style={{ fontSize: '11px', color: isUrgent ? '#DC2626' : 'var(--text-muted)', fontWeight: 800 }}>
+                <div style={{ fontSize: '11px', color: isUrgent ? 'var(--rose)' : 'var(--text-muted)', fontWeight: 800 }}>
                   🛡️ {rem.type}
                 </div>
-                <div style={{ fontSize: '15px', fontWeight: 900, color: isUrgent ? '#DC2626' : 'var(--text-main)', marginTop: '2px' }}>
+                <div style={{ fontSize: '15px', fontWeight: 900, color: isUrgent ? 'var(--rose)' : 'var(--text-main)', marginTop: '2px' }}>
                   {daysLeft} Gün
                 </div>
                 <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -347,16 +347,16 @@ export default function VehicleFleetCard({
         </div>
 
         {/* Yakıt Tüketim Özet Barı & Son Alımlar */}
-        <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+        <div style={{ background: 'var(--surface)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
               ⛽ Yakıt Tüketimi & Ortalama Gider
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 800, background: '#E0E7FF', color: '#3730A3', padding: '2px 8px', borderRadius: '4px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, background: 'var(--indigo-bg)', color: 'var(--indigo)', padding: '2px 8px', borderRadius: '4px' }}>
                 {consumption.avgLitersPer100Km} L / 100km
               </span>
-              <span style={{ fontSize: '11px', fontWeight: 800, background: '#DCFCE7', color: '#166534', padding: '2px 8px', borderRadius: '4px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, background: 'var(--emerald-bg)', color: 'var(--emerald)', padding: '2px 8px', borderRadius: '4px' }}>
                 ₺{consumption.avgCostPerKm} / km
               </span>
             </div>
@@ -369,7 +369,7 @@ export default function VehicleFleetCard({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {recentFuels.slice(0, 3).map((fuel: any) => (
-                <div key={fuel.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '4px 8px', background: 'white', borderRadius: '4px', border: '1px solid #E2E8F0' }}>
+                <div key={fuel.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '6px 8px', background: 'var(--surface-subtle)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                   <span>⛽ {fuel.fuel_station} ({fuel.liters}L @ ₺{fuel.price_per_liter})</span>
                   <span style={{ fontWeight: 800 }}>₺{fuel.total_amount} • {fuel.km} KM</span>
                 </div>

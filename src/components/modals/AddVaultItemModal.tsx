@@ -192,7 +192,7 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
               <select
                 value={type}
                 onChange={e => setType(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               >
                 <option value="passport">🛂 Pasaport</option>
                 <option value="id_card">🪪 Kimlik Kartı</option>

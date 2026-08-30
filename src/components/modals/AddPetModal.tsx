@@ -109,7 +109,7 @@ export default function AddPetModal({ isOpen, item, onClose, onSuccess }: AddPet
               <select
                 value={species}
                 onChange={e => setSpecies(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               >
                 <option value="Kedi">🐱 Kedi</option>
                 <option value="Köpek">🐶 Köpek</option>

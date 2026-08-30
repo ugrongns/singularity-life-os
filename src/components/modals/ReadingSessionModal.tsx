@@ -149,7 +149,7 @@ export default function ReadingSessionModal({
             <select 
               value={selectedBookId}
               onChange={e => handleBookChange(e.target.value)}
-              style={{ width: '100%', padding: '10px', fontSize: '13px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: '13px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             >
               {books.map(b => (
                 <option key={b.id} value={b.id}>
@@ -191,7 +191,7 @@ export default function ReadingSessionModal({
                   value={pagesReadInput}
                   onChange={e => handlePagesReadInput(e.target.value)}
                   required
-                  style={{ width: '100%', padding: '10px', fontSize: '16px', fontWeight: 800, border: '1px solid #818CF8', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: '16px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 />
               </div>
 
@@ -203,10 +203,10 @@ export default function ReadingSessionModal({
                     type="button"
                     onClick={() => handlePagesReadInput(String(p))}
                     style={{
-                      padding: '4px 8px', fontSize: '11px', fontWeight: 700, borderRadius: '6px',
-                      border: pagesReadInput === String(p) ? '1px solid #4F46E5' : '1px solid var(--border)',
-                      background: pagesReadInput === String(p) ? '#EEF2FF' : 'white',
-                      color: pagesReadInput === String(p) ? '#4F46E5' : 'var(--text-main)',
+                      padding: '5px 10px', fontSize: '11px', fontWeight: 800, borderRadius: '6px',
+                      border: pagesReadInput === String(p) ? '1px solid var(--indigo)' : '1px solid var(--border)',
+                      background: pagesReadInput === String(p) ? 'var(--indigo-bg)' : 'var(--surface-subtle)',
+                      color: pagesReadInput === String(p) ? 'var(--indigo)' : 'var(--text-main)',
                       cursor: 'pointer'
                     }}
                   >
@@ -228,7 +228,7 @@ export default function ReadingSessionModal({
                   type="number"
                   value={startPage}
                   onChange={e => handleStartPageInput(e.target.value)}
-                  style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 />
               </div>
               <div>
@@ -237,7 +237,7 @@ export default function ReadingSessionModal({
                   type="number"
                   value={endPage}
                   onChange={e => handleEndPageInput(e.target.value)}
-                  style={{ width: '100%', padding: '10px', fontSize: '14px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: '14px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 />
               </div>
             </div>
@@ -255,7 +255,7 @@ export default function ReadingSessionModal({
                 value={durationMinutes}
                 onChange={e => setDurationMinutes(e.target.value)}
                 required
-                style={{ width: '100%', padding: '10px', fontSize: '16px', fontWeight: 800, border: '1px solid #818CF8', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: '16px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               />
             </div>
 
@@ -267,10 +267,10 @@ export default function ReadingSessionModal({
                   type="button"
                   onClick={() => setDurationMinutes(String(m))}
                   style={{
-                    padding: '4px 8px', fontSize: '11px', fontWeight: 700, borderRadius: '6px',
-                    border: durationMinutes === String(m) ? '1px solid #4F46E5' : '1px solid var(--border)',
-                    background: durationMinutes === String(m) ? '#EEF2FF' : 'white',
-                    color: durationMinutes === String(m) ? '#4F46E5' : 'var(--text-main)',
+                    padding: '5px 10px', fontSize: '11px', fontWeight: 800, borderRadius: '6px',
+                    border: durationMinutes === String(m) ? '1px solid var(--indigo)' : '1px solid var(--border)',
+                    background: durationMinutes === String(m) ? 'var(--indigo-bg)' : 'var(--surface-subtle)',
+                    color: durationMinutes === String(m) ? 'var(--indigo)' : 'var(--text-main)',
                     cursor: 'pointer'
                   }}
                 >
@@ -281,16 +281,16 @@ export default function ReadingSessionModal({
           </div>
 
           {/* Anlık Seans Hızı & Süre İstatistiği Önizlemesi */}
-          <div style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', padding: '12px', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: 'var(--indigo-bg)', border: '1px solid var(--indigo)', padding: '12px 14px', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: '10px', color: '#4F46E5', fontWeight: 700 }}>BU SEANS HESAPLANAN PERFORMANS</div>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: '#312E81', marginTop: '2px' }}>
+              <div style={{ fontSize: '10px', color: 'var(--indigo)', fontWeight: 800 }}>BU SEANS HESAPLANAN PERFORMANS</div>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px' }}>
                 📖 {pagesRead} Sayfa • ⏱️ {durMin} Dk
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '15px', fontWeight: 900, color: '#4F46E5' }}>⚡ ~{estimatedWpm} WPM</div>
-              <div style={{ fontSize: '11px', color: '#6366F1', fontWeight: 600 }}>({minutesPerPage} dk / sayfa)</div>
+              <div style={{ fontSize: '15px', fontWeight: 900, color: 'var(--indigo)' }}>⚡ ~{estimatedWpm} WPM</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>({minutesPerPage} dk / sayfa)</div>
             </div>
           </div>
 

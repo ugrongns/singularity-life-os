@@ -114,7 +114,7 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
               <select
                 value={frequencyType}
                 onChange={e => setFrequencyType(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               >
                 <option value="daily">☀️ Her Gün Düzenli</option>
                 <option value="interval">⏳ Periyodik / Belirli Aralıkla</option>
@@ -125,8 +125,8 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
 
           {/* Periyodik Süre Ayarı */}
           {frequencyType === 'interval' && (
-            <div style={{ background: '#EEF2FF', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid #C7D2FE' }}>
-              <label style={{ fontSize: '11px', color: '#3730A3', fontWeight: 800 }}>KAÇ GÜNDE BİR ALINACAK? *</label>
+            <div style={{ background: 'var(--indigo-bg)', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--indigo)' }}>
+              <label style={{ fontSize: '11px', color: 'var(--indigo)', fontWeight: 800 }}>KAÇ GÜNDE BİR ALINACAK? *</label>
               <div style={{ display: 'flex', gap: '8px', marginTop: '6px', alignItems: 'center' }}>
                 <input
                   type="number"
@@ -136,9 +136,9 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
                   value={intervalDays}
                   onChange={e => setIntervalDays(e.target.value)}
                   required
-                  style={{ width: '100px', padding: '8px', fontSize: '14px', fontWeight: 800, border: '1px solid #A5B4FC', borderRadius: '6px', textAlign: 'center' }}
+                  style={{ width: '100px', padding: '8px', fontSize: '14px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: '6px', textAlign: 'center', background: 'var(--surface)', color: 'var(--text-main)' }}
                 />
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#4338CA' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>
                   günde bir ({intervalDays === '7' ? 'Haftalık' : intervalDays === '30' ? 'Aylık Ampul' : `${intervalDays} Günde Bir`})
                 </span>
               </div>
@@ -151,7 +151,7 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
               <select
                 value={timing}
                 onChange={e => setTiming(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               >
                 <option value="morning">🌅 Sabah</option>
                 <option value="with_meal">🥗 Yemekle Birlikte</option>

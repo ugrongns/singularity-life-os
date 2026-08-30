@@ -106,7 +106,7 @@ export default function AddShoppingItemModal({ isOpen, item, onClose, onSuccess 
               <select
                 value={unit}
                 onChange={e => setUnit(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               >
                 <option value="adet">adet</option>
                 <option value="kg">kg</option>
@@ -125,7 +125,7 @@ export default function AddShoppingItemModal({ isOpen, item, onClose, onSuccess 
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               >
                 <option value="Market">🛒 Market</option>
                 <option value="Manav">🥦 Manav</option>

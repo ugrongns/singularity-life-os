@@ -629,7 +629,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
                   value={parsedData.amount}
                   onChange={e => setParsedData({ ...parsedData, amount: parseFloat(e.target.value) || 0 })}
                   className="tabular-nums"
-                  style={{ fontWeight: 800, fontSize: '20px', textAlign: 'right', width: '120px', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 8px', background: 'white' }}
+                  style={{ fontWeight: 800, fontSize: '20px', textAlign: 'right', width: '120px', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 8px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 />
                 <span style={{ fontWeight: 800, fontSize: '16px' }}>₺</span>
               </div>
@@ -640,7 +640,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>SEPET KALEMLERİ ({parsedData.items.length})</div>
-                  <button onClick={handleAddItem} style={{ fontSize: '11px', color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                  <button onClick={handleAddItem} style={{ fontSize: '11px', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
                     + Kalem Ekle
                   </button>
                 </div>
@@ -651,17 +651,17 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
                         type="text"
                         value={item.name}
                         onChange={e => handleItemChange(idx, 'name', e.target.value)}
-                        style={{ flex: 1, padding: '4px 6px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px' }}
+                        style={{ flex: 1, padding: '4px 6px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                       />
                       <input
                         type="number"
                         step="0.01"
                         value={item.price}
                         onChange={e => handleItemChange(idx, 'price', parseFloat(e.target.value) || 0)}
-                        style={{ width: '70px', textAlign: 'right', padding: '4px 6px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px' }}
+                        style={{ width: '70px', textAlign: 'right', padding: '4px 6px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                       />
                       <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>₺</span>
-                      <button onClick={() => handleRemoveItem(idx)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '12px' }}>
+                      <button onClick={() => handleRemoveItem(idx)} style={{ background: 'none', border: 'none', color: 'var(--rose)', cursor: 'pointer', fontSize: '12px' }}>
                         ✕
                       </button>
                     </div>
@@ -672,8 +672,8 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
 
             {/* Araç Özel Bilgileri (Çift Yönlü Senkronizasyon) */}
             {(scanType === 'fuel' || scanType === 'service') && (
-              <div style={{ background: '#EFF6FF', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: 'var(--radius-md)', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#1D4ED8' }}>🚗 Araç Defteri Çift Yönlü Entegrasyonu (Volvo XC60):</div>
+              <div style={{ background: 'var(--indigo-bg)', border: '1px solid var(--indigo)', borderRadius: 'var(--radius-md)', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--indigo)' }}>🚗 Araç Defteri Çift Yönlü Entegrasyonu (Volvo XC60):</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   <div>
                     <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Sayaç Kilometresi (KM):</label>
@@ -681,7 +681,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
                       type="number"
                       value={parsedData.vehicle_km || 65500}
                       onChange={e => setParsedData({ ...parsedData, vehicle_km: parseFloat(e.target.value) || 0 })}
-                      style={{ width: '100%', padding: '6px 8px', fontSize: '13px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'white' }}
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '13px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
                     />
                   </div>
                   <div>
@@ -690,7 +690,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
                       type="text"
                       value={scanType === 'fuel' ? (parsedData.fuel_station || 'Shell V-Power') : (parsedData.merchant || 'Bosch Car Service')}
                       onChange={e => setParsedData({ ...parsedData, fuel_station: e.target.value })}
-                      style={{ width: '100%', padding: '6px 8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'white' }}
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
                     />
                   </div>
                 </div>
@@ -701,7 +701,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
                       type="text"
                       value={parsedData.parts_changed || 'Periyodik Bakım'}
                       onChange={e => setParsedData({ ...parsedData, parts_changed: e.target.value })}
-                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'white' }}
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
                     />
                   </div>
                 )}

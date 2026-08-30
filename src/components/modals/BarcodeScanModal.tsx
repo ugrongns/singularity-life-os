@@ -264,7 +264,7 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
             </button>
 
             <div style={{ position: 'relative', textAlign: 'center', margin: '4px 0' }}>
-              <span style={{ background: 'white', padding: '0 10px', fontSize: '11px', color: 'var(--text-muted)', position: 'relative', zIndex: 1 }}>veya barkod no girin</span>
+              <span style={{ background: 'var(--surface)', padding: '0 10px', fontSize: '11px', color: 'var(--text-muted)', position: 'relative', zIndex: 1 }}>veya barkod no girin</span>
               <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: 'var(--border)' }}></div>
             </div>
 

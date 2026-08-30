@@ -499,7 +499,7 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
                       <select
                         value={depositedAccId}
                         onChange={e => setDepositedAccId(e.target.value)}
-                        style={{ width: '100%', padding: '10px 12px', fontSize: '12px', border: '1px solid #FCD34D', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+                        style={{ width: '100%', padding: '10px 12px', fontSize: '12px', border: '1px solid var(--amber)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                       >
                         {accounts.filter(a => a.type === 'bank' || a.type === 'cash').map(a => (
                           <option key={a.id} value={a.id}>🏦 {a.name}</option>
@@ -509,13 +509,13 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
                   </div>
 
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#92400E' }}>📅 İLK TAKSİT BAŞLANGIÇ TARİHİ *</label>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--amber)' }}>📅 İLK TAKSİT BAŞLANGIÇ TARİHİ *</label>
                     <input
                       type="date"
                       required
                       value={firstInstallmentDate}
                       onChange={e => setFirstInstallmentDate(e.target.value)}
-                      style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid #FCD34D', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                      style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--amber)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                     />
 
                     {/* Hızlı Erteleme Butonları */}
@@ -523,28 +523,28 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
                       <button
                         type="button"
                         onClick={() => setDeferredMonth(0)}
-                        style={{ padding: '4px 8px', fontSize: '10px', fontWeight: 800, background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '4px', cursor: 'pointer' }}
+                        style={{ padding: '4px 8px', fontSize: '10px', fontWeight: 800, background: 'var(--amber-bg)', border: '1px solid var(--amber)', color: 'var(--amber)', borderRadius: '4px', cursor: 'pointer' }}
                       >
                         ⚡ Gelecek Ay
                       </button>
                       <button
                         type="button"
                         onClick={() => setDeferredMonth(1)}
-                        style={{ padding: '4px 8px', fontSize: '10px', fontWeight: 800, background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '4px', cursor: 'pointer' }}
+                        style={{ padding: '4px 8px', fontSize: '10px', fontWeight: 800, background: 'var(--amber-bg)', border: '1px solid var(--amber)', color: 'var(--amber)', borderRadius: '4px', cursor: 'pointer' }}
                       >
                         ⏳ 1 Ay Ertelemeli
                       </button>
                       <button
                         type="button"
                         onClick={() => setDeferredMonth(2)}
-                        style={{ padding: '4px 8px', fontSize: '10px', fontWeight: 800, background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '4px', cursor: 'pointer' }}
+                        style={{ padding: '4px 8px', fontSize: '10px', fontWeight: 800, background: 'var(--amber-bg)', border: '1px solid var(--amber)', color: 'var(--amber)', borderRadius: '4px', cursor: 'pointer' }}
                       >
                         ⏳ 2 Ay Ertelemeli
                       </button>
                       <button
                         type="button"
                         onClick={() => setDeferredMonth(3)}
-                        style={{ padding: '4px 8px', fontSize: '10px', fontWeight: 800, background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '4px', cursor: 'pointer' }}
+                        style={{ padding: '4px 8px', fontSize: '10px', fontWeight: 800, background: 'var(--amber-bg)', border: '1px solid var(--amber)', color: 'var(--amber)', borderRadius: '4px', cursor: 'pointer' }}
                       >
                         ⏳ 3 Ay Ertelemeli
                       </button>
@@ -554,14 +554,14 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
               )}
 
               {type === 'time_deposit' && (
-                <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', padding: '14px', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: 800, color: '#065F46' }}>
+                <div style={{ background: 'var(--emerald-bg)', border: '1px solid var(--emerald)', padding: '14px', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--emerald)' }}>
                     ⏳ Vadeli Mevduat Hesabı Detayları
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <div>
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#065F46' }}>YATIRILAN ANAPARA *</label>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--emerald)' }}>YATIRILAN ANAPARA *</label>
                       <input
                         type="number"
                         required
@@ -569,12 +569,12 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
                         value={balance}
                         disabled={Boolean(editingAcc)}
                         onChange={e => setBalance(e.target.value === '' ? '' : Number(e.target.value))}
-                        style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid #A7F3D0', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                        style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
                       />
                     </div>
 
                     <div>
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#065F46' }}>YILLIK FAİZ ORANI (%) *</label>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--emerald)' }}>YILLIK FAİZ ORANI (%) *</label>
                       <input
                         type="number"
                         step="0.01"
@@ -582,29 +582,29 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
                         placeholder="Örn: 45"
                         value={interestRate}
                         onChange={e => setInterestRate(e.target.value === '' ? '' : Number(e.target.value))}
-                        style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid #A7F3D0', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                        style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
                       />
                     </div>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <div>
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#065F46' }}>VADE BİTİŞ TARİHİ *</label>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--emerald)' }}>VADE BİTİŞ TARİHİ *</label>
                       <input
                         type="date"
                         required
                         value={maturityDate}
                         onChange={e => setMaturityDate(e.target.value)}
-                        style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid #A7F3D0', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                        style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
                       />
                     </div>
 
                     <div>
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#065F46' }}>FAİZ TİPİ</label>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--emerald)' }}>FAİZ TİPİ</label>
                       <select
                         value={interestType}
                         onChange={e => setInterestType(e.target.value)}
-                        style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid #A7F3D0', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+                        style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
                       >
                         <option value="simple">Basit Faiz</option>
                         <option value="compound">Bileşik Faiz</option>
@@ -614,11 +614,11 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
 
                   {!editingAcc && (
                     <div>
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#065F46' }}>PARANIN ÇEKİLECEĞİ VADESİZ HESAP *</label>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--emerald)' }}>PARANIN ÇEKİLECEĞİ VADESİZ HESAP *</label>
                       <select
                         value={depositedAccId}
                         onChange={e => setDepositedAccId(e.target.value)}
-                        style={{ width: '100%', padding: '10px 12px', fontSize: '12px', border: '1px solid #A7F3D0', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+                        style={{ width: '100%', padding: '10px 12px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
                         required
                       >
                         <option value="">-- Bir Vadesiz Hesap Seçin --</option>

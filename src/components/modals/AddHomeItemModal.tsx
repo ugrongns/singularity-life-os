@@ -240,7 +240,7 @@ export default function AddHomeItemModal({ isOpen, onClose, onSuccess }: AddHome
                   <select
                     value={warrantyMonths}
                     onChange={e => setWarrantyMonths(e.target.value)}
-                    style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+                    style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                   >
                     <option value="12">1 Yıl (12 Ay)</option>
                     <option value="24">2 Yıl (24 Ay)</option>
@@ -281,7 +281,7 @@ export default function AddHomeItemModal({ isOpen, onClose, onSuccess }: AddHome
                   <select
                     value={intervalMonths}
                     onChange={e => setIntervalMonths(e.target.value)}
-                    style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+                    style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                   >
                     <option value="3">3 Ayda Bir</option>
                     <option value="6">6 Ayda Bir</option>

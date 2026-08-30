@@ -101,7 +101,7 @@ export default function AddVehicleServiceModal({
               <select
                 value={serviceType}
                 onChange={e => setServiceType(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               >
                 <option value="periyodik_bakim">🔧 Periyodik Yağ & Filtre Bakımı</option>
                 <option value="fren_balata">🛑 Fren Balatası / Disk Değişimi</option>
@@ -164,7 +164,7 @@ export default function AddVehicleServiceModal({
             <select
               value={selectedWalletId}
               onChange={e => setSelectedWalletId(e.target.value)}
-              style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+              style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             >
               <option value="">Cüzdandan düşme (Sadece kayıt al)</option>
               {wallets.map(w => (

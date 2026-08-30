@@ -249,7 +249,7 @@ export default function TransferModal({
                       type="button"
                       onClick={handleFillFullDebt}
                       style={{
-                        background: 'white', color: '#4F46E5', border: '1px solid #4F46E5',
+                        background: 'var(--surface)', color: 'var(--indigo)', border: '1px solid var(--indigo)',
                         borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: '11px', fontWeight: 700,
                         cursor: 'pointer'
                       }}

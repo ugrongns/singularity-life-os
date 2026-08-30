@@ -102,7 +102,7 @@ export default function AddFuelLogModal({
               <select
                 value={fuelStation}
                 onChange={e => setFuelStation(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               >
                 <option value="Opet">⛽ Opet</option>
                 <option value="Shell">⛽ Shell</option>
@@ -123,7 +123,7 @@ export default function AddFuelLogModal({
                 value={liters}
                 onChange={e => setLiters(e.target.value)}
                 required
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               />
             </div>
 
@@ -135,14 +135,14 @@ export default function AddFuelLogModal({
                 value={pricePerLiter}
                 onChange={e => setPricePerLiter(e.target.value)}
                 required
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               />
             </div>
           </div>
 
-          <div style={{ background: '#F0FDF4', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid #BBF7D0', textAlign: 'center' }}>
-            <div style={{ fontSize: '11px', color: '#166534', fontWeight: 800 }}>HESAPLANAN TOPLAM TUTAR</div>
-            <div style={{ fontSize: '22px', fontWeight: 900, color: '#15803D', marginTop: '2px' }}>₺{totalAmount.toLocaleString('tr-TR')}</div>
+          <div style={{ background: 'var(--emerald-bg)', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--emerald)', textAlign: 'center' }}>
+            <div style={{ fontSize: '11px', color: 'var(--emerald)', fontWeight: 800 }}>HESAPLANAN TOPLAM TUTAR</div>
+            <div style={{ fontSize: '22px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px' }}>₺{totalAmount.toLocaleString('tr-TR')}</div>
           </div>
 
           <div>
@@ -150,7 +150,7 @@ export default function AddFuelLogModal({
             <select
               value={selectedWalletId}
               onChange={e => setSelectedWalletId(e.target.value)}
-              style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'white' }}
+              style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             >
               <option value="">Cüzdandan düşme (Sadece kayıt al)</option>
               {wallets.map(w => (

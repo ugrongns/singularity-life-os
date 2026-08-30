@@ -177,17 +177,17 @@ export default function BookShelfList({ books, onQuickPageUpdate, onOpenAddBookM
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
                         <span>{book.author}</span>
                         <span>•</span>
-                        <span style={{ background: 'white', padding: '1px 5px', borderRadius: '3px', border: '1px solid var(--border)' }}>
+                        <span style={{ background: 'var(--surface-subtle)', padding: '1px 5px', borderRadius: '3px', border: '1px solid var(--border)' }}>
                           {formatIcon}
                         </span>
                         {book.format === 'physical' && book.shelf_location && (
                           <span style={{ color: 'var(--text-muted)' }}>📍 {book.shelf_location}</span>
                         )}
                         {book.rating && (
-                          <span style={{ color: '#D97706', fontWeight: 800 }}>⭐ {book.rating}/5</span>
+                          <span style={{ color: 'var(--amber)', fontWeight: 800 }}>⭐ {book.rating}/5</span>
                         )}
                         {book.stats?.wpm && (
-                          <span style={{ color: '#6366F1', fontWeight: 700, background: '#EEF2FF', padding: '1px 5px', borderRadius: '3px' }}>
+                          <span style={{ color: 'var(--indigo)', fontWeight: 700, background: 'var(--indigo-bg)', padding: '1px 5px', borderRadius: '3px' }}>
                             ⚡ {book.stats.wpm} WPM
                           </span>
                         )}
@@ -195,7 +195,7 @@ export default function BookShelfList({ books, onQuickPageUpdate, onOpenAddBookM
 
                       {/* Satın alım bilgisi etiketi */}
                       {(book.purchased_from || book.purchase_price) && (
-                        <div style={{ fontSize: '10px', color: '#166534', marginTop: '2px', fontWeight: 600 }}>
+                        <div style={{ fontSize: '10px', color: 'var(--emerald)', marginTop: '2px', fontWeight: 600 }}>
                           🛒 {book.purchased_from ? book.purchased_from : ''} {book.purchase_price ? `(${book.purchase_price} ₺)` : ''}
                         </div>
                       )}
@@ -203,11 +203,11 @@ export default function BookShelfList({ books, onQuickPageUpdate, onOpenAddBookM
                   </div>
 
                   {book.is_lent_out ? (
-                    <span style={{ background: 'var(--amber-bg)', color: '#B45309', fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)' }}>
+                    <span style={{ background: 'var(--amber-bg)', color: 'var(--amber)', fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)' }}>
                       🤝 Emanet
                     </span>
                   ) : book.status === 'completed' ? (
-                    <span style={{ fontSize: '11px', background: '#D1FAE5', color: '#065F46', fontWeight: 800, padding: '2px 8px', borderRadius: 'var(--radius-full)' }}>
+                    <span style={{ fontSize: '11px', background: 'var(--emerald-bg)', color: 'var(--emerald)', fontWeight: 800, padding: '2px 8px', borderRadius: 'var(--radius-full)' }}>
                       🏆 Tamamlandı
                     </span>
                   ) : (
@@ -219,14 +219,14 @@ export default function BookShelfList({ books, onQuickPageUpdate, onOpenAddBookM
 
                 {/* Not Özeti Snippet */}
                 {book.notes && (
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'white', padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border)', fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface-subtle)', padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border)', fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                     📝 "{book.notes}"
                   </div>
                 )}
 
                 {/* Emanet Bilgisi */}
                 {book.is_lent_out === 1 && (
-                  <div style={{ fontSize: '11px', color: '#92400E', background: 'white', padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--amber)', background: 'var(--amber-bg)', padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--amber)' }}>
                     🤝 <strong>{book.lent_to_name}</strong> adlı kişiye verildi ({book.lent_date})
                   </div>
                 )}
@@ -248,7 +248,7 @@ export default function BookShelfList({ books, onQuickPageUpdate, onOpenAddBookM
                     {book.status === 'reading' && !book.is_lent_out && (
                       <button 
                         className="btn-subtle" 
-                        style={{ fontSize: '11px', padding: '3px 9px', background: '#EEF2FF', color: '#4F46E5', border: '1px solid #C7D2FE', borderRadius: '4px', fontWeight: 700 }}
+                        style={{ fontSize: '11px', padding: '3px 9px', background: 'var(--indigo-bg)', color: 'var(--indigo)', border: '1px solid var(--indigo)', borderRadius: '4px', fontWeight: 700 }}
                         onClick={() => onOpenSessionForBook && onOpenSessionForBook(book.id)}
                       >
                         ⏱️ Seans Kaydet
@@ -257,7 +257,7 @@ export default function BookShelfList({ books, onQuickPageUpdate, onOpenAddBookM
 
                     <button
                       className="btn-subtle"
-                      style={{ fontSize: '11px', padding: '3px 8px', background: 'white', border: '1px solid var(--border)', borderRadius: '4px', fontWeight: 700 }}
+                      style={{ fontSize: '11px', padding: '3px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', fontWeight: 700 }}
                       onClick={() => setSelectedBookDetail(book)}
                     >
                       ⚙️ Detay & Notlar
