@@ -536,9 +536,9 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
       {/* ========================================== */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px', background: 'var(--surface)', color: 'var(--text-main)', border: '1px solid var(--border)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
             <div className="modal-header">
-              <div className="modal-title">
+              <div className="modal-title" style={{ color: 'var(--text-main)' }}>
                 {editingBill ? '✏️ Fatura / Abonelik Düzenle' : '➕ Yeni Fatura & Abonelik Ekle'}
               </div>
               <button className="modal-close-btn" onClick={() => setIsModalOpen(false)}>✕</button>
@@ -559,7 +559,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                   placeholder="Örn: Enerjisa Elektrik, Netflix, İSKİ Su, Ev Aidatı"
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                  style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 />
               </div>
 
@@ -569,7 +569,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                   <select
                     value={type}
                     onChange={e => setType(e.target.value as any)}
-                    style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)' }}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                   >
                     <option value="utility">⚡ Fatura / Aidat</option>
                     <option value="subscription">📱 Dijital Abonelik</option>
@@ -583,7 +583,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                   <select
                     value={period}
                     onChange={e => setPeriod(e.target.value as any)}
-                    style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)' }}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                   >
                     <option value="monthly">Aylık</option>
                     <option value="yearly">Yıllık</option>
@@ -604,7 +604,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                     placeholder="Örn: 5 (Opsiyonel)"
                     value={billingDay}
                     onChange={e => setBillingDay(e.target.value === '' ? '' : Number(e.target.value))}
-                    style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                   />
                   <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Faturanın kesildiği gün</div>
                 </div>
@@ -620,7 +620,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                     placeholder="Örn: 20"
                     value={dueDay}
                     onChange={e => setDueDay(e.target.value === '' ? '' : Number(e.target.value))}
-                    style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', borderColor: '#FCA5A5' }}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', borderColor: '#FCA5A5', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                   />
                   <div style={{ fontSize: '10px', color: '#DC2626', marginTop: '2px' }}>Nihai son gün</div>
                 </div>
@@ -635,13 +635,13 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                   placeholder="Örn: 450"
                   value={amount}
                   onChange={e => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                  style={{ width: '100%', padding: '10px 12px', fontSize: '14px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                  style={{ width: '100%', padding: '10px 12px', fontSize: '14px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 />
               </div>
 
               {/* Otomatik Ödeme Talimatı */}
               <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>
                   <input
                     type="checkbox"
                     checked={isAutoPay}
@@ -657,7 +657,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                     <select
                       value={autoPayWalletId}
                       onChange={e => setAutoPayWalletId(e.target.value)}
-                      style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)' }}
+                      style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
                     >
                       {accounts.map(a => (
                         <option key={a.id} value={a.id}>
@@ -676,13 +676,23 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                   placeholder="Abone no, sözleşme bitişi vb."
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 />
               </div>
 
-              <div className="modal-actions" style={{ marginTop: '8px' }}>
-                <button type="button" className="btn-secondary" onClick={() => setIsModalOpen(false)}>İptal</button>
-                <button type="submit" className="btn-primary" disabled={saving}>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  style={{ flex: 1, padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  style={{ flex: 2, padding: '10px', borderRadius: 'var(--radius-md)', border: 'none', background: 'linear-gradient(135deg, #3B82F6, #1D4ED8)', color: 'white', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)' }}
+                >
                   {saving ? 'Kaydediliyor...' : editingBill ? 'Güncelle' : 'Kaydet & Takvime Ekle'}
                 </button>
               </div>
@@ -696,15 +706,15 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
       {/* ========================================== */}
       {payModalBill && (
         <div className="modal-overlay" onClick={() => setPayModalBill(null)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '420px', background: 'var(--surface)', color: 'var(--text-main)', border: '1px solid var(--border)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
             <div className="modal-header">
-              <div className="modal-title">✓ Fatura Ödemesi Onayı</div>
+              <div className="modal-title" style={{ color: 'var(--text-main)' }}>✓ Fatura Ödemesi Onayı</div>
               <button className="modal-close-btn" onClick={() => setPayModalBill(null)}>✕</button>
             </div>
 
-            <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 'var(--radius-md)', padding: '14px', marginBottom: '14px' }}>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: '#065F46' }}>{payModalBill.name}</div>
-              <div style={{ fontSize: '11px', color: '#065F46', marginTop: '2px' }}>
+            <div style={{ background: 'var(--emerald-bg)', border: '1px solid var(--emerald)', borderRadius: 'var(--radius-md)', padding: '14px', marginBottom: '14px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--emerald)' }}>{payModalBill.name}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
                 Son Ödeme: Ayın {payModalBill.due_day}. günü
               </div>
             </div>
@@ -716,12 +726,12 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                   type="number"
                   value={customPayAmount}
                   onChange={e => setCustomPayAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                  style={{ width: '100%', padding: '10px 12px', fontSize: '14px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                  style={{ width: '100%', padding: '10px 12px', fontSize: '14px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
                 />
               </div>
 
               <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>
                   <input
                     type="checkbox"
                     checked={createTx}
@@ -737,7 +747,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                     <select
                       value={payWalletId}
                       onChange={e => setPayWalletId(e.target.value)}
-                      style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)' }}
+                      style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
                     >
                       {accounts.map(a => (
                         <option key={a.id} value={a.id}>
@@ -749,13 +759,18 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                 )}
               </div>
 
-              <div className="modal-actions" style={{ marginTop: '8px' }}>
-                <button type="button" className="btn-secondary" onClick={() => setPayModalBill(null)}>İptal</button>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
                 <button
                   type="button"
-                  className="btn-primary"
+                  onClick={() => setPayModalBill(null)}
+                  style={{ flex: 1, padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  İptal
+                </button>
+                <button
+                  type="button"
                   onClick={handleConfirmPay}
-                  style={{ background: 'linear-gradient(135deg, #10B981, #059669)', border: 'none' }}
+                  style={{ flex: 2, padding: '10px', borderRadius: 'var(--radius-md)', border: 'none', background: 'linear-gradient(135deg, #10B981, #059669)', color: 'white', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}
                 >
                   ✓ Ödemeyi Onayla & İşle
                 </button>
@@ -767,3 +782,4 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
     </div>
   );
 }
+
