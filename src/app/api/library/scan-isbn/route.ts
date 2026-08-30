@@ -43,7 +43,7 @@ async function fetchFromGoogleBooks(cleanIsbn: string): Promise<BookSearchResult
         publisher: info.publisher || '',
         total_pages: info.pageCount || 200,
         category: resolvedCategory,
-        summary: info.description || 'Google Books verisi.',
+        summary: info.description || '',
         cover_url: info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || null,
         source: 'Google Books API'
       };
@@ -71,7 +71,7 @@ async function fetchFromOpenLibrary(cleanIsbn: string): Promise<BookSearchResult
         publisher: item.publishers ? item.publishers.map((p: any) => p.name).join(', ') : '',
         total_pages: item.number_of_pages || 200,
         category: resolvedCategory,
-        summary: 'Open Library açık veritabanı.',
+        summary: '',
         cover_url: item.cover?.medium || item.cover?.large || null,
         source: 'Open Library'
       };
@@ -81,18 +81,24 @@ async function fetchFromOpenLibrary(cleanIsbn: string): Promise<BookSearchResult
 }
 
 // 3. KAYNAK: Gemini AI Canlı Arama / Grounding & Künye Analizi
-async function fetchFromGeminiAI(cleanIsbn: string): Promise<BookSearchResult | null> {
+async function fetchFromGeminiAI(
+  cleanIsbn: string,
+  seedTitle?: string,
+  seedAuthor?: string,
+  seedPublisher?: string
+): Promise<BookSearchResult | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
-  const promptText = `Sen uzman bir kütüphaneci ve kitap kataloglama uzmanısın. ISBN numarası "${cleanIsbn}" olan kitabın Türkiye ve dünya kataloglarındaki tam adını, yazarını, yayınevini, sayfa sayısını, açıklayıcı arka kapak özetini (2-3 cümle) ve kitabın gerçek konusuna göre en doğru Türkçe kategorisini (Örn: Psikoloji, Bilim, Tarih, Felsefe, Kişisel Gelişim, Kurgu (Fiction), Beden, Zihin & Ruh, İş & Ekonomi, Din, Sosyal Bilimler, Tıp, Sanat vb.) araştır ve SADECE geçerli bir JSON çıktısı ver:
+  const contextHint = seedTitle ? ` (Kitap İpucu: "${seedTitle}" - ${seedAuthor || ''}, ${seedPublisher || ''})` : '';
+  const promptText = `Sen uzman bir kütüphaneci ve kitap kataloglama uzmanısın. ISBN numarası "${cleanIsbn}"${contextHint} olan kitabın Türkiye ve dünya kataloglarındaki tam adını, yazarını, yayınevini, sayfa sayısını, açıklayıcı Türkçe arka kapak özetini (2-3 cümle) ve kitabın gerçek konusuna/türüne göre en doğru Türkçe kategorisini (Örn: Tarih, Felsefe, Psikoloji, Bilim, Kişisel Gelişim, Kurgu (Fiction), Beden, Zihin & Ruh, İş & Ekonomi, Din, Sosyal Bilimler, Tıp, Sanat, Teknoloji & Mühendislik vb.) araştır ve SADECE geçerli bir JSON çıktısı ver:
 {
   "title": "Kitap Tam Adı",
   "author": "Yazar Adı",
   "publisher": "Yayınevi Adı",
   "total_pages": 250,
   "category": "Kitabın Gerçek Türkçe Kategorisi",
-  "summary": "Kitabın konusu, anlattıkları ve arka kapak metni hakkında 2-3 cümlelik açıklayıcı özet."
+  "summary": "Kitabın konusu, anlattıkları ve arka kapak metni hakkında 2-3 cümlelik açıklayıcı Türkçe özet."
 }`;
 
   const models = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
@@ -119,11 +125,11 @@ async function fetchFromGeminiAI(cleanIsbn: string): Promise<BookSearchResult | 
             const resolvedCategory = normalizeBookCategory(parsed.category, parsed.title, parsed.summary);
             return {
               title: parsed.title,
-              author: (parsed.author || '').replace(/Yazar Adı/i, '').trim(),
-              publisher: (parsed.publisher || '').replace(/Yayınevi Adı/i, '').trim(),
+              author: (parsed.author || seedAuthor || '').replace(/Yazar Adı/i, '').trim(),
+              publisher: (parsed.publisher || seedPublisher || '').replace(/Yayınevi Adı/i, '').trim(),
               total_pages: Number(parsed.total_pages) || 200,
               category: resolvedCategory,
-              summary: parsed.summary || `Gemini AI araması ile bulundu (ISBN: ${cleanIsbn}).`,
+              summary: parsed.summary || '',
               cover_url: null,
               source: 'Gemini AI'
             };
@@ -166,7 +172,7 @@ async function fetchFromTurkishBookstores(cleanIsbn: string): Promise<BookSearch
             publisher: '',
             total_pages: 200,
             category: resolvedCategory,
-            summary: `Türkçe Kitabevi araması ile bulundu (ISBN: ${cleanIsbn}).`,
+            summary: '',
             cover_url: null,
             source: 'Türkçe Kitabevleri / DDG'
           };
@@ -208,14 +214,14 @@ export async function POST(req: Request) {
           publisher: visionResult.publisher || '',
           isbn: visionResult.isbn || '',
           total_pages: visionResult.total_pages || 200,
-          category: visionResult.category || 'Kişisel Gelişim',
+          category: visionResult.category || 'Kurgu (Fiction)',
           summary: visionResult.summary || ''
         },
         message: `📸 Kitap kapağından "${visionResult.title}" (${visionResult.author || 'Yazar'}) tanımlandı!`
       });
     }
 
-    // 2. SEÇENEK: ISBN Barkod Sorgulama (4 Kademeli Motor)
+    // 2. SEÇENEK: ISBN Barkod Sorgulama (Hibrit Akıllı Birleştirme Motoru)
     if (!isbn) {
       return NextResponse.json({ success: false, error: 'Lütfen geçerli bir ISBN veya Görsel yükleyin.' }, { status: 400 });
     }
@@ -225,21 +231,40 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Geçersiz ISBN numarası.' }, { status: 400 });
     }
 
-    // 1. Google Books Sorgula
-    let book: BookSearchResult | null = await fetchFromGoogleBooks(cleanIsbn);
-
-    // 2. Open Library Sorgula
-    if (!book) {
-      book = await fetchFromOpenLibrary(cleanIsbn);
+    // 1. Aşama: Dış Katalogları Sorgula (Google Books & Open Library -> Kapak resmi, sayfa sayısı ve temel künye)
+    let catalogBook: BookSearchResult | null = await fetchFromGoogleBooks(cleanIsbn);
+    if (!catalogBook) {
+      catalogBook = await fetchFromOpenLibrary(cleanIsbn);
     }
 
-    // 3. Gemini AI Canlı Arama Sorgula (Öncelikli Yerli & Yabancı Kitap Künyesi + Kategori + Özet)
-    if (!book) {
-      book = await fetchFromGeminiAI(cleanIsbn);
-    }
+    // 2. Aşama: Gemini AI ile Canlı Künye, Zengin Türkçe Özet ve Derinlemesine Kategori Analizi Yap
+    const geminiBook = await fetchFromGeminiAI(
+      cleanIsbn,
+      catalogBook?.title,
+      catalogBook?.author,
+      catalogBook?.publisher
+    );
 
-    // 4. Türkçe Kitabevleri / Web Arama Sorgula (Yedek)
-    if (!book) {
+    let book: BookSearchResult | null = null;
+
+    if (geminiBook && catalogBook) {
+      // Hibrit Birleştirme (Smart Fusion): Kapak görseli ve kesin sayfa sayısı katalogdan, zengin Türkçe özet ve doğru edebi kategori Gemini'dan
+      book = {
+        title: geminiBook.title || catalogBook.title,
+        author: geminiBook.author || catalogBook.author,
+        publisher: geminiBook.publisher || catalogBook.publisher,
+        total_pages: catalogBook.total_pages > 0 ? catalogBook.total_pages : geminiBook.total_pages,
+        category: geminiBook.category || catalogBook.category,
+        summary: geminiBook.summary || catalogBook.summary || '',
+        cover_url: catalogBook.cover_url || geminiBook.cover_url || null,
+        source: `${catalogBook.source} + Gemini AI Fusion`
+      };
+    } else if (geminiBook) {
+      book = geminiBook;
+    } else if (catalogBook) {
+      book = catalogBook;
+    } else {
+      // 3. Aşama: Yedek Türkçe Kitabevleri / Web Arama
       book = await fetchFromTurkishBookstores(cleanIsbn);
     }
 

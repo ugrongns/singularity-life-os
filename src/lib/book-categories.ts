@@ -151,8 +151,11 @@ const CATEGORY_TRANSLATIONS: Record<string, string> = {
   'history': 'Tarih',
   'tarih': 'Tarih',
   'world history': 'Tarih',
+  'history / world': 'Tarih',
+  'history / general': 'Tarih',
   'middle east history': 'Tarih',
   'ancient history': 'Tarih',
+  'future studies': 'Sosyal Bilimler',
   'archaeology': 'Tarih',
   'arkeoloji': 'Tarih',
 
@@ -170,6 +173,7 @@ const CATEGORY_TRANSLATIONS: Record<string, string> = {
 
   // Sosyal Bilimler & Siyaset
   'social science': 'Sosyal Bilimler',
+  'social science / general': 'Sosyal Bilimler',
   'sociology': 'Sosyal Bilimler',
   'anthropology': 'Sosyal Bilimler',
   'sosyoloji': 'Sosyal Bilimler',
@@ -290,16 +294,19 @@ export function normalizeBookCategory(rawCategory?: string, bookTitle?: string, 
       return cleaned;
     }
 
-    // 2. Alt kategori ayrıştırması (Örn: "Psychology / Trauma / PTSD" -> "Psychology", "Trauma")
+    // 2. Alt kategori ayrıştırması
     const parts = cleaned.split(/[\/\->]/).map(p => p.trim().toLowerCase()).filter(Boolean);
 
     for (const part of parts) {
       if (CATEGORY_TRANSLATIONS[part]) {
         return CATEGORY_TRANSLATIONS[part];
       }
-      // Kısmi eşleşme
+    }
+
+    // Kısmi eşleşme
+    for (const part of parts) {
       for (const [key, trCategory] of Object.entries(CATEGORY_TRANSLATIONS)) {
-        if (part.includes(key) || key.includes(part)) {
+        if (part === key || part.startsWith(key) || key.startsWith(part)) {
           return trCategory;
         }
       }
@@ -326,14 +333,14 @@ export function normalizeBookCategory(rawCategory?: string, bookTitle?: string, 
   if (textContext.includes('beden') || textContext.includes('travma') || textContext.includes('terapi') || textContext.includes('psikolog') || textContext.includes('psikiyatri') || textContext.includes('ruh sağlığı') || textContext.includes('kaygı') || textContext.includes('depresyon') || textContext.includes('zihin')) {
     return 'Psikoloji';
   }
+  if (textContext.includes('tarih') || textContext.includes('harari') || textContext.includes('homo deus') || textContext.includes('sapiens') || textContext.includes('insanlık') || textContext.includes('medeniyet') || textContext.includes('osmanlı') || textContext.includes('imparatorluk') || textContext.includes('savaş') || textContext.includes('devlet') || textContext.includes('cumhuriyet')) {
+    return 'Tarih';
+  }
   if (textContext.includes('roman') || textContext.includes('kurgu') || textContext.includes('öykü') || textContext.includes('hikaye') || textContext.includes('edebiyat') || textContext.includes('masal') || textContext.includes('cinayet') || textContext.includes('dedektif')) {
     return 'Kurgu (Fiction)';
   }
-  if (textContext.includes('para') || textContext.includes('yatırım') || textContext.includes('borsa') || textContext.includes('zengin') || textContext.includes('finans') || textContext.includes('ekonomi') || textContext.includes('şirket') || textContext.includes('girişim')) {
+  if (textContext.includes('para') || textContext.includes('yatırım') || textContext.includes('borsa') || textContext.includes('zengin') || textContext.includes('finans') || textContext.includes('ekonomi') || textContext.includes('piyasa') || textContext.includes('piyasalar') || textContext.includes('küresel') || textContext.includes('şirket') || textContext.includes('girişim')) {
     return 'İş & Ekonomi';
-  }
-  if (textContext.includes('tarih') || textContext.includes('osmanlı') || textContext.includes('imparatorluk') || textContext.includes('savaş') || textContext.includes('devlet') || textContext.includes('cumhuriyet')) {
-    return 'Tarih';
   }
   if (textContext.includes('felsefe') || textContext.includes('etik') || textContext.includes('düşünce') || textContext.includes('varoluş') || textContext.includes('stoa') || textContext.includes('sokrates')) {
     return 'Felsefe';
