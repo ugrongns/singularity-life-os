@@ -80,7 +80,64 @@ async function fetchFromOpenLibrary(cleanIsbn: string): Promise<BookSearchResult
   return null;
 }
 
-// 3. KAYNAK: DuckDuckGo HTML + Türkçe Kitabevleri (BKM Kitap, Kitapyurdu, D&R, İdefix)
+// 3. KAYNAK: Gemini AI Canlı Arama / Grounding & Künye Analizi
+async function fetchFromGeminiAI(cleanIsbn: string): Promise<BookSearchResult | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  const promptText = `Sen uzman bir kütüphaneci ve kitap kataloglama uzmanısın. ISBN numarası "${cleanIsbn}" olan kitabın Türkiye ve dünya kataloglarındaki tam adını, yazarını, yayınevini, sayfa sayısını, açıklayıcı arka kapak özetini (2-3 cümle) ve kitabın gerçek konusuna göre en doğru Türkçe kategorisini (Örn: Psikoloji, Bilim, Tarih, Felsefe, Kişisel Gelişim, Kurgu (Fiction), Beden, Zihin & Ruh, İş & Ekonomi, Din, Sosyal Bilimler, Tıp, Sanat vb.) araştır ve SADECE geçerli bir JSON çıktısı ver:
+{
+  "title": "Kitap Tam Adı",
+  "author": "Yazar Adı",
+  "publisher": "Yayınevi Adı",
+  "total_pages": 250,
+  "category": "Kitabın Gerçek Türkçe Kategorisi",
+  "summary": "Kitabın konusu, anlattıkları ve arka kapak metni hakkında 2-3 cümlelik açıklayıcı özet."
+}`;
+
+  const models = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
+  for (const modelName of models) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptText }] }],
+            generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
+          })
+        }
+      );
+
+      if (response.ok) {
+        const json = await response.json();
+        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          const parsed = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
+          if (parsed.title && parsed.title !== 'Kitap Tam Adı' && parsed.title.length >= 2) {
+            const resolvedCategory = normalizeBookCategory(parsed.category, parsed.title, parsed.summary);
+            return {
+              title: parsed.title,
+              author: (parsed.author || '').replace(/Yazar Adı/i, '').trim(),
+              publisher: (parsed.publisher || '').replace(/Yayınevi Adı/i, '').trim(),
+              total_pages: Number(parsed.total_pages) || 200,
+              category: resolvedCategory,
+              summary: parsed.summary || `Gemini AI araması ile bulundu (ISBN: ${cleanIsbn}).`,
+              cover_url: null,
+              source: 'Gemini AI'
+            };
+          }
+        }
+      }
+    } catch (e) {
+      // Continue to next model
+    }
+  }
+  return null;
+}
+
+// 4. KAYNAK: DuckDuckGo HTML + Türkçe Kitabevleri (Yedek Arama)
 async function fetchFromTurkishBookstores(cleanIsbn: string): Promise<BookSearchResult | null> {
   try {
     const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent('ISBN ' + cleanIsbn)}`;
@@ -118,60 +175,6 @@ async function fetchFromTurkishBookstores(cleanIsbn: string): Promise<BookSearch
     }
   } catch (e) {
     // Ignore DDG errors
-  }
-  return null;
-}
-
-// 4. KAYNAK: Gemini AI Canlı Arama / Grounding
-async function fetchFromGeminiAI(cleanIsbn: string): Promise<BookSearchResult | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
-
-  try {
-    const promptText = `Sen uzman bir kütüphanecisin. ISBN numarası "${cleanIsbn}" olan kitabın tam adını, yazarını, yayınevini, sayfa sayısını, 1 cümlelik özetini ve kitabın gerçek içeriğine/türüne en uygun Türkçe kategorisini (Örn: Psikoloji, Bilim, Tarih, Felsefe, Kişisel Gelişim, Kurgu / Edebiyat, Beden, Zihin & Ruh, İş & Ekonomi, Din, Sosyal Bilimler, Tıp vb.) araştır ve SADECE geçerli bir JSON çıktısı ver:
-{
-  "title": "Kitap Tam Adı",
-  "author": "Yazar Adı",
-  "publisher": "Yayınevi Adı",
-  "total_pages": 250,
-  "category": "Kitabın Gerçek Türkçe Kategorisi",
-  "summary": "Kitap hakkında 1 cümlelik özet."
-}`;
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: promptText }] }],
-          generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
-        })
-      }
-    );
-
-    if (response.ok) {
-      const json = await response.json();
-      const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) {
-        const parsed = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
-        if (parsed.title && parsed.title !== 'Kitap Tam Adı') {
-          const resolvedCategory = normalizeBookCategory(parsed.category, parsed.title, parsed.summary);
-          return {
-            title: parsed.title,
-            author: parsed.author || '',
-            publisher: parsed.publisher || '',
-            total_pages: Number(parsed.total_pages) || 200,
-            category: resolvedCategory,
-            summary: parsed.summary || `Gemini AI araması ile bulundu (ISBN: ${cleanIsbn}).`,
-            cover_url: null,
-            source: 'Gemini AI'
-          };
-        }
-      }
-    }
-  } catch (e) {
-    // Ignore Gemini errors
   }
   return null;
 }
@@ -230,14 +233,14 @@ export async function POST(req: Request) {
       book = await fetchFromOpenLibrary(cleanIsbn);
     }
 
-    // 3. Türkçe Kitabevleri Sorgula
-    if (!book) {
-      book = await fetchFromTurkishBookstores(cleanIsbn);
-    }
-
-    // 4. Gemini AI Sorgula
+    // 3. Gemini AI Canlı Arama Sorgula (Öncelikli Yerli & Yabancı Kitap Künyesi + Kategori + Özet)
     if (!book) {
       book = await fetchFromGeminiAI(cleanIsbn);
+    }
+
+    // 4. Türkçe Kitabevleri / Web Arama Sorgula (Yedek)
+    if (!book) {
+      book = await fetchFromTurkishBookstores(cleanIsbn);
     }
 
     if (book) {
