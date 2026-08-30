@@ -61,8 +61,9 @@ export async function GET() {
     let totalSpentThisMonth = 0;
     let totalBudgetLimit = 0;
     try {
-      const allCats = await db.select().from(categories)
-        .where(familyId ? or(eq(categories.user_id, userId), eq(categories.family_id, familyId)) : eq(categories.user_id, userId));
+      const allCats = familyId
+        ? await db.select().from(categories).where(eq(categories.family_id, familyId))
+        : await db.select().from(categories);
       totalBudgetLimit = allCats.reduce((sum: number, c: any) => sum + (c.monthly_budget_limit || 0), 0);
 
       const txs = await db.select().from(transactions)
