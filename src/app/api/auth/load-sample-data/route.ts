@@ -24,6 +24,7 @@ export async function POST() {
     }
 
     const userId = user.id;
+    const familyId = user.family_id || `fam-${userId}`;
     const now = new Date().toISOString();
     const today = now.split('T')[0];
 
@@ -39,9 +40,11 @@ export async function POST() {
       balance: 45000,
       color: '#3B82F6',
       is_active: 1,
+      is_family_shared: 1,
       created_at: now,
       updated_at: now,
-      user_id: userId
+      user_id: userId,
+      family_id: familyId
     });
 
     await db.insert(walletsAccounts).values({
@@ -55,9 +58,11 @@ export async function POST() {
       due_day: 25,
       color: '#EF4444',
       is_active: 1,
+      is_family_shared: 1,
       created_at: now,
       updated_at: now,
-      user_id: userId
+      user_id: userId,
+      family_id: familyId
     });
 
     // 2. Örnek Kategori Bütçeleri
@@ -83,9 +88,11 @@ export async function POST() {
       notes: 'Aylık net şirket maaşı',
       is_installment: 0,
       is_verified: 1,
+      is_family_shared: 1,
       created_at: now,
       updated_at: now,
-      user_id: userId
+      user_id: userId,
+      family_id: familyId
     });
 
     await db.insert(transactions).values({
@@ -99,9 +106,11 @@ export async function POST() {
       notes: 'Haftalık gıda alışverişi',
       is_installment: 0,
       is_verified: 1,
+      is_family_shared: 1,
       created_at: now,
       updated_at: now,
-      user_id: userId
+      user_id: userId,
+      family_id: familyId
     });
 
     // 4. Örnek Kitap & Alıntı
@@ -123,7 +132,8 @@ export async function POST() {
       is_family_shared: 1,
       created_at: now,
       updated_at: now,
-      user_id: userId
+      user_id: userId,
+      family_id: familyId
     });
 
     await db.insert(bookQuotes).values({
@@ -138,30 +148,54 @@ export async function POST() {
       user_id: userId
     });
 
-    await db.insert(userReadingProfile).values({
-      id: `prof-sample-${Date.now()}`,
-      yearly_target_books: 24,
-      calibrated_avg_wpm: 233,
-      avg_seconds_per_page: 72,
-      created_at: now,
-      updated_at: now,
-      user_id: userId
-    });
+    // 5. Okuma ve Sağlık Profili Güncelle / Ekle
+    const existingReadingProf = await db.select().from(userReadingProfile).where(eq(userReadingProfile.user_id, userId)).limit(1);
+    if (existingReadingProf.length > 0) {
+      await db.update(userReadingProfile).set({
+        yearly_target_books: 24,
+        calibrated_avg_wpm: 233,
+        avg_seconds_per_page: 72,
+        updated_at: now
+      }).where(eq(userReadingProfile.user_id, userId));
+    } else {
+      await db.insert(userReadingProfile).values({
+        id: `rp-${userId}`,
+        yearly_target_books: 24,
+        calibrated_avg_wpm: 233,
+        avg_seconds_per_page: 72,
+        created_at: now,
+        updated_at: now,
+        user_id: userId
+      });
+    }
 
-    // 5. Örnek Sağlık & Su Profili
-    await db.insert(userHealthProfile).values({
-      id: `hp-sample-${Date.now()}`,
-      daily_calorie_target: 2200,
-      target_protein_g: 140,
-      target_carbs_g: 180,
-      target_fat_g: 65,
-      daily_water_target_ml: 2500,
-      consumed_water_ml: 1750,
-      active_fasting_protocol: '16:8',
-      created_at: now,
-      updated_at: now,
-      user_id: userId
-    });
+    const existingHealthProf = await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1);
+    if (existingHealthProf.length > 0) {
+      await db.update(userHealthProfile).set({
+        daily_calorie_target: 2200,
+        target_protein_g: 140,
+        target_carbs_g: 180,
+        target_fat_g: 65,
+        daily_water_target_ml: 2500,
+        consumed_water_ml: 1750,
+        active_fasting_protocol: '16:8',
+        updated_at: now
+      }).where(eq(userHealthProfile.user_id, userId));
+    } else {
+      await db.insert(userHealthProfile).values({
+        id: `hp-${userId}`,
+        daily_calorie_target: 2200,
+        target_protein_g: 140,
+        target_carbs_g: 180,
+        target_fat_g: 65,
+        daily_water_target_ml: 2500,
+        consumed_water_ml: 1750,
+        active_fasting_protocol: '16:8',
+        created_at: now,
+        updated_at: now,
+        user_id: userId
+      });
+    }
 
     return NextResponse.json({
       success: true,

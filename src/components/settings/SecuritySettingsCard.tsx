@@ -74,6 +74,7 @@ export default function SecuritySettingsCard() {
       if (json.success) {
         setStatusMsg({ text: '✅ ' + json.message, type: 'success' });
         fetchSession();
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
       } else {
         setStatusMsg({ text: '❌ ' + json.error, type: 'error' });
       }

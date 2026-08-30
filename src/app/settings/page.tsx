@@ -4,6 +4,7 @@ import SharedLayout from '@/components/layout/SharedLayout';
 import BackupStatusCard from '@/components/settings/BackupStatusCard';
 import SecuritySettingsCard from '@/components/settings/SecuritySettingsCard';
 import FamilyMembersCard from '@/components/settings/FamilyMembersCard';
+import TelegramBotCard from '@/components/settings/TelegramBotCard';
 
 export default function SettingsPage() {
   const [data, setData] = useState<any>(null);
@@ -33,6 +34,12 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchData();
+
+    const handleRefresh = () => {
+      fetchData();
+    };
+    window.addEventListener('singularity-refresh', handleRefresh);
+    return () => window.removeEventListener('singularity-refresh', handleRefresh);
   }, []);
 
   if (loading) {
@@ -64,6 +71,7 @@ export default function SettingsPage() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <SecuritySettingsCard />
+          <TelegramBotCard />
           <div className="card">
             <div className="card-title-row">
               <div className="card-title">

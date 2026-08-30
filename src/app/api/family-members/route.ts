@@ -114,6 +114,12 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     await initDatabase();
+    const user = await getAuthUser();
+    if (!user || !user.id) {
+      return NextResponse.json({ success: false, error: 'Oturum bulunamadı.' }, { status: 401 });
+    }
+
+    const familyId = user.family_id || `fam-${user.id}`;
     const body = await req.json();
     const { id, name, role, relationship_type, avatar, is_active } = body;
 
@@ -132,7 +138,7 @@ export async function PUT(req: Request) {
         is_active: typeof is_active === 'number' ? is_active : 1,
         updated_at: now
       })
-      .where(eq(familyMembers.id, id));
+      .where(and(eq(familyMembers.id, id), eq(familyMembers.family_id, familyId)));
 
     return NextResponse.json({
       success: true,
@@ -147,6 +153,12 @@ export async function PUT(req: Request) {
 export async function DELETE(req: Request) {
   try {
     await initDatabase();
+    const user = await getAuthUser();
+    if (!user || !user.id) {
+      return NextResponse.json({ success: false, error: 'Oturum bulunamadı.' }, { status: 401 });
+    }
+
+    const familyId = user.family_id || `fam-${user.id}`;
     const { searchParams } = new URL(req.url, 'http://localhost');
     const id = searchParams.get('id');
 
@@ -154,11 +166,10 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Üye ID zorunludur.' }, { status: 400 });
     }
 
-    // Soft delete (is_active = 0)
+    // Soft delete (is_active = 0) with family isolation
     await db.update(familyMembers)
       .set({ is_active: 0, updated_at: new Date().toISOString() })
-      .where(eq(familyMembers.id, id))
-      ;
+      .where(and(eq(familyMembers.id, id), eq(familyMembers.family_id, familyId)));
 
     return NextResponse.json({
       success: true,

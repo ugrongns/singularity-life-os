@@ -61,6 +61,12 @@ export default function FamilyMembersCard() {
 
   useEffect(() => {
     fetchMembers();
+
+    const handleRefresh = () => {
+      fetchMembers();
+    };
+    window.addEventListener('singularity-refresh', handleRefresh);
+    return () => window.removeEventListener('singularity-refresh', handleRefresh);
   }, []);
 
   const handleOpenNewModal = () => {
@@ -102,6 +108,7 @@ export default function FamilyMembersCard() {
       if (json.success) {
         setIsModalOpen(false);
         fetchMembers();
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         showToast(json.message || (isEdit ? '✅ Üye güncellendi!' : '🎉 Üye eklendi!'));
       } else {
         alert(json.error || 'İşlem başarısız.');
@@ -121,6 +128,7 @@ export default function FamilyMembersCard() {
       const json = await res.json();
       if (json.success) {
         fetchMembers();
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         showToast('✅ Aile üyesi deaktif edildi.');
       }
     } catch (err) {

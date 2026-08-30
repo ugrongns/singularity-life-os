@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import * as schema from '@/db/schema';
+import { eq, or, and } from 'drizzle-orm';
 import crypto from 'crypto';
 import { getAuthUser } from '@/lib/auth';
 
@@ -39,22 +40,38 @@ const SAFE_EXPORT_TABLES = [
   { name: 'app_settings', table: schema.appSettings },
 ];
 
-async function fetchSafeData() {
+async function fetchSafeData(userId: string, familyId: string) {
   const exportData: Record<string, any[]> = {};
   
-  // 1. Güvenli genel tablolar
+  // 1. Güvenli genel tablolar (Kullanıcı ve Aile İzolasyonlu)
   for (const { name, table } of SAFE_EXPORT_TABLES) {
     try {
-      const rows = await db.select().from(table as any);
-      exportData[name] = rows;
+      const t = table as any;
+      if (t.family_id && t.user_id) {
+        exportData[name] = await db.select().from(t).where(
+          or(eq(t.user_id, userId), eq(t.family_id, familyId))
+        );
+      } else if (t.family_id) {
+        exportData[name] = await db.select().from(t).where(
+          eq(t.family_id, familyId)
+        );
+      } else if (t.user_id) {
+        exportData[name] = await db.select().from(t).where(
+          eq(t.user_id, userId)
+        );
+      } else {
+        exportData[name] = await db.select().from(t);
+      }
     } catch {
       exportData[name] = [];
     }
   }
 
-  // 2. Kullanıcı tablosu: Parola hash ve salt'ları kesinlikle DAHİL ETME!
+  // 2. Kullanıcı tablosu: Yalnızca kendi kullanıcısı veya aile üyeleri (Parola hash ve salt'ları kesinlikle DAHİL ETME!)
   try {
-    const rawUsers = await db.select().from(schema.users);
+    const rawUsers = await db.select().from(schema.users).where(
+      or(eq(schema.users.id, userId), eq(schema.users.family_id, familyId))
+    );
     exportData['users'] = rawUsers.map(u => ({
       id: u.id,
       username: u.username,
@@ -75,14 +92,15 @@ async function fetchSafeData() {
 export async function GET(req: Request) {
   try {
     const user = await getAuthUser();
-    if (!user) {
+    if (!user || !user.id) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
     }
 
+    const familyId = user.family_id || `fam-${user.id}`;
     const { searchParams } = new URL(req.url, 'http://localhost');
     const download = searchParams.get('download');
 
-    const exportData = await fetchSafeData();
+    const exportData = await fetchSafeData(user.id, familyId);
     const totalRecords = Object.values(exportData).reduce((sum, rows) => sum + rows.length, 0);
     const rawJson = JSON.stringify(exportData);
     const sizeKb = Math.round(Buffer.byteLength(rawJson, 'utf8') / 1024);
@@ -140,16 +158,17 @@ export async function GET(req: Request) {
 export async function POST(request: Request) {
   try {
     const user = await getAuthUser();
-    if (!user) {
+    if (!user || !user.id) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
     }
 
+    const familyId = user.family_id || `fam-${user.id}`;
     const body = await request.json().catch(() => ({}));
     const action = body.action || 'export_json';
     const now = new Date();
     const dateStr = now.toISOString().split('T')[0];
 
-    const exportData = await fetchSafeData();
+    const exportData = await fetchSafeData(user.id, familyId);
     const totalRecords = Object.values(exportData).reduce((sum, rows) => sum + rows.length, 0);
     const tablesCount = SAFE_EXPORT_TABLES.length + 1;
     const payloadObject = {
