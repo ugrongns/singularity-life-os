@@ -1,5 +1,5 @@
-// Singularity Life OS — Progressive Web App Service Worker (v1.0)
-const CACHE_NAME = 'singularity-cache-v1';
+// Singularity Life OS — Progressive Web App Service Worker (v2.0)
+const CACHE_NAME = 'singularity-cache-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/budget',
