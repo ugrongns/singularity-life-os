@@ -11,7 +11,7 @@ export default function Header({ notificationSlot }: HeaderProps) {
   return (
     <header className="app-header">
       <div className="brand-badge">
-        <div className="brand-icon">S</div>
+        <div className="brand-icon">∞</div>
         <div>
           <div className="brand-title">Singularity Life OS</div>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Kişisel & Aile Yönetim Merkezi</div>

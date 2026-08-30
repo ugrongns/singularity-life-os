@@ -477,7 +477,7 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
             {/* Drawer Başlık & Kapatma */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div className="brand-icon" style={{ width: '34px', height: '34px', fontSize: '15px' }}>S</div>
+                <div className="brand-icon" style={{ width: '34px', height: '34px', fontSize: '18px' }}>∞</div>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: '15px' }}>Singularity Life OS</div>
                   <div style={{ fontSize: '10px', color: 'var(--emerald)', fontWeight: 700 }}>Tüm Modüller & Menü</div>

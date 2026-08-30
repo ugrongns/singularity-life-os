@@ -190,9 +190,9 @@ export default function LandingPage() {
             width: '42px', height: '42px', borderRadius: '14px',
             background: 'linear-gradient(135deg, #10B981, #059669)',
             color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 900, fontSize: '22px', boxShadow: '0 0 20px rgba(16, 185, 129, 0.4)'
+            fontWeight: 900, fontSize: '26px', boxShadow: '0 0 20px rgba(16, 185, 129, 0.4)'
           }}>
-            S
+            ∞
           </div>
           <div>
             <div style={{ fontWeight: 800, fontSize: '18px', letterSpacing: '-0.5px' }}>Singularity Life OS</div>

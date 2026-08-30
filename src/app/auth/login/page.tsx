@@ -73,10 +73,10 @@ export default function LoginPage() {
             width: '60px', height: '60px', borderRadius: '20px',
             background: 'linear-gradient(135deg, #10B981, #059669)',
             color: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 900, fontSize: '28px', boxShadow: '0 0 30px rgba(16,185,129,0.35)',
+            fontWeight: 900, fontSize: '34px', boxShadow: '0 0 30px rgba(16,185,129,0.35)',
             marginBottom: '16px'
           }}>
-            S
+            ∞
           </div>
 
           <h1 style={{ fontSize: '22px', fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.5px' }}>

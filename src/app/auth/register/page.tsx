@@ -160,10 +160,10 @@ export default function RegisterPage() {
             width: '56px', height: '56px', borderRadius: '18px',
             background: 'linear-gradient(135deg, #10B981, #059669)',
             color: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 900, fontSize: '26px', boxShadow: '0 0 30px rgba(16,185,129,0.35)',
+            fontWeight: 900, fontSize: '32px', boxShadow: '0 0 30px rgba(16,185,129,0.35)',
             marginBottom: '12px'
           }}>
-            S
+            ∞
           </div>
           <h1 style={{ fontSize: '22px', fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.5px' }}>
             Yeni Hesap Oluşturun
