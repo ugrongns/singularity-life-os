@@ -277,7 +277,7 @@ export default function FamilyMembersCard() {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ fontSize: '32px', background: 'white', borderRadius: '50%', width: '46px', height: '46px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ fontSize: '32px', background: 'var(--surface)', borderRadius: '50%', width: '46px', height: '46px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
                   {m.avatar || '👤'}
                 </div>
                 <div>

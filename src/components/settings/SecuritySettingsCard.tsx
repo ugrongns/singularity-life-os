@@ -390,14 +390,16 @@ export default function SecuritySettingsCard() {
       )}
 
       {/* Alt Sekmeler */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
         <button
           type="button"
           onClick={() => { setActiveTab('profile'); setStatusMsg(null); }}
           style={{
-            padding: '6px 12px', fontSize: '12px', fontWeight: 700, borderRadius: 'var(--radius-md)', border: 'none',
-            background: activeTab === 'profile' ? 'var(--text-main)' : 'transparent',
-            color: activeTab === 'profile' ? 'white' : 'var(--text-muted)', cursor: 'pointer'
+            padding: '8px 14px', fontSize: '12px', fontWeight: 700, borderRadius: 'var(--radius-md)',
+            border: activeTab === 'profile' ? '1px solid var(--primary)' : '1px solid var(--border)',
+            background: activeTab === 'profile' ? 'var(--primary)' : 'var(--surface-subtle)',
+            color: activeTab === 'profile' ? '#FFFFFF' : 'var(--text-muted)', cursor: 'pointer',
+            transition: 'all 0.2s ease'
           }}
         >
           👤 Profil Bilgileri
@@ -406,9 +408,11 @@ export default function SecuritySettingsCard() {
           type="button"
           onClick={() => { setActiveTab('password'); setStatusMsg(null); }}
           style={{
-            padding: '6px 12px', fontSize: '12px', fontWeight: 700, borderRadius: 'var(--radius-md)', border: 'none',
-            background: activeTab === 'password' ? 'var(--text-main)' : 'transparent',
-            color: activeTab === 'password' ? 'white' : 'var(--text-muted)', cursor: 'pointer'
+            padding: '8px 14px', fontSize: '12px', fontWeight: 700, borderRadius: 'var(--radius-md)',
+            border: activeTab === 'password' ? '1px solid var(--primary)' : '1px solid var(--border)',
+            background: activeTab === 'password' ? 'var(--primary)' : 'var(--surface-subtle)',
+            color: activeTab === 'password' ? '#FFFFFF' : 'var(--text-muted)', cursor: 'pointer',
+            transition: 'all 0.2s ease'
           }}
         >
           🔑 Master Parola Değiştir
@@ -417,9 +421,11 @@ export default function SecuritySettingsCard() {
           type="button"
           onClick={() => { setActiveTab('pin'); setStatusMsg(null); }}
           style={{
-            padding: '6px 12px', fontSize: '12px', fontWeight: 700, borderRadius: 'var(--radius-md)', border: 'none',
-            background: activeTab === 'pin' ? 'var(--text-main)' : 'transparent',
-            color: activeTab === 'pin' ? 'white' : 'var(--text-muted)', cursor: 'pointer'
+            padding: '8px 14px', fontSize: '12px', fontWeight: 700, borderRadius: 'var(--radius-md)',
+            border: activeTab === 'pin' ? '1px solid var(--primary)' : '1px solid var(--border)',
+            background: activeTab === 'pin' ? 'var(--primary)' : 'var(--surface-subtle)',
+            color: activeTab === 'pin' ? '#FFFFFF' : 'var(--text-muted)', cursor: 'pointer',
+            transition: 'all 0.2s ease'
           }}
         >
           🔢 6 Haneli PIN Değiştir
@@ -429,9 +435,9 @@ export default function SecuritySettingsCard() {
       {statusMsg && (
         <div style={{
           padding: '10px 12px', borderRadius: 'var(--radius-md)', fontSize: '12px', fontWeight: 600, marginBottom: '14px',
-          background: statusMsg.type === 'success' ? '#ECFDF5' : '#FEF2F2',
-          border: `1px solid ${statusMsg.type === 'success' ? '#A7F3D0' : '#FECACA'}`,
-          color: statusMsg.type === 'success' ? '#065F46' : '#991B1B'
+          background: statusMsg.type === 'success' ? 'var(--emerald-bg)' : 'var(--rose-bg)',
+          border: `1px solid ${statusMsg.type === 'success' ? 'var(--emerald)' : 'var(--rose)'}`,
+          color: statusMsg.type === 'success' ? 'var(--emerald)' : 'var(--rose)'
         }}>
           {statusMsg.text}
         </div>
@@ -447,7 +453,7 @@ export default function SecuritySettingsCard() {
               required
               value={fullName}
               onChange={e => setFullName(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             />
           </div>
 
@@ -457,7 +463,7 @@ export default function SecuritySettingsCard() {
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             />
           </div>
 
@@ -472,7 +478,7 @@ export default function SecuritySettingsCard() {
                   style={{
                     width: '36px', height: '36px', borderRadius: '10px', fontSize: '18px',
                     border: avatarEmoji === emo ? '2px solid var(--emerald)' : '1px solid var(--border)',
-                    background: avatarEmoji === emo ? 'var(--emerald-bg)' : 'white',
+                    background: avatarEmoji === emo ? 'var(--emerald-bg)' : 'var(--surface-subtle)',
                     cursor: 'pointer'
                   }}
                 >
@@ -557,8 +563,8 @@ export default function SecuritySettingsCard() {
             />
           </div>
 
-          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 'var(--radius-md)', padding: '12px', textAlign: 'center' }}>
-            <label style={{ fontSize: '11px', fontWeight: 800, color: '#0F172A' }}>🔢 YENİ 6 HANELİ HIZLI PIN *</label>
+          <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px', textAlign: 'center' }}>
+            <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-main)' }}>🔢 YENİ 6 HANELİ HIZLI PIN *</label>
             <input
               type="password"
               maxLength={6}
@@ -569,7 +575,7 @@ export default function SecuritySettingsCard() {
               style={{
                 width: '100%', padding: '10px', fontSize: '20px', letterSpacing: '8px',
                 textAlign: 'center', fontWeight: 800, border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)', marginTop: '6px', background: 'white'
+                borderRadius: 'var(--radius-md)', marginTop: '6px', background: 'var(--surface)', color: 'var(--text-main)'
               }}
             />
             <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>

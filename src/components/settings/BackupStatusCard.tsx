@@ -94,7 +94,7 @@ export default function BackupStatusCard({ last_backup, backup_count, backups, d
           <span>☁️</span>
           <span>Veri Yedekleme & Dışa Aktarma</span>
         </div>
-        <span style={{ fontSize: '11px', background: '#ECFDF5', color: '#059669', padding: '3px 8px', borderRadius: '12px', fontWeight: 700, border: '1px solid #A7F3D0' }}>
+        <span style={{ fontSize: '11px', background: 'var(--emerald-bg)', color: 'var(--emerald)', padding: '3px 8px', borderRadius: '12px', fontWeight: 700, border: '1px solid var(--emerald)' }}>
           ● Supabase Cloud Aktif
         </span>
       </div>
@@ -102,9 +102,9 @@ export default function BackupStatusCard({ last_backup, backup_count, backups, d
       {/* Durum Özeti */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
         {[
-          { label: 'Bulut Veritabanı', value: 'PostgreSQL', icon: '🐘', color: '#2563EB' },
+          { label: 'Bulut Veritabanı', value: 'PostgreSQL', icon: '🐘', color: 'var(--blue)' },
           { label: 'Boyut / Kayıt', value: `${db_size_kb} KB`, icon: '📊', color: 'var(--text-main)' },
-          { label: 'Bulut Koruması', value: '7/24 Kesintisiz', icon: '🛡️', color: '#10B981' },
+          { label: 'Bulut Koruması', value: '7/24 Kesintisiz', icon: '🛡️', color: 'var(--emerald)' },
         ].map((s, i) => (
           <div key={i} style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px', textAlign: 'center' }}>
             <div style={{ fontSize: '18px' }}>{s.icon}</div>
@@ -147,9 +147,9 @@ export default function BackupStatusCard({ last_backup, backup_count, backups, d
 
       {/* AES-256 Şifre Belirleme Modalı */}
       {showEncModal && (
-        <div style={{ background: '#EEF2FF', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: 'var(--radius-md)', padding: '12px', marginBottom: '10px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: '#3730A3', marginBottom: '6px' }}>🔐 AES-256-CBC Şifreli Yedekleme</div>
-          <div style={{ fontSize: '11px', color: '#4338CA', marginBottom: '8px' }}>
+        <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px', marginBottom: '10px' }}>
+          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', marginBottom: '6px' }}>🔐 AES-256-CBC Şifreli Yedekleme</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
             Veritabanınız askeri standartlarda (AES-256) şifrelenecek ve <code>.enc</code> dosyası olarak bilgisayarınıza indirilecektir.
           </div>
           <input
@@ -157,7 +157,7 @@ export default function BackupStatusCard({ last_backup, backup_count, backups, d
             placeholder="Yedekleme Parolası (Opsiyonel)"
             value={passphrase}
             onChange={e => setPassphrase(e.target.value)}
-            style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '6px', marginBottom: '8px', background: 'white' }}
+            style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '6px', marginBottom: '8px', background: 'var(--surface)', color: 'var(--text-main)' }}
           />
           <div style={{ display: 'flex', gap: '6px' }}>
             <button className="btn-subtle" onClick={() => setShowEncModal(false)} style={{ flex: 1, padding: '6px', fontSize: '11px' }}>
@@ -175,7 +175,13 @@ export default function BackupStatusCard({ last_backup, backup_count, backups, d
 
       {/* Sonuç Mesajı */}
       {lastResult && (
-        <div style={{ fontSize: '12px', padding: '8px 12px', background: lastResult.startsWith('✅') || lastResult.startsWith('🔐') ? '#F0FDF4' : '#FEF2F2', borderRadius: '6px', color: lastResult.startsWith('✅') || lastResult.startsWith('🔐') ? '#065F46' : '#991B1B', marginBottom: '8px', border: '1px solid currentColor' }}>
+        <div style={{
+          fontSize: '12px', padding: '8px 12px',
+          background: lastResult.startsWith('✅') || lastResult.startsWith('🔐') ? 'var(--emerald-bg)' : 'var(--rose-bg)',
+          borderRadius: '6px',
+          color: lastResult.startsWith('✅') || lastResult.startsWith('🔐') ? 'var(--emerald)' : 'var(--rose)',
+          marginBottom: '8px', border: `1px solid ${lastResult.startsWith('✅') || lastResult.startsWith('🔐') ? 'var(--emerald)' : 'var(--rose)'}`
+        }}>
           {lastResult}
         </div>
       )}
