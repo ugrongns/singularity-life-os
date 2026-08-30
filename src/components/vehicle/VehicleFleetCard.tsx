@@ -3,20 +3,26 @@ import { useState } from 'react';
 
 interface VehicleFleetCardProps {
   data: any;
+  selectedVehicleId?: string;
+  onSelectVehicle?: (vehicleId: string) => void;
   onOpenHistory?: () => void;
   onOpenFuelModal?: () => void;
   onOpenServiceModal?: () => void;
   onRefresh?: () => void;
   onAddVehicle?: () => void;
+  onToast?: (msg: string) => void;
 }
 
 export default function VehicleFleetCard({
   data,
+  selectedVehicleId,
+  onSelectVehicle,
   onOpenHistory,
   onOpenFuelModal,
   onOpenServiceModal,
   onRefresh,
-  onAddVehicle
+  onAddVehicle,
+  onToast
 }: VehicleFleetCardProps) {
   const [kmInput, setKmInput] = useState('');
   const [updatingKm, setUpdatingKm] = useState(false);
@@ -87,13 +93,13 @@ export default function VehicleFleetCard({
       });
       const json = await res.json();
       if (json.success) {
-        alert(json.message);
+        if (onToast) onToast(json.message);
         setKmInput('');
         if (onRefresh) onRefresh();
-        else window.location.reload();
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
       }
     } catch {
-      alert('KM güncelleme hatası.');
+      if (onToast) onToast('❌ KM güncelleme hatası.');
     } finally {
       setUpdatingKm(false);
     }
@@ -108,10 +114,74 @@ export default function VehicleFleetCard({
         </div>
       </div>
 
+      {/* Çoklu Araç Filo Seçici Tabs */}
+      {data?.vehicles && data.vehicles.length > 1 && (
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '0 0 12px 0', borderBottom: '1px solid var(--border)', marginBottom: '14px' }}>
+          {data.vehicles.map((v: any) => {
+            const isSelected = v.id === vehicle.id;
+            return (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => onSelectVehicle && onSelectVehicle(v.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: 'var(--radius-full)',
+                  border: isSelected ? '2px solid var(--blue)' : '1px solid var(--border)',
+                  background: isSelected ? 'var(--blue-bg)' : 'var(--surface-subtle)',
+                  color: isSelected ? 'var(--blue)' : 'var(--text-main)',
+                  fontWeight: isSelected ? 800 : 600,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <span>🚗</span>
+                <span>{v.plate} ({v.make} {v.model})</span>
+              </button>
+            );
+          })}
+          {onAddVehicle && (
+            <button
+              type="button"
+              onClick={onAddVehicle}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-full)',
+                border: '1px dashed var(--border)',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              ＋ Yeni Araç
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="card-action-bar">
         <button className="btn-subtle" style={{ fontSize: '12px', padding: '6px 12px' }} onClick={onOpenHistory}>
           📜 Servis Geçmişi & Kayıtlar
         </button>
+        {(!data?.vehicles || data.vehicles.length <= 1) && onAddVehicle && (
+          <button
+            onClick={onAddVehicle}
+            style={{
+              padding: '6px 12px', borderRadius: 'var(--radius-full)',
+              border: '1px solid var(--border)', background: 'var(--surface-subtle)',
+              color: 'var(--text-main)', fontSize: '12px', fontWeight: 700, cursor: 'pointer'
+            }}
+          >
+            ＋ Garaja Araç Ekle
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>

@@ -58,6 +58,7 @@ export default function AddVehicleServiceModal({
 
       const json = await res.json();
       if (json.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         onSuccess(json.message || '🔧 Servis kaydı oluşturuldu!');
         onClose();
       } else {

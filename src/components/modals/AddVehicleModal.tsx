@@ -46,6 +46,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
       });
       const j = await res.json();
       if (j.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         setForm({ plate: '', make: '', model: '', year: String(new Date().getFullYear()), current_km: '', fuel_type: 'Benzin', color: '#3B82F6' });
         onSuccess();
         onClose();

@@ -4,11 +4,14 @@ import { vehicles, vehicleMaintenanceRecords, vehicleFuelLogs, vehicleLegalRemin
 import { desc, eq, lte, and , or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await initDatabase();
     const user = await getAuthUser();
     const userId = user?.id;
+
+    const { searchParams } = new URL(req.url, 'http://localhost');
+    const requestedVehicleId = searchParams.get('vehicle_id');
 
     const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
     const allVehicles = userId
@@ -30,13 +33,14 @@ export async function GET() {
           maintenance: null,
           recentFuels: [],
           legalReminders: [],
+          wallets,
           consumption: { avgLitersPer100Km: 0, avgCostPerKm: 0 }
         }
       });
     }
 
     const activeVehicles = allVehicles;
-    const primaryVehicle = activeVehicles[0];
+    const primaryVehicle = (requestedVehicleId ? activeVehicles.find(v => v.id === requestedVehicleId) : null) || activeVehicles[0];
     const currentKm = primaryVehicle.current_km;
 
     // Güncel KM'den küçük veya eşit en son tamamlanan periyodik bakım
@@ -259,27 +263,37 @@ export async function POST(req: Request) {
       if (walletId) {
         const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).limit(1))[0];
         if (wallet) {
+          const newBalance = wallet.type === 'credit_card'
+            ? (wallet.balance || 0) + totalAmount // Kredi kartı borcu artar
+            : Math.max(0, (wallet.balance || 0) - totalAmount); // Banka bakiyesi düşer
+
           await db.update(walletsAccounts).set({
-            balance: (wallet.balance || 0) - totalAmount,
+            balance: newBalance,
             updated_at: now
           }).where(eq(walletsAccounts.id, walletId));
 
+          const familyId = user.family_id || `fam-${user.id}`;
           await db.insert(transactions).values({
             id: `tx-fuel-${Date.now()}`,
             wallet_id: walletId,
+            user_id: user.id,
+            family_id: familyId,
             merchant: `${fuelStation} - Yakıt Alımı`,
             amount: totalAmount,
             currency: 'TRY',
             transaction_date: data.fuel_date || today,
             notes: `Yakıt alımı: ${liters} Litre @ ${pricePerLiter} TL/L (${km} KM)`,
             is_verified: 1,
+            is_family_shared: 1,
             created_at: now,
-            updated_at: now
+            updated_at: now,
+            sync_status: 'synced',
+            device_id: 'web-client'
           });
         }
       }
 
-      return NextResponse.json({ success: true, message: `⛽ ₺${totalAmount} tutarındaki yakıt alımı kaydedildi!` });
+      return NextResponse.json({ success: true, message: `⛽ ₺${totalAmount.toLocaleString('tr-TR')} tutarındaki yakıt alımı kaydedildi!` });
     }
 
     // Servis Bakım Kaydı Ekleme
@@ -315,18 +329,29 @@ export async function POST(req: Request) {
       if (data.wallet_id && cost > 0) {
         const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, data.wallet_id)))[0];
         if (wallet) {
-          await db.update(walletsAccounts).set({ balance: (wallet.balance || 0) - cost, updated_at: now }).where(eq(walletsAccounts.id, data.wallet_id));
+          const newBalance = wallet.type === 'credit_card'
+            ? (wallet.balance || 0) + cost // Kredi kartı borcu artar
+            : Math.max(0, (wallet.balance || 0) - cost); // Banka bakiyesi düşer
+
+          await db.update(walletsAccounts).set({ balance: newBalance, updated_at: now }).where(eq(walletsAccounts.id, data.wallet_id));
+          
+          const familyId = user.family_id || `fam-${user.id}`;
           await db.insert(transactions).values({
             id: `tx-srv-${Date.now()}`,
             wallet_id: data.wallet_id,
+            user_id: user.id,
+            family_id: familyId,
             merchant: `${data.service_provider || 'Oto Servis'} Bakımı`,
             amount: cost,
             currency: 'TRY',
             transaction_date: data.service_date || today,
             notes: `Araç Servis Bakımı: ${data.description}`,
             is_verified: 1,
+            is_family_shared: 1,
             created_at: now,
-            updated_at: now
+            updated_at: now,
+            sync_status: 'synced',
+            device_id: 'web-client'
           });
         }
       }

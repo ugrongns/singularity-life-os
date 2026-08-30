@@ -32,13 +32,15 @@ interface Props {
   appliances: HomeAppliance[];
   onOpenAddModal: () => void;
   onRefresh: () => void;
+  onToast?: (msg: string) => void;
 }
 
 export default function HomeOperationsCard({
   maintenanceRecords,
   appliances,
   onOpenAddModal,
-  onRefresh
+  onRefresh,
+  onToast
 }: Props) {
   const [activeTab, setActiveTab] = useState<'maintenance' | 'appliances'>('maintenance');
 
@@ -51,25 +53,29 @@ export default function HomeOperationsCard({
       });
       const json = await res.json();
       if (json.success) {
-        alert(json.message || '🚰 Bakım yenilendi!');
+        if (onToast) onToast(json.message || '🚰 Bakım yenilendi ve yeni periyot başlatıldı!');
         onRefresh();
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
       }
     } catch {
-      alert('İşlem hatası.');
+      if (onToast) onToast('❌ Bakım yenileme hatası.');
     }
   };
 
   const handleDeleteAppliance = async (id: string) => {
     if (!confirm('Bu cihaz kaydını silmek istediğinize emin misiniz?')) return;
     try {
-      await fetch('/api/home-operations', {
+      const res = await fetch('/api/home-operations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete_appliance', id })
       });
+      const json = await res.json();
+      if (onToast) onToast(json.message || 'Cihaz kaydı silindi.');
       onRefresh();
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
     } catch {
-      alert('Silme hatası.');
+      if (onToast) onToast('❌ Silme hatası.');
     }
   };
 

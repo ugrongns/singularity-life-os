@@ -13,6 +13,7 @@ export default function VehiclesPage() {
   const [vehicleData, setVehicleData] = useState<any>(null);
   const [homeData, setHomeData] = useState<any>(null);
   const [notifData, setNotifData] = useState<any>({ notifications: [], critical: 0, warning: 0 });
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
@@ -28,10 +29,13 @@ export default function VehiclesPage() {
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  const fetchData = async () => {
+  const fetchData = async (vehId?: string | null) => {
     try {
+      const activeVehId = vehId !== undefined ? vehId : selectedVehicleId;
+      const vehUrl = activeVehId ? `/api/vehicles?vehicle_id=${activeVehId}` : '/api/vehicles';
+
       const [vehRes, homeRes, notifRes] = await Promise.all([
-        fetch('/api/vehicles'),
+        fetch(vehUrl),
         fetch('/api/home-operations'),
         fetch('/api/notifications')
       ]);
@@ -42,7 +46,12 @@ export default function VehiclesPage() {
         notifRes.json()
       ]);
 
-      if (vehJ.success) setVehicleData(vehJ.data);
+      if (vehJ.success) {
+        setVehicleData(vehJ.data);
+        if (vehJ.data?.vehicle?.id && !selectedVehicleId) {
+          setSelectedVehicleId(vehJ.data.vehicle.id);
+        }
+      }
       if (homeJ.success) setHomeData(homeJ.data);
       if (notifJ.success) setNotifData(notifJ.data);
     } catch (err) {
@@ -54,7 +63,18 @@ export default function VehiclesPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+
+    const handleRefresh = () => {
+      fetchData();
+    };
+    window.addEventListener('singularity-refresh', handleRefresh);
+    return () => window.removeEventListener('singularity-refresh', handleRefresh);
+  }, [selectedVehicleId]);
+
+  const handleSelectVehicle = (vehId: string) => {
+    setSelectedVehicleId(vehId);
+    fetchData(vehId);
+  };
 
   const handleSuccess = (msg?: string) => {
     fetchData();
@@ -72,7 +92,7 @@ export default function VehiclesPage() {
   return (
     <SharedLayout notifications={notifData}>
       {toastMsg && (
-        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--text-main)', color: 'white', padding: '10px 20px', borderRadius: 'var(--radius-full)', fontSize: '13px', zIndex: 999 }}>
+        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--text-main)', color: 'white', padding: '10px 20px', borderRadius: 'var(--radius-full)', fontSize: '13px', zIndex: 999, boxShadow: 'var(--shadow-lg)' }}>
           {toastMsg}
         </div>
       )}
@@ -89,11 +109,14 @@ export default function VehiclesPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <VehicleFleetCard
             data={vehicleData || { vehicles: [], maintenanceRecords: [] }}
+            selectedVehicleId={selectedVehicleId || undefined}
+            onSelectVehicle={handleSelectVehicle}
             onOpenHistory={() => setIsMaintHistOpen(true)}
             onOpenFuelModal={() => setIsFuelModalOpen(true)}
             onOpenServiceModal={() => setIsServiceModalOpen(true)}
-            onRefresh={fetchData}
+            onRefresh={() => fetchData()}
             onAddVehicle={() => setIsAddVehicleOpen(true)}
+            onToast={showToast}
           />
         </div>
 
@@ -103,7 +126,8 @@ export default function VehiclesPage() {
             maintenanceRecords={homeData?.maintenanceRecords || []}
             appliances={homeData?.appliances || []}
             onOpenAddModal={() => setIsHomeModalOpen(true)}
-            onRefresh={fetchData}
+            onRefresh={() => fetchData()}
+            onToast={showToast}
           />
         </div>
       </div>
