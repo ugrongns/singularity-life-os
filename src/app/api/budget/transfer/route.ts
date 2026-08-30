@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { walletsAccounts, transactions } from '@/db/schema';
-import { eq , or } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { eventBus, EVENTS } from '@/lib/events';
 import { getAuthUser } from '@/lib/auth';
 
@@ -70,17 +70,25 @@ export async function POST(req: Request) {
       : `🔄 Transfer: ${fromAcc.name} ➔ ${toAcc.name}`;
 
     const txId = `tx-transfer-${Date.now()}`;
+    const familyId = user.family_id || fromAcc.family_id || `fam-${user.id}`;
+
     await db.insert(transactions).values({
       id: txId,
       wallet_id: from_account_id,
+      user_id: user.id,
+      family_id: familyId,
       merchant: txMerchant,
       amount: numAmount,
       currency: fromAcc.currency || 'TRY',
       transaction_date: txDate,
       is_installment: 0,
       notes: note ? note.trim() : (isCardPayment ? `${toAcc.name} borç ödemesi` : `Hesaplar arası transfer`),
+      is_family_shared: 1,
+      is_verified: 1,
       created_at: now,
-      updated_at: now
+      updated_at: now,
+      sync_status: 'synced',
+      device_id: 'web-client'
     });
 
     // 4. Event Bus Bildirimi

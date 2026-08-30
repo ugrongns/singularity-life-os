@@ -122,10 +122,12 @@ export async function POST(req: Request) {
     const nowDate = now.split('T')[0];
     const newId = `debt-${Date.now()}`;
     const origTL = calcCurrentTLValue(index_type || 'TRY', Number(index_amount));
+    const familyId = user.family_id || `fam-${user.id}`;
 
     await db.insert(personalDebtsReceivables).values({
       id: newId,
       user_id: user.id,
+      family_id: familyId,
       type,
       person_name: person_name.trim(),
       description: description?.trim() || null,
@@ -158,6 +160,8 @@ export async function POST(req: Request) {
         await db.insert(transactions).values({
           id: `tx-${newId}`,
           wallet_id: connected_wallet_id,
+          user_id: user.id,
+          family_id: familyId,
           merchant: `${icon}: ${person_name.trim()}`,
           amount: origTL,
           currency: 'TRY',
@@ -171,7 +175,7 @@ export async function POST(req: Request) {
           created_at: now,
           updated_at: now,
           sync_status: 'synced',
-          device_id: 'mac-local'
+          device_id: 'web-client'
         });
       }
     }
@@ -234,9 +238,12 @@ export async function PATCH(req: Request) {
           ;
 
         const icon = record.type === 'debt' ? '🤝 Şahıs Borcu Ödendi' : '🤝 Şahıs Alacağı Tahsil Edildi';
+        const familyId = user.family_id || record.family_id || `fam-${user.id}`;
         await db.insert(transactions).values({
           id: `tx-pay-${Date.now()}`,
           wallet_id: record.connected_wallet_id,
+          user_id: user.id,
+          family_id: familyId,
           merchant: `${icon}: ${record.person_name}`,
           amount: payAmt,
           currency: 'TRY',
@@ -250,7 +257,7 @@ export async function PATCH(req: Request) {
           created_at: now,
           updated_at: now,
           sync_status: 'synced',
-          device_id: 'mac-local'
+          device_id: 'web-client'
         });
       }
     }
