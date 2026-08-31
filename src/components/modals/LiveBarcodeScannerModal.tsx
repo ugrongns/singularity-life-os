@@ -28,18 +28,18 @@ export default function LiveBarcodeScannerModal({
   const playBeep = () => {
     try {
       if (typeof window !== 'undefined' && 'navigator' in window && navigator.vibrate) {
-        navigator.vibrate(100);
+        navigator.vibrate(120);
       }
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(880, ctx.currentTime);
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start();
-      osc.stop(ctx.currentTime + 0.12);
+      osc.stop(ctx.currentTime + 0.14);
     } catch (e) {
       // Audio context fallthrough
     }
@@ -68,7 +68,7 @@ export default function LiveBarcodeScannerModal({
     onDetected(code.trim());
   };
 
-  // Fotoğraftan Barkod Okuma (HTTP ve tüm mobil tarayıcılarda %100 çalışır)
+  // Fotoğraftan / Kapaktan Barkod Okuma (İkincil yedek)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -83,7 +83,7 @@ export default function LiveBarcodeScannerModal({
         const img = new Image();
         img.onload = async () => {
           try {
-            // 1. Native BarcodeDetector (Chrome/Android instant scan)
+            // 1. Native BarcodeDetector (Chrome/Android)
             if ('BarcodeDetector' in window) {
               try {
                 const detector = new (window as any).BarcodeDetector({
@@ -115,7 +115,7 @@ export default function LiveBarcodeScannerModal({
             }
           } catch (scanErr) {
             console.warn('Barkod algılanamadı:', scanErr);
-            setErrorMsg('Fotoğrafta barkod okunamadı. Lütfen barkodun net ve düz göründüğü bir fotoğraf çekin veya ISBN numarasını elle girin.');
+            setErrorMsg('Görselde barkod okunamadı. Lütfen barkodu kameraya daha net tutun veya ISBN numarasını elle girin.');
           } finally {
             setIsProcessingImage(false);
           }
@@ -125,7 +125,92 @@ export default function LiveBarcodeScannerModal({
       reader.readAsDataURL(file);
     } catch (err) {
       setIsProcessingImage(false);
-      setErrorMsg('Fotoğraf işlenirken bir sorun oluştu.');
+      setErrorMsg('Görsel işlenirken bir sorun oluştu.');
+    }
+  };
+
+  const startScanner = async () => {
+    setErrorMsg(null);
+    setIsScanning(true);
+
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setErrorMsg('Tarayıcı güvenlik kuralları gereği canlı kamera yayını HTTPS veya localhost gerektirir. Telefondan bağlanırken lütfen https:// adresini kullanın veya kameraya izin verin.');
+      setIsScanning(false);
+      return;
+    }
+
+    const hints = new Map();
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+      BarcodeFormat.EAN_13,
+      BarcodeFormat.EAN_8,
+      BarcodeFormat.CODE_128,
+      BarcodeFormat.UPC_A
+    ]);
+
+    const reader = new BrowserMultiFormatReader(hints);
+    readerRef.current = reader;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        await videoRef.current.play();
+
+        // 1. Native BarcodeDetector (Chrome/Android anlık lazer tarama)
+        if ('BarcodeDetector' in window) {
+          try {
+            const detector = new (window as any).BarcodeDetector({
+              formats: ['ean_13', 'ean_8', 'code_128', 'upc_a']
+            });
+            const scanFrame = async () => {
+              if (!videoRef.current) return;
+              try {
+                const barcodes = await detector.detect(videoRef.current);
+                if (barcodes && barcodes.length > 0) {
+                  const rawVal = barcodes[0].rawValue;
+                  if (rawVal && rawVal.length >= 9) {
+                    handleDetectedCode(rawVal);
+                    return;
+                  }
+                }
+              } catch (e) {}
+              requestAnimationFrame(scanFrame);
+            };
+            requestAnimationFrame(scanFrame);
+            return;
+          } catch (e) {
+            // Fallback to ZXing
+          }
+        }
+
+        // 2. ZXing Browser Stream Loop
+        reader.decodeFromStream(stream, videoRef.current, (result) => {
+          if (result) {
+            const text = result.getText();
+            if (text && text.length >= 9) {
+              handleDetectedCode(text);
+            }
+          }
+        });
+      }
+    } catch (err: any) {
+      console.error('Camera Access Error:', err);
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setErrorMsg('Kamera izni reddedildi. Canlı tarama yapabilmek için lütfen tarayıcınızın adres çubuğundaki kilit/ayar simgesinden kamera iznini onaylayın.');
+      } else {
+        setErrorMsg('Kameraya erişilemedi. Lütfen kamera izinlerinizi kontrol edin veya HTTPS bağlantısı kullandığınızdan emin olun.');
+      }
+      setIsScanning(false);
     }
   };
 
@@ -138,101 +223,9 @@ export default function LiveBarcodeScannerModal({
       return;
     }
 
-    let isSubscribed = true;
-
-    const startScanner = async () => {
-      setErrorMsg(null);
-
-      // Tarayıcı ve Protokol Kontrolü (HTTP üzerinde navigator.mediaDevices undefined olur)
-      if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setErrorMsg('Tarayıcı güvenlik kuralları gereği canlı video yayını yalnızca HTTPS veya localhost üzerinde çalışır. Yerel IP (192.168.x.x) üzerinden kullanırken aşağıdaki "Fotoğraf Çek / Yükle" butonunu kullanabilirsiniz.');
-        setIsScanning(false);
-        return;
-      }
-
-      setIsScanning(true);
-
-      const hints = new Map();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-        BarcodeFormat.EAN_13,
-        BarcodeFormat.EAN_8,
-        BarcodeFormat.CODE_128,
-        BarcodeFormat.UPC_A
-      ]);
-
-      const reader = new BrowserMultiFormatReader(hints);
-      readerRef.current = reader;
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        });
-
-        if (!isSubscribed) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-
-        streamRef.current = stream;
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.setAttribute('playsinline', 'true');
-          await videoRef.current.play();
-
-          // 1. Native BarcodeDetector (Chrome/Android instant scan)
-          if ('BarcodeDetector' in window) {
-            try {
-              const detector = new (window as any).BarcodeDetector({
-                formats: ['ean_13', 'ean_8', 'code_128', 'upc_a']
-              });
-              const scanFrame = async () => {
-                if (!isSubscribed || !videoRef.current) return;
-                try {
-                  const barcodes = await detector.detect(videoRef.current);
-                  if (barcodes && barcodes.length > 0) {
-                    const rawVal = barcodes[0].rawValue;
-                    if (rawVal && rawVal.length >= 9) {
-                      handleDetectedCode(rawVal);
-                      return;
-                    }
-                  }
-                } catch (e) {}
-                if (isSubscribed) requestAnimationFrame(scanFrame);
-              };
-              requestAnimationFrame(scanFrame);
-              return;
-            } catch (e) {
-              // Fallback to ZXing
-            }
-          }
-
-          // 2. ZXing Browser Stream Scan Loop
-          reader.decodeFromStream(stream, videoRef.current, (result) => {
-            if (result && isSubscribed) {
-              const text = result.getText();
-              if (text && text.length >= 9) {
-                handleDetectedCode(text);
-              }
-            }
-          });
-        }
-      } catch (err: any) {
-        if (!isSubscribed) return;
-        console.error('Camera Access Error:', err);
-        setErrorMsg('Kamera başlatılamadı. Lütfen kamera izinlerini kontrol edin veya fotoğraf çekme seçeneğini kullanın.');
-        setIsScanning(false);
-      }
-    };
-
     startScanner();
 
     return () => {
-      isSubscribed = false;
       stopCamera();
     };
   }, [isOpen]);
@@ -242,10 +235,10 @@ export default function LiveBarcodeScannerModal({
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 2000,
-      background: 'rgba(0, 0, 0, 0.92)', backdropFilter: 'blur(8px)', display: 'flex', flexDirection: 'column',
+      background: 'rgba(0, 0, 0, 0.95)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'space-between', padding: '16px'
     }}>
-      {/* Gizli Kamera/Fotoğraf Girişi */}
+      {/* Gizli Fotoğraf Girişi (Barkod bulunamadığında veya kapak için) */}
       <input
         ref={fileInputRef}
         type="file"
@@ -262,7 +255,7 @@ export default function LiveBarcodeScannerModal({
         paddingTop: '8px'
       }}>
         <div style={{ color: '#FFFFFF', fontSize: '17px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '22px' }}>📷</span> ISBN Barkod Tarayıcı
+          <span style={{ fontSize: '22px' }}>📷</span> Canlı Barkod & ISBN Tarayıcı
         </div>
         <button
           onClick={() => {
@@ -271,125 +264,147 @@ export default function LiveBarcodeScannerModal({
           }}
           style={{
             background: 'rgba(255, 255, 255, 0.15)', border: 'none', color: '#FFFFFF',
-            width: '36px', height: '36px', borderRadius: '50%', cursor: 'pointer',
-            fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+            width: '38px', height: '38px', borderRadius: '50%', cursor: 'pointer',
+            fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}
         >
           ✕
         </button>
       </div>
 
-      {/* Orta Alan: Kamera veya Hata / Fotoğraf Alanı */}
+      {/* Ana Kamera Görünümü & Lazer Çerçevesi */}
       <div style={{
-        position: 'relative', width: '100%', maxWidth: '440px', minHeight: '300px', maxHeight: '380px',
-        borderRadius: '24px', overflow: 'hidden', border: '1.5px solid rgba(255, 255, 255, 0.15)',
-        background: '#0F172A', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)'
+        position: 'relative', width: '100%', maxWidth: '460px', height: '360px',
+        borderRadius: '24px', overflow: 'hidden', border: '2px solid rgba(16, 185, 129, 0.4)',
+        background: '#090D16', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8)'
       }}>
-        {isScanning ? (
-          <>
-            <video
-              ref={videoRef}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              muted
-              playsInline
-            />
+        <video
+          ref={videoRef}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          muted
+          playsInline
+        />
 
-            {/* Hedef Çerçeve & Lazer */}
-            <div style={{
-              position: 'absolute', width: '260px', height: '150px',
-              border: '2px dashed #10B981', borderRadius: '16px',
-              boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              pointerEvents: 'none'
-            }}>
-              <div style={{
-                width: '100%', height: '2px', background: '#10B981',
-                boxShadow: '0 0 10px #10B981', animation: 'scan 2s infinite ease-in-out'
-              }} />
-            </div>
-          </>
-        ) : isProcessingImage ? (
-          <div style={{ padding: '32px', textAlign: 'center', color: '#FFFFFF' }}>
-            <div style={{ fontSize: '36px', marginBottom: '12px' }} className="loading-pulse">🔍</div>
-            <div style={{ fontSize: '15px', fontWeight: 600 }}>Barkod Çözümleniyor...</div>
-            <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '4px' }}>Fotoğraf taranıyor, lütfen bekleyin</div>
-          </div>
-        ) : (
-          /* Kamera Çalışmadığında veya HTTP Ortamında Kullanıcı Dostu Panel */
+        {/* Canlı Lazer Tarama Kutusu */}
+        {isScanning && !errorMsg && (
           <div style={{
-            padding: '24px 20px', color: '#FFFFFF', textAlign: 'center',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '14px',
-            width: '100%'
+            position: 'absolute', width: '280px', height: '160px',
+            border: '2px dashed #10B981', borderRadius: '16px',
+            boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.65)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            pointerEvents: 'none'
           }}>
+            {/* Lazer Işığı */}
             <div style={{
-              width: '56px', height: '56px', borderRadius: '16px',
-              background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px'
-            }}>
-              📸
+              width: '100%', height: '3px', background: '#10B981',
+              boxShadow: '0 0 12px #10B981, 0 0 4px #FFFFFF',
+              animation: 'laserScan 2s infinite ease-in-out'
+            }} />
+          </div>
+        )}
+
+        {/* Görsel İşlenirken Loading Durumu */}
+        {isProcessingImage && (
+          <div style={{
+            position: 'absolute', inset: 0, background: 'rgba(9, 13, 22, 0.85)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            gap: '12px', zIndex: 5
+          }}>
+            <div style={{ fontSize: '36px' }} className="loading-pulse">🔍</div>
+            <div style={{ fontSize: '15px', fontWeight: 600, color: '#FFFFFF' }}>Barkod Taranıyor...</div>
+          </div>
+        )}
+
+        {/* Kamera İzni / Başlatma Hatası Durumunda Yardımcı Panel */}
+        {errorMsg && (
+          <div style={{
+            position: 'absolute', inset: '16px', background: 'rgba(15, 23, 42, 0.95)',
+            borderRadius: '18px', padding: '20px', color: '#FFFFFF', textAlign: 'center',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            gap: '12px', border: '1px solid rgba(239, 68, 68, 0.3)', zIndex: 10
+          }}>
+            <span style={{ fontSize: '32px' }}>📷</span>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: '#FCA5A5', lineHeight: 1.4 }}>
+              {errorMsg}
             </div>
-
-            {errorMsg ? (
-              <div style={{
-                fontSize: '12px', color: '#FCA5A5', background: 'rgba(239, 68, 68, 0.12)',
-                padding: '10px 14px', borderRadius: '12px', lineHeight: 1.4, maxWidth: '360px'
-              }}>
-                {errorMsg}
-              </div>
-            ) : (
-              <div style={{ fontSize: '13px', color: '#94A3B8' }}>
-                Kitap barkodunun fotoğrafını çekerek veya galeriden yükleyerek hemen tarayabilirsiniz.
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                background: 'linear-gradient(135deg, #10B981, #059669)',
-                color: '#FFFFFF', border: 'none', padding: '12px 24px',
-                borderRadius: '12px', fontWeight: 700, fontSize: '14px',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)', width: '80%', maxWidth: '280px',
-                justifyContent: 'center'
-              }}
-            >
-              📷 Fotoğraf Çek / Yükle
-            </button>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+              <button
+                type="button"
+                onClick={startScanner}
+                style={{
+                  background: '#10B981', color: '#FFFFFF', border: 'none',
+                  padding: '8px 16px', borderRadius: '8px', fontWeight: 600, fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                🔄 Tekrar Dene
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.15)', color: '#FFFFFF', border: 'none',
+                  padding: '8px 14px', borderRadius: '8px', fontWeight: 600, fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                🖼️ Fotoğraf Seç
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Alt Aksiyonlar & Elle Giriş Seçeneği */}
+      {/* Alt Bilgi & İkincil Butonlar */}
       <div style={{
-        width: '100%', maxWidth: '440px', display: 'flex', flexDirection: 'column',
-        gap: '10px', zIndex: 10, paddingBottom: '12px'
+        width: '100%', maxWidth: '460px', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', gap: '10px', zIndex: 10, paddingBottom: '12px'
       }}>
-        {/* Canlı kamera açıksa hızlı fotoğraf butonu da göster */}
-        {isScanning && (
+        {isScanning && !errorMsg ? (
+          <p style={{ margin: 0, color: '#10B981', fontSize: '13px', fontWeight: 600, textAlign: 'center' }}>
+            ✨ Kitap arkasındaki barkodu yeşil lazer çizgisine hizalayın
+          </p>
+        ) : null}
+
+        {/* İkincil Seçenekler (Fotoğraf / Kapak Yükleme & Elle Giriş) */}
+        <div style={{ display: 'flex', gap: '10px', width: '100%', justifyContent: 'center' }}>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             style={{
-              background: 'rgba(255, 255, 255, 0.1)', color: '#E2E8F0', border: '1px solid rgba(255, 255, 255, 0.2)',
-              padding: '10px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 600,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+              background: 'rgba(255, 255, 255, 0.08)', color: '#CBD5E1',
+              border: '1px solid rgba(255, 255, 255, 0.15)', padding: '9px 16px',
+              borderRadius: '12px', fontSize: '13px', fontWeight: 500,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
             }}
           >
-            🖼️ Galeriden veya Fotoğraftan Tara
+            🖼️ Kapak / Fotoğraf Yükle
           </button>
-        )}
 
-        {/* Elle ISBN Giriş Alanı */}
-        {showManualInput ? (
+          <button
+            type="button"
+            onClick={() => setShowManualInput(!showManualInput)}
+            style={{
+              background: 'rgba(255, 255, 255, 0.08)', color: '#CBD5E1',
+              border: '1px solid rgba(255, 255, 255, 0.15)', padding: '9px 16px',
+              borderRadius: '12px', fontSize: '13px', fontWeight: 500,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+            }}
+          >
+            ✍️ Elle ISBN Gir
+          </button>
+        </div>
+
+        {/* Elle ISBN Giriş Kutusu (Açıldığında) */}
+        {showManualInput && (
           <div style={{
-            background: '#1E293B', padding: '12px', borderRadius: '14px',
+            width: '100%', background: '#1E293B', padding: '10px', borderRadius: '14px',
             border: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', gap: '8px'
           }}>
             <input
               type="text"
-              placeholder="ISBN (örn: 978605...)"
+              placeholder="978605..."
               value={manualIsbn}
               onChange={(e) => setManualIsbn(e.target.value)}
               style={{
@@ -419,26 +434,14 @@ export default function LiveBarcodeScannerModal({
               Sorgula
             </button>
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowManualInput(true)}
-            style={{
-              background: 'transparent', color: '#94A3B8', border: 'none',
-              padding: '8px', fontSize: '13px', cursor: 'pointer',
-              textDecoration: 'underline', textAlign: 'center'
-            }}
-          >
-            ✍️ ISBN Numarasını Elle Girmek İstiyorum
-          </button>
         )}
       </div>
 
       <style jsx>{`
-        @keyframes scan {
-          0% { transform: translateY(-65px); opacity: 0.3; }
-          50% { transform: translateY(65px); opacity: 1; }
-          100% { transform: translateY(-65px); opacity: 0.3; }
+        @keyframes laserScan {
+          0% { transform: translateY(-70px); opacity: 0.4; }
+          50% { transform: translateY(70px); opacity: 1; }
+          100% { transform: translateY(-70px); opacity: 0.4; }
         }
       `}</style>
     </div>
