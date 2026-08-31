@@ -46,23 +46,51 @@ export default function HomePage() {
   const fetchData = async () => {
     try {
       setFetchError(null);
-      const res = await fetch('/api/dashboard/composite');
-      const j = await res.json();
-      if (j.success && j.data) {
-        const d = j.data;
-        if (d.session)     setSession(d.session);
-        if (d.budget)      setBudgetData(d.budget);
-        if (d.vehicles)    setVehicleData(d.vehicles);
-        if (d.library)     setLibraryData(d.library);
-        if (d.fasting)     setFastingData(d.fasting);
-        if (d.wellness)    setWellnessData(d.wellness);
-        if (d.shopping)    setShoppingData(d.shopping);
-        if (d.notifications) setNotifData(d.notifications);
-      } else {
-        setFetchError(j.error || 'Veriler alınamadı.');
+      const sessionRes = await fetch('/api/auth/session');
+      const sessionJson = await sessionRes.json();
+
+      if (!sessionJson.success || !sessionJson.data?.is_authenticated) {
+        setSession({
+          is_authenticated: false,
+          is_initialized: sessionJson.data?.is_initialized ?? true,
+          user: null
+        });
+        setLoading(false);
+        return;
       }
+
+      setSession(sessionJson.data);
+
+      // Oturum açık ise modül verilerini istemciden paralel çek
+      const [
+        budgetRes,
+        vehicleRes,
+        libraryRes,
+        fastingRes,
+        wellnessRes,
+        shoppingRes,
+        notifRes
+      ] = await Promise.allSettled([
+        fetch('/api/budget').then(r => r.json()),
+        fetch('/api/vehicles').then(r => r.json()),
+        fetch('/api/library').then(r => r.json()),
+        fetch('/api/health/fasting').then(r => r.json()),
+        fetch('/api/wellness').then(r => r.json()),
+        fetch('/api/shopping-list').then(r => r.json()),
+        fetch('/api/notifications').then(r => r.json()),
+      ]);
+
+      const getVal = (res: PromiseSettledResult<any>) => (res.status === 'fulfilled' && res.value?.success) ? res.value.data : null;
+
+      setBudgetData(getVal(budgetRes));
+      setVehicleData(getVal(vehicleRes));
+      setLibraryData(getVal(libraryRes));
+      setFastingData(getVal(fastingRes));
+      setWellnessData(getVal(wellnessRes));
+      setShoppingData(getVal(shoppingRes));
+      setNotifData(getVal(notifRes) || { notifications: [], critical: 0, warning: 0 });
     } catch (err) {
-      console.error('Composite fetch error:', err);
+      console.error('Dashboard fetch error:', err);
       setFetchError('Veriler yüklenirken bir bağlantı hatası oluştu.');
     } finally {
       setLoading(false);

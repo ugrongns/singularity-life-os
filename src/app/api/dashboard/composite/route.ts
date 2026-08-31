@@ -11,10 +11,9 @@ export async function GET(req: Request) {
     const user = await getAuthUser();
     if (!user) {
       return NextResponse.json({
-        success: false,
-        error: 'Unauthorized',
+        success: true,
         data: {
-          session: { is_authenticated: false, is_initialized: false }
+          session: { is_authenticated: false, is_initialized: true, user: null }
         }
       }, { status: 200 });
     }

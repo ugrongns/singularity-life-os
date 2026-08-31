@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { users, authSessions } from '@/db/schema';
 import { verifyPassword, verifyPin, generateSessionToken } from '@/lib/auth';
-import { eq, or, lt } from 'drizzle-orm';
+import { eq, or, lt, sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
@@ -15,11 +15,15 @@ export async function POST(req: Request) {
 
     // 1. TAM GİRİŞ: E-Posta / Kullanıcı Adı + Master Parola
     if (password && (email || username || body.identifier)) {
-      const identifier = (email || username || body.identifier || '').toLowerCase().trim();
+      const rawIdentifier = email || username || body.identifier || '';
+      const identifier = rawIdentifier.toString().toLowerCase().trim();
 
-      // Hem email hem username ile ara
+      // Hem email hem username ile case-insensitive ara
       targetUser = await db.select().from(users)
-        .where(or(eq(users.email, identifier), eq(users.username, identifier)))
+        .where(or(
+          sql`lower(${users.email}) = ${identifier}`,
+          sql`lower(${users.username}) = ${identifier}`
+        ))
         .limit(1).then((r: any) => r[0]);
 
       if (!targetUser) {
