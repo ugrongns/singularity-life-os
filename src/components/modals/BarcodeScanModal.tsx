@@ -41,6 +41,11 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
   const startLiveCamera = async () => {
     setStep('live_camera');
     try {
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        alert('Tarayıcı güvenlik kuralları gereği canlı kamera yayını sadece HTTPS veya localhost üzerinde çalışır. Yerel IP erişiminde lütfen fotoğraf yükleme veya elle giriş seçeneğini kullanın.');
+        setStep('upload');
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
       });

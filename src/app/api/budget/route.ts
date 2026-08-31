@@ -4,7 +4,7 @@ import { walletsAccounts, categories, transactions, vehicleLegalReminders, famil
 import { desc, asc, eq, and, sql , or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
-import { calculateBillSchedule } from '@/app/api/budget/recurring-bills/route';
+import { calculateBillSchedule } from '@/lib/bill-schedule';
 
 export async function GET(req: Request) {
   try {

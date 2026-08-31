@@ -91,6 +91,11 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach(t => t.stop());
       }
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        setCameraError('Tarayıcı güvenlik kuralları gereği canlı video yayını sadece HTTPS veya localhost üzerinde çalışır. Yerel IP erişiminde lütfen yukarıdaki "Dosya Yükle" sekmesini kullanın.');
+        setIsCameraActive(false);
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
       });
