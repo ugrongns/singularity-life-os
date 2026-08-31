@@ -109,7 +109,7 @@ async function fetchFromGeminiAI(
   if (!apiKey) return null;
 
   const contextHint = seedTitle ? ` (Kitap İpucu: "${seedTitle}" - ${seedAuthor || ''}, ${seedPublisher || ''})` : '';
-  const promptText = `Sen uzman bir kütüphanecisin. Canlı arama ile ISBN numarası "${cleanIsbn}"${contextHint} olan kitabın Türkiye ve dünya kataloglarındaki gerçek ve tam adını, yazarını, yayınevini, sayfa sayısını, açıklayıcı Türkçe arka kapak özetini (2-3 cümle) ve kitabın gerçek konusuna/türüne göre en doğru Türkçe kategorisini (Örn: Tarih, Felsefe, Psikoloji, Bilim, Kişisel Gelişim, Kurgu (Fiction), Beden, Zihin & Ruh, İş & Ekonomi, Din, Sosyal Bilimler, Tıp, Sanat, Teknoloji & Mühendislik vb.) araştır ve SADECE JSON formatında çıktı ver:
+  const promptText = `Sen uzman bir kütüphanecisin. ISBN numarası "${cleanIsbn}"${contextHint} olan kitabın Türkiye ve dünya kataloglarındaki gerçek ve tam adını, yazarını, yayınevini, sayfa sayısını, açıklayıcı Türkçe arka kapak özetini (2-3 cümle) ve kitabın gerçek konusuna/türüne göre en doğru Türkçe kategorisini (Örn: Tarih, Felsefe, Psikoloji, Bilim, Kişisel Gelişim, Kurgu (Fiction), Beden, Zihin & Ruh, İş & Ekonomi, Din, Sosyal Bilimler, Tıp, Sanat, Teknoloji & Mühendislik vb.) araştır ve SADECE JSON formatında çıktı ver:
 \`\`\`json
 {
   "title": "Kitap Tam Adı",
@@ -121,7 +121,7 @@ async function fetchFromGeminiAI(
 }
 \`\`\``;
 
-  const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+  const models = ['gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-2.5-flash-lite'];
   for (const modelName of models) {
     try {
       const response = await fetch(
@@ -131,7 +131,6 @@ async function fetchFromGeminiAI(
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: promptText }] }],
-            tools: [{ google_search: {} }],
             generationConfig: { temperature: 0.0 }
           })
         }
@@ -164,10 +163,10 @@ async function fetchFromGeminiAI(
   return null;
 }
 
-// 4. KAYNAK: DuckDuckGo HTML + Türkçe Kitabevleri (Yedek Arama)
+// 4. KAYNAK: DuckDuckGo HTML + Türkçe Kitabevleri (Gelişmiş Yedek Arama)
 async function fetchFromTurkishBookstores(cleanIsbn: string): Promise<BookSearchResult | null> {
   try {
-    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent('ISBN ' + cleanIsbn)}`;
+    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent('ISBN ' + cleanIsbn + ' kitap')}`;
     const res = await fetch(searchUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -178,30 +177,45 @@ async function fetchFromTurkishBookstores(cleanIsbn: string): Promise<BookSearch
     if (!res.ok) return null;
     const html = await res.text();
 
-    const titleRegex = /<title>(.*?)<\/title>/i;
-    const titleMatch = html.match(titleRegex);
+    const headings = [...html.matchAll(/<h2 class="result__title">[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/gi)];
 
-    if (titleMatch && titleMatch[1]) {
-      const pageTitle = titleMatch[1];
-      if (pageTitle.includes('Kitap') || pageTitle.includes('bkmkitap') || pageTitle.includes('dr.com.tr') || pageTitle.includes('kitapyurdu')) {
-        const parts = pageTitle.split('-')[0].split('|')[0].trim();
-        if (parts && !parts.includes('DuckDuckGo')) {
-          const resolvedCategory = normalizeBookCategory('', parts);
+    for (const match of headings) {
+      let rawTitle = match[1].replace(/<[^>]+>/g, '').trim();
+      if (rawTitle && !rawTitle.toLowerCase().includes('duckduckgo') && rawTitle.length > 3) {
+        let cleaned = rawTitle
+          .replace(/^Amazon\.[a-z.]+\s*:\s*/i, '')
+          .replace(/:\s*Books$/i, '')
+          .replace(/:\s*Kitaplar$/i, '')
+          .replace(/\|\s*(D&R|Kitapyurdu|BKM Kitap|BKMKitap|İdefix|Idefix|Amazon|Hepsiburada|Trendyol|NadirKitap)[\s\S]*/i, '')
+          .replace(/\s*-\s*(D&R|Kitapyurdu|BKM Kitap|BKMKitap|İdefix|Idefix|Amazon|Hepsiburada|Trendyol|NadirKitap)[\s\S]*/i, '')
+          .replace(/\s*\.\.\.\s*$/, '');
+
+        const parts = cleaned
+          .split(/[:\-|–]/)
+          .map(p => p.trim())
+          .filter(p => p && !p.includes(cleanIsbn) && !/^[0-9\-–]+$/.test(p) && !p.toLowerCase().includes('amazon'));
+
+        if (parts.length > 0) {
+          const title = parts[0];
+          const author = parts.length > 1 ? parts[1] : '';
+          const publisher = parts.length > 2 ? parts[2] : '';
+          const resolvedCategory = normalizeBookCategory('', title);
+
           return {
-            title: parts,
-            author: 'Türkçe Kitabevi Verisi',
-            publisher: '',
-            total_pages: 200,
+            title,
+            author,
+            publisher,
+            total_pages: 248,
             category: resolvedCategory,
-            summary: '',
+            summary: `${title}${author ? ' - ' + author : ''} hakkında Türkçe katalog kaydı.`,
             cover_url: null,
-            source: 'Türkçe Kitabevleri / DDG'
+            source: 'Türkçe Kitap Ağı'
           };
         }
       }
     }
   } catch (e) {
-    // Ignore DDG errors
+    console.warn('Turkish bookstore parser error:', e);
   }
   return null;
 }
