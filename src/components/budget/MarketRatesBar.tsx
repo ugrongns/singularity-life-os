@@ -124,14 +124,18 @@ export default function MarketRatesBar({ rates, onRefresh, loading = false }: Ma
       </div>
 
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-        gap: '10px'
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '10px',
+        overflowX: 'auto',
+        paddingBottom: '2px'
       }}>
         {rateItems.map(item => (
           <div
             key={item.symbol}
             style={{
+              flex: '1 1 130px',
+              minWidth: '120px',
               background: 'var(--surface-subtle)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
