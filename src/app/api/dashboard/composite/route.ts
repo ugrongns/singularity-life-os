@@ -1,13 +1,23 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
+import { initDatabase } from '@/db';
+import { GET as getBudget } from '@/app/api/budget/route';
+import { GET as getVehicles } from '@/app/api/vehicles/route';
+import { GET as getLibrary } from '@/app/api/library/route';
+import { GET as getFasting } from '@/app/api/health/fasting/route';
+import { GET as getWellness } from '@/app/api/wellness/route';
+import { GET as getShopping } from '@/app/api/shopping-list/route';
+import { GET as getNotifications } from '@/app/api/notifications/route';
+import { fetchLiveExchangeRates } from '@/lib/market-data';
 
 /**
  * Composite Dashboard Aggregate Endpoint
- * Tek bir HTTP isteği ile ana sayfanın 8 modül verisini paralel olarak toplayıp istemciye döner.
- * Waterfall fetch gecikmesini sıfıra indirir.
+ * Tek bir HTTP isteği ile ana sayfanın 8 modül verisini ve piyasa kurlarını bellek içi
+ * (in-process) paralel toplayıp döner. Döngüsel HTTP/fetch çağrılarını ve ağ gecikmesini sıfırlar.
  */
 export async function GET(req: Request) {
   try {
+    await initDatabase();
     const user = await getAuthUser();
     if (!user) {
       return NextResponse.json({
@@ -18,14 +28,7 @@ export async function GET(req: Request) {
       }, { status: 200 });
     }
 
-    const { origin } = new URL(req.url);
-    const cookieHeader = req.headers.get('cookie') || '';
-    const headers = {
-      'cookie': cookieHeader,
-      'Content-Type': 'application/json'
-    };
-
-    // Tüm dashboard verilerini paralel topla
+    // Tüm dashboard modül işleyicilerini bellek içi (in-process) paralel çalıştır
     const [
       budgetRes,
       vehicleRes,
@@ -33,15 +36,17 @@ export async function GET(req: Request) {
       fastingRes,
       wellnessRes,
       shoppingRes,
-      notifRes
+      notifRes,
+      ratesRes
     ] = await Promise.allSettled([
-      fetch(`${origin}/api/budget`, { headers }).then(r => r.json()),
-      fetch(`${origin}/api/vehicles`, { headers }).then(r => r.json()),
-      fetch(`${origin}/api/library`, { headers }).then(r => r.json()),
-      fetch(`${origin}/api/health/fasting`, { headers }).then(r => r.json()),
-      fetch(`${origin}/api/wellness`, { headers }).then(r => r.json()),
-      fetch(`${origin}/api/shopping-list`, { headers }).then(r => r.json()),
-      fetch(`${origin}/api/notifications`, { headers }).then(r => r.json()),
+      getBudget(req).then(r => r.json()),
+      getVehicles(req).then(r => r.json()),
+      getLibrary().then(r => r.json()),
+      getFasting().then(r => r.json()),
+      getWellness().then(r => r.json()),
+      getShopping().then(r => r.json()),
+      getNotifications().then(r => r.json()),
+      fetchLiveExchangeRates()
     ]);
 
     const getVal = (res: PromiseSettledResult<any>) => (res.status === 'fulfilled' && res.value?.success) ? res.value.data : null;
@@ -61,6 +66,7 @@ export async function GET(req: Request) {
         wellness: getVal(wellnessRes),
         shopping: getVal(shoppingRes),
         notifications: getVal(notifRes) || { notifications: [], critical: 0, warning: 0 },
+        market_rates: ratesRes.status === 'fulfilled' ? ratesRes.value : null,
         timestamp: new Date().toISOString()
       }
     });

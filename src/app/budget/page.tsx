@@ -13,6 +13,7 @@ import ManualExpenseModal from '@/components/modals/ManualExpenseModal';
 import CreditCardStatementModal from '@/components/modals/CreditCardStatementModal';
 import CategoryDetailModal from '@/components/modals/CategoryDetailModal';
 import TransferModal from '@/components/modals/TransferModal';
+import MarketRatesBar from '@/components/budget/MarketRatesBar';
 
 export default function BudgetPage() {
   const [data, setData] = useState<any>(null);
@@ -22,6 +23,7 @@ export default function BudgetPage() {
   const initMonth = `${todayLocal.getFullYear()}-${String(todayLocal.getMonth() + 1).padStart(2, '0')}`;
   const [selectedMonth, setSelectedMonth] = useState<string>(initMonth);
   const [loading, setLoading] = useState(true);
+  const [ratesLoading, setRatesLoading] = useState(false);
   const [isScanOpen, setIsScanOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
@@ -30,6 +32,22 @@ export default function BudgetPage() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const showToast = (msg: string) => { setToastMsg(msg); setTimeout(() => setToastMsg(null), 3000); };
+
+  const handleRefreshRates = async () => {
+    setRatesLoading(true);
+    try {
+      const res = await fetch('/api/market-rates?refresh=true');
+      const j = await res.json();
+      if (j.success && j.data) {
+        setData((prev: any) => ({ ...prev, marketRates: j.data }));
+        showToast('📈 Canlı piyasa kurları güncellendi!');
+      }
+    } catch {
+      showToast('Kurlar güncellenirken hata oluştu.');
+    } finally {
+      setRatesLoading(false);
+    }
+  };
 
   const fetchData = async (targetMonth?: string) => {
     const monthToFetch = targetMonth || selectedMonth;
@@ -120,6 +138,13 @@ export default function BudgetPage() {
         </div>
       </div>
 
+      {/* Canlı Piyasa & Döviz Kurları Bandı */}
+      <MarketRatesBar
+        rates={data?.marketRates}
+        onRefresh={handleRefreshRates}
+        loading={ratesLoading}
+      />
+
       <div className="dashboard-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <BudgetRiskCard
@@ -168,6 +193,7 @@ export default function BudgetPage() {
       <PersonalDebtsCard
         accounts={data?.accounts || []}
         onToast={showToast}
+        marketRates={data?.marketRates}
       />
 
       <ReceiptScanModal

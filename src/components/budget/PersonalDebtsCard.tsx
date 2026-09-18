@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 
+import { MarketRates } from '@/lib/market-data';
+
 interface Account {
   id: string;
   name: string;
@@ -31,12 +33,18 @@ interface PersonalDebtRecord {
 interface PersonalDebtsCardProps {
   accounts: Account[];
   onToast: (msg: string) => void;
+  marketRates?: MarketRates | null;
 }
 
-export default function PersonalDebtsCard({ accounts, onToast }: PersonalDebtsCardProps) {
+export default function PersonalDebtsCard({ accounts, onToast, marketRates }: PersonalDebtsCardProps) {
   const [records, setRecords] = useState<PersonalDebtRecord[]>([]);
   const [summary, setSummary] = useState({ totalDebt: 0, totalReceivable: 0, netPosition: 0 });
   const [loading, setLoading] = useState(true);
+  const [liveRates, setLiveRates] = useState<MarketRates | null>(marketRates || null);
+
+  useEffect(() => {
+    if (marketRates) setLiveRates(marketRates);
+  }, [marketRates]);
 
   // Modal States
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -57,9 +65,9 @@ export default function PersonalDebtsCard({ accounts, onToast }: PersonalDebtsCa
   const [dueDate, setDueDate] = useState('');
   const [connectedWalletId, setConnectedWalletId] = useState('');
 
-  const USD_RATE = 36.50;
-  const EUR_RATE = 39.80;
-  const GOLD_RATE = 3180;
+  const USD_RATE = liveRates?.USD_TRY || 48.75;
+  const EUR_RATE = liveRates?.EUR_TRY || 56.00;
+  const GOLD_RATE = liveRates?.GOLD_GRAM_TRY || 6850;
 
   const formatTRY = (v: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(v);
 
@@ -79,6 +87,9 @@ export default function PersonalDebtsCard({ accounts, onToast }: PersonalDebtsCa
     if (json.success) {
       setRecords(json.data.records);
       setSummary(json.data.summary);
+      if (json.data.rates) {
+        setLiveRates(json.data.rates);
+      }
     }
     setLoading(false);
   };

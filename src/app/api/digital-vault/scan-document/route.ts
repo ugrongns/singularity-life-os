@@ -22,24 +22,38 @@ export async function POST(req: Request) {
       const base64Input = formData.get('base64') as string | null;
 
       if (file) {
+        // Vercel Serverless 4.5 MB sınırına karşı güvenlik kontrolü
+        if (file.size > 4.5 * 1024 * 1024) {
+          return NextResponse.json({
+            success: false,
+            error: 'Dosya boyutu çok yüksek. Lütfen 4.5 MB altı bir dosya yükleyin.'
+          }, { status: 400 });
+        }
+
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
         base64Image = buffer.toString('base64');
         mimeType = file.type || 'image/jpeg';
 
-        // Yüklenen resmi güvenli dizine kaydet (private_storage/vault/...)
-        const uploadDir = path.join(process.cwd(), 'private_storage', 'vault');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        const ext = path.extname(file.name) || '.jpg';
-        const filename = `vault-scan-${Date.now()}-${Math.random().toString(36).substring(2, 7)}${ext}`;
-        const filePath = path.join(uploadDir, filename);
-        fs.writeFileSync(filePath, buffer);
+        // Yüklenen resmi güvenli dizine kaydetmeyi dene (private_storage/vault/...)
+        try {
+          const uploadDir = path.join(process.cwd(), 'private_storage', 'vault');
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+          const ext = path.extname(file.name) || '.jpg';
+          const filename = `vault-scan-${Date.now()}-${Math.random().toString(36).substring(2, 7)}${ext}`;
+          const filePath = path.join(uploadDir, filename);
+          fs.writeFileSync(filePath, buffer);
 
-        documentImageUrl = `/api/digital-vault/file?filename=${filename}`;
+          documentImageUrl = `/api/digital-vault/file?filename=${filename}`;
+        } catch (fsError) {
+          console.warn('Filesystem read-only (Serverless environment), saving scanned document as Base64 Data URL.');
+          documentImageUrl = `data:${mimeType};base64,${base64Image}`;
+        }
       } else if (base64Input) {
         base64Image = base64Input;
+        documentImageUrl = base64Input.startsWith('data:') ? base64Input : `data:${mimeType};base64,${base64Image}`;
       }
     } else if (contentType.includes('application/json')) {
       const body = await req.json();

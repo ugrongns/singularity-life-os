@@ -46,49 +46,27 @@ export default function HomePage() {
   const fetchData = async () => {
     try {
       setFetchError(null);
-      const sessionRes = await fetch('/api/auth/session');
-      const sessionJson = await sessionRes.json();
+      const res = await fetch('/api/dashboard/composite');
+      const json = await res.json();
 
-      if (!sessionJson.success || !sessionJson.data?.is_authenticated) {
+      if (!json.success || !json.data?.session?.is_authenticated) {
         setSession({
           is_authenticated: false,
-          is_initialized: sessionJson.data?.is_initialized ?? true,
+          is_initialized: json.data?.session?.is_initialized ?? true,
           user: null
         });
         setLoading(false);
         return;
       }
 
-      setSession(sessionJson.data);
-
-      // Oturum açık ise modül verilerini istemciden paralel çek
-      const [
-        budgetRes,
-        vehicleRes,
-        libraryRes,
-        fastingRes,
-        wellnessRes,
-        shoppingRes,
-        notifRes
-      ] = await Promise.allSettled([
-        fetch('/api/budget').then(r => r.json()),
-        fetch('/api/vehicles').then(r => r.json()),
-        fetch('/api/library').then(r => r.json()),
-        fetch('/api/health/fasting').then(r => r.json()),
-        fetch('/api/wellness').then(r => r.json()),
-        fetch('/api/shopping-list').then(r => r.json()),
-        fetch('/api/notifications').then(r => r.json()),
-      ]);
-
-      const getVal = (res: PromiseSettledResult<any>) => (res.status === 'fulfilled' && res.value?.success) ? res.value.data : null;
-
-      setBudgetData(getVal(budgetRes));
-      setVehicleData(getVal(vehicleRes));
-      setLibraryData(getVal(libraryRes));
-      setFastingData(getVal(fastingRes));
-      setWellnessData(getVal(wellnessRes));
-      setShoppingData(getVal(shoppingRes));
-      setNotifData(getVal(notifRes) || { notifications: [], critical: 0, warning: 0 });
+      setSession(json.data.session);
+      setBudgetData(json.data.budget);
+      setVehicleData(json.data.vehicles);
+      setLibraryData(json.data.library);
+      setFastingData(json.data.fasting);
+      setWellnessData(json.data.wellness);
+      setShoppingData(json.data.shopping);
+      setNotifData(json.data.notifications || { notifications: [], critical: 0, warning: 0 });
     } catch (err) {
       console.error('Dashboard fetch error:', err);
       setFetchError('Veriler yüklenirken bir bağlantı hatası oluştu.');

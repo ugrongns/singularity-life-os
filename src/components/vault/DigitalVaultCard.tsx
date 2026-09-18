@@ -537,7 +537,7 @@ export default function DigitalVaultCard({
             </div>
 
             <div style={{ textAlign: 'center', margin: '10px 0' }}>
-              {previewDocUrl.endsWith('.pdf') ? (
+              {(previewDocUrl.endsWith('.pdf') || previewDocUrl.startsWith('data:application/pdf')) ? (
                 <iframe src={previewDocUrl} style={{ width: '100%', height: '450px', border: 'none', borderRadius: '8px' }} title="PDF Belge" />
               ) : (
                 <img src={previewDocUrl} alt="Belge" style={{ maxWidth: '100%', maxHeight: '450px', borderRadius: '8px', objectFit: 'contain' }} />
@@ -547,7 +547,11 @@ export default function DigitalVaultCard({
             <div style={{ textAlign: 'right', marginTop: '12px' }}>
               <a
                 href={previewDocUrl}
-                download
+                download={
+                  previewDocUrl.startsWith('data:application/pdf') ? 'kasa-belge.pdf' :
+                  previewDocUrl.startsWith('data:image/png') ? 'kasa-belge.png' :
+                  previewDocUrl.startsWith('data:image') ? 'kasa-belge.jpg' : true
+                }
                 target="_blank"
                 rel="noreferrer"
                 className="btn-primary"

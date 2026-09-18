@@ -4,15 +4,16 @@ import { personalDebtsReceivables, walletsAccounts, transactions } from '@/db/sc
 import { eq , or , and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
-const USD_RATE = 36.50;
-const EUR_RATE = 39.80;
-const GOLD_GRAM_RATE = 3180;
+import { fetchLiveExchangeRates, MarketRates } from '@/lib/market-data';
 
-function calcCurrentTLValue(indexType: string, indexAmount: number): number {
+function calcCurrentTLValue(indexType: string, indexAmount: number, rates?: MarketRates): number {
+  const usd = rates?.USD_TRY || 48.75;
+  const eur = rates?.EUR_TRY || 56.00;
+  const gold = rates?.GOLD_GRAM_TRY || 6850;
   switch (indexType) {
-    case 'GOLD': return indexAmount * GOLD_GRAM_RATE;
-    case 'USD':  return indexAmount * USD_RATE;
-    case 'EUR':  return indexAmount * EUR_RATE;
+    case 'GOLD': return indexAmount * gold;
+    case 'USD':  return indexAmount * usd;
+    case 'EUR':  return indexAmount * eur;
     default:     return indexAmount; // TRY
   }
 }
@@ -23,9 +24,10 @@ function calcMaturityValue(
   interestRate: number,
   interestPeriod: string,
   createdAt: string,
-  dueDate: string | null
+  dueDate: string | null,
+  rates?: MarketRates
 ): number {
-  const baseTL = calcCurrentTLValue(indexType, indexAmount);
+  const baseTL = calcCurrentTLValue(indexType, indexAmount, rates);
   if (!interestRate || interestRate === 0 || !dueDate) return baseTL;
 
   const start = new Date(createdAt);
@@ -58,12 +60,14 @@ export async function GET() {
       : [];
     const walletMap = new Map((wallets).map((w: any) => [w.id, w.name]));
 
+    const rates = await fetchLiveExchangeRates();
     const enriched = (records).map((r: any) => {
-      const currentTL = calcCurrentTLValue(r.index_type, r.index_amount);
+      const currentTL = calcCurrentTLValue(r.index_type, r.index_amount, rates);
       const maturityTL = calcMaturityValue(
         r.index_type, r.index_amount,
         r.interest_rate || 0, r.interest_period || 'yearly',
-        r.created_at, r.due_date
+        r.created_at, r.due_date,
+        rates
       );
       const remaining = Math.max(0, maturityTL - (r.paid_amount || 0));
       const today = new Date();
@@ -94,7 +98,8 @@ export async function GET() {
       success: true,
       data: {
         records: enriched,
-        summary: { totalDebt, totalReceivable, netPosition: totalReceivable - totalDebt }
+        summary: { totalDebt, totalReceivable, netPosition: totalReceivable - totalDebt },
+        rates
       }
     });
   } catch (err: any) {
@@ -121,7 +126,8 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const nowDate = now.split('T')[0];
     const newId = `debt-${Date.now()}`;
-    const origTL = calcCurrentTLValue(index_type || 'TRY', Number(index_amount));
+    const rates = await fetchLiveExchangeRates();
+    const origTL = calcCurrentTLValue(index_type || 'TRY', Number(index_amount), rates);
     const familyId = user.family_id || `fam-${user.id}`;
 
     await db.insert(personalDebtsReceivables).values({
@@ -211,10 +217,12 @@ export async function PATCH(req: Request) {
     const nowDate = now.split('T')[0];
     const payAmt = Number(payment_amount);
 
+    const rates = await fetchLiveExchangeRates();
     const maturityTL = calcMaturityValue(
       record.index_type, record.index_amount,
       record.interest_rate || 0, record.interest_period || 'yearly',
-      record.created_at, record.due_date
+      record.created_at, record.due_date,
+      rates
     );
     const newPaid = (record.paid_amount || 0) + payAmt;
     const newStatus = newPaid >= maturityTL ? 'closed' : 'partial';

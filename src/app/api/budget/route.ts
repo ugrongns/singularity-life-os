@@ -5,6 +5,7 @@ import { desc, asc, eq, and, sql , or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 import { calculateBillSchedule } from '@/lib/bill-schedule';
+import { fetchLiveExchangeRates } from '@/lib/market-data';
 
 export async function GET(req: Request) {
   try {
@@ -21,10 +22,13 @@ export async function GET(req: Request) {
     const localYYYYMMDD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const currentMonthStr = monthParam || localYYYYMM(today);
 
-    const USD_RATE = 36.50;
-    const EUR_RATE = 39.80;
-    const GOLD_GRAM_RATE = 3180;
-    const BTC_RATE = 3500000;
+    // Canlı Piyasa & TCMB / Serbest Piyasa Kurları
+    const liveRates = await fetchLiveExchangeRates();
+    const USD_RATE = liveRates.USD_TRY;
+    const EUR_RATE = liveRates.EUR_TRY;
+    const GBP_RATE = liveRates.GBP_TRY || 65.20;
+    const GOLD_GRAM_RATE = liveRates.GOLD_GRAM_TRY;
+    const BTC_RATE = liveRates.BTC_TRY || 3900000;
 
     const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
 
@@ -372,7 +376,10 @@ export async function GET(req: Request) {
         totalDebtsTRY += acc.balance;
       } else if (!isInvAcc) {
         // Banka, nakit, kasa (Döviz kurları ile TL'ye çevrilir)
-        const rate = acc.currency === 'USD' ? USD_RATE : acc.currency === 'EUR' ? EUR_RATE : acc.currency === 'GOLD' ? GOLD_GRAM_RATE : 1.0;
+        const rate = acc.currency === 'USD' ? USD_RATE :
+          acc.currency === 'EUR' ? EUR_RATE :
+          acc.currency === 'GBP' ? GBP_RATE :
+          acc.currency === 'GOLD' ? GOLD_GRAM_RATE : 1.0;
         totalCashAssetsTRY += (acc.balance * rate);
       }
     }
@@ -383,6 +390,7 @@ export async function GET(req: Request) {
       TRY: netWorthTRY,
       USD: Math.round(netWorthTRY / USD_RATE),
       EUR: Math.round(netWorthTRY / EUR_RATE),
+      GBP: Math.round(netWorthTRY / GBP_RATE),
       GOLD_GRAM: (netWorthTRY / GOLD_GRAM_RATE).toFixed(1),
       BTC: (netWorthTRY / BTC_RATE).toFixed(2),
       breakdown: {
@@ -471,6 +479,7 @@ export async function GET(req: Request) {
         recentTransactions: recentTx,
         upcomingPayments: top5Upcoming,
         netWorth: multiCurrencyNetWorth,
+        marketRates: liveRates,
         monthlySummary: {
           selectedMonth: currentMonthStr,
           totalExpense: totalMonthlyExpense,
