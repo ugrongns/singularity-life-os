@@ -5,6 +5,25 @@ import { transactions, walletsAccounts, categories, familyMembers } from '@/db/s
 import { eventBus, EVENTS } from '@/lib/events';
 import { eq , or , and } from 'drizzle-orm';
 
+// ✅ Timezone-safe & ay sonu taşmasını (setMonth overflow) önleyen taksit tarihi hesaplayıcı
+function addMonthsSafe(baseDate: Date, monthsToAdd: number): string {
+  const year = baseDate.getFullYear();
+  const month = baseDate.getMonth();
+  const day = baseDate.getDate();
+
+  const totalMonths = month + monthsToAdd;
+  const targetYear = year + Math.floor(totalMonths / 12);
+  const targetMonth = ((totalMonths % 12) + 12) % 12;
+
+  // Hedef ayın son gününü bul ve taşmayı engelle (Örn: 31 Ocak + 1 ay = 28 Şubat)
+  const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+  const clampedDay = Math.min(day, daysInTargetMonth);
+
+  const mStr = String(targetMonth + 1).padStart(2, '0');
+  const dStr = String(clampedDay).padStart(2, '0');
+  return `${targetYear}-${mStr}-${dStr}`;
+}
+
 export async function POST(req: Request) {
   try {
     await initDatabase();
@@ -20,7 +39,8 @@ export async function POST(req: Request) {
       notes,
       installments = 1,
       is_family_shared = 1,
-      receipt_image_url
+      receipt_image_url,
+      transaction_date
     } = body;
 
     if (!wallet_id || !amount || Number(amount) <= 0) {
@@ -79,10 +99,11 @@ export async function POST(req: Request) {
     }
 
     // Taksit Motoru: Tutar tek seferlik ise 1 satır, taksitli ise gelecek aylara dağıtılan N adet satır
+    const baseDate = transaction_date ? new Date(transaction_date) : now;
+    const validBaseDate = isNaN(baseDate.getTime()) ? now : baseDate;
+
     for (let i = 0; i < totalInstallments; i++) {
-      const txDate = new Date(now);
-      txDate.setMonth(txDate.getMonth() + i); // Her ay için bir sonraki ekstre tarihi
-      const txDateString = txDate.toISOString().split('T')[0];
+      const txDateString = addMonthsSafe(validBaseDate, i);
 
       const txId = i === 0 ? parentTxId : `tx-${Date.now()}-${i + 1}`;
 

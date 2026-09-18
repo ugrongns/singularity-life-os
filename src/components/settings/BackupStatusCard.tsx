@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 interface Backup {
   name: string;
@@ -19,9 +19,12 @@ export default function BackupStatusCard({ last_backup, backup_count, backups, d
   const [backing, setBacking] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [encrypting, setEncrypting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [passphrase, setPassphrase] = useState('');
   const [showEncModal, setShowEncModal] = useState(false);
+  const [restoreConfirmModal, setRestoreConfirmModal] = useState<{ open: boolean, data: any, recordCount: number, tablesCount: number, fileName: string } | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Dosya indirme yardımcı fonksiyonu
   const downloadFile = (content: string, fileName: string, contentType: string) => {
@@ -87,6 +90,72 @@ export default function BackupStatusCard({ last_backup, backup_count, backups, d
     }
   };
 
+  // 3. JSON Yedeği Yükle ve Ayrıştır
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = JSON.parse(text);
+        const dataObj = parsed.data || parsed;
+        const tables = Object.keys(dataObj).filter(k => Array.isArray(dataObj[k]));
+        const count = tables.reduce((acc, t) => acc + (dataObj[t]?.length || 0), 0);
+
+        if (count === 0) {
+          setLastResult('❌ Yüklenen yedek dosyasında geçerli veri tablosu bulunamadı.');
+          return;
+        }
+
+        setRestoreConfirmModal({
+          open: true,
+          data: dataObj,
+          recordCount: count,
+          tablesCount: tables.length,
+          fileName: file.name
+        });
+      } catch (err: any) {
+        setLastResult(`❌ JSON dosyası okunamadı: ${err.message}`);
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // 4. Onaylandıktan sonra Geri Yükle
+  const handleConfirmRestore = async () => {
+    if (!restoreConfirmModal?.data) return;
+    setRestoring(true);
+    setLastResult(null);
+    try {
+      const res = await fetch('/api/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'restore',
+          backupData: { data: restoreConfirmModal.data }
+        })
+      });
+      const resJson = await res.json();
+      setRestoring(false);
+      setRestoreConfirmModal(null);
+      if (resJson.success) {
+        setLastResult(`✅ Başarılı: ${resJson.total_restored || 0} kayıt başarıyla geri yüklendi!`);
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        setLastResult(`❌ Geri yükleme hatası: ${resJson.error || 'İşlem başarısız oldu.'}`);
+      }
+    } catch (err: any) {
+      setRestoring(false);
+      setLastResult(`❌ Bağlantı hatası: ${err.message}`);
+    }
+  };
+
   return (
     <div className="card">
       <div className="card-title-row">
@@ -120,29 +189,46 @@ export default function BackupStatusCard({ last_backup, backup_count, backups, d
           <span>✅</span> Verileriniz Supabase Bulutunda Güvende
         </div>
         <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
-          Tüm verileriniz Supabase üzerinde otomatik olarak replike edilir. Dilediğiniz zaman aşağıdaki butonlarla bilgisayarınıza yerel bir kopya indirebilirsiniz.
+          Tüm verileriniz Supabase üzerinde otomatik olarak replike edilir. Dilediğiniz zaman aşağıdaki butonlarla yerel kopya indirebilir veya yedeğinizi geri yükleyebilirsiniz.
         </div>
       </div>
 
       {/* Aksiyon Butonları */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px', marginBottom: '10px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr 1fr', gap: '8px', marginBottom: '10px' }}>
         <button
-          onClick={handleBackup} disabled={backing}
+          onClick={handleBackup} disabled={backing || restoring}
           className="btn-primary"
-          style={{ padding: '12px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+          style={{ padding: '12px 8px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', cursor: 'pointer' }}
         >
-          {backing ? '⏳ Hazırlanıyor...' : '📥 JSON Yedeği İndir'}
+          {backing ? '⏳ Hazırlanıyor...' : '📥 JSON İndir'}
         </button>
 
         <button
-          onClick={() => setShowEncModal(true)} disabled={encrypting}
+          onClick={() => setShowEncModal(true)} disabled={encrypting || restoring}
           style={{
-            padding: '12px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            padding: '12px 8px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
             background: 'linear-gradient(135deg, #4F46E5, #3730A3)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 700, cursor: 'pointer'
           }}
         >
-          🔐 AES-256 Şifreli
+          🔐 AES-256
         </button>
+
+        <button
+          onClick={() => fileInputRef.current?.click()} disabled={restoring || backing}
+          style={{
+            padding: '12px 8px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+            background: 'var(--surface-subtle)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontWeight: 700, cursor: 'pointer'
+          }}
+        >
+          {restoring ? '⏳ Yükleniyor...' : '📤 Geri Yükle'}
+        </button>
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept=".json,application/json"
+          onChange={handleFileSelect}
+          style={{ display: 'none' }}
+        />
       </div>
 
       {/* AES-256 Şifre Belirleme Modalı */}
@@ -168,6 +254,38 @@ export default function BackupStatusCard({ last_backup, backup_count, backups, d
               style={{ flex: 2, padding: '6px', fontSize: '12px', background: '#4F46E5', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
             >
               {encrypting ? 'Şifreleniyor...' : '🔒 Şifrele & İndir'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Restore Onay Modalı */}
+      {restoreConfirmModal?.open && (
+        <div style={{ background: 'var(--surface-subtle)', border: '1px solid #f59e0b', borderRadius: 'var(--radius-md)', padding: '14px', marginBottom: '10px' }}>
+          <div style={{ fontSize: '12px', fontWeight: 700, color: '#d97706', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            ⚠️ Veritabanı Geri Yükleme Onayı
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-main)', marginBottom: '4px' }}>
+            Dosya: <b>{restoreConfirmModal.fileName}</b>
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '10px', lineHeight: '1.4' }}>
+            Bu yedek <b>{restoreConfirmModal.tablesCount}</b> tablo ve toplam <b>{restoreConfirmModal.recordCount}</b> kayıt içermektedir. Verileriniz mevcut tablolara güvenle eklenecektir. Devam etmek istiyor musunuz?
+          </div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button
+              className="btn-subtle"
+              onClick={() => setRestoreConfirmModal(null)}
+              disabled={restoring}
+              style={{ flex: 1, padding: '6px', fontSize: '11px' }}
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleConfirmRestore}
+              disabled={restoring}
+              style={{ flex: 2, padding: '6px', fontSize: '12px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
+            >
+              {restoring ? 'Geri Yükleniyor...' : '✅ Evet, Geri Yükle'}
             </button>
           </div>
         </div>

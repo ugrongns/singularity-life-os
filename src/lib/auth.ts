@@ -25,16 +25,24 @@ export function hashPin(pin: string, salt: string): string {
  * Parola doğrulama
  */
 export function verifyPassword(password: string, storedHash: string, salt: string): boolean {
+  if (!password || !storedHash || !salt) return false;
   const computed = crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256').toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(storedHash));
+  const bufA = Buffer.from(computed);
+  const bufB = Buffer.from(storedHash);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
 }
 
 /**
  * PIN doğrulama
  */
 export function verifyPin(pin: string, storedPinHash: string, salt: string): boolean {
+  if (!pin || !storedPinHash || !salt) return false;
   const computed = crypto.pbkdf2Sync(pin, `pin_salt_${salt}`, 50000, 32, 'sha256').toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(storedPinHash));
+  const bufA = Buffer.from(computed);
+  const bufB = Buffer.from(storedPinHash);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
 }
 
 /**

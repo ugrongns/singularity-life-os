@@ -55,9 +55,20 @@ export async function GET() {
 
     // Önemli günler — bu yıl veya gelecek yıl için gün farkı
     const datesWithCountdown = (dates).map((d: any) => {
-      const parts = d.event_date.split('-');
-      const mm = parseInt(parts[0] || '1', 10);
-      const dd = parseInt(parts[1] || '1', 10);
+      if (!d.event_date) return { ...d, days_left: 999, next_date: '' };
+      const parts = d.event_date.split(/[-/.]/);
+      let mm: number, dd: number;
+      if (parts.length >= 3) {
+        // YYYY-MM-DD formatı
+        mm = parseInt(parts[1], 10);
+        dd = parseInt(parts[2], 10);
+      } else {
+        // MM-DD formatı
+        mm = parseInt(parts[0] || '1', 10);
+        dd = parseInt(parts[1] || '1', 10);
+      }
+
+      if (isNaN(mm) || isNaN(dd)) return { ...d, days_left: 999, next_date: '' };
       
       const thisYear = new Date(today.getFullYear(), mm - 1, dd);
       let eventDate = thisYear;

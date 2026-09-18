@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { db, initDatabase } from '@/db';
 import { categories } from '@/db/schema';
-import { eq , or , and } from 'drizzle-orm';
+import { eq, or, and, sql } from 'drizzle-orm';
 
 import { walletsAccounts } from '@/db/schema';
 
@@ -18,10 +18,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Kategori adı zorunludur.' }, { status: 400 });
     }
 
+    const userId = user.id;
+    const familyId = user.family_id || `fam-${userId}`;
     const targetLimit = Number(monthly_budget_limit) || 0;
 
     // 1. Maksimum Bütçe Tavanı Kontrolü (Aylık Toplam Gelir + Kredi Kartı Limitleri Toplamı)
-    const accounts = await db.select().from(walletsAccounts).where(eq(walletsAccounts.is_active, 1));
+    // Sadece kullanıcının kendi hane/ailesine ait aktif hesaplar çekilir (İzolasyon)
+    const accounts = await db.select().from(walletsAccounts).where(
+      and(
+        eq(walletsAccounts.is_active, 1),
+        familyId
+          ? or(eq(walletsAccounts.family_id, familyId), eq(walletsAccounts.user_id, userId))
+          : eq(walletsAccounts.user_id, userId)
+      )
+    );
     let totalCreditCardLimits = 0;
     for (const acc of accounts) {
       if (acc.type === 'credit_card') {
@@ -29,19 +39,27 @@ export async function POST(req: Request) {
       }
     }
 
-    // Sabit / Tahmini Aylık Gelir Toplamı (Maaş + Kira Geliri + Diğer)
-    // Varsayılan hesaplanan gelir 94.000 TL
-    const defaultIncome = 94000;
-    const maxAllowedCap = defaultIncome + totalCreditCardLimits;
+    // Kullanıcının hane kategorileri veya ortak seed kategorileri çekilir
+    const allCategories = await db.select().from(categories).where(
+      familyId
+        ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.is_family_shared, 1))
+        : or(sql`${categories.family_id} IS NULL`, eq(categories.is_family_shared, 1))
+    );
 
-    const allCategories = await db.select().from(categories);
+    let calculatedIncome = 0;
     let currentTotalLimitExceptTarget = 0;
 
     for (const cat of allCategories) {
-      if (cat.type !== 'income' && cat.id !== id) {
+      if (cat.type === 'income') {
+        calculatedIncome += (cat.monthly_budget_limit || 0);
+      } else if (cat.id !== id) {
         currentTotalLimitExceptTarget += (cat.monthly_budget_limit || 0);
       }
     }
+
+    // Sabit / Tahmini Aylık Gelir Toplamı (Maaş / Gelir kategorisi varsa o, yoksa makul başlangıç tavanı)
+    const effectiveIncome = Math.max(calculatedIncome, 100000);
+    const maxAllowedCap = effectiveIncome + totalCreditCardLimits;
 
     const proposedTotalLimit = currentTotalLimitExceptTarget + targetLimit;
 
@@ -81,6 +99,8 @@ export async function POST(req: Request) {
         group_50_30_20: group_50_30_20 || 'needs',
         icon: icon || '🏷️',
         color: color || '#10B981',
+        is_family_shared: 1,
+        family_id: familyId,
         created_at: now,
         updated_at: now
       });
@@ -104,6 +124,12 @@ export async function DELETE(req: Request) {
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'Kategori ID zorunludur.' }, { status: 400 });
+    }
+
+    // Sistem çekirdek kategorileri (cat-maas, cat-market, vb.) foreign key bütünlüğü için silinemez
+    const seedCategories = ['cat-maas', 'cat-market', 'cat-kira', 'cat-fatura', 'cat-ulasim', 'cat-eeglence', 'cat-saglik', 'cat-diger'];
+    if (seedCategories.includes(id)) {
+      return NextResponse.json({ success: false, error: 'Sistem temel kategorileri silinemez. Dilerseniz bütçe limitini 0 yapabilirsiniz.' }, { status: 400 });
     }
 
     await db.delete(categories).where(eq(categories.id, id));

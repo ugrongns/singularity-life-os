@@ -3,9 +3,9 @@ import { db, initDatabase } from '@/db';
 import {
   digitalVaultItems, importantDates, petRecords,
   vehicleLegalReminders, homeMaintenanceRecords,
-  walletsAccounts
+  walletsAccounts, recurringBills
 } from '@/db/schema';
-import { eq, sql , or } from 'drizzle-orm';
+import { eq, sql, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 interface Notification {
@@ -24,6 +24,7 @@ export async function GET() {
     await initDatabase();
     const user = await getAuthUser();
     const userId = user?.id;
+    const familyId = user?.family_id;
 
     const today = new Date();
     const todayISO = today.toISOString().split('T')[0];
@@ -59,11 +60,25 @@ export async function GET() {
     // 2. Önemli Günler — Yaklaşan doğum günleri vs.
     const dates = userId ? await db.select().from(importantDates).where(eq(importantDates.user_id, userId)) : [];
     for (const d of dates) {
-      const [mm, ddStr] = d.event_date.split('-');
-      const thisYear = new Date(today.getFullYear(), parseInt(mm) - 1, parseInt(ddStr));
+      if (!d.event_date) continue;
+      const parts = d.event_date.split(/[-/.]/);
+      let mm: number, dd: number;
+      if (parts.length >= 3) {
+        // YYYY-MM-DD formatı
+        mm = parseInt(parts[1], 10);
+        dd = parseInt(parts[2], 10);
+      } else {
+        // MM-DD formatı
+        mm = parseInt(parts[0] || '1', 10);
+        dd = parseInt(parts[1] || '1', 10);
+      }
+
+      if (isNaN(mm) || isNaN(dd)) continue;
+
+      const thisYear = new Date(today.getFullYear(), mm - 1, dd);
       let eventDate = thisYear;
       if (thisYear < today) {
-        eventDate = new Date(today.getFullYear() + 1, parseInt(mm) - 1, parseInt(ddStr));
+        eventDate = new Date(today.getFullYear() + 1, mm - 1, dd);
       }
       const daysLeft = Math.ceil((eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       const threshold = d.remind_days_before || 7;
@@ -121,8 +136,18 @@ export async function GET() {
       }
     }
 
-    // 5. Kredi kartı ödeme tarihleri (3 gün içindekiler)
-    const accounts = await db.select().from(walletsAccounts).where(eq(walletsAccounts.is_active, 1));
+    // 5. Kredi kartı ödeme tarihleri (7 gün içindekiler)
+    const accounts = userId
+      ? await db.select().from(walletsAccounts).where(
+          and(
+            eq(walletsAccounts.is_active, 1),
+            familyId
+              ? or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.family_id, familyId))
+              : eq(walletsAccounts.user_id, userId)
+          )
+        )
+      : [];
+
     for (const acc of accounts) {
       if (acc.type === 'credit_card' && acc.balance > 0 && acc.due_day) {
         const currentMonth = today.getMonth();
@@ -134,7 +159,7 @@ export async function GET() {
           notifications.push({
             id: `card-${acc.id}`,
             title: `${acc.name} Ekstre Ödemesi`,
-            subtitle: `${new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(acc.balance)} — ${daysLeft} gün kaldı`,
+            subtitle: `${new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(acc.balance)} — ${daysLeft <= 0 ? 'Bugün!' : `${daysLeft} gün kaldı`}`,
             module: 'Finans',
             icon: '💳',
             days_left: daysLeft,
@@ -142,6 +167,76 @@ export async function GET() {
             due_date: cardDue.toISOString().split('T')[0]
           });
         }
+      }
+    }
+
+    // 6. Periyodik Faturalar & Abonelikler (Ödenmemiş ve vadesi yaklaşanlar / geçenler)
+    const bills = userId
+      ? await db.select().from(recurringBills).where(
+          and(
+            eq(recurringBills.status, 'active'),
+            familyId
+              ? or(eq(recurringBills.user_id, userId), eq(recurringBills.family_id, familyId))
+              : eq(recurringBills.user_id, userId)
+          )
+        )
+      : [];
+
+    const curYear = today.getFullYear();
+    const curMonth = today.getMonth();
+    const currentMonthStr = `${curYear}-${String(curMonth + 1).padStart(2, '0')}`;
+
+    for (const bill of bills) {
+      // Bu ay için zaten ödendi olarak işaretlenmişse bildirim verme
+      if (bill.last_paid_month === currentMonthStr) continue;
+
+      // Yıllık periyot ise ve bu ay vade ayı değilse atla
+      if (bill.period === 'yearly' && bill.due_month && bill.due_month !== (curMonth + 1)) {
+        continue;
+      }
+
+      // Vade gününü ayın gün sayısına sınırla (clamping)
+      const maxDaysInCurMonth = new Date(curYear, curMonth + 1, 0).getDate();
+      const dueDayClamped = Math.min(bill.due_day || 1, maxDaysInCurMonth);
+      const billDue = new Date(curYear, curMonth, dueDayClamped);
+
+      // Kalan gün sayısı
+      const daysLeft = Math.ceil((billDue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+      // 7 gün öncesinden başlayarak veya vadesi geçmişse (son 60 gün içinde) bildir
+      if (daysLeft <= 7 && daysLeft >= -60) {
+        const typeEmoji: Record<string, string> = {
+          utility: '⚡',
+          subscription: '📺',
+          tax: '🏛️',
+          other: '🧾'
+        };
+        const icon = typeEmoji[bill.type] || '🧾';
+        const formattedAmount = new Intl.NumberFormat('tr-TR', {
+          style: 'currency',
+          currency: 'TRY',
+          maximumFractionDigits: 0
+        }).format(bill.amount || 0);
+
+        let subtitle = '';
+        if (daysLeft < 0) {
+          subtitle = `${formattedAmount} — ${Math.abs(daysLeft)} gün gecikti!`;
+        } else if (daysLeft === 0) {
+          subtitle = `${formattedAmount} — Bugün son ödeme günü!`;
+        } else {
+          subtitle = `${formattedAmount} — ${daysLeft} gün kaldı`;
+        }
+
+        notifications.push({
+          id: `bill-${bill.id}`,
+          title: bill.name,
+          subtitle,
+          module: 'Faturalar',
+          icon,
+          days_left: daysLeft,
+          priority: daysLeft <= 2 ? 'critical' : 'warning',
+          due_date: billDue.toISOString().split('T')[0]
+        });
       }
     }
 

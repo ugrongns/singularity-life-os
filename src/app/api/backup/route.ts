@@ -1,19 +1,21 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
+import { db, initDatabase } from '@/db';
 import * as schema from '@/db/schema';
 import { eq, or, and } from 'drizzle-orm';
 import crypto from 'crypto';
 import { getAuthUser } from '@/lib/auth';
 
 // Düz dışa aktarmalarda hassas tabloları ve kimlik doğrulama tokenlarını hariç tut
+// Bağımlılık (Foreign Key) sırasına göre sıralanmıştır
 const SAFE_EXPORT_TABLES = [
   { name: 'family_members', table: schema.familyMembers },
   { name: 'family_invites', table: schema.familyInvites },
   { name: 'wallets_accounts', table: schema.walletsAccounts },
   { name: 'categories', table: schema.categories },
-  { name: 'transactions', table: schema.transactions },
   { name: 'sinking_funds', table: schema.sinkingFunds },
   { name: 'personal_debts_receivables', table: schema.personalDebtsReceivables },
+  { name: 'recurring_bills', table: schema.recurringBills },
+  { name: 'transactions', table: schema.transactions },
   { name: 'books', table: schema.books },
   { name: 'reading_sessions', table: schema.readingSessions },
   { name: 'book_quotes', table: schema.bookQuotes },
@@ -24,6 +26,10 @@ const SAFE_EXPORT_TABLES = [
   { name: 'vehicle_legal_reminders', table: schema.vehicleLegalReminders },
   { name: 'user_health_profile', table: schema.userHealthProfile },
   { name: 'nutrition_meals', table: schema.nutritionMeals },
+  { name: 'nutrition_meal_items', table: schema.nutritionMealItems },
+  { name: 'diet_meal_options', table: schema.dietMealOptions },
+  { name: 'packaged_food_scans', table: schema.packagedFoodScans },
+  { name: 'food_nutrient_profiles', table: schema.foodNutrientProfiles },
   { name: 'fasting_sessions', table: schema.fastingSessions },
   { name: 'water_intake_logs', table: schema.waterIntakeLogs },
   { name: 'supplement_routines', table: schema.supplementRoutines },
@@ -31,11 +37,13 @@ const SAFE_EXPORT_TABLES = [
   { name: 'mood_logs', table: schema.moodLogs },
   { name: 'biometrics', table: schema.biometrics },
   { name: 'smart_scale_logs', table: schema.smartScaleLogs },
+  { name: 'workout_sessions', table: schema.workoutSessions },
+  { name: 'workout_exercise_logs', table: schema.workoutExerciseLogs },
   { name: 'digital_vault_items', table: schema.digitalVaultItems },
   { name: 'important_dates', table: schema.importantDates },
   { name: 'pet_records', table: schema.petRecords },
-  { name: 'home_maintenance_records', table: schema.homeMaintenanceRecords },
   { name: 'home_appliances', table: schema.homeAppliances },
+  { name: 'home_maintenance_records', table: schema.homeMaintenanceRecords },
   { name: 'shopping_list_items', table: schema.shoppingListItems },
   { name: 'app_settings', table: schema.appSettings },
 ];
@@ -91,6 +99,7 @@ async function fetchSafeData(userId: string, familyId: string) {
 
 export async function GET(req: Request) {
   try {
+    await initDatabase();
     const user = await getAuthUser();
     if (!user || !user.id) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
@@ -157,6 +166,7 @@ export async function GET(req: Request) {
 
 export async function POST(request: Request) {
   try {
+    await initDatabase();
     const user = await getAuthUser();
     if (!user || !user.id) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
@@ -168,22 +178,22 @@ export async function POST(request: Request) {
     const now = new Date();
     const dateStr = now.toISOString().split('T')[0];
 
-    const exportData = await fetchSafeData(user.id, familyId);
-    const totalRecords = Object.values(exportData).reduce((sum, rows) => sum + rows.length, 0);
-    const tablesCount = SAFE_EXPORT_TABLES.length + 1;
-    const payloadObject = {
-      exported_at: now.toISOString(),
-      version: '1.0.0',
-      database: 'Supabase PostgreSQL',
-      total_records: totalRecords,
-      tables_count: tablesCount,
-      data: exportData
-    };
-    const jsonString = JSON.stringify(payloadObject, null, 2);
-    const sizeKb = Math.max(1, Math.round(Buffer.byteLength(jsonString, 'utf8') / 1024));
-
     // 1. DÜZ JSON YEDEK / EXPORT (backup_db veya export_json)
     if (action === 'backup_db' || action === 'export_json' || action === 'export') {
+      const exportData = await fetchSafeData(user.id, familyId);
+      const totalRecords = Object.values(exportData).reduce((sum, rows) => sum + rows.length, 0);
+      const tablesCount = SAFE_EXPORT_TABLES.length + 1;
+      const payloadObject = {
+        exported_at: now.toISOString(),
+        version: '1.0.0',
+        database: 'Supabase PostgreSQL',
+        total_records: totalRecords,
+        tables_count: tablesCount,
+        data: exportData
+      };
+      const jsonString = JSON.stringify(payloadObject, null, 2);
+      const sizeKb = Math.max(1, Math.round(Buffer.byteLength(jsonString, 'utf8') / 1024));
+
       return NextResponse.json({
         success: true,
         backup: {
@@ -205,6 +215,19 @@ export async function POST(request: Request) {
 
     // 2. AES-256 ŞİFRELİ YEDEK
     if (action === 'encrypted_backup') {
+      const exportData = await fetchSafeData(user.id, familyId);
+      const totalRecords = Object.values(exportData).reduce((sum, rows) => sum + rows.length, 0);
+      const tablesCount = SAFE_EXPORT_TABLES.length + 1;
+      const payloadObject = {
+        exported_at: now.toISOString(),
+        version: '1.0.0',
+        database: 'Supabase PostgreSQL',
+        total_records: totalRecords,
+        tables_count: tablesCount,
+        data: exportData
+      };
+      const jsonString = JSON.stringify(payloadObject, null, 2);
+
       const passphrase = body.passphrase || 'SingularityMasterKey2026';
       const salt = crypto.randomBytes(16);
       const key = crypto.pbkdf2Sync(passphrase, salt, 100000, 32, 'sha256');
@@ -236,6 +259,70 @@ export async function POST(request: Request) {
           total_records: totalRecords
         },
         encryptedPayload: encPayload
+      });
+    }
+
+    // 3. JSON YEDEKTEN GERİ YÜKLEME (RESTORE)
+    if (action === 'restore') {
+      let incomingData = body.backupData?.data || body.data || body.jsonData?.data || body.backupData;
+      if (typeof incomingData === 'string') {
+        try {
+          const parsed = JSON.parse(incomingData);
+          incomingData = parsed.data || parsed;
+        } catch {
+          // ignore
+        }
+      }
+
+      if (!incomingData || typeof incomingData !== 'object') {
+        return NextResponse.json({
+          success: false,
+          error: 'Geçersiz yedek içeriği. Veri formatı okunamadı.'
+        }, { status: 400 });
+      }
+
+      let totalRestored = 0;
+      const restoredSummary: Record<string, number> = {};
+
+      // Bağımlılık sırasına göre SAFE_EXPORT_TABLES üzerinde güvenli import
+      for (const { name, table } of SAFE_EXPORT_TABLES) {
+        const rows = incomingData[name];
+        if (!Array.isArray(rows) || rows.length === 0) continue;
+
+        let tableRestored = 0;
+        const t = table as any;
+
+        for (const rawRow of rows) {
+          if (!rawRow || typeof rawRow !== 'object') continue;
+          const row = { ...rawRow };
+
+          // Kullanıcı ve aile sahipliğini mevcut oturumla uyumla (varsa ve boşsa)
+          if ('user_id' in t && (!row.user_id || row.user_id === 'user-1')) {
+            row.user_id = user.id;
+          }
+          if ('family_id' in t && (!row.family_id || row.family_id === 'fam-1')) {
+            row.family_id = familyId;
+          }
+
+          try {
+            await db.insert(table).values(row).onConflictDoNothing();
+            tableRestored++;
+          } catch (rowErr) {
+            console.warn(`Restore row error in ${name}:`, rowErr);
+          }
+        }
+
+        if (tableRestored > 0) {
+          restoredSummary[name] = tableRestored;
+          totalRestored += tableRestored;
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `${totalRestored} kayıt başarıyla içe aktarıldı ve geri yüklendi.`,
+        total_restored: totalRestored,
+        summary: restoredSummary
       });
     }
 

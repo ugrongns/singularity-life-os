@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { transactions, walletsAccounts, userHealthProfile, books, shoppingListItems, supplementRoutines, moodLogs } from '@/db/schema';
-import { eq , or } from 'drizzle-orm';
+import { transactions, walletsAccounts, userHealthProfile, books, shoppingListItems, supplementRoutines, moodLogs, users } from '@/db/schema';
+import { eq, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 interface ParsedAction {
@@ -53,6 +53,9 @@ export async function POST(req: Request) {
       const today = nowISO.split('T')[0];
       const results: string[] = [];
 
+      const currentUserId = user?.id || (await db.select().from(users).where(eq(users.is_master_account, 1)).limit(1))[0]?.id || 'user-default';
+      const currentFamilyId = user?.family_id || (currentUserId ? `fam-${currentUserId}` : 'fam-default');
+
       for (const act of actionsToExecute) {
         if (act.type === 'expense') {
           const id = `tx-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -63,6 +66,8 @@ export async function POST(req: Request) {
             id,
             wallet_id: walletId,
             category_id: act.details.category_id || 'cat-market',
+            user_id: currentUserId,
+            family_id: currentFamilyId,
             merchant: act.details.merchant || 'Sesli Harcama',
             amount,
             currency: 'TRY',
@@ -88,15 +93,34 @@ export async function POST(req: Request) {
           results.push(`💳 ${act.details.merchant} (${amount} ₺)`);
         } else if (act.type === 'water') {
           const amount = Number(act.details.amount_ml) || 250;
-          const profile = (await db.select().from(userHealthProfile).limit(1))[0];
+          const profile = currentUserId
+            ? (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, currentUserId)).limit(1))[0]
+            : (await db.select().from(userHealthProfile).limit(1))[0];
           const current = (profile?.consumed_water_ml || 0) + amount;
-          await db.update(userHealthProfile)
-            .set({ consumed_water_ml: current, updated_at: nowISO })
-            ;
+          if (profile?.id) {
+            await db.update(userHealthProfile)
+              .set({ consumed_water_ml: current, updated_at: nowISO })
+              .where(eq(userHealthProfile.id, profile.id));
+          } else if (currentUserId) {
+            await db.insert(userHealthProfile).values({
+              id: `hp-${currentUserId}`,
+              user_id: currentUserId,
+              family_id: currentFamilyId,
+              consumed_water_ml: current,
+              daily_water_target_ml: 2500,
+              created_at: nowISO,
+              updated_at: nowISO
+            });
+          }
           results.push(`💧 +${amount} ml Su (Toplam: ${current} ml)`);
         } else if (act.type === 'reading') {
           const pages = Number(act.details.pages) || 10;
-          const activeBook = (await db.select().from(books).where(eq(books.status, 'reading')).limit(1))[0] || (await db.select().from(books).limit(1))[0];
+          const activeBook = currentUserId
+            ? ((await db.select().from(books).where(and(eq(books.user_id, currentUserId), eq(books.status, 'reading'))).limit(1))[0]
+               || (await db.select().from(books).where(eq(books.user_id, currentUserId)).limit(1))[0]
+               || (await db.select().from(books).where(eq(books.status, 'reading')).limit(1))[0])
+            : (await db.select().from(books).where(eq(books.status, 'reading')).limit(1))[0];
+
           if (activeBook) {
             const newPage = Math.min(activeBook.total_pages, (activeBook.current_page || 0) + pages);
             await db.update(books).set({ current_page: newPage, updated_at: nowISO }).where(eq(books.id, activeBook.id));
@@ -112,12 +136,18 @@ export async function POST(req: Request) {
             category: act.details.category || 'Market',
             is_checked: 0,
             source: 'voice_command',
+            user_id: currentUserId,
+            family_id: currentFamilyId,
             created_at: nowISO,
             updated_at: nowISO
           });
           results.push(`🛒 ${act.details.name} (Market Listesine eklendi)`);
         } else if (act.type === 'supplement') {
-          await db.update(supplementRoutines).set({ is_taken_today: 1, updated_at: nowISO });
+          if (currentUserId) {
+            await db.update(supplementRoutines)
+              .set({ is_taken_today: 1, updated_at: nowISO })
+              .where(eq(supplementRoutines.user_id, currentUserId));
+          }
           results.push(`💊 Günlük takviyeler alındı olarak işaretlendi`);
         }
       }

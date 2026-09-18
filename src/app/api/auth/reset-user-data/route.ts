@@ -39,7 +39,8 @@ import {
   shoppingListItems,
   sinkingFunds,
   transactions,
-  walletsAccounts
+  walletsAccounts,
+  recurringBills
 } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 
@@ -149,8 +150,9 @@ export async function POST(req: Request) {
       await db.delete(shoppingListItems).where(eq(shoppingListItems.family_id, familyId));
       await db.delete(sinkingFunds).where(eq(sinkingFunds.family_id, familyId));
 
-      // Bütçe işlemleri ve Cüzdanlar
+      // Bütçe işlemleri, Periyodik Faturalar ve Cüzdanlar
       await db.delete(transactions).where(eq(transactions.family_id, familyId));
+      await db.delete(recurringBills).where(eq(recurringBills.family_id, familyId));
       await db.delete(walletsAccounts).where(eq(walletsAccounts.family_id, familyId));
 
       // Admin için varsayılan boş cüzdan aç
@@ -177,7 +179,8 @@ export async function POST(req: Request) {
       });
     }
 
-    // Normal kullanıcı sadece kendi kişisel cüzdanlarını temizler
+    // Normal kullanıcı sadece kendi kişisel fatura ve cüzdanlarını temizler
+    await db.delete(recurringBills).where(eq(recurringBills.user_id, userId));
     await db.delete(walletsAccounts).where(and(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 0)));
     await db.delete(digitalVaultItems).where(and(eq(digitalVaultItems.user_id, userId), eq(digitalVaultItems.is_family_shared, 0)));
 

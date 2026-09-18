@@ -259,7 +259,11 @@ export async function POST(req: Request) {
         const ml = parseInt(parts[1], 10) || 250;
         const profile = (await db.select().from(userHealthProfile).limit(1))[0];
         const current = (profile?.consumed_water_ml || 0) + ml;
-        await db.update(userHealthProfile).set({ consumed_water_ml: current, updated_at: new Date().toISOString() });
+        if (profile?.id) {
+          await db.update(userHealthProfile)
+            .set({ consumed_water_ml: current, updated_at: new Date().toISOString() })
+            .where(eq(userHealthProfile.id, profile.id));
+        }
         replyText = `💧 *+${ml} ml su kaydedildi!*\nBugünkü toplam: ${current} ml`;
       } else if (text.startsWith('/kitap')) {
         const parts = text.split(' ');

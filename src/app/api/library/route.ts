@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { books, userReadingProfile, readingSessions } from '@/db/schema';
+import { books, userReadingProfile, readingSessions, bookQuotes } from '@/db/schema';
 import { eq, desc, or, and, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
@@ -383,7 +383,21 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Kitap ID gereklidir.' }, { status: 400 });
     }
 
-    await db.delete(books).where(user.is_master_account === 1 ? eq(books.id, id) : and(eq(books.id, id), eq(books.user_id, user.id)));
+    const bookCondition = user.is_master_account === 1 
+      ? eq(books.id, id) 
+      : and(eq(books.id, id), eq(books.user_id, user.id));
+
+    const targetBook = (await db.select().from(books).where(bookCondition).limit(1))[0];
+    if (!targetBook) {
+      return NextResponse.json({ success: false, error: 'Kitap bulunamadı veya silme yetkiniz yok.' }, { status: 404 });
+    }
+
+    // 1. Kitaba ait alt ilişkili verileri cascade temizle (Foreign Key Constraint Violation önleme)
+    await db.delete(readingSessions).where(eq(readingSessions.book_id, id));
+    await db.delete(bookQuotes).where(eq(bookQuotes.book_id, id));
+
+    // 2. Kitabı sil
+    await db.delete(books).where(eq(books.id, id));
 
     return NextResponse.json({ success: true, message: '🗑️ Kitap kütüphaneden silindi.' });
   } catch (error: any) {

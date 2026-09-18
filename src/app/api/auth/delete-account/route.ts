@@ -39,7 +39,8 @@ import {
   petRecords,
   homeMaintenanceRecords,
   homeAppliances,
-  shoppingListItems
+  shoppingListItems,
+  recurringBills
 } from '@/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { cookies } from 'next/headers';
@@ -100,10 +101,15 @@ export async function POST(req: Request) {
     await db.delete(moodLogs).where(eq(moodLogs.user_id, userId));
     await db.delete(supplementRoutines).where(eq(supplementRoutines.user_id, userId));
 
-    // 4. Finans, Cüzdanlar & Borçlar
+    // 4. Finans, Cüzdanlar, Faturalar & Borçlar
     await db.delete(personalDebtsReceivables).where(eq(personalDebtsReceivables.user_id, userId));
     await db.delete(transactions).where(eq(transactions.user_id, userId));
-    await db.delete(walletsAccounts).where(eq(walletsAccounts.user_id, userId));
+    await db.delete(recurringBills).where(
+      isMasterAdmin ? or(eq(recurringBills.user_id, userId), eq(recurringBills.family_id, familyId)) : eq(recurringBills.user_id, userId)
+    );
+    await db.delete(walletsAccounts).where(
+      isMasterAdmin ? or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.family_id, familyId)) : eq(walletsAccounts.user_id, userId)
+    );
 
     // 5. Araç & Ev Operasyonları (Eğer aile admini ise ailesine ait kayıtları da temizle)
     const userVehicles = await db.select({ id: vehicles.id }).from(vehicles).where(
