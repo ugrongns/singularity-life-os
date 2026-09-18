@@ -148,6 +148,20 @@ function extractJsonFromText(text: string): any {
   return null;
 }
 
+// HTML Entity Çözümleyici Yardımcı
+function decodeHtmlEntities(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/');
+}
+
 // 3. KAYNAK: Gemini AI Canlı Arama / Google Search Grounding & Künye Analizi
 async function fetchFromGeminiAI(
   cleanIsbn: string,
@@ -159,7 +173,7 @@ async function fetchFromGeminiAI(
   if (!apiKey) return null;
 
   const contextHint = seedTitle ? ` (Kitap İpucu: "${seedTitle}" - ${seedAuthor || ''}, ${seedPublisher || ''})` : '';
-  const promptText = `Sen uzman bir kütüphanecisin. ISBN numarası "${cleanIsbn}"${contextHint} olan kitabın Türkiye ve dünya kataloglarındaki gerçek ve tam adını, yazarını, yayınevini, sayfa sayısını, açıklayıcı Türkçe arka kapak özetini (2-3 cümle) ve kitabın gerçek konusuna/türüne göre en doğru Türkçe kategorisini (Örn: Tarih, Felsefe, Psikoloji, Bilim, Kişisel Gelişim, Kurgu (Fiction), Beden, Zihin & Ruh, İş & Ekonomi, Din, Sosyal Bilimler, Tıp, Sanat, Teknoloji & Mühendislik vb.) araştır ve SADECE JSON formatında çıktı ver:
+  const promptText = `Sen uzman bir kütüphanecisin. ISBN numarası "${cleanIsbn}"${contextHint} olan kitabın Türkiye ve dünya kataloglarındaki (Kronik Kitap, Destek Yayınları, Can Yayınları, Yapı Kredi Kültür, İş Bankası, Kitapyurdu, D&R vb.) gerçek ve tam adını, yazarını, yayınevini, sayfa sayısını, açıklayıcı Türkçe arka kapak özetini (2-3 cümle) ve kitabın gerçek konusuna/türüne göre en doğru Türkçe kategorisini (Örn: Tarih, Felsefe, Psikoloji, Bilim, Kişisel Gelişim, Kurgu (Fiction), Beden, Zihin & Ruh, İş & Ekonomi, Din, Sosyal Bilimler, Tıp, Sanat, Teknoloji & Mühendislik vb.) araştır ve SADECE JSON formatında çıktı ver:
 \`\`\`json
 {
   "title": "Kitap Tam Adı",
@@ -171,7 +185,7 @@ async function fetchFromGeminiAI(
 }
 \`\`\``;
 
-  const models = ['gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-2.5-flash-lite'];
+  const models = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'];
   for (const modelName of models) {
     try {
       const response = await fetch(
@@ -194,12 +208,12 @@ async function fetchFromGeminiAI(
           if (parsed && parsed.title && parsed.title !== 'Kitap Tam Adı' && parsed.title.length >= 2) {
             const resolvedCategory = normalizeBookCategory(parsed.category, parsed.title, parsed.summary);
             return {
-              title: parsed.title,
-              author: (parsed.author || seedAuthor || '').replace(/Yazar Adı/i, '').trim(),
-              publisher: (parsed.publisher || seedPublisher || '').replace(/Yayınevi Adı/i, '').trim(),
+              title: decodeHtmlEntities(parsed.title),
+              author: decodeHtmlEntities((parsed.author || seedAuthor || '').replace(/Yazar Adı/i, '').trim()),
+              publisher: decodeHtmlEntities((parsed.publisher || seedPublisher || '').replace(/Yayınevi Adı/i, '').trim()),
               total_pages: Number(parsed.total_pages) || 200,
               category: resolvedCategory,
-              summary: parsed.summary || '',
+              summary: decodeHtmlEntities(parsed.summary || ''),
               cover_url: null,
               source: 'Gemini AI'
             };
@@ -228,33 +242,51 @@ async function fetchFromTurkishBookstores(cleanIsbn: string): Promise<BookSearch
     const html = await res.text();
 
     const headings = [...html.matchAll(/<h2 class="result__title">[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/gi)];
+    const storePattern = /[\s\-_|–·•]*(BKM\s*Kitap|Bkmkitap|Kitapyurdu|D&R|İdefix|Idefix|Amazon|Hepsiburada|Trendyol|Nadir\s*Kitap|Nadirkitap|Palme\s*Kitabevi|Destek\s*Dükkan|Scala\s*Kitapçı|Kitapbulan|Kırmızı\s*Kedi|Pandora|Eganba|Pelikan\s*Kitabevi|Kidega|OdaKitap|Kitap365|Hugendubel[\s\S]*)[\s\S]*/gi;
 
     for (const match of headings) {
-      let rawTitle = match[1].replace(/<[^>]+>/g, '').trim();
+      let rawTitle = decodeHtmlEntities(match[1].replace(/<[^>]+>/g, '').trim());
       if (rawTitle && !rawTitle.toLowerCase().includes('duckduckgo') && rawTitle.length > 3) {
         let cleaned = rawTitle
           .replace(/^Amazon\.[a-z.]+\s*:\s*/i, '')
           .replace(/:\s*Books$/i, '')
           .replace(/:\s*Kitaplar$/i, '')
-          .replace(/\|\s*(D&R|Kitapyurdu|BKM Kitap|BKMKitap|İdefix|Idefix|Amazon|Hepsiburada|Trendyol|NadirKitap)[\s\S]*/i, '')
-          .replace(/\s*-\s*(D&R|Kitapyurdu|BKM Kitap|BKMKitap|İdefix|Idefix|Amazon|Hepsiburada|Trendyol|NadirKitap)[\s\S]*/i, '')
-          .replace(/\s*\.\.\.\s*$/, '');
+          .replace(storePattern, '')
+          .replace(/\s*\.\.\.\s*$/, '')
+          .trim();
 
-        const parts = cleaned
-          .split(/[:\-|–]/)
-          .map(p => p.trim())
-          .filter(p => p && !p.includes(cleanIsbn) && !/^[0-9\-–]+$/.test(p) && !p.toLowerCase().includes('amazon'));
+        if (!cleaned || cleaned.length < 2) continue;
 
-        if (parts.length > 0) {
-          const title = parts[0];
-          const author = parts.length > 1 ? parts[1] : '';
-          const publisher = parts.length > 2 ? parts[2] : '';
+        let title = cleaned;
+        let author = '';
+        let publisher = '';
+
+        if (cleaned.includes('/')) {
+          const parts = cleaned.split('/').map(p => p.trim());
+          if (parts.length >= 2) {
+            title = parts[0];
+            author = parts[1];
+          }
+        } else if (cleaned.includes('-')) {
+          const parts = cleaned.split('-').map(p => p.trim());
+          if (parts.length >= 2) {
+            title = parts[0];
+            author = parts[1];
+          }
+        }
+
+        const pubMatch = title.match(/^(Destek Yayınları|Kronik Kitap|Can Yayınları|Yapı Kredi Yayınları|İş Bankası Kültür Yayınları|İletişim Yayınları|Everest Yayınları|Doğan Kitap|Pegasus Yayınları|İthaki Yayınları)\s+(.*)/i);
+        if (pubMatch) {
+          publisher = pubMatch[1];
+          title = pubMatch[2];
+        }
+
+        if (title && title.length >= 2) {
           const resolvedCategory = normalizeBookCategory('', title);
-
           return {
-            title,
-            author,
-            publisher,
+            title: title.trim(),
+            author: author.trim(),
+            publisher: publisher.trim(),
             total_pages: 248,
             category: resolvedCategory,
             summary: `${title}${author ? ' - ' + author : ''} hakkında Türkçe katalog kaydı.`,
