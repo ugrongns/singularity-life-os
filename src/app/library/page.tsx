@@ -90,7 +90,12 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      <AddBookModal isOpen={isAddBookOpen} onClose={() => setIsAddBookOpen(false)} onSuccess={(msg) => handleUpdate(msg)} />
+      <AddBookModal
+        isOpen={isAddBookOpen}
+        onClose={() => setIsAddBookOpen(false)}
+        onSuccess={(msg) => handleUpdate(msg)}
+        onOpenBookDetail={(b) => setSelectedBookDetail(b)}
+      />
       <ReadingSessionModal
         isOpen={isSessionOpen}
         onClose={() => {

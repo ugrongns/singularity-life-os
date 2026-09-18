@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { books, userReadingProfile, readingSessions } from '@/db/schema';
-import { eq, desc , or , and } from 'drizzle-orm';
+import { eq, desc, or, and, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 export async function GET() {
@@ -174,6 +174,62 @@ export async function POST(req: Request) {
 
     // 1. Yeni Kitap Ekleme (Manuel veya Kamera / ISBN)
     if (action === 'create_book' || (title && !book_id && action !== 'update_details')) {
+      const { allow_duplicate } = body;
+
+      // 🛡️ Mükerrer Kitap Güvenlik Kalkanı (allow_duplicate: true olmadığı sürece engelle)
+      if (!allow_duplicate) {
+        const rawIsbn = (isbn || '').trim();
+        const cleanIsbn = rawIsbn.replace(/[^0-9X]/gi, '').trim();
+        let existingBook = null;
+
+        if (cleanIsbn.length >= 9) {
+          const byIsbn = await db.select().from(books).where(
+            and(
+              or(eq(books.user_id, user.id), eq(books.family_id, familyId)),
+              or(
+                eq(books.isbn, rawIsbn),
+                eq(books.isbn, cleanIsbn),
+                sql`REPLACE(REPLACE(COALESCE(${books.isbn}, ''), '-', ''), ' ', '') = ${cleanIsbn}`
+              )
+            )
+          ).limit(1);
+          if (byIsbn && byIsbn.length > 0) existingBook = byIsbn[0];
+        }
+
+        if (!existingBook && title && title.trim().length > 2) {
+          const cleanTitle = title.trim();
+          const byTitle = await db.select().from(books).where(
+            and(
+              or(eq(books.user_id, user.id), eq(books.family_id, familyId)),
+              sql`LOWER(TRIM(${books.title})) = LOWER(TRIM(${cleanTitle}))`
+            )
+          ).limit(1);
+
+          if (byTitle && byTitle.length > 0) {
+            const existingAuthor = (byTitle[0].author || '').toLowerCase();
+            const incomingAuthor = (author || '').toLowerCase();
+            if (!incomingAuthor || existingAuthor.includes(incomingAuthor.slice(0, 4)) || incomingAuthor.includes(existingAuthor.slice(0, 4))) {
+              existingBook = byTitle[0];
+            }
+          }
+        }
+
+        if (existingBook) {
+          const statusText = existingBook.status === 'completed'
+            ? 'Okundu'
+            : existingBook.status === 'reading'
+            ? `Okunuyor (Sayfa ${existingBook.current_page} / ${existingBook.total_pages})`
+            : 'İstek Listesi';
+
+          return NextResponse.json({
+            success: false,
+            is_duplicate: true,
+            existing_book: existingBook,
+            error: `"${existingBook.title}" adlı kitap zaten kütüphanenizde mevcut (${statusText} • Raf: ${existingBook.shelf_location || 'Belirtilmemiş'}). İkinci kopya olarak eklemek isterseniz lütfen onaylayın.`
+          }, { status: 409 });
+        }
+      }
+
       const total = parseInt(total_pages) || 200;
       const curr = parseInt(current_page) || 0;
       const bookStatus = status || (curr >= total ? 'completed' : curr > 0 ? 'reading' : 'wishlist');

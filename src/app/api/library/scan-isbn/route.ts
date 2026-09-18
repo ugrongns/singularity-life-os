@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { parseBookCoverOrISBNImage } from '@/lib/ai-vision';
 import { getAuthUser } from '@/lib/auth';
 import { normalizeBookCategory } from '@/lib/book-categories';
+import { db, initDatabase } from '@/db';
+import { books } from '@/db/schema';
+import { eq, or, and, sql } from 'drizzle-orm';
 
 export const maxDuration = 60;
 
@@ -18,7 +21,54 @@ interface BookSearchResult {
 
 // ISBN Temizleme Yardımcısı
 function cleanIsbnString(raw: string): string {
-  return raw.replace(/[^0-9X]/gi, '').trim();
+  return (raw || '').replace(/[^0-9X]/gi, '').trim();
+}
+
+// 📚 KULLANICININ MEVCUT KÜTÜPHANESİNDE MÜKERRER KİTAP ARAMA
+async function findExistingBookInLibrary(
+  userId: string,
+  familyId: string,
+  cleanIsbn?: string,
+  title?: string,
+  author?: string
+) {
+  try {
+    await initDatabase();
+    // 1. ISBN ile eşleşme
+    if (cleanIsbn && cleanIsbn.length >= 9) {
+      const byIsbn = await db.select().from(books).where(
+        and(
+          or(eq(books.user_id, userId), eq(books.family_id, familyId)),
+          or(
+            eq(books.isbn, cleanIsbn),
+            sql`REPLACE(REPLACE(COALESCE(${books.isbn}, ''), '-', ''), ' ', '') = ${cleanIsbn}`
+          )
+        )
+      ).limit(1);
+
+      if (byIsbn && byIsbn.length > 0) return byIsbn[0];
+    }
+
+    // 2. Başlık ve Yazar ile eşleşme
+    if (title && title.trim().length > 2) {
+      const cleanTitle = title.trim();
+      const byTitle = await db.select().from(books).where(
+        and(
+          or(eq(books.user_id, userId), eq(books.family_id, familyId)),
+          sql`LOWER(TRIM(${books.title})) = LOWER(TRIM(${cleanTitle}))`
+        )
+      ).limit(1);
+
+      if (byTitle && byTitle.length > 0) {
+        if (!author || byTitle[0].author.toLowerCase().includes(author.toLowerCase().slice(0, 4))) {
+          return byTitle[0];
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('findExistingBookInLibrary hatası:', err);
+  }
+  return null;
 }
 
 // 1. KAYNAK: Google Books API
@@ -230,6 +280,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { isbn, image_base64, mime_type } = body;
 
+    const familyId = user.family_id || `fam-${user.id}`;
+
     // 1. SEÇENEK: Kapak Fotoğrafından Okuma (2. Aşama)
     if (image_base64) {
       const visionResult = await parseBookCoverOrISBNImage(image_base64, mime_type || 'image/jpeg');
@@ -241,8 +293,13 @@ export async function POST(req: Request) {
         }, { status: 422 });
       }
 
+      const cleanVisionIsbn = cleanIsbnString(visionResult.isbn || '');
+      const existingInLibrary = await findExistingBookInLibrary(user.id, familyId, cleanVisionIsbn, visionResult.title, visionResult.author);
+
       return NextResponse.json({
         success: true,
+        already_in_library: !!existingInLibrary,
+        existing_book: existingInLibrary || null,
         data: {
           title: visionResult.title,
           author: visionResult.author || '',
@@ -252,7 +309,9 @@ export async function POST(req: Request) {
           category: visionResult.category || 'Kurgu (Fiction)',
           summary: visionResult.summary || ''
         },
-        message: `📸 Kitap kapağından "${visionResult.title}" (${visionResult.author || 'Yazar'}) tanımlandı!`
+        message: existingInLibrary
+          ? `⚠️ Bu kitap kütüphanenizde zaten kayıtlı: "${existingInLibrary.title}"`
+          : `📸 Kitap kapağından "${visionResult.title}" (${visionResult.author || 'Yazar'}) tanımlandı!`
       });
     }
 
@@ -265,6 +324,9 @@ export async function POST(req: Request) {
     if (cleanIsbn.length < 9) {
       return NextResponse.json({ success: false, error: 'Geçersiz ISBN numarası.' }, { status: 400 });
     }
+
+    // Kullanıcının kendi kütüphanesinde mükerrer kontrolü
+    const existingInLibrary = await findExistingBookInLibrary(user.id, familyId, cleanIsbn);
 
     // 1. Aşama: Dış Katalogları Sorgula (Google Books & Open Library -> Kapak resmi, sayfa sayısı ve temel künye)
     let catalogBook: BookSearchResult | null = await fetchFromGoogleBooks(cleanIsbn);
@@ -306,6 +368,8 @@ export async function POST(req: Request) {
     if (book) {
       return NextResponse.json({
         success: true,
+        already_in_library: !!existingInLibrary,
+        existing_book: existingInLibrary || null,
         data: {
           title: book.title,
           author: book.author,
@@ -316,7 +380,29 @@ export async function POST(req: Request) {
           summary: book.summary,
           cover_url: book.cover_url || null
         },
-        message: `🔍 "${book.title}" (${book.source}) kaynağından başarıyla bulundu!`
+        message: existingInLibrary
+          ? `⚠️ Bu kitap kütüphanenizde zaten kayıtlı: "${existingInLibrary.title}"`
+          : `🔍 "${book.title}" (${book.source}) kaynağından başarıyla bulundu!`
+      });
+    }
+
+    // Dış kaynaklarda bulunamadıysa ama kullanıcının kütüphanesinde zaten kayıtlıysa
+    if (existingInLibrary) {
+      return NextResponse.json({
+        success: true,
+        already_in_library: true,
+        existing_book: existingInLibrary,
+        data: {
+          title: existingInLibrary.title,
+          author: existingInLibrary.author,
+          publisher: existingInLibrary.publisher || '',
+          isbn: cleanIsbn,
+          total_pages: existingInLibrary.total_pages,
+          category: existingInLibrary.category || 'Kişisel Gelişim',
+          summary: existingInLibrary.summary || '',
+          cover_url: existingInLibrary.cover_url || null
+        },
+        message: `⚠️ Bu kitap kütüphanenizde zaten kayıtlı: "${existingInLibrary.title}"`
       });
     }
 

@@ -7,9 +7,10 @@ interface AddBookModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (msg: string) => void;
+  onOpenBookDetail?: (book: any) => void;
 }
 
-export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModalProps) {
+export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDetail }: AddBookModalProps) {
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [publisher, setPublisher] = useState('');
@@ -30,6 +31,10 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
   const [isLentOut, setIsLentOut] = useState(false);
   const [lentToName, setLentToName] = useState('');
   const [lentDate, setLentDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Mükerrer Kitap Tespiti & İkinci Kopya Onayı
+  const [existingBook, setExistingBook] = useState<any | null>(null);
+  const [allowDuplicate, setAllowDuplicate] = useState(false);
 
   // Modallar ve Durumlar
   const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
@@ -74,6 +79,8 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
     setIsLentOut(false);
     setLentToName('');
     setLentDate(new Date().toISOString().split('T')[0]);
+    setExistingBook(null);
+    setAllowDuplicate(false);
     setErrorMessage(null);
     setSuccessNotice(null);
     setIsBarcodeScannerOpen(false);
@@ -152,6 +159,13 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
         if (b.category) applyIncomingCategory(b.category);
         if (b.summary) setSummary(b.summary);
 
+        if (json.already_in_library && json.existing_book) {
+          setExistingBook(json.existing_book);
+          setAllowDuplicate(false);
+        } else {
+          setExistingBook(null);
+        }
+
         setSuccessNotice(json.message || `📸 Kitap kapağından "${b.title}" okundu ve görsel eklendi!`);
       } else {
         setSuccessNotice('📸 Kapak fotoğrafı eklendi. Detaylı künye bilgilerini aşağıdan doldurabilirsiniz.');
@@ -192,6 +206,13 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
         if (b.summary) setSummary(b.summary);
         if (b.cover_url) setCoverUrl(b.cover_url);
 
+        if (json.already_in_library && json.existing_book) {
+          setExistingBook(json.existing_book);
+          setAllowDuplicate(false);
+        } else {
+          setExistingBook(null);
+        }
+
         setSuccessNotice(json.message || `🔍 "${b.title}" (ISBN: ${clean}) veritabanında bulundu!`);
       } else {
         setErrorMessage(json.error || `ISBN (${clean}) veritabanında bulunamadı. Lütfen detayları manuel doldurun.`);
@@ -210,6 +231,11 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
       return;
     }
 
+    if (existingBook && !allowDuplicate) {
+      setErrorMessage('Bu kitap zaten kütüphanenizde kayıtlı! Mevcut kitabı açabilir veya 2. kopya olarak eklemek için onay kutusunu işaretleyebilirsiniz.');
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -219,6 +245,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'create_book',
+          allow_duplicate: allowDuplicate,
           title: title.trim(),
           author: author.trim(),
           publisher: publisher.trim(),
@@ -240,11 +267,15 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
       });
 
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         window.dispatchEvent(new CustomEvent('singularity-refresh'));
         resetForm();
         onClose();
         onSuccess(json.message || `📚 "${title}" kütüphaneye başarıyla eklendi!`);
+      } else if (json.is_duplicate && json.existing_book) {
+        setExistingBook(json.existing_book);
+        setAllowDuplicate(false);
+        setErrorMessage(json.error);
       } else {
         setErrorMessage(json.error || 'Kitap eklenirken bir hata oluştu.');
       }
@@ -417,6 +448,108 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
                 borderRadius: '12px', padding: '12px 16px', color: 'var(--emerald)', fontSize: '13px', fontWeight: 600
               }}>
                 {successNotice}
+              </div>
+            )}
+
+            {/* ⚠️ Mükerrer Kitap Tespit Paneli */}
+            {existingBook && (
+              <div style={{
+                background: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid #F59E0B',
+                borderRadius: '16px',
+                padding: '16px 18px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <div style={{
+                      width: '36px', height: '36px', borderRadius: '10px', background: '#F59E0B',
+                      color: '#000000', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '18px', fontWeight: 800, flexShrink: 0
+                    }}>
+                      ⚠️
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#F59E0B' }}>
+                        Bu Kitap Zaten Kütüphanenizde Kayıtlı!
+                      </div>
+                      <div style={{ fontSize: '13px', color: 'var(--text-main)', marginTop: '4px', fontWeight: 600 }}>
+                        {existingBook.title}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {existingBook.author} {existingBook.publisher ? `• ${existingBook.publisher}` : ''}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-main)', marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                        <span>
+                          📌 <strong>Durum:</strong>{' '}
+                          {existingBook.status === 'completed'
+                            ? '✅ Okundu'
+                            : existingBook.status === 'reading'
+                            ? `📖 Okunuyor (${existingBook.current_page} / ${existingBook.total_pages} sayfa)`
+                            : '📌 İstek Listesinde'}
+                        </span>
+                        <span>
+                          🗄️ <strong>Raf:</strong> {existingBook.shelf_location || 'Salon Kitaplığı'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px', paddingTop: '10px', borderTop: '1px solid rgba(245, 158, 11, 0.25)' }}>
+                  {onOpenBookDetail && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = existingBook;
+                        resetForm();
+                        onClose();
+                        onOpenBookDetail(target);
+                      }}
+                      style={{
+                        background: '#F59E0B',
+                        color: '#000000',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '10px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      📖 Mevcut Kitabı Aç / Güncelle
+                    </button>
+                  )}
+
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '13px',
+                    color: 'var(--text-main)',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    background: allowDuplicate ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
+                    border: allowDuplicate ? '1px solid #F59E0B' : '1px dashed rgba(245, 158, 11, 0.4)'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={allowDuplicate}
+                      onChange={(e) => setAllowDuplicate(e.target.checked)}
+                      style={{ cursor: 'pointer', accentColor: '#F59E0B', width: '16px', height: '16px' }}
+                    />
+                    <span style={{ fontWeight: allowDuplicate ? 700 : 500 }}>
+                      Yine de 2. kopya olarak kütüphaneme ekle
+                    </span>
+                  </label>
+                </div>
               </div>
             )}
 
@@ -689,15 +822,36 @@ export default function AddBookModal({ isOpen, onClose, onSuccess }: AddBookModa
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || (!!existingBook && !allowDuplicate)}
                 style={{
-                  background: isSubmitting ? 'var(--indigo)' : 'linear-gradient(135deg, #10B981, #059669)', color: '#FFFFFF', border: 'none',
-                  padding: '12px 24px', borderRadius: '12px', cursor: 'pointer', fontSize: '14px',
-                  fontWeight: 700, boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
-                  display: 'flex', alignItems: 'center', gap: '8px'
+                  background: isSubmitting
+                    ? 'var(--indigo)'
+                    : existingBook && !allowDuplicate
+                    ? 'rgba(245, 158, 11, 0.4)'
+                    : existingBook && allowDuplicate
+                    ? 'linear-gradient(135deg, #F59E0B, #D97706)'
+                    : 'linear-gradient(135deg, #10B981, #059669)',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '12px',
+                  cursor: (existingBook && !allowDuplicate) ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  opacity: (existingBook && !allowDuplicate) ? 0.7 : 1
                 }}
               >
-                {isSubmitting ? 'Kaydediliyor...' : '📚 Kütüphaneme Ekle'}
+                {isSubmitting
+                  ? 'Kaydediliyor...'
+                  : existingBook && !allowDuplicate
+                  ? '⚠️ Kitap Kütüphanenizde Mevcut'
+                  : existingBook && allowDuplicate
+                  ? '➕ 2. Kopya Olarak Ekle'
+                  : '📚 Kütüphaneme Ekle'}
               </button>
             </div>
           </form>
