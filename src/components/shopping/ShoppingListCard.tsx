@@ -145,9 +145,9 @@ export default function ShoppingListCard({
   };
 
   // Filtreleme Mantığı (Paket Filtresi + Arama + Kategori)
-  const DIET_KEYWORDS = ['avokado', 'yulaf', 'yumurta', 'badem', 'chia', 'diyet'];
-  const GROCERY_KEYWORDS = ['ekmek', 'peynir', 'zeytin', 'tuvalet', 'deterjan', 'süt', 'makarna', 'un', 'şeker'];
-  const PRODUCE_KEYWORDS = ['marul', 'domates', 'salatalık', 'zeytinyağı', 'limon', 'elma', 'muz', 'patates', 'soğan'];
+  const DIET_KEYWORDS = ['avokado', 'yulaf', 'yumurta', 'badem', 'chia', 'diyet', 'protein', 'kinoa', 'ceviz', 'kefir', 'somon'];
+  const GROCERY_KEYWORDS = ['ekmek', 'peynir', 'zeytin', 'tuvalet', 'deterjan', 'süt', 'makarna', 'un', 'şeker', 'pirinç', 'bulgur', 'bakliyat', 'yağ', 'çay', 'kahve', 'salça', 'yoğurt', 'kaşar', 'tuz', 'sabun', 'şampuan', 'peçete'];
+  const PRODUCE_KEYWORDS = ['marul', 'domates', 'salatalık', 'zeytinyağı', 'limon', 'elma', 'muz', 'patates', 'soğan', 'biber', 'havuç', 'yeşillik', 'portakal', 'mandalina', 'maydanoz', 'ıspanak'];
 
   const filteredItems = items.filter(item => {
     const nameLower = item.name.toLowerCase();
@@ -158,9 +158,9 @@ export default function ShoppingListCard({
     if (presetFilter === 'diet') {
       matchesPreset = DIET_KEYWORDS.some(k => nameLower.includes(k)) || item.source === 'diet_plan';
     } else if (presetFilter === 'grocery') {
-      matchesPreset = GROCERY_KEYWORDS.some(k => nameLower.includes(k)) || item.category === 'Market' || item.category === 'Fırın';
+      matchesPreset = GROCERY_KEYWORDS.some(k => nameLower.includes(k)) || (item.category === 'Fırın' && !nameLower.includes('kase') && !nameLower.includes('tabak'));
     } else if (presetFilter === 'produce') {
-      matchesPreset = PRODUCE_KEYWORDS.some(k => nameLower.includes(k)) || item.category === 'Manav';
+      matchesPreset = PRODUCE_KEYWORDS.some(k => nameLower.includes(k)) || (item.category === 'Manav' && !nameLower.includes('kase') && !nameLower.includes('tabak'));
     }
 
     if (filterView === 'unchecked') return matchesSearch && matchesCat && matchesPreset && item.is_checked === 0;
