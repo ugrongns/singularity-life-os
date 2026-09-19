@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface ShoppingItem {
   id?: string;
@@ -25,6 +25,24 @@ export default function AddShoppingItemModal({ isOpen, item, onClose, onSuccess 
   const [category, setCategory] = useState(item?.category || 'Market');
   const [estimatedPrice, setEstimatedPrice] = useState(String(item?.estimated_price || 0));
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (item) {
+        setName(item.name || '');
+        setQuantity(item.quantity || '1');
+        setUnit(item.unit || 'adet');
+        setCategory(item.category || 'Market');
+        setEstimatedPrice(String(item.estimated_price ?? 0));
+      } else {
+        setName('');
+        setQuantity('1');
+        setUnit('adet');
+        setCategory('Market');
+        setEstimatedPrice('0');
+      }
+    }
+  }, [isOpen, item]);
 
   if (!isOpen) return null;
 

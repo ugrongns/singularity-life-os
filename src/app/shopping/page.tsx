@@ -104,6 +104,7 @@ export default function ShoppingPage() {
 
       {/* Add / Edit Shopping Item Modal */}
       <AddShoppingItemModal
+        key={editItem?.id || (isAddOpen ? 'new-item' : 'closed')}
         isOpen={isAddOpen}
         item={editItem}
         onClose={() => {

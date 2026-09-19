@@ -104,6 +104,10 @@ export async function POST(request: Request) {
     }
 
     if (action === 'update') {
+      if (!data.id) {
+        return NextResponse.json({ success: false, error: 'Ürün ID zorunludur.' }, { status: 400 });
+      }
+
       await db.update(shoppingListItems).set({
         name: data.name,
         quantity: data.quantity,
@@ -111,7 +115,10 @@ export async function POST(request: Request) {
         category: data.category,
         estimated_price: Number(data.estimated_price) || 0,
         updated_at: now
-      }).where(eq(shoppingListItems.id, data.id));
+      }).where(and(
+        eq(shoppingListItems.id, data.id),
+        familyId ? eq(shoppingListItems.family_id, familyId) : eq(shoppingListItems.user_id, user.id)
+      ));
       return NextResponse.json({ success: true, message: 'Ürün güncellendi!' });
     }
 
