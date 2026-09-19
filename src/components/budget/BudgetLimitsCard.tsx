@@ -32,6 +32,13 @@ interface BudgetLimitsProps {
       };
     };
     monthName: string;
+    memberBreakdown?: Array<{
+      memberId: string;
+      name: string;
+      avatar: string;
+      totalSpent: number;
+      percentage: number;
+    }>;
   };
   onUpdate?: (msg?: string) => void;
   onMonthChange?: (monthStr: string) => void;
@@ -273,6 +280,79 @@ export default function BudgetLimitsCard({ categories, monthlySummary, onUpdate,
       </div>
 
 
+
+      {/* 👥 Aile Bireyleri Harcama Dağılımı (Kişi Başına Harcama) */}
+      {monthlySummary.memberBreakdown && monthlySummary.memberBreakdown.length > 0 && (
+        <div style={{
+          background: 'var(--surface-subtle)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-md)',
+          padding: '12px',
+          marginBottom: '14px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '14px' }}>👥</span>
+              <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>Aile Bireyleri Harcama Dağılımı</span>
+            </div>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
+              {monthlySummary.memberBreakdown.length} Harcama Sahibi
+            </span>
+          </div>
+
+          {/* Segmented Dağılım Çubuğu */}
+          <div style={{ display: 'flex', height: '8px', borderRadius: '4px', overflow: 'hidden', gap: '2px', background: 'var(--border)', marginBottom: '10px' }}>
+            {monthlySummary.memberBreakdown.map((m, idx) => {
+              const colors = ['#3B82F6', '#EC4899', '#10B981', '#F59E0B', '#8B5CF6'];
+              const color = colors[idx % colors.length];
+              return (
+                <div
+                  key={m.memberId}
+                  style={{
+                    width: `${m.percentage}%`,
+                    backgroundColor: color,
+                    minWidth: m.percentage > 0 ? '4px' : '0'
+                  }}
+                  title={`${m.name}: ${formatTRY(m.totalSpent)} (%${m.percentage})`}
+                />
+              );
+            })}
+          </div>
+
+          {/* Bireyler Rozet Listesi */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+            {monthlySummary.memberBreakdown.map((m, idx) => {
+              const colors = ['#3B82F6', '#EC4899', '#10B981', '#F59E0B', '#8B5CF6'];
+              const color = colors[idx % colors.length];
+              return (
+                <div
+                  key={m.memberId}
+                  style={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    padding: '8px 10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 700, color: 'var(--text-main)' }}>
+                      <span>{m.avatar}</span>
+                      <span style={{ maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</span>
+                    </div>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: color }}>%{m.percentage}</span>
+                  </div>
+                  <div className="tabular-nums" style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px' }}>
+                    {formatTRY(m.totalSpent)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 🎯 50 / 30 / 20 Bütçe Sağlık Skoru & Dağılım Paneli */}
       {scoreData && (

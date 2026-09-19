@@ -250,8 +250,21 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{ fontSize: '20px' }}>{icon}</span>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                     <span>{acc.name}</span>
+                    {(acc as any).owner_name && (
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        background: (acc as any).is_mine ? 'rgba(59, 130, 246, 0.12)' : 'rgba(236, 72, 153, 0.12)',
+                        color: (acc as any).is_mine ? '#2563EB' : '#DB2777',
+                        border: `1px solid ${(acc as any).is_mine ? 'rgba(59, 130, 246, 0.2)' : 'rgba(236, 72, 153, 0.2)'}`
+                      }}>
+                        {(acc as any).owner_avatar} {(acc as any).owner_name}
+                      </span>
+                    )}
                     {isCreditCard && (
                       <span style={{ fontSize: '10px', background: '#FEE2E2', color: '#991B1B', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
                         Kredi Kartı
@@ -332,18 +345,24 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
                       Kapat 💵
                     </button>
                   )}
-                  <button
-                    onClick={() => openEditModal(acc)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', opacity: 0.6 }}
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    onClick={() => handleDelete(acc.id, acc.name)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', opacity: 0.6 }}
-                  >
-                    🗑️
-                  </button>
+                  {(acc as any).can_edit !== false && (
+                    <>
+                      <button
+                        onClick={() => openEditModal(acc)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', opacity: 0.6 }}
+                        title="Hesabı Düzenle"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => handleDelete(acc.id, acc.name)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', opacity: 0.6 }}
+                        title="Hesabı Sil"
+                      >
+                        🗑️
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

@@ -24,6 +24,20 @@ export async function POST(req: Request) {
     const nowISO = now.toISOString();
 
     if (id) {
+      // Güncelleme öncesi yetki kontrolü
+      const existingAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, id)))[0];
+      if (!existingAcc) {
+        return NextResponse.json({ success: false, error: 'Hesap bulunamadı.' }, { status: 404 });
+      }
+
+      const canEdit = existingAcc.user_id === userId || user.is_master_account === 1 || user.role === 'admin';
+      if (!canEdit) {
+        return NextResponse.json({ 
+          success: false, 
+          error: 'Yetkisiz İşlem: Başka bir aile üyesine ait hesabı yalnızca hesap sahibi veya Aile Lideri düzenleyebilir.' 
+        }, { status: 403 });
+      }
+
       // Güncelle
       await db.update(walletsAccounts)
         .set({
@@ -259,7 +273,20 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesap ID zorunludur.' }, { status: 400 });
     }
 
-    await db.delete(walletsAccounts).where(user.is_master_account === 1 ? eq(walletsAccounts.id, id) : and(eq(walletsAccounts.id, id), eq(walletsAccounts.user_id, user.id)));
+    const acc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, id)))[0];
+    if (!acc) {
+      return NextResponse.json({ success: false, error: 'Hesap bulunamadı.' }, { status: 404 });
+    }
+
+    const canDelete = acc.user_id === user.id || user.is_master_account === 1 || user.role === 'admin';
+    if (!canDelete) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Yetkisiz İşlem: Başka bir aile üyesine ait hesabı yalnızca hesap sahibi veya Aile Lideri silebilir.' 
+      }, { status: 403 });
+    }
+
+    await db.delete(walletsAccounts).where(eq(walletsAccounts.id, id));
 
     return NextResponse.json({ success: true, message: 'Hesap başarıyla silindi.' });
   } catch (error: any) {

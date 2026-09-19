@@ -195,23 +195,33 @@ export async function DELETE(req: Request) {
     }
 
     const tx = (await db.select().from(transactions).where(eq(transactions.id, id)))[0];
-    if (tx) {
-      // Bakiye İadesi
-      if (tx.wallet_id) {
-        const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, tx.wallet_id)))[0];
-        if (wallet) {
-          const newBalance = wallet.type === 'credit_card'
-            ? wallet.balance - tx.amount
-            : wallet.balance + tx.amount;
-
-          await db.update(walletsAccounts)
-            .set({ balance: Math.max(0, newBalance), updated_at: new Date().toISOString() })
-            .where(eq(walletsAccounts.id, tx.wallet_id))
-            ;
-        }
-      }
-      await db.delete(transactions).where(user.is_master_account === 1 ? eq(transactions.id, id) : and(eq(transactions.id, id), eq(transactions.user_id, user.id)));
+    if (!tx) {
+      return NextResponse.json({ success: false, error: 'Harcama kaydı bulunamadı.' }, { status: 404 });
     }
+
+    const canDelete = tx.user_id === user.id || user.is_master_account === 1 || user.role === 'admin';
+    if (!canDelete) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Yetkisiz İşlem: Başka bir aile üyesine ait harcama kaydını yalnızca işlemi yapan üye veya Aile Lideri silebilir.' 
+      }, { status: 403 });
+    }
+
+    // Bakiye İadesi
+    if (tx.wallet_id) {
+      const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, tx.wallet_id)))[0];
+      if (wallet) {
+        const newBalance = wallet.type === 'credit_card'
+          ? wallet.balance - tx.amount
+          : wallet.balance + tx.amount;
+
+        await db.update(walletsAccounts)
+          .set({ balance: Math.max(0, newBalance), updated_at: new Date().toISOString() })
+          .where(eq(walletsAccounts.id, tx.wallet_id))
+          ;
+      }
+    }
+    await db.delete(transactions).where(eq(transactions.id, id));
 
     return NextResponse.json({ success: true, message: 'Harcama kaydı silindi ve bakiye güncellendi.' });
   } catch (error: any) {

@@ -22,6 +22,7 @@ export default function BudgetPage() {
   const todayLocal = new Date();
   const initMonth = `${todayLocal.getFullYear()}-${String(todayLocal.getMonth() + 1).padStart(2, '0')}`;
   const [selectedMonth, setSelectedMonth] = useState<string>(initMonth);
+  const [selectedMember, setSelectedMember] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [ratesLoading, setRatesLoading] = useState(false);
   const [isScanOpen, setIsScanOpen] = useState(false);
@@ -145,34 +146,134 @@ export default function BudgetPage() {
         loading={ratesLoading}
       />
 
-      <div className="dashboard-grid">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <BudgetRiskCard
-            accounts={data?.accounts || []}
-            onUpdate={handleUpdate}
-          />
-          <AccountsCard
-            accounts={data?.accounts || []}
-            onUpdate={handleUpdate}
-            onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
-          />
-          <RecentTxCard
-            transactions={data?.recentTransactions || []}
-            upcomingPayments={data?.upcomingPayments || []}
-            onUpdate={handleUpdate}
-            onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
-          />
+      {/* 🎛️ Aile / Kişi Görünüm Filtresi Barı */}
+      {data?.monthlySummary?.familyMembers && data.monthlySummary.familyMembers.length > 0 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 12px',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          marginBottom: '16px',
+          overflowX: 'auto'
+        }}>
+          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+            👥 Görünüm Filtresi:
+          </span>
+
+          <button
+            type="button"
+            onClick={() => setSelectedMember('all')}
+            style={{
+              padding: '5px 12px',
+              borderRadius: 'var(--radius-full)',
+              border: selectedMember === 'all' ? '1px solid var(--blue)' : '1px solid var(--border)',
+              background: selectedMember === 'all' ? 'var(--blue)' : 'var(--surface-subtle)',
+              color: selectedMember === 'all' ? 'white' : 'var(--text-main)',
+              fontSize: '11px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            👨‍👩‍👧‍👦 Tüm Aile (Ortak)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedMember('mine')}
+            style={{
+              padding: '5px 12px',
+              borderRadius: 'var(--radius-full)',
+              border: selectedMember === 'mine' ? '1px solid var(--emerald)' : '1px solid var(--border)',
+              background: selectedMember === 'mine' ? 'var(--emerald)' : 'var(--surface-subtle)',
+              color: selectedMember === 'mine' ? 'white' : 'var(--text-main)',
+              fontSize: '11px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            👑 Sadece Benim
+          </button>
+
+          {data.monthlySummary.familyMembers
+            .filter((m: any) => !m.is_current_user)
+            .map((m: any) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setSelectedMember(m.id)}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 'var(--radius-full)',
+                  border: selectedMember === m.id ? '1px solid #EC4899' : '1px solid var(--border)',
+                  background: selectedMember === m.id ? '#EC4899' : 'var(--surface-subtle)',
+                  color: selectedMember === m.id ? 'white' : 'var(--text-main)',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <span>{m.avatar || '👤'}</span>
+                <span>{m.name}</span>
+              </button>
+            ))}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <BudgetLimitsCard
-            categories={data?.categories || []}
-            monthlySummary={data?.monthlySummary || { totalIncome: 0, totalExpenses: 0, netCashFlow: 0, categories: [] }}
-            onUpdate={handleUpdate}
-            onMonthChange={handleMonthChange}
-            onOpenCategoryDetail={(catId, catName) => setCategoryDetail({ catId, catName })}
-          />
-        </div>
-      </div>
+      )}
+
+      {/* İstemci Tarafı Filtrelenmiş Veriler */}
+      {(() => {
+        const filteredAccounts = (data?.accounts || []).filter((acc: any) => {
+          if (selectedMember === 'all') return true;
+          if (selectedMember === 'mine') return acc.is_mine;
+          const targetMem = data?.monthlySummary?.familyMembers?.find((m: any) => m.id === selectedMember);
+          return targetMem?.user_id ? acc.user_id === targetMem.user_id : true;
+        });
+
+        const filteredRecentTx = (data?.recentTransactions || []).filter((tx: any) => {
+          if (selectedMember === 'all') return true;
+          if (selectedMember === 'mine') return tx.is_mine;
+          return tx.member_id === selectedMember;
+        });
+
+        return (
+          <div className="dashboard-grid">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <BudgetRiskCard
+                accounts={filteredAccounts}
+                onUpdate={handleUpdate}
+              />
+              <AccountsCard
+                accounts={filteredAccounts}
+                onUpdate={handleUpdate}
+                onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
+              />
+              <RecentTxCard
+                transactions={filteredRecentTx}
+                upcomingPayments={data?.upcomingPayments || []}
+                onUpdate={handleUpdate}
+                onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <BudgetLimitsCard
+                categories={data?.categories || []}
+                monthlySummary={data?.monthlySummary || { totalIncome: 0, totalExpenses: 0, netCashFlow: 0, categories: [] }}
+                onUpdate={handleUpdate}
+                onMonthChange={handleMonthChange}
+                onOpenCategoryDetail={(catId, catName) => setCategoryDetail({ catId, catName })}
+              />
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Gelecek 6 Ay Bütçe & Taksit Projeksiyon Kartı */}
       <FutureForecastCard

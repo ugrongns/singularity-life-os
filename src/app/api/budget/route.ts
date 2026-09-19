@@ -32,7 +32,12 @@ export async function GET(req: Request) {
 
     const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
 
-    // 1. Hesaplar & Cüzdanlar
+    // 2.5. Aile Üyeleri Haritası
+    const allFamilyMembers = await db.select().from(familyMembers);
+    const familyMap = new Map((allFamilyMembers).map((fm: any) => [fm.id, fm]));
+    const userToMemberMap = new Map((allFamilyMembers).filter((fm: any) => fm.user_id).map((fm: any) => [fm.user_id, fm]));
+
+    // 1. Hesaplar & Cüzdanlar (Sahiplik ve Rozet Bilgisi Eklenmiş)
     const rawAccounts = userId
       ? await db.select().from(walletsAccounts).where(
           and(
@@ -43,7 +48,16 @@ export async function GET(req: Request) {
           )
         )
       : [];
-    const accounts = rawAccounts;
+    const accounts = rawAccounts.map((acc: any) => {
+      const ownerMember = acc.user_id ? userToMemberMap.get(acc.user_id) : null;
+      return {
+        ...acc,
+        owner_name: ownerMember ? ownerMember.name : (acc.user_id === userId ? (user?.full_name || 'Ben') : 'Ortak'),
+        owner_avatar: ownerMember?.avatar || (acc.user_id === userId ? (user?.avatar_emoji || '👑') : '👥'),
+        is_mine: Boolean(userId && acc.user_id === userId),
+        can_edit: Boolean(userId && acc.user_id === userId) || user?.role === 'admin' || user?.is_master_account === 1
+      };
+    });
 
     // 2. Kategoriler
     const allCategories = await db.select().from(categories);
@@ -61,10 +75,6 @@ export async function GET(req: Request) {
           .orderBy(desc(transactions.transaction_date), desc(transactions.created_at))
           .limit(50)
       : [];
-
-    // 2.5. Aile Üyeleri Haritası
-    const allFamilyMembers = await db.select().from(familyMembers);
-    const familyMap = new Map((allFamilyMembers).map((fm: any) => [fm.id, fm]));
 
     // Gelir ve Transfer/Ödeme olan tüm işlemleri harcamalar listesinden çıkar (Sadece gerçek 3. şahıs giderleri görünsün)
     const recentTx = (allRecentTx)
@@ -86,13 +96,15 @@ export async function GET(req: Request) {
 
         return !isIncome && !isTransfer && (!tx.is_installment || tx.installment_number === 1);
       })
-      .slice(0, 6)
+      .slice(0, 8)
       .map((tx: any) => {
-        const fm = tx.member_id ? familyMap.get(tx.member_id) : null;
+        const fm = tx.member_id ? familyMap.get(tx.member_id) : (tx.user_id ? userToMemberMap.get(tx.user_id) : null);
         return {
           ...tx,
-          member_avatar: fm?.avatar || '👤',
-          member_name: fm?.name || null
+          member_avatar: fm?.avatar || (tx.user_id === userId ? (user?.avatar_emoji || '👑') : '👤'),
+          member_name: fm?.name || (tx.user_id === userId ? (user?.full_name || 'Ben') : null),
+          is_mine: Boolean(userId && tx.user_id === userId),
+          can_delete: Boolean(userId && tx.user_id === userId) || user?.role === 'admin' || user?.is_master_account === 1
         };
       });
 
@@ -207,6 +219,7 @@ export async function GET(req: Request) {
 
     // 5. Seçili Ayki Harcama & Gelirleri Ayrı Ayrı Hesapla
     const categorySpending: Record<string, number> = {};
+    const memberSpending: Record<string, number> = {};
     let totalMonthlyExpense = 0;
     let totalMonthlyIncome = 0;
 
@@ -245,8 +258,38 @@ export async function GET(req: Request) {
         if (tx.category_id) {
           categorySpending[tx.category_id] = (categorySpending[tx.category_id] || 0) + tx.amount;
         }
+        // Kişi bazlı harcama hesabı (member_id veya user_id)
+        const memberKey = tx.member_id || (tx.user_id ? `user-${tx.user_id}` : 'other');
+        memberSpending[memberKey] = (memberSpending[memberKey] || 0) + tx.amount;
       }
     }
+
+    // Kişi Başına Harcama Dağılımı Listesi
+    const memberBreakdown = Object.entries(memberSpending).map(([key, spent]) => {
+      let name = 'Ortak / Diğer';
+      let avatar = '👥';
+      let memberId = key;
+
+      if (key.startsWith('user-')) {
+        const uId = key.replace('user-', '');
+        const fm = userToMemberMap.get(uId);
+        name = fm ? fm.name : (uId === userId ? (user?.full_name || 'Ben') : 'Aile Üyesi');
+        avatar = fm?.avatar || (uId === userId ? (user?.avatar_emoji || '👑') : '👤');
+      } else if (familyMap.has(key)) {
+        const fm = familyMap.get(key);
+        name = fm?.name || 'Aile Üyesi';
+        avatar = fm?.avatar || '👤';
+      }
+
+      const percentage = totalMonthlyExpense > 0 ? Math.round((spent / totalMonthlyExpense) * 100) : 0;
+      return {
+        memberId,
+        name,
+        avatar,
+        totalSpent: spent,
+        percentage
+      };
+    }).sort((a, b) => b.totalSpent - a.totalSpent);
 
     const categoriesWithSpending = (allCategories).map((cat: any) => ({
       ...cat,
@@ -489,6 +532,15 @@ export async function GET(req: Request) {
           totalCreditCardLimits,
           budgetScore,
           futureForecast,
+          memberBreakdown,
+          familyMembers: allFamilyMembers.map((m: any) => ({
+            id: m.id,
+            user_id: m.user_id,
+            name: m.name,
+            avatar: m.avatar,
+            role: m.role,
+            is_current_user: m.user_id === userId
+          })),
           // ✅ Timezone-safe: YYYY-MM-01 UTC olarak parse edildiği için yerel ay adı yanlış çıkabilirdi
           monthName: new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric' }).format(
             new Date(parseInt(currentMonthStr.slice(0, 4)), parseInt(currentMonthStr.slice(5, 7)) - 1, 1)

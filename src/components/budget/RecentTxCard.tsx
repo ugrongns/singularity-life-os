@@ -116,13 +116,28 @@ export default function RecentTxCard({ transactions, upcomingPayments = [], onUp
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div
-                      style={{ fontSize: '18px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}
+                      style={{ fontSize: '18px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '50%', width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)', flexShrink: 0 }}
                       title={tx.member_name ? `İşlemi yapan: ${tx.member_name}` : 'İşlemi yapan aile üyesi'}
                     >
                       {tx.member_avatar || '👤'}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '13px' }}>{tx.merchant}</div>
+                      <div style={{ fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>{tx.merchant}</span>
+                        {tx.member_name && (
+                          <span style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            background: tx.is_mine ? 'rgba(59, 130, 246, 0.12)' : 'rgba(236, 72, 153, 0.12)',
+                            color: tx.is_mine ? '#2563EB' : '#DB2777',
+                            border: `1px solid ${tx.is_mine ? 'rgba(59, 130, 246, 0.2)' : 'rgba(236, 72, 153, 0.2)'}`
+                          }}>
+                            {tx.member_name}
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
                         <span>{formatDate(tx.transaction_date)}</span>
                         {isInstallment && (
@@ -144,13 +159,15 @@ export default function RecentTxCard({ transactions, upcomingPayments = [], onUp
                       )}
                     </div>
 
-                    <button
-                      onClick={() => handleDeleteTx(tx.id, tx.merchant)}
-                      title="Harcamayı Sil"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', opacity: 0.6 }}
-                    >
-                      🗑️
-                    </button>
+                    {tx.can_delete !== false && (
+                      <button
+                        onClick={() => handleDeleteTx(tx.id, tx.merchant)}
+                        title="Harcamayı Sil"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', opacity: 0.6 }}
+                      >
+                        🗑️
+                      </button>
+                    )}
                   </div>
                 </div>
               );
