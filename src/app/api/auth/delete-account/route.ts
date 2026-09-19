@@ -40,9 +40,10 @@ import {
   homeMaintenanceRecords,
   homeAppliances,
   shoppingListItems,
-  recurringBills
+  recurringBills,
+  appSettings
 } from '@/db/schema';
-import { eq, or } from 'drizzle-orm';
+import { eq, or, like } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
@@ -140,6 +141,11 @@ export async function POST(req: Request) {
     // 6. Oturumlar ve Kullanıcı Hesabı
     await db.delete(authSessions).where(eq(authSessions.user_id, userId));
     await db.delete(users).where(eq(users.id, userId));
+
+    // Eski/legacy global telegram ayarları kalmışsa ve silen master admin ise temizle
+    if (isMasterAdmin) {
+      await db.delete(appSettings).where(like(appSettings.key, 'telegram_%'));
+    }
 
     // 7. Cookie temizleme
     const cookieStore = await cookies();

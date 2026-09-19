@@ -230,15 +230,12 @@ export async function POST(req: Request) {
 
     // Save Telegram settings if provided
     if (telegram_bot_token && telegram_chat_id) {
-      const setSetting = async (k: string, v: string) => {
-        await db.insert(appSettings)
-          .values({ key: k, value: v, updated_at: now })
-          .onConflictDoUpdate({ target: appSettings.key, set: { value: v, updated_at: now } })
-          ;
-      };
-      await setSetting('telegram_bot_token', telegram_bot_token);
-      await setSetting('telegram_chat_id', telegram_chat_id);
-      await setSetting('telegram_enabled', 'true');
+      await db.update(users).set({
+        telegram_bot_token,
+        telegram_chat_id,
+        telegram_enabled: 1,
+        updated_at: now
+      }).where(eq(users.id, userId));
     }
 
     // Create session token

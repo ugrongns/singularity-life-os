@@ -33,6 +33,9 @@ export async function POST(req: Request) {
     let isExecution = false;
     let actionsToExecute: ParsedAction[] = [];
 
+    let targetUserIdFromInternal = '';
+    let targetFamilyIdFromInternal = '';
+
     if (contentType.includes('application/json')) {
       const body = await req.json();
       if (body.action === 'execute') {
@@ -40,6 +43,10 @@ export async function POST(req: Request) {
         actionsToExecute = body.actions || [];
       } else {
         text = body.text || '';
+      }
+      if (isInternalService) {
+        targetUserIdFromInternal = body.target_user_id || '';
+        targetFamilyIdFromInternal = body.target_family_id || '';
       }
     } else if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData();
@@ -53,8 +60,8 @@ export async function POST(req: Request) {
       const today = nowISO.split('T')[0];
       const results: string[] = [];
 
-      const currentUserId = user?.id || (await db.select().from(users).where(eq(users.is_master_account, 1)).limit(1))[0]?.id || 'user-default';
-      const currentFamilyId = user?.family_id || (currentUserId ? `fam-${currentUserId}` : 'fam-default');
+      const currentUserId = targetUserIdFromInternal || user?.id || (await db.select().from(users).where(eq(users.is_master_account, 1)).limit(1))[0]?.id || 'user-default';
+      const currentFamilyId = targetFamilyIdFromInternal || user?.family_id || (currentUserId ? `fam-${currentUserId}` : 'fam-default');
 
       for (const act of actionsToExecute) {
         if (act.type === 'expense') {

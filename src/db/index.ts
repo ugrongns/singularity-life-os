@@ -716,6 +716,10 @@ async function _runInit(): Promise<void> {
       ALTER TABLE biometrics ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE smart_scale_logs ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE recurring_bills ADD COLUMN IF NOT EXISTS amount_type TEXT DEFAULT 'fixed';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_bot_token TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_chat_id TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_secret_token TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_enabled INTEGER DEFAULT 0;
     `;
 
     const enableRlsSQL = `

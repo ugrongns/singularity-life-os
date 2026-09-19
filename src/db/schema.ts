@@ -705,6 +705,10 @@ export const users = pgTable('users', {
   avatar_emoji: text('avatar_emoji').default('👤'),
   is_master_account: integer('is_master_account').notNull().default(1),
   family_id: text('family_id'),
+  telegram_bot_token: text('telegram_bot_token'),
+  telegram_chat_id: text('telegram_chat_id'),
+  telegram_secret_token: text('telegram_secret_token'),
+  telegram_enabled: integer('telegram_enabled').default(0),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()
 });
