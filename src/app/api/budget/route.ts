@@ -33,7 +33,9 @@ export async function GET(req: Request) {
     const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
 
     // 2.5. Aile Üyeleri Haritası
-    const allFamilyMembers = await db.select().from(familyMembers);
+    const allFamilyMembers = familyId
+      ? await db.select().from(familyMembers).where(and(eq(familyMembers.is_active, 1), eq(familyMembers.family_id, familyId)))
+      : await db.select().from(familyMembers).where(eq(familyMembers.is_active, 1));
     const familyMap = new Map((allFamilyMembers).map((fm: any) => [fm.id, fm]));
     const userToMemberMap = new Map((allFamilyMembers).filter((fm: any) => fm.user_id).map((fm: any) => [fm.user_id, fm]));
 
@@ -43,19 +45,30 @@ export async function GET(req: Request) {
           and(
             eq(walletsAccounts.is_active, 1),
             familyId
-              ? and(eq(walletsAccounts.family_id, familyId), or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))
+              ? and(
+                  eq(walletsAccounts.family_id, familyId),
+                  or(
+                    eq(walletsAccounts.user_id, userId),
+                    eq(walletsAccounts.is_family_shared, 1),
+                    sql`${walletsAccounts.user_id} IS NULL`
+                  )
+                )
               : eq(walletsAccounts.user_id, userId)
           )
         )
       : [];
     const accounts = rawAccounts.map((acc: any) => {
       const ownerMember = acc.user_id ? userToMemberMap.get(acc.user_id) : null;
+      const isMine = Boolean(userId && acc.user_id === userId);
+      const isJoint = !acc.user_id;
+
       return {
         ...acc,
-        owner_name: ownerMember ? ownerMember.name : (acc.user_id === userId ? (user?.full_name || 'Ben') : 'Ortak'),
-        owner_avatar: ownerMember?.avatar || (acc.user_id === userId ? (user?.avatar_emoji || '👑') : '👥'),
-        is_mine: Boolean(userId && acc.user_id === userId),
-        can_edit: Boolean(userId && acc.user_id === userId) || user?.role === 'admin' || user?.is_master_account === 1
+        owner_name: ownerMember ? ownerMember.name : (isJoint ? 'Ortak Hesap' : (isMine ? (user?.full_name || 'Ben') : 'Ortak')),
+        owner_avatar: ownerMember?.avatar || (isJoint ? '👥' : (isMine ? (user?.avatar_emoji || '👑') : '👥')),
+        is_mine: isMine,
+        is_joint: isJoint,
+        can_edit: isMine || user?.role === 'admin' || user?.is_master_account === 1 || isJoint
       };
     });
 

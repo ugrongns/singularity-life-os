@@ -15,7 +15,8 @@ export async function POST(req: Request) {
       loan_original_amount, loan_total_repayment, total_installments,
       first_installment_date, deposited_account_id,
       maturity_date, interest_rate, interest_type,
-      interest_rate_contractual, interest_rate_late, min_payment_percent, overdraft_limit
+      interest_rate_contractual, interest_rate_late, min_payment_percent, overdraft_limit,
+      owner_user_id, is_family_shared
     } = body;
 
     const userId = user.id;
@@ -30,12 +31,24 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: 'Hesap bulunamadı.' }, { status: 404 });
       }
 
-      const canEdit = existingAcc.user_id === userId || user.is_master_account === 1 || user.role === 'admin';
+      const canEdit = existingAcc.user_id === userId || user.is_master_account === 1 || user.role === 'admin' || !existingAcc.user_id;
       if (!canEdit) {
         return NextResponse.json({ 
           success: false, 
           error: 'Yetkisiz İşlem: Başka bir aile üyesine ait hesabı yalnızca hesap sahibi veya Aile Lideri düzenleyebilir.' 
         }, { status: 403 });
+      }
+
+      // Belirlenen sahip (owner_user_id verilmişse güncelle, verilmemişse mevcut olanı koru)
+      let targetUserId = existingAcc.user_id;
+      if (owner_user_id !== undefined) {
+        targetUserId = (owner_user_id === 'joint' || owner_user_id === null || owner_user_id === '') ? null : owner_user_id;
+      }
+
+      // Belirlenen aile paylaşımı (is_family_shared verilmişse güncelle, verilmemişse mevcut olanı koru)
+      let targetIsShared = existingAcc.is_family_shared;
+      if (is_family_shared !== undefined) {
+        targetIsShared = (is_family_shared === true || is_family_shared === 1 || targetUserId === null) ? 1 : 0;
       }
 
       // Güncelle
@@ -55,7 +68,9 @@ export async function POST(req: Request) {
           interest_rate_contractual: interest_rate_contractual ? Number(interest_rate_contractual) : 4.25,
           interest_rate_late: interest_rate_late ? Number(interest_rate_late) : 4.55,
           min_payment_percent: min_payment_percent ? Number(min_payment_percent) : 20,
-          overdraft_limit: overdraft_limit ? Number(overdraft_limit) : 0
+          overdraft_limit: overdraft_limit ? Number(overdraft_limit) : 0,
+          user_id: targetUserId,
+          is_family_shared: targetIsShared
         })
         .where(eq(walletsAccounts.id, id))
         ;
@@ -75,6 +90,13 @@ export async function POST(req: Request) {
 
         const familyId = user.family_id || `fam-${user.id}`;
 
+        const targetUserId = owner_user_id !== undefined
+          ? (owner_user_id === 'joint' || owner_user_id === null || owner_user_id === '' ? null : owner_user_id)
+          : userId;
+        const targetIsShared = is_family_shared !== undefined
+          ? (is_family_shared === true || is_family_shared === 1 || targetUserId === null ? 1 : 0)
+          : 1;
+
         await db.insert(walletsAccounts).values({
           id: newLoanId,
           name: name.trim(),
@@ -90,8 +112,8 @@ export async function POST(req: Request) {
           deposited_account_id: deposited_account_id || null,
           currency: currency || 'TRY',
           is_active: 1,
-          is_family_shared: 1,
-          user_id: userId,
+          is_family_shared: targetIsShared,
+          user_id: targetUserId,
           family_id: familyId,
           created_at: nowISO,
           updated_at: nowISO
@@ -203,6 +225,13 @@ export async function POST(req: Request) {
           }
         }
 
+        const targetUserId = owner_user_id !== undefined
+          ? (owner_user_id === 'joint' || owner_user_id === null || owner_user_id === '' ? null : owner_user_id)
+          : userId;
+        const targetIsShared = is_family_shared !== undefined
+          ? (is_family_shared === true || is_family_shared === 1 || targetUserId === null ? 1 : 0)
+          : 1;
+
         const newId = `acc-${Date.now()}`;
         await db.insert(walletsAccounts).values({
           id: newId,
@@ -215,8 +244,8 @@ export async function POST(req: Request) {
           interest_rate: interest_rate ? Number(interest_rate) : null,
           interest_type: interest_type || 'simple',
           is_active: 1,
-          is_family_shared: 1,
-          user_id: userId,
+          is_family_shared: targetIsShared,
+          user_id: targetUserId,
           family_id: familyId,
           created_at: nowISO,
           updated_at: nowISO
@@ -230,6 +259,13 @@ export async function POST(req: Request) {
 
       // Standart Hesap/Cüzdan/Kart/KMH Ekle
       const familyId = user.family_id || `fam-${user.id}`;
+      const targetUserId = owner_user_id !== undefined
+        ? (owner_user_id === 'joint' || owner_user_id === null || owner_user_id === '' ? null : owner_user_id)
+        : userId;
+      const targetIsShared = is_family_shared !== undefined
+        ? (is_family_shared === true || is_family_shared === 1 || targetUserId === null ? 1 : 0)
+        : 1;
+
       const newId = `acc-${Date.now()}`;
       await db.insert(walletsAccounts).values({
         id: newId,
@@ -245,8 +281,8 @@ export async function POST(req: Request) {
         min_payment_percent: min_payment_percent ? Number(min_payment_percent) : 20,
         overdraft_limit: overdraft_limit ? Number(overdraft_limit) : 0,
         is_active: 1,
-        is_family_shared: user.role === 'admin' ? 1 : 0,
-        user_id: userId,
+        is_family_shared: targetIsShared,
+        user_id: targetUserId,
         family_id: familyId,
         created_at: nowISO,
         updated_at: nowISO

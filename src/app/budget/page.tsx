@@ -252,6 +252,7 @@ export default function BudgetPage() {
               />
               <AccountsCard
                 accounts={filteredAccounts}
+                familyMembers={data?.monthlySummary?.familyMembers || []}
                 onUpdate={handleUpdate}
                 onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
               />

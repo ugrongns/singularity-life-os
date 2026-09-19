@@ -31,11 +31,19 @@ interface Account {
 
 interface AccountsCardProps {
   accounts: Account[];
+  familyMembers?: Array<{
+    id: string;
+    user_id?: string | null;
+    name: string;
+    avatar: string;
+    role: string;
+    is_current_user?: boolean;
+  }>;
   onUpdate?: (msg?: string) => void;
   onOpenCardStatement?: (accId: string) => void;
 }
 
-export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }: AccountsCardProps) {
+export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpenCardStatement }: AccountsCardProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAcc, setEditingAcc] = useState<Account | null>(null);
   const [name, setName] = useState('');
@@ -45,6 +53,10 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
   const [cutoffDay, setCutoffDay] = useState<number | ''>('');
   const [dueDay, setDueDay] = useState<number | ''>('');
   const [currency, setCurrency] = useState('TRY');
+
+  // Hesap Sahipliği ve Aile Paylaşımı
+  const [ownerUserId, setOwnerUserId] = useState<string>('');
+  const [isFamilyShared, setIsFamilyShared] = useState<boolean>(true);
   
   // Kredi Borçlanma Parametreleri
   const [loanOrigAmt, setLoanOrigAmt] = useState<number | ''>('');
@@ -111,6 +123,11 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
     setInterestRateLate(4.55);
     setOverdraftLimit(20000);
     setCurrency('TRY');
+
+    const currentUser = familyMembers?.find(m => m.is_current_user);
+    setOwnerUserId(currentUser?.user_id || '');
+    setIsFamilyShared(true);
+
     setErrorMsg(null);
     setIsModalOpen(true);
   };
@@ -130,6 +147,10 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
     setInterestRateLate(acc.interest_rate_late || 4.55);
     setOverdraftLimit(acc.overdraft_limit || 20000);
     setCurrency(acc.currency || 'TRY');
+
+    setOwnerUserId((acc as any).user_id || ((acc as any).is_joint ? 'joint' : ''));
+    setIsFamilyShared((acc as any).is_family_shared !== 0);
+
     setErrorMsg(null);
     setIsModalOpen(true);
   };
@@ -167,7 +188,9 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
           interest_rate_contractual: (type === 'credit_card' || type === 'kmh') ? (Number(interestRateContractual) || 4.25) : undefined,
           interest_rate_late: type === 'credit_card' ? (Number(interestRateLate) || 4.55) : undefined,
           overdraft_limit: type === 'kmh' ? (Number(overdraftLimit) || 0) : undefined,
-          currency
+          currency,
+          owner_user_id: ownerUserId === 'joint' ? 'joint' : (ownerUserId || undefined),
+          is_family_shared: isFamilyShared ? 1 : 0
         })
       });
 
@@ -258,9 +281,15 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
                         fontWeight: 700,
                         padding: '1px 6px',
                         borderRadius: '4px',
-                        background: (acc as any).is_mine ? 'rgba(59, 130, 246, 0.12)' : 'rgba(236, 72, 153, 0.12)',
-                        color: (acc as any).is_mine ? '#2563EB' : '#DB2777',
-                        border: `1px solid ${(acc as any).is_mine ? 'rgba(59, 130, 246, 0.2)' : 'rgba(236, 72, 153, 0.2)'}`
+                        background: (acc as any).is_joint 
+                          ? 'rgba(16, 185, 129, 0.12)' 
+                          : ((acc as any).is_mine ? 'rgba(59, 130, 246, 0.12)' : 'rgba(236, 72, 153, 0.12)'),
+                        color: (acc as any).is_joint 
+                          ? '#059669' 
+                          : ((acc as any).is_mine ? '#2563EB' : '#DB2777'),
+                        border: `1px solid ${(acc as any).is_joint 
+                          ? 'rgba(16, 185, 129, 0.2)' 
+                          : ((acc as any).is_mine ? 'rgba(59, 130, 246, 0.2)' : 'rgba(236, 72, 153, 0.2)')}`
                       }}>
                         {(acc as any).owner_avatar} {(acc as any).owner_name}
                       </span>
@@ -737,6 +766,49 @@ export default function AccountsCard({ accounts, onUpdate, onOpenCardStatement }
                   </div>
                 </div>
               )}
+
+              {/* Hesap Sahibi & Aile Paylaşım Seçimi */}
+              <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    👤 HESAP SAHİBİ *
+                  </label>
+                  <select
+                    value={ownerUserId}
+                    onChange={e => setOwnerUserId(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
+                  >
+                    {familyMembers && familyMembers.length > 0 ? (
+                      <>
+                        {familyMembers.filter(m => m.user_id).map(m => (
+                          <option key={m.user_id} value={m.user_id!}>
+                            {m.avatar} {m.name} {m.is_current_user ? '(Ben)' : ''}
+                          </option>
+                        ))}
+                        <option value="joint">👥 Ortak Aile Hesabı (Tüm Aile)</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="">👤 Kendim</option>
+                        <option value="joint">👥 Ortak Aile Hesabı</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '4px' }}>
+                  <input
+                    type="checkbox"
+                    id="accIsFamilyShared"
+                    checked={isFamilyShared}
+                    onChange={e => setIsFamilyShared(e.target.checked)}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--emerald)' }}
+                  />
+                  <label htmlFor="accIsFamilyShared" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer' }}>
+                    👥 Aile Bütçesinde Paylaş (Diğer aile üyeleri bu hesabı görebilir)
+                  </label>
+                </div>
+              </div>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
                 <button
