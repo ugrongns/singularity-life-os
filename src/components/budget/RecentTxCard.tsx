@@ -13,6 +13,8 @@ interface Transaction {
   notes?: string;
   member_avatar?: string;
   member_name?: string;
+  is_mine?: boolean;
+  can_delete?: boolean;
 }
 
 interface UpcomingPayment {
