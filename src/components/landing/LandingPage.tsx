@@ -120,7 +120,7 @@ export default function LandingPage() {
       return;
     }
     if (!email.includes('@') || !email.includes('.')) {
-      setErrorMsg('Lütfen geçerli bir e-posta adresi girin (örn: ahmet@ornek.com).');
+      setErrorMsg('Lütfen geçerli bir e-posta adresi girin (örn: john.doe@example.com).');
       return;
     }
     if (!password || password.length < 8) {
@@ -296,7 +296,7 @@ export default function LandingPage() {
                 <label style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8' }}>AD SOYAD *</label>
                 <input
                   type="text" required value={fullName} onChange={e => setFullName(e.target.value)}
-                  placeholder="Örn: Ahmet Yılmaz"
+                  placeholder="Örn: John Doe"
                   style={{ width: '100%', padding: '10px 12px', fontSize: '13px', marginTop: '4px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: 'white' }}
                 />
               </div>
@@ -305,7 +305,7 @@ export default function LandingPage() {
                 <label style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8' }}>E-POSTA ADRESİ *</label>
                 <input
                   type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="ahmet@ornek.com"
+                  placeholder="john.doe@example.com"
                   style={{ width: '100%', padding: '10px 12px', fontSize: '13px', marginTop: '4px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: 'white' }}
                 />
               </div>
@@ -324,7 +324,7 @@ export default function LandingPage() {
                   <label style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8' }}>KULLANICI ADI *</label>
                   <input
                     type="text" required value={username} onChange={e => setUsername(e.target.value)}
-                    placeholder="kullanici"
+                    placeholder="johndoe"
                     style={{ width: '100%', padding: '10px 12px', fontSize: '13px', marginTop: '4px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: 'white' }}
                   />
                 </div>

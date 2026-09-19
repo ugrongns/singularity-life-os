@@ -556,7 +556,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
               <div style={{ marginTop: '8px' }}>
                 <input
                   type="text"
-                  placeholder="Emanet verilen kişinin adı (Ör. Ahmet Yılmaz)"
+                  placeholder="Emanet verilen kişinin adı (Ör. John Doe)"
                   value={lentToName}
                   onChange={e => setLentToName(e.target.value)}
                   style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}

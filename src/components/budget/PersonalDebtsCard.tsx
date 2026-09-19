@@ -330,7 +330,7 @@ export default function PersonalDebtsCard({ accounts, onToast, marketRates }: Pe
             <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{txType === 'debt' ? 'Borç Aldığım Kişi *' : 'Borç Verdiğim Kişi *'}</label>
-                <input type="text" required placeholder="Örn: Ahmet Yılmaz" value={personName} onChange={e => setPersonName(e.target.value)} style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }} />
+                <input type="text" required placeholder="Örn: John Doe" value={personName} onChange={e => setPersonName(e.target.value)} style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }} />
               </div>
 
               <div>

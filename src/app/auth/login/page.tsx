@@ -106,7 +106,7 @@ export default function LoginPage() {
               type="text"
               required
               autoFocus
-              placeholder="kullanici@ornek.com veya kullanici"
+              placeholder="john.doe@example.com veya johndoe"
               value={identifier}
               onChange={e => setIdentifier(e.target.value)}
               style={{

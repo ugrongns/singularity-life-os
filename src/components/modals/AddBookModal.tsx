@@ -783,7 +783,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Emanet Edilen Kişi</label>
                     <input
                       type="text"
-                      placeholder="Örn: Ahmet Yılmaz"
+                      placeholder="Örn: John Doe"
                       value={lentToName}
                       onChange={e => setLentToName(e.target.value)}
                       style={{

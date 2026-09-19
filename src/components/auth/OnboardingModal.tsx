@@ -14,8 +14,8 @@ export default function OnboardingModal({ isOpen, onSuccess }: Props) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Form State
-  const [fullName, setFullName] = useState('Ahmet Yılmaz');
-  const [username, setUsername] = useState('kullanici');
+  const [fullName, setFullName] = useState('John Doe');
+  const [username, setUsername] = useState('johndoe');
   const [email, setEmail] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [avatarEmoji, setAvatarEmoji] = useState('👑');
@@ -38,7 +38,7 @@ export default function OnboardingModal({ isOpen, onSuccess }: Props) {
         return false;
       }
       if (!email.includes('@') || !email.includes('.')) {
-        setErrorMsg('Lütfen geçerli bir e-posta adresi girin (örn: ahmet@ornek.com).');
+        setErrorMsg('Lütfen geçerli bir e-posta adresi girin (örn: john.doe@example.com).');
         return false;
       }
     } else if (currentStep === 2) {
@@ -161,7 +161,7 @@ export default function OnboardingModal({ isOpen, onSuccess }: Props) {
                   type="text"
                   value={fullName}
                   onChange={e => setFullName(e.target.value)}
-                  placeholder="Örn: Ahmet Yılmaz"
+                  placeholder="Örn: John Doe"
                   style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
                 />
               </div>
@@ -173,7 +173,7 @@ export default function OnboardingModal({ isOpen, onSuccess }: Props) {
                     type="text"
                     value={username}
                     onChange={e => setUsername(e.target.value)}
-                    placeholder="kullanici"
+                    placeholder="johndoe"
                     style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
                   />
                 </div>
@@ -184,7 +184,7 @@ export default function OnboardingModal({ isOpen, onSuccess }: Props) {
                     required
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    placeholder="ahmet@ornek.com"
+                    placeholder="john.doe@example.com"
                     style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)' }}
                   />
                 </div>

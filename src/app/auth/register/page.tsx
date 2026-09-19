@@ -49,7 +49,7 @@ export default function RegisterPage() {
         return false;
       }
       if (!email.includes('@') || !email.includes('.')) {
-        setErrorMsg('Lütfen geçerli bir e-posta adresi girin (örn: ahmet@ornek.com).');
+        setErrorMsg('Lütfen geçerli bir e-posta adresi girin (örn: john.doe@example.com).');
         return false;
       }
     }
@@ -221,7 +221,7 @@ export default function RegisterPage() {
                 <input
                   type="text"
                   required
-                  placeholder="Örn: Ahmet Yılmaz"
+                  placeholder="Örn: John Doe"
                   value={fullName}
                   onChange={e => setFullName(e.target.value)}
                   style={{
@@ -239,7 +239,7 @@ export default function RegisterPage() {
                 <input
                   type="text"
                   required
-                  placeholder="Örn: kullanici"
+                  placeholder="Örn: johndoe"
                   value={username}
                   onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                   style={{
@@ -257,7 +257,7 @@ export default function RegisterPage() {
                 <input
                   type="email"
                   required
-                  placeholder="ahmet@ornek.com"
+                  placeholder="john.doe@example.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   style={{
