@@ -209,6 +209,39 @@ export async function POST(req: Request) {
         family_id: user.family_id || `fam-${user.id}`
       } as any);
 
+      // Otomatik veya özel yasal hatırlatıcıları (Muayene, MTV, Sigorta) oluştur
+      try {
+        const { generateAutoLegalReminders } = await import('@/lib/vehicle-legal');
+        const autoReminders = generateAutoLegalReminders(vehicleId, parseInt(data.year) || new Date().getFullYear());
+        for (const rem of autoReminders) {
+          let dueDate = rem.due_date;
+          let policyNo = rem.policy_no || '';
+          if (rem.type === 'muayene' && data.muayene_date) dueDate = data.muayene_date;
+          if (rem.type === 'sigorta' && data.sigorta_date) {
+            dueDate = data.sigorta_date;
+            if (data.sigorta_policy_no) policyNo = data.sigorta_policy_no;
+          }
+          if (rem.type === 'kasko' && data.kasko_date) {
+            dueDate = data.kasko_date;
+            if (data.kasko_policy_no) policyNo = data.kasko_policy_no;
+          }
+
+          await db.insert(vehicleLegalReminders).values({
+            id: rem.id,
+            vehicle_id: rem.vehicle_id,
+            type: rem.type,
+            due_date: dueDate,
+            policy_no: policyNo,
+            cost_estimate: rem.cost_estimate,
+            is_completed: rem.is_completed,
+            created_at: rem.created_at,
+            updated_at: rem.updated_at
+          });
+        }
+      } catch (e) {
+        console.warn('Auto legal reminder error on add_vehicle:', e);
+      }
+
       return NextResponse.json({
         success: true,
         message: `🚗 ${data.make} ${data.model} (${(data.plate || '').toUpperCase()}) garajınıza eklendi!`,
@@ -375,6 +408,54 @@ export async function POST(req: Request) {
       });
 
       return NextResponse.json({ success: true, message: '🛡️ Yasal hatırlatıcı güncellendi.' });
+    }
+
+    // Yasal Hatırlatıcıları Toplu Güncelleme (Muayene, Sigorta, Kasko)
+    if (action === 'update_legal_dates' && data.vehicle_id) {
+      const vehicleId = data.vehicle_id;
+      const { muayene_date, sigorta_date, sigorta_policy_no, kasko_date, kasko_policy_no } = data;
+
+      const itemsToUpdate = [
+        { type: 'muayene', due_date: muayene_date, policy_no: '', cost_estimate: 1820 },
+        { type: 'sigorta', due_date: sigorta_date, policy_no: sigorta_policy_no || '', cost_estimate: 4500 },
+        { type: 'kasko', due_date: kasko_date, policy_no: kasko_policy_no || '', cost_estimate: 12000 }
+      ];
+
+      for (const item of itemsToUpdate) {
+        if (!item.due_date) continue;
+
+        const existing = (await db.select()
+          .from(vehicleLegalReminders)
+          .where(and(eq(vehicleLegalReminders.vehicle_id, vehicleId), eq(vehicleLegalReminders.type, item.type)))
+          .limit(1))[0];
+
+        if (existing) {
+          await db.update(vehicleLegalReminders)
+            .set({
+              due_date: item.due_date,
+              policy_no: item.policy_no !== undefined ? item.policy_no : existing.policy_no,
+              updated_at: now
+            })
+            .where(eq(vehicleLegalReminders.id, existing.id));
+        } else {
+          await db.insert(vehicleLegalReminders).values({
+            id: `leg-${item.type}-${Date.now()}`,
+            vehicle_id: vehicleId,
+            type: item.type,
+            due_date: item.due_date,
+            policy_no: item.policy_no,
+            cost_estimate: item.cost_estimate,
+            is_completed: 0,
+            created_at: now,
+            updated_at: now
+          });
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: '🛡️ Araç muayene ve sigorta tarihleri başarıyla güncellendi!'
+      });
     }
 
     // Yasal Hatırlatıcıları Otomatik Üret (TÜVTÜRK & MTV)

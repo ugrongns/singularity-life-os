@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import EditVehicleLegalModal from '@/components/modals/EditVehicleLegalModal';
 
 interface VehicleFleetCardProps {
   data: any;
@@ -26,6 +27,7 @@ export default function VehicleFleetCard({
 }: VehicleFleetCardProps) {
   const [kmInput, setKmInput] = useState('');
   const [updatingKm, setUpdatingKm] = useState(false);
+  const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
 
   const vehicle = data?.vehicle || null;
 
@@ -314,36 +316,65 @@ export default function VehicleFleetCard({
           </div>
         </div>
 
-        {/* Yasal Hatırlatıcı Sayaçları (TÜVTÜRK, Kasko, Sigorta) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-          {legalReminders.map((rem: any) => {
-            const dueDate = new Date(rem.due_date);
-            const daysLeft = Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-            const isUrgent = daysLeft <= 30;
+        {/* Yasal Hatırlatıcı Sayaçları (TÜVTÜRK, Kasko, Sigorta, MTV) */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+              🛡️ Muayene, Sigorta & Yasal Takvim
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsLegalModalOpen(true)}
+              className="btn-subtle"
+              style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              ✏️ Tarihleri Düzenle
+            </button>
+          </div>
 
-            return (
-              <div 
-                key={rem.id}
-                style={{
-                  background: isUrgent ? 'var(--rose-bg)' : 'var(--surface-subtle)',
-                  border: isUrgent ? '1px solid var(--rose)' : '1px solid var(--border)',
-                  padding: '10px 8px',
-                  borderRadius: 'var(--radius-md)',
-                  textAlign: 'center'
-                }}
-              >
-                <div style={{ fontSize: '11px', color: isUrgent ? 'var(--rose)' : 'var(--text-muted)', fontWeight: 800 }}>
-                  🛡️ {rem.type}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '8px' }}>
+            {legalReminders.map((rem: any) => {
+              const dueDate = new Date(rem.due_date);
+              const daysLeft = Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+              const isUrgent = daysLeft <= 30;
+
+              const getTypeName = (t: string) => {
+                if (t === 'muayene') return '🔍 Muayene';
+                if (t === 'sigorta') return '📄 Sigorta';
+                if (t === 'kasko') return '🚙 Kasko';
+                if (t === 'mtv_1') return '🏛️ MTV 1';
+                if (t === 'mtv_2') return '🏛️ MTV 2';
+                return `🛡️ ${t}`;
+              };
+
+              return (
+                <div 
+                  key={rem.id}
+                  onClick={() => setIsLegalModalOpen(true)}
+                  style={{
+                    background: isUrgent ? 'var(--rose-bg)' : 'var(--surface-subtle)',
+                    border: isUrgent ? '1px solid var(--rose)' : '1px solid var(--border)',
+                    padding: '10px 8px',
+                    borderRadius: 'var(--radius-md)',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'transform 0.1s, box-shadow 0.1s'
+                  }}
+                  title="Tarihleri düzenlemek için tıklayın"
+                >
+                  <div style={{ fontSize: '11px', color: isUrgent ? 'var(--rose)' : 'var(--text-muted)', fontWeight: 800 }}>
+                    {getTypeName(rem.type)}
+                  </div>
+                  <div style={{ fontSize: '15px', fontWeight: 900, color: isUrgent ? 'var(--rose)' : 'var(--text-main)', marginTop: '2px' }}>
+                    {daysLeft} Gün
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Son: {rem.due_date}
+                  </div>
                 </div>
-                <div style={{ fontSize: '15px', fontWeight: 900, color: isUrgent ? 'var(--rose)' : 'var(--text-main)', marginTop: '2px' }}>
-                  {daysLeft} Gün
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  Son: {rem.due_date}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
         {/* Yakıt Tüketim Özet Barı & Son Alımlar */}
@@ -378,6 +409,17 @@ export default function VehicleFleetCard({
           )}
         </div>
       </div>
+
+      <EditVehicleLegalModal
+        isOpen={isLegalModalOpen}
+        vehicle={vehicle}
+        legalReminders={legalReminders}
+        onClose={() => setIsLegalModalOpen(false)}
+        onSuccess={(msg) => {
+          if (onToast && msg) onToast(msg);
+          if (onRefresh) onRefresh();
+        }}
+      />
     </div>
   );
 }

@@ -18,7 +18,9 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
     year: String(new Date().getFullYear()),
     current_km: '',
     fuel_type: 'Benzin',
-    color: '#3B82F6'
+    color: '#3B82F6',
+    muayene_date: '',
+    sigorta_date: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
       const j = await res.json();
       if (j.success) {
         window.dispatchEvent(new CustomEvent('singularity-refresh'));
-        setForm({ plate: '', make: '', model: '', year: String(new Date().getFullYear()), current_km: '', fuel_type: 'Benzin', color: '#3B82F6' });
+        setForm({ plate: '', make: '', model: '', year: String(new Date().getFullYear()), current_km: '', fuel_type: 'Benzin', color: '#3B82F6', muayene_date: '', sigorta_date: '' });
         onSuccess();
         onClose();
       } else {
@@ -195,6 +197,40 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
                 style={{
                   height: '42px', width: '56px', padding: '4px', borderRadius: 'var(--radius-md)',
                   border: '1.5px solid var(--border)', background: 'var(--surface-subtle)', cursor: 'pointer'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Muayene & Sigorta Tarihleri (Opsiyonel) */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                🔍 MUAYENE GEÇERLİLİK
+              </label>
+              <input
+                type="date"
+                value={form.muayene_date}
+                onChange={e => handleChange('muayene_date', e.target.value)}
+                style={{
+                  width: '100%', padding: '9px 10px', borderRadius: 'var(--radius-md)',
+                  border: '1.5px solid var(--border)', background: 'var(--surface-subtle)',
+                  color: 'var(--text-main)', fontSize: '12px', outline: 'none', boxSizing: 'border-box'
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                📄 SİGORTA BİTİŞ
+              </label>
+              <input
+                type="date"
+                value={form.sigorta_date}
+                onChange={e => handleChange('sigorta_date', e.target.value)}
+                style={{
+                  width: '100%', padding: '9px 10px', borderRadius: 'var(--radius-md)',
+                  border: '1.5px solid var(--border)', background: 'var(--surface-subtle)',
+                  color: 'var(--text-main)', fontSize: '12px', outline: 'none', boxSizing: 'border-box'
                 }}
               />
             </div>
