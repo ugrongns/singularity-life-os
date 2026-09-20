@@ -31,6 +31,7 @@ interface RecurringBill {
   status: string;
   notes: string | null;
   is_paid_this_month: boolean;
+  is_due_this_month: boolean;
   is_billing_open: boolean;
   days_left: number;
   is_overdue: boolean;
@@ -273,7 +274,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
   };
 
   const filteredBills = bills.filter(b => {
-    if (filter === 'pending') return !b.is_paid_this_month;
+    if (filter === 'pending') return Boolean(b.is_due_this_month && !b.is_paid_this_month);
     if (filter === 'utility') return b.type === 'utility';
     if (filter === 'subscription') return b.type === 'subscription';
     return true;
