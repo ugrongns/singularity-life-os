@@ -461,11 +461,37 @@ export const userHealthProfile = pgTable('user_health_profile', {
 export const workoutSessions = pgTable('workout_sessions', {
   id: text('id').primaryKey(),
   title: text('title').notNull(),
+  sport_type: text('sport_type').notNull().default('strength'), // 'cycling' | 'running' | 'walking' | 'swimming' | 'strength' | 'hiit' | 'other'
   date: text('date').notNull(),
   start_time: text('start_time'),
   end_time: text('end_time'),
   duration_minutes: integer('duration_minutes').default(45),
   total_volume_kg: doublePrecision('total_volume_kg').default(0),
+  distance_km: doublePrecision('distance_km').default(0),
+  calories: doublePrecision('calories').default(0),
+  avg_speed_kmh: doublePrecision('avg_speed_kmh'),
+  max_speed_kmh: doublePrecision('max_speed_kmh'),
+  avg_pace: text('avg_pace'), // Örn: "03'55\" /km" veya "05'13\" /100 m"
+  avg_heart_rate: integer('avg_heart_rate'),
+  max_heart_rate: integer('max_heart_rate'),
+  vo2_max: doublePrecision('vo2_max'),
+  elevation_gain_m: doublePrecision('elevation_gain_m'),
+  elevation_loss_m: doublePrecision('elevation_loss_m'),
+  step_count: integer('step_count'),
+  cadence_spm: integer('cadence_spm'), // Adım frekansı (adım/dk) veya pedal devri
+  sweat_loss_ml: integer('sweat_loss_ml'), // Tahmini ter kaybı
+  swim_pool_length_m: integer('swim_pool_length_m'), // 25 veya 50
+  swim_total_lengths: integer('swim_total_lengths'), // Havuz boyu sayısı (tur)
+  swim_stroke_count: integer('swim_stroke_count'), // Toplam kulaç
+  swim_avg_swolf: integer('swim_avg_swolf'),
+  swim_best_swolf: integer('swim_best_swolf'),
+  swim_style: text('swim_style'), // Serbest stil vb.
+  heart_rate_zones: text('heart_rate_zones'), // JSON: Zon 1-5 süreleri ve yüzdeleri
+  splits_data: text('splits_data'), // JSON: Kilometre / tur bölümleri
+  running_dynamics: text('running_dynamics'), // JSON: Asimetri, temas süresi, havada kalma vb.
+  source: text('source').default('manual'), // 'manual' | 'ai_ocr' | 'strava' | 'galaxy_watch'
+  external_id: text('external_id'), // Strava veya dış kaynak aktivite ID
+  map_polyline: text('map_polyline'), // GPS harita çizgi koordinatları
   notes: text('notes'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),

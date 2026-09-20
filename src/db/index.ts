@@ -440,6 +440,60 @@ async function _runInit(): Promise<void> {
         user_id TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS workout_sessions (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        sport_type TEXT NOT NULL DEFAULT 'strength',
+        date TEXT NOT NULL,
+        start_time TEXT,
+        end_time TEXT,
+        duration_minutes INTEGER DEFAULT 45,
+        total_volume_kg DOUBLE PRECISION DEFAULT 0,
+        distance_km DOUBLE PRECISION DEFAULT 0,
+        calories DOUBLE PRECISION DEFAULT 0,
+        avg_speed_kmh DOUBLE PRECISION,
+        max_speed_kmh DOUBLE PRECISION,
+        avg_pace TEXT,
+        avg_heart_rate INTEGER,
+        max_heart_rate INTEGER,
+        vo2_max DOUBLE PRECISION,
+        elevation_gain_m DOUBLE PRECISION,
+        elevation_loss_m DOUBLE PRECISION,
+        step_count INTEGER,
+        cadence_spm INTEGER,
+        sweat_loss_ml INTEGER,
+        swim_pool_length_m INTEGER,
+        swim_total_lengths INTEGER,
+        swim_stroke_count INTEGER,
+        swim_avg_swolf INTEGER,
+        swim_best_swolf INTEGER,
+        swim_style TEXT,
+        heart_rate_zones TEXT,
+        splits_data TEXT,
+        running_dynamics TEXT,
+        source TEXT DEFAULT 'manual',
+        external_id TEXT,
+        map_polyline TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        user_id TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS workout_exercise_logs (
+        id TEXT PRIMARY KEY,
+        workout_id TEXT NOT NULL,
+        exercise_name TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'gogus',
+        equipment TEXT NOT NULL DEFAULT 'dumbbell',
+        sets_data TEXT NOT NULL,
+        max_weight_kg DOUBLE PRECISION DEFAULT 0,
+        total_reps INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        user_id TEXT
+      );
+
       CREATE TABLE IF NOT EXISTS digital_vault_items (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
@@ -724,6 +778,32 @@ async function _runInit(): Promise<void> {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_chat_id TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_secret_token TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_enabled INTEGER DEFAULT 0;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS sport_type TEXT DEFAULT 'strength';
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS distance_km DOUBLE PRECISION DEFAULT 0;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS calories DOUBLE PRECISION DEFAULT 0;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS avg_speed_kmh DOUBLE PRECISION;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS max_speed_kmh DOUBLE PRECISION;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS avg_pace TEXT;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS avg_heart_rate INTEGER;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS max_heart_rate INTEGER;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS vo2_max DOUBLE PRECISION;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS elevation_gain_m DOUBLE PRECISION;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS elevation_loss_m DOUBLE PRECISION;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS step_count INTEGER;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS cadence_spm INTEGER;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS sweat_loss_ml INTEGER;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS swim_pool_length_m INTEGER;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS swim_total_lengths INTEGER;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS swim_stroke_count INTEGER;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS swim_avg_swolf INTEGER;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS swim_best_swolf INTEGER;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS swim_style TEXT;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS heart_rate_zones TEXT;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS splits_data TEXT;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS running_dynamics TEXT;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual';
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS external_id TEXT;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS map_polyline TEXT;
     `;
 
     const enableRlsSQL = `
