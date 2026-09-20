@@ -49,6 +49,19 @@ export async function POST(req: Request) {
     await initDatabase();
     const user = await getAuthUser();
     const body = await req.json();
+    const parseNum = (val: any): number | null => {
+      if (val === undefined || val === null || val === '') return null;
+      if (typeof val === 'number') return isNaN(val) ? null : val;
+      const cleaned = String(val).replace(',', '.').trim();
+      const n = parseFloat(cleaned);
+      return isNaN(n) ? null : n;
+    };
+
+    const parseIntNum = (val: any): number | null => {
+      const n = parseNum(val);
+      return n !== null ? Math.round(n) : null;
+    };
+
     const {
       action = 'create',
       title,
@@ -99,8 +112,8 @@ export async function POST(req: Request) {
           let exTotalReps = 0;
 
           for (const s of setsData) {
-            const w = Number(s.weight_kg) || 0;
-            const r = Number(s.reps) || 0;
+            const w = parseNum(s.weight_kg) || 0;
+            const r = parseIntNum(s.reps) || 0;
             if (w > exMaxWeight) exMaxWeight = w;
             exTotalReps += r;
             totalWorkoutVolume += w * r;
@@ -129,26 +142,26 @@ export async function POST(req: Request) {
         sport_type,
         date: workoutDate,
         start_time: start_time || now.split('T')[1]?.substring(0, 5),
-        duration_minutes: Number(duration_minutes) || 45,
+        duration_minutes: parseIntNum(duration_minutes) ?? 45,
         total_volume_kg: totalWorkoutVolume,
-        distance_km: Number(distance_km) || 0,
-        calories: Number(calories) || 0,
-        avg_speed_kmh: avg_speed_kmh ? Number(avg_speed_kmh) : null,
-        max_speed_kmh: max_speed_kmh ? Number(max_speed_kmh) : null,
+        distance_km: parseNum(distance_km) ?? 0,
+        calories: parseNum(calories) ?? 0,
+        avg_speed_kmh: parseNum(avg_speed_kmh),
+        max_speed_kmh: parseNum(max_speed_kmh),
         avg_pace: avg_pace || null,
-        avg_heart_rate: avg_heart_rate ? Number(avg_heart_rate) : null,
-        max_heart_rate: max_heart_rate ? Number(max_heart_rate) : null,
-        vo2_max: vo2_max ? Number(vo2_max) : null,
-        elevation_gain_m: elevation_gain_m ? Number(elevation_gain_m) : null,
-        elevation_loss_m: elevation_loss_m ? Number(elevation_loss_m) : null,
-        step_count: step_count ? Number(step_count) : null,
-        cadence_spm: cadence_spm ? Number(cadence_spm) : null,
-        sweat_loss_ml: sweat_loss_ml ? Number(sweat_loss_ml) : null,
-        swim_pool_length_m: swim_pool_length_m ? Number(swim_pool_length_m) : null,
-        swim_total_lengths: swim_total_lengths ? Number(swim_total_lengths) : null,
-        swim_stroke_count: swim_stroke_count ? Number(swim_stroke_count) : null,
-        swim_avg_swolf: swim_avg_swolf ? Number(swim_avg_swolf) : null,
-        swim_best_swolf: swim_best_swolf ? Number(swim_best_swolf) : null,
+        avg_heart_rate: parseIntNum(avg_heart_rate),
+        max_heart_rate: parseIntNum(max_heart_rate),
+        vo2_max: parseNum(vo2_max),
+        elevation_gain_m: parseNum(elevation_gain_m),
+        elevation_loss_m: parseNum(elevation_loss_m),
+        step_count: parseIntNum(step_count),
+        cadence_spm: parseIntNum(cadence_spm),
+        sweat_loss_ml: parseIntNum(sweat_loss_ml),
+        swim_pool_length_m: parseIntNum(swim_pool_length_m),
+        swim_total_lengths: parseIntNum(swim_total_lengths),
+        swim_stroke_count: parseIntNum(swim_stroke_count),
+        swim_avg_swolf: parseIntNum(swim_avg_swolf),
+        swim_best_swolf: parseIntNum(swim_best_swolf),
         swim_style: swim_style || null,
         heart_rate_zones: typeof heart_rate_zones === 'object' ? JSON.stringify(heart_rate_zones) : (heart_rate_zones || null),
         splits_data: typeof splits_data === 'object' ? JSON.stringify(splits_data) : (splits_data || null),

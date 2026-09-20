@@ -154,7 +154,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
         }
         if (d.title) setTitle(d.title);
         if (d.date) setWorkoutDate(d.date);
-        if (d.duration_minutes) setDurationMinutes(String(d.duration_minutes));
+        if (d.duration_minutes) setDurationMinutes(String(Math.round(Number(d.duration_minutes))));
         if (d.distance_km !== undefined) setDistanceKm(String(d.distance_km));
         if (d.calories !== undefined) setCalories(String(d.calories));
         if (d.avg_speed_kmh !== undefined) setAvgSpeedKmh(String(d.avg_speed_kmh));
@@ -202,6 +202,19 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
       return;
     }
 
+    const parseNum = (val: any): number | null => {
+      if (val === undefined || val === null || val === '') return null;
+      if (typeof val === 'number') return isNaN(val) ? null : val;
+      const cleaned = String(val).replace(',', '.').trim();
+      const n = parseFloat(cleaned);
+      return isNaN(n) ? null : n;
+    };
+
+    const parseIntNum = (val: any): number | null => {
+      const n = parseNum(val);
+      return n !== null ? Math.round(n) : null;
+    };
+
     setSubmitting(true);
     try {
       const payload: any = {
@@ -209,23 +222,23 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
         sport_type: sportType,
         title,
         date: workoutDate,
-        duration_minutes: Number(durationMinutes) || 30,
-        distance_km: distanceKm ? Number(distanceKm) : 0,
-        calories: calories ? Number(calories) : 0,
-        avg_speed_kmh: avgSpeedKmh ? Number(avgSpeedKmh) : null,
-        max_speed_kmh: maxSpeedKmh ? Number(maxSpeedKmh) : null,
+        duration_minutes: parseIntNum(durationMinutes) ?? 30,
+        distance_km: parseNum(distanceKm) ?? 0,
+        calories: parseNum(calories) ?? 0,
+        avg_speed_kmh: parseNum(avgSpeedKmh),
+        max_speed_kmh: parseNum(maxSpeedKmh),
         avg_pace: avgPace || null,
-        avg_heart_rate: avgHeartRate ? Number(avgHeartRate) : null,
-        max_heart_rate: maxHeartRate ? Number(maxHeartRate) : null,
-        vo2_max: vo2Max ? Number(vo2Max) : null,
-        elevation_gain_m: elevationGainM ? Number(elevationGainM) : null,
-        step_count: stepCount ? Number(stepCount) : null,
-        cadence_spm: cadenceSpm ? Number(cadenceSpm) : null,
-        sweat_loss_ml: sweatLossMl ? Number(sweatLossMl) : null,
-        swim_pool_length_m: sportType === 'swimming' && swimPoolLengthM ? Number(swimPoolLengthM) : null,
-        swim_total_lengths: sportType === 'swimming' && swimTotalLengths ? Number(swimTotalLengths) : null,
-        swim_stroke_count: sportType === 'swimming' && swimStrokeCount ? Number(swimStrokeCount) : null,
-        swim_avg_swolf: sportType === 'swimming' && swimAvgSwolf ? Number(swimAvgSwolf) : null,
+        avg_heart_rate: parseIntNum(avgHeartRate),
+        max_heart_rate: parseIntNum(maxHeartRate),
+        vo2_max: parseNum(vo2Max),
+        elevation_gain_m: parseNum(elevationGainM),
+        step_count: parseIntNum(stepCount),
+        cadence_spm: parseIntNum(cadenceSpm),
+        sweat_loss_ml: parseIntNum(sweatLossMl),
+        swim_pool_length_m: sportType === 'swimming' ? parseIntNum(swimPoolLengthM) : null,
+        swim_total_lengths: sportType === 'swimming' ? parseIntNum(swimTotalLengths) : null,
+        swim_stroke_count: sportType === 'swimming' ? parseIntNum(swimStrokeCount) : null,
+        swim_avg_swolf: sportType === 'swimming' ? parseIntNum(swimAvgSwolf) : null,
         swim_style: sportType === 'swimming' ? swimStyle : null,
         heart_rate_zones: heartRateZones,
         splits_data: splitsData,
