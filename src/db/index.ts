@@ -505,6 +505,8 @@ async function _runInit(): Promise<void> {
         last_taken_date TEXT,
         notes TEXT,
         is_active INTEGER NOT NULL DEFAULT 1,
+        form_type TEXT DEFAULT 'capsule',
+        unit TEXT DEFAULT 'kapsül',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         user_id TEXT
@@ -710,6 +712,8 @@ async function _runInit(): Promise<void> {
       ALTER TABLE fasting_sessions ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE user_health_profile ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE supplement_routines ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE supplement_routines ADD COLUMN IF NOT EXISTS form_type TEXT DEFAULT 'capsule';
+      ALTER TABLE supplement_routines ADD COLUMN IF NOT EXISTS unit TEXT DEFAULT 'kapsül';
       ALTER TABLE sleep_logs ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE mood_logs ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE water_intake_logs ADD COLUMN IF NOT EXISTS family_id TEXT;

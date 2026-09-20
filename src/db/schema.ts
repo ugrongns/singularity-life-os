@@ -562,6 +562,8 @@ export const supplementRoutines = pgTable('supplement_routines', {
   last_taken_date: text('last_taken_date'),
   notes: text('notes'),
   is_active: integer('is_active').notNull().default(1),
+  form_type: text('form_type').default('capsule'),
+  unit: text('unit').default('kapsül'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
   user_id: text('user_id'),

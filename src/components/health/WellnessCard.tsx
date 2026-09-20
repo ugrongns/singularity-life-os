@@ -14,6 +14,8 @@ interface Supplement {
   total_pills?: number | null;
   last_taken_date?: string | null;
   notes?: string | null;
+  form_type?: string | null;
+  unit?: string | null;
 }
 
 interface SleepLog {
@@ -254,6 +256,33 @@ export default function WellnessCard({
     }
   };
 
+  const getFormIcon = (formType?: string | null) => {
+    switch (formType) {
+      case 'spray': return '💨';
+      case 'drop': return '💧';
+      case 'powder': return '🥄';
+      case 'sachet': return '📦';
+      case 'liquid': return '🍶';
+      case 'ampoule': return '💉';
+      case 'other': return '🏷️';
+      default: return '💊';
+    }
+  };
+
+  const getFormUnit = (s: Supplement) => {
+    if (s.unit && s.unit.trim()) return s.unit.trim();
+    switch (s.form_type) {
+      case 'spray': return 'puf';
+      case 'drop': return 'damla';
+      case 'powder': return 'ölçek';
+      case 'sachet': return 'saşe';
+      case 'liquid': return 'ölçek';
+      case 'ampoule': return 'ampul';
+      case 'other': return 'adet';
+      default: return 'kapsül';
+    }
+  };
+
   const renderSupplementGroup = (list: Supplement[], title: string, icon: string) => {
     if (list.length === 0) return null;
 
@@ -288,11 +317,11 @@ export default function WellnessCard({
                       {s.name}
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
-                      <span>💊 {s.dose}</span>
+                      <span>{getFormIcon(s.form_type)} {s.dose}</span>
                       {s.streak_days > 0 && <span style={{ color: 'var(--amber)', fontWeight: 700 }}>🔥 {s.streak_days} Gün Seri</span>}
                       {s.remaining_pills !== null && s.remaining_pills !== undefined && (
                         <span style={{ color: isLowStock ? '#D97706' : 'var(--text-muted)', fontWeight: isLowStock ? 800 : 500 }}>
-                          • Kalan: {s.remaining_pills} kapsül {isLowStock ? '⚠️ (Stok Azaldı!)' : ''}
+                          • Kalan: {s.remaining_pills} {getFormUnit(s)} {isLowStock ? '⚠️ (Stok Azaldı!)' : ''}
                         </span>
                       )}
                     </div>
