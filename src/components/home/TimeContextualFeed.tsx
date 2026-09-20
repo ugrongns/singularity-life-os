@@ -75,7 +75,7 @@ export default function TimeContextualFeed({
         </div>
 
         {/* Mode Selector Buttons */}
-        <div style={{ display: 'flex', gap: '6px', background: 'var(--surface-subtle)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', gap: '4px', background: 'var(--surface-subtle)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', flexShrink: 0 }}>
           <button
             onClick={() => setMode('auto')}
             style={{
@@ -87,10 +87,12 @@ export default function TimeContextualFeed({
               cursor: 'pointer',
               background: mode === 'auto' ? '#3B82F6' : 'transparent',
               color: mode === 'auto' ? '#FFFFFF' : 'var(--text-muted)',
-              transition: 'all 0.15s'
+              transition: 'all 0.15s',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
             }}
           >
-            ⚡ Akıllı Otomatik
+            ⚡ Otomatik
           </button>
           <button
             onClick={() => setMode('morning')}
@@ -103,7 +105,9 @@ export default function TimeContextualFeed({
               cursor: 'pointer',
               background: mode === 'morning' ? '#F59E0B' : 'transparent',
               color: mode === 'morning' ? '#FFFFFF' : 'var(--text-muted)',
-              transition: 'all 0.15s'
+              transition: 'all 0.15s',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
             }}
           >
             🌅 Sabah
@@ -119,10 +123,12 @@ export default function TimeContextualFeed({
               cursor: 'pointer',
               background: mode === 'day' ? '#3B82F6' : 'transparent',
               color: mode === 'day' ? '#FFFFFF' : 'var(--text-muted)',
-              transition: 'all 0.15s'
+              transition: 'all 0.15s',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
             }}
           >
-            ☀️ Gün İçi
+            ☀️ Gün
           </button>
           <button
             onClick={() => setMode('evening')}
@@ -135,7 +141,9 @@ export default function TimeContextualFeed({
               cursor: 'pointer',
               background: mode === 'evening' ? '#8B5CF6' : 'transparent',
               color: mode === 'evening' ? '#FFFFFF' : 'var(--text-muted)',
-              transition: 'all 0.15s'
+              transition: 'all 0.15s',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
             }}
           >
             🌙 Akşam

@@ -338,26 +338,26 @@ export default function ShoppingListCard({
       </div>
 
       {/* Arama & Kategori & Durum Filtreleme Çubuğu */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', alignItems: 'center', flexWrap: 'nowrap' }}>
         <input
           type="text"
           placeholder="🔍 Ürün ara..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          style={{ flex: 1, minWidth: '160px', padding: '8px 12px', fontSize: '12px', background: 'var(--surface)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
+          style={{ flex: 1, minWidth: 0, padding: '8px 12px', fontSize: '12px', background: 'var(--surface)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
         />
 
-        <div style={{ display: 'flex', gap: '4px' }}>
+        <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
           <button
             onClick={() => setFilterView('unchecked')}
             style={{
               padding: '6px 10px', fontSize: '11px', fontWeight: 800, borderRadius: '6px',
               border: filterView === 'unchecked' ? '1px solid var(--blue)' : '1px solid var(--border)',
               background: filterView === 'unchecked' ? 'var(--blue)' : 'var(--surface)',
-              color: filterView === 'unchecked' ? 'white' : 'var(--text-muted)', cursor: 'pointer'
+              color: filterView === 'unchecked' ? 'white' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap'
             }}
           >
-            Alınacaklar ({summary.remaining})
+            Bekleyen ({summary.remaining})
           </button>
           <button
             onClick={() => setFilterView('all')}
@@ -365,7 +365,7 @@ export default function ShoppingListCard({
               padding: '6px 10px', fontSize: '11px', fontWeight: 800, borderRadius: '6px',
               border: filterView === 'all' ? '1px solid var(--blue)' : '1px solid var(--border)',
               background: filterView === 'all' ? 'var(--blue)' : 'var(--surface)',
-              color: filterView === 'all' ? 'white' : 'var(--text-muted)', cursor: 'pointer'
+              color: filterView === 'all' ? 'white' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap'
             }}
           >
             Tümü ({summary.total})
@@ -394,10 +394,11 @@ export default function ShoppingListCard({
                   background: item.is_checked ? '#F0FDF4' : 'var(--surface-subtle)',
                   border: `1px solid ${item.is_checked ? 'rgba(16,185,129,0.3)' : 'var(--border)'}`,
                   borderRadius: 'var(--radius-md)',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
+                  gap: '8px'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
                   <button
                     type="button"
                     onClick={() => handleToggle(item.id)}
@@ -411,22 +412,22 @@ export default function ShoppingListCard({
                     {item.is_checked ? <span style={{ color: 'white', fontSize: '12px', fontWeight: 800 }}>✓</span> : null}
                   </button>
 
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: 800, color: item.is_checked ? 'var(--text-muted)' : 'var(--text-main)', textDecoration: item.is_checked ? 'line-through' : 'none' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: item.is_checked ? 'var(--text-muted)' : 'var(--text-main)', textDecoration: item.is_checked ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {icon} {item.name}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', gap: '6px', fontWeight: 600 }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', gap: '6px', fontWeight: 600, flexWrap: 'wrap' }}>
                       <span>{item.quantity} {item.unit}</span>
                       <span>•</span>
                       <span>🏷️ {item.category}</span>
-                      {item.source === 'diet_plan' && <span style={{ color: '#059669', fontWeight: 700 }}>• Diyet Menüsü</span>}
+                      {item.source === 'diet_plan' && <span style={{ color: '#059669', fontWeight: 700 }}>• Diyet</span>}
                     </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                   {item.estimated_price > 0 && (
-                    <span style={{ fontSize: '13px', fontWeight: 800, color: item.is_checked ? 'var(--emerald)' : 'var(--text-main)' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: item.is_checked ? 'var(--emerald)' : 'var(--text-main)', whiteSpace: 'nowrap' }}>
                       {formatTRY(item.estimated_price)}
                     </span>
                   )}
@@ -462,9 +463,9 @@ export default function ShoppingListCard({
             type="button"
             className="btn-primary"
             onClick={() => onOpenCheckout && onOpenCheckout()}
-            style={{ fontSize: '12px', padding: '8px 16px', fontWeight: 800, background: '#166534' }}
+            style={{ fontSize: '12px', padding: '8px 14px', fontWeight: 800, background: '#166534', whiteSpace: 'nowrap' }}
           >
-            💳 Alışverişi Bitir & Cüzdana Harcama Olarak İşle ({formatTRY(checkedEstimated)})
+            💳 Alışverişi Bitir ({formatTRY(checkedEstimated)})
           </button>
         ) : (
           <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Ürün aldıkça cüzdanınıza harcama aktarabilirsiniz</span>

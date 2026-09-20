@@ -388,20 +388,20 @@ export default function WellnessCard({
       )}
 
       {/* Sekmeler */}
-      <div style={{ display: 'flex', gap: '4px', background: 'var(--surface-subtle)', padding: '4px', borderRadius: 'var(--radius-md)', marginBottom: '14px', flexWrap: 'wrap' }}>
-        <button className={`choice-pill ${tab === 'supplements' ? 'selected' : ''}`} onClick={() => setTab('supplements')} style={{ flex: 1, padding: '7px 4px', fontSize: '11px', fontWeight: 800 }}>
-          💊 Takviyeler & İlaçlar ({takenDaily}/{totalDaily})
+      <div style={{ display: 'flex', gap: '4px', background: 'var(--surface-subtle)', padding: '4px', borderRadius: 'var(--radius-md)', marginBottom: '14px', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <button className={`choice-pill ${tab === 'supplements' ? 'selected' : ''}`} onClick={() => setTab('supplements')} style={{ flex: '0 0 auto', padding: '7px 8px', fontSize: '11px', fontWeight: 800, whiteSpace: 'nowrap' }}>
+          💊 Takviyeler ({takenDaily}/{totalDaily})
         </button>
-        <button className={`choice-pill ${tab === 'water' ? 'selected' : ''}`} onClick={() => setTab('water')} style={{ flex: 1, padding: '7px 4px', fontSize: '11px', fontWeight: 800 }}>
+        <button className={`choice-pill ${tab === 'water' ? 'selected' : ''}`} onClick={() => setTab('water')} style={{ flex: '0 0 auto', padding: '7px 8px', fontSize: '11px', fontWeight: 800, whiteSpace: 'nowrap' }}>
           💧 Su ({waterAmount} ml)
         </button>
-        <button className={`choice-pill ${tab === 'sleep' ? 'selected' : ''}`} onClick={() => setTab('sleep')} style={{ flex: 1, padding: '7px 4px', fontSize: '11px', fontWeight: 800 }}>
+        <button className={`choice-pill ${tab === 'sleep' ? 'selected' : ''}`} onClick={() => setTab('sleep')} style={{ flex: '0 0 auto', padding: '7px 8px', fontSize: '11px', fontWeight: 800, whiteSpace: 'nowrap' }}>
           😴 Uyku ({todaySleep ? `${todaySleep.duration_hours} sa` : 'Ekle'})
         </button>
-        <button className={`choice-pill ${tab === 'mood' ? 'selected' : ''}`} onClick={() => setTab('mood')} style={{ flex: 1, padding: '7px 4px', fontSize: '11px', fontWeight: 800 }}>
+        <button className={`choice-pill ${tab === 'mood' ? 'selected' : ''}`} onClick={() => setTab('mood')} style={{ flex: '0 0 auto', padding: '7px 8px', fontSize: '11px', fontWeight: 800, whiteSpace: 'nowrap' }}>
           🎭 Mod & Enerji
         </button>
-        <button className={`choice-pill ${tab === 'ai' ? 'selected' : ''}`} onClick={() => setTab('ai')} style={{ flex: 1, padding: '7px 4px', fontSize: '11px', fontWeight: 800 }}>
+        <button className={`choice-pill ${tab === 'ai' ? 'selected' : ''}`} onClick={() => setTab('ai')} style={{ flex: '0 0 auto', padding: '7px 8px', fontSize: '11px', fontWeight: 800, whiteSpace: 'nowrap' }}>
           ✨ AI Analiz
         </button>
       </div>
