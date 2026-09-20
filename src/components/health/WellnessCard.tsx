@@ -699,7 +699,7 @@ export default function WellnessCard({
             </div>
 
             <div style={{ fontSize: '13px', color: waterAmount >= waterGoal ? 'var(--emerald)' : 'var(--primary)', fontWeight: 800, marginTop: '4px' }}>
-              {waterAmount >= waterGoal ? `🎉 Hedef Tamamlandı! (%${waterProgress})` : `%{waterProgress} Tamamlandı`}
+              {waterAmount >= waterGoal ? `🎉 Hedef Tamamlandı! (%${waterProgress})` : `%${waterProgress} Tamamlandı`}
             </div>
 
             {/* Kalan Bilgisi */}
@@ -709,8 +709,8 @@ export default function WellnessCard({
                 : `Günlük hedefe ulaşmak için ${waterGoal - waterAmount} ml (${Math.ceil((waterGoal - waterAmount) / 250)} bardak) kaldı.`}
             </div>
 
-            <div className="progress-bar" style={{ height: '8px', marginTop: '14px', background: 'var(--border)' }}>
-              <div className="progress-fill" style={{ width: `${waterProgress}%`, backgroundColor: waterAmount >= waterGoal ? 'var(--emerald)' : 'var(--primary)' }} />
+            <div className="progress-bar" style={{ height: '8px', marginTop: '14px', background: 'var(--border)', borderRadius: '4px', overflow: 'hidden' }}>
+              <div className="progress-fill" style={{ width: `${waterProgress}%`, backgroundColor: waterAmount >= waterGoal ? 'var(--emerald)' : 'var(--primary, #3B82F6)', height: '100%', transition: 'width 0.3s' }} />
             </div>
 
             {/* Eylem Butonları */}
@@ -719,7 +719,7 @@ export default function WellnessCard({
                 className="btn-primary"
                 disabled={savingWater}
                 onClick={() => handleUpdateWater(250)}
-                style={{ background: 'var(--primary)', color: 'white', fontSize: '13px', padding: '9px 16px', fontWeight: 800 }}
+                style={{ background: 'var(--primary, #3B82F6)', color: 'white', fontSize: '13px', padding: '9px 16px', fontWeight: 800, border: 'none' }}
               >
                 +250 ml (Bardak)
               </button>
@@ -727,7 +727,7 @@ export default function WellnessCard({
                 className="btn-primary"
                 disabled={savingWater}
                 onClick={() => handleUpdateWater(500)}
-                style={{ background: 'var(--emerald)', color: 'white', fontSize: '13px', padding: '9px 16px', fontWeight: 800 }}
+                style={{ background: 'var(--emerald)', color: 'white', fontSize: '13px', padding: '9px 16px', fontWeight: 800, border: 'none' }}
               >
                 +500 ml (Şişe)
               </button>

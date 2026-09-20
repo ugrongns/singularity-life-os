@@ -16,6 +16,7 @@
   --emerald-bg: #ECFDF5;
   --blue: #3B82F6;
   --blue-bg: #EFF6FF;
+  --primary: #3B82F6;
   --indigo: #6366F1;
   --indigo-bg: #EEF2FF;
   --amber: #F59E0B;
@@ -52,6 +53,7 @@ body.dark-mode {
   --emerald-bg: rgba(16, 185, 129, 0.16);
   --blue: #60A5FA;
   --blue-bg: rgba(59, 130, 246, 0.16);
+  --primary: #60A5FA;
   --indigo: #818CF8;
   --indigo-bg: rgba(99, 102, 241, 0.16);
   --amber: #FBBF24;
