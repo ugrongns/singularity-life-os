@@ -41,15 +41,28 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
     setPreviewUrl(objectUrl);
 
     try {
-      // Convert to base64
-      const base64 = await fileToBase64(file);
-      const mimeType = file.type || 'image/jpeg';
+      // Yüksek çözünürlüklü mobil kamera fotoğraflarını optimize et (Max 1600px, 0.85 kalite)
+      const base64 = await compressImage(file);
+      const mimeType = 'image/jpeg';
 
       const res = await fetch('/api/health/scan-food', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'plate', base64, mimeType })
       });
+
+      if (!res.ok) {
+        if (res.status === 413) {
+          throw new Error('Görsel boyutu çok yüksek. Lütfen tekrar deneyin.');
+        }
+        const text = await res.text();
+        try {
+          const errJson = JSON.parse(text);
+          throw new Error(errJson.error || `Sunucu hatası (${res.status})`);
+        } catch {
+          throw new Error(`Sunucu yanıt vermedi (${res.status}). Lütfen tekrar deneyin.`);
+        }
+      }
 
       const json = await res.json();
       if (json.success && json.data) {
@@ -306,11 +319,33 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
   );
 }
 
-// Utility: File → base64 string
-function fileToBase64(file: File): Promise<string> {
+// Utility: File → Sıkıştırılmış optimize base64 string (Max 1600px, 0.85 kalite)
+function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const MAX = 1600;
+        if (width > height && width > MAX) {
+          height = Math.round((height * MAX) / width);
+          width = MAX;
+        } else if (height > MAX) {
+          width = Math.round((width * MAX) / height);
+          height = MAX;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
