@@ -154,7 +154,7 @@ export async function parseVaultDocumentImage(
   if (apiKey) {
     try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -260,7 +260,7 @@ export async function parseApplianceInvoiceImage(
   if (apiKey) {
     try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -356,7 +356,7 @@ export async function parsePlateImage(
       const promptText = `Sen profesyonel bir diyetisyen ve besin değerleri uzmanısın. Fotoğraftaki yemek tabağını analiz et ve içindeki yiyeceklerin gramaj, kalori ve makro besin değerlerini tahmin et. SADECE aşağıdaki JSON formatında çıktı üret:\n{"name":"Yemeğin Türkçe adı","meal_type":"breakfast|lunch|dinner|snack","base_calories":550,"base_protein":42,"base_carbs":35,"base_fat":20,"confidence":0.88,"items":[{"name":"Malzeme adı ve gramaj","calories":300,"protein":30,"carbs":0,"fat":12}]}`;
 
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -578,7 +578,7 @@ SADECE aşağıdaki JSON formatında yanıt ver, başka açıklama ekleme:
 }`;
 
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -53,6 +53,9 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
 
       const json = await res.json();
       if (json.success && json.data) {
+        if (json.data.confidence <= 0.15 && json.data.base_calories === 0 && !json.data.name) {
+          throw new Error('Görseldeki tabak analiz edilemedi veya yapay zeka servisine ulaşılamadı. Lütfen fotoğrafı tekrar çekip deneyin.');
+        }
         setParsedPlate(json.data);
         setMultiplier(1.0);
         setStep('confirm');
