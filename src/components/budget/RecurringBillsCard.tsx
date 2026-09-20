@@ -338,13 +338,13 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
       </div>
 
       {/* Filtreleme Butonları */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', paddingBottom: '2px' }}>
         <button
           onClick={() => setFilter('all')}
           style={{
             padding: '5px 12px', fontSize: '11px', fontWeight: 700, borderRadius: 'var(--radius-full)', border: '1px solid var(--border)',
             background: filter === 'all' ? '#4F46E5' : 'var(--surface-subtle)',
-            color: filter === 'all' ? '#FFFFFF' : 'var(--text-muted)', cursor: 'pointer'
+            color: filter === 'all' ? '#FFFFFF' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
           }}
         >
           Tümü ({bills.length})
@@ -354,7 +354,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
           style={{
             padding: '5px 12px', fontSize: '11px', fontWeight: 700, borderRadius: 'var(--radius-full)', border: '1px solid var(--border)',
             background: filter === 'pending' ? '#DC2626' : 'var(--surface-subtle)',
-            color: filter === 'pending' ? 'white' : 'var(--text-muted)', cursor: 'pointer'
+            color: filter === 'pending' ? 'white' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
           }}
         >
           Ödenecekler ({summary.pendingCount})
@@ -364,7 +364,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
           style={{
             padding: '5px 12px', fontSize: '11px', fontWeight: 700, borderRadius: 'var(--radius-full)', border: '1px solid var(--border)',
             background: filter === 'utility' ? '#3B82F6' : 'var(--surface-subtle)',
-            color: filter === 'utility' ? 'white' : 'var(--text-muted)', cursor: 'pointer'
+            color: filter === 'utility' ? 'white' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
           }}
         >
           Faturalar
@@ -374,7 +374,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
           style={{
             padding: '5px 12px', fontSize: '11px', fontWeight: 700, borderRadius: 'var(--radius-full)', border: '1px solid var(--border)',
             background: filter === 'subscription' ? '#8B5CF6' : 'var(--surface-subtle)',
-            color: filter === 'subscription' ? 'white' : 'var(--text-muted)', cursor: 'pointer'
+            color: filter === 'subscription' ? 'white' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
           }}
         >
           Abonelikler
@@ -404,18 +404,19 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
               <div
                 key={bill.id}
                 style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   background: bill.is_paid_this_month ? 'var(--surface-subtle)' : bill.is_overdue ? '#FFF1F2' : 'var(--surface)',
                   border: `1px solid ${bill.is_paid_this_month ? 'var(--border)' : bill.is_overdue ? '#FDA4AF' : 'var(--border)'}`,
                   borderRadius: 'var(--radius-md)', padding: '12px 14px',
                   opacity: bill.is_paid_this_month ? 0.75 : 1,
                   transition: 'all 0.15s',
-                  gap: '12px',
-                  flexWrap: 'wrap'
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
                 }}
               >
-                {/* Sol Alan: İkon + Başlık + Tarih Bilgisi */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: '1 1 220px' }}>
+                {/* Üst Satır: İkon + İsim & Rozetler + Tutar & Butonlar */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                  {/* İkon */}
                   <div style={{
                     width: '38px', height: '38px', borderRadius: '10px',
                     background: bill.is_paid_this_month ? '#D1FAE5' : bill.is_overdue ? '#FEE2E2' : 'var(--surface-subtle)',
@@ -425,9 +426,10 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                     {icon}
                   </div>
 
-                  <div style={{ minWidth: 0 }}>
+                  {/* Orta: İsim + Rozetler */}
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)', wordBreak: 'break-word' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
                         {bill.name}
                       </span>
 
@@ -441,7 +443,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                         {bill.type === 'subscription' ? 'Abonelik' : bill.type === 'tax' ? 'Vergi' : 'Fatura'}
                       </span>
 
-                      {/* Sabit / Değişken (Tahmini) Rozeti */}
+                      {/* Sabit / Değişken Rozeti */}
                       {isVariable ? (
                         <span style={{ fontSize: '10px', background: '#FEF3C7', color: '#92400E', padding: '1px 6px', borderRadius: '4px', fontWeight: 700, whiteSpace: 'nowrap' }}>
                           📊 Tahmini
@@ -459,7 +461,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                         </span>
                       )}
 
-                      {/* Durum Rozetleri */}
+                      {/* Durum Rozeti */}
                       {bill.is_paid_this_month ? (
                         <span style={{ fontSize: '10px', background: '#D1FAE5', color: '#065F46', padding: '1px 6px', borderRadius: '4px', fontWeight: 800, whiteSpace: 'nowrap' }}>
                           ✓ Ödendi ({bill.last_paid_date ? bill.last_paid_date.slice(5) : 'Bu Ay'})
@@ -482,86 +484,83 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                         </span>
                       )}
                     </div>
+                  </div>
 
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                      {bill.formatted_next_billing ? (
-                        <span>✂️ Tebliğ: <strong>{bill.formatted_next_billing}</strong></span>
-                      ) : bill.billing_day ? (
-                        <span>✂️ Tebliğ: <strong>Her ayın {bill.billing_day}'i</strong></span>
+                  {/* Sağ: Tutar + Butonlar — asla alt satıra düşmez */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: '15px', fontWeight: 900, color: bill.is_paid_this_month ? 'var(--text-muted)' : 'var(--text-main)' }}>
+                        {isVariable ? `≈ ${formatTRY(bill.amount)}` : formatTRY(bill.amount)}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                        {isVariable ? 'Tahmini' : bill.period === 'yearly' ? 'Yıllık' : 'Aylık'}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      {bill.is_paid_this_month ? (
+                        <button
+                          onClick={() => handleUnmarkPaid(bill)}
+                          style={{
+                            padding: '6px 8px', fontSize: '11px', fontWeight: 600,
+                            background: 'var(--surface-subtle)', color: 'var(--text-muted)',
+                            border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', cursor: 'pointer'
+                          }}
+                          title="Ödeme Durumunu Geri Al"
+                        >
+                          ↩
+                        </button>
+                      ) : (bill.is_overdue || bill.is_billing_open) ? (
+                        <button
+                          onClick={() => openPayModal(bill)}
+                          style={{
+                            padding: '6px 10px', fontSize: '11px', fontWeight: 800,
+                            background: 'linear-gradient(135deg, #10B981, #059669)', color: 'white',
+                            border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          ✓ Öde
+                        </button>
                       ) : null}
-                      <span>📅 Son Ödeme: <strong>{bill.formatted_next_due || `Her ayın ${bill.due_day}'i`}</strong></span>
-                      {bill.wallet_name && (
-                        <span>💳 Hesap: <strong>{bill.wallet_name}</strong></span>
-                      )}
+
+                      <button
+                        onClick={() => openEditModal(bill)}
+                        style={{
+                          padding: '6px 8px', fontSize: '11px',
+                          background: 'var(--surface-subtle)', color: 'var(--text-main)',
+                          border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', cursor: 'pointer'
+                        }}
+                        title="Düzenle"
+                      >
+                        ✏️
+                      </button>
+
+                      <button
+                        onClick={() => handleDelete(bill.id, bill.name)}
+                        style={{
+                          padding: '6px 8px', fontSize: '11px',
+                          background: 'var(--surface-subtle)', color: '#DC2626',
+                          border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', cursor: 'pointer'
+                        }}
+                        title="Sil"
+                      >
+                        🗑️
+                      </button>
                     </div>
                   </div>
                 </div>
 
-                {/* Sağ Alan: Tutar + Butonlar */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, marginLeft: 'auto' }}>
-                  <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <div style={{ fontSize: '15px', fontWeight: 900, color: bill.is_paid_this_month ? 'var(--text-muted)' : 'var(--text-main)' }}>
-                      {isVariable ? `≈ ${formatTRY(bill.amount)}` : formatTRY(bill.amount)}
-                    </div>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                      {isVariable ? 'Tahmini Tutar' : bill.period === 'yearly' ? 'Yıllık Sabit' : 'Aylık Sabit'}
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    {/* Ödeme Butonu */}
-                    {bill.is_paid_this_month ? (
-                      <button
-                        onClick={() => handleUnmarkPaid(bill)}
-                        style={{
-                          padding: '6px 10px', fontSize: '11px', fontWeight: 600,
-                          background: 'var(--surface-subtle)', color: 'var(--text-muted)',
-                          border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', cursor: 'pointer'
-                        }}
-                        title="Ödeme Durumunu Geri Al"
-                      >
-                        ↩
-                      </button>
-                    ) : (bill.is_overdue || bill.is_billing_open) ? (
-                      <button
-                        onClick={() => openPayModal(bill)}
-                        style={{
-                          padding: '6px 12px', fontSize: '11px', fontWeight: 800,
-                          background: 'linear-gradient(135deg, #10B981, #059669)', color: 'white',
-                          border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                          boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)'
-                        }}
-                      >
-                        ✓ Öde
-                      </button>
-                    ) : null}
-
-                    {/* Düzenle Butonu */}
-                    <button
-                      onClick={() => openEditModal(bill)}
-                      style={{
-                        padding: '6px 8px', fontSize: '11px',
-                        background: 'var(--surface-subtle)', color: 'var(--text-main)',
-                        border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', cursor: 'pointer'
-                      }}
-                      title="Düzenle"
-                    >
-                      ✏️
-                    </button>
-
-                    {/* Sil Butonu */}
-                    <button
-                      onClick={() => handleDelete(bill.id, bill.name)}
-                      style={{
-                        padding: '6px 8px', fontSize: '11px',
-                        background: 'var(--surface-subtle)', color: '#DC2626',
-                        border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', cursor: 'pointer'
-                      }}
-                      title="Sil"
-                    >
-                      🗑️
-                    </button>
-                  </div>
+                {/* Alt Meta Satır: Tebliğ, Son Ödeme, Hesap — sadece buradan göster (rozetten değil) */}
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', gap: '12px', flexWrap: 'wrap', paddingLeft: '50px' }}>
+                  {/* Tebliğ tarihini sadece rozette göstermiyorsak buraya yaz */}
+                  {!bill.formatted_next_billing && bill.billing_day ? (
+                    <span>✂️ Tebliğ: <strong>Her ayın {bill.billing_day}'i</strong></span>
+                  ) : null}
+                  <span>📅 Son Ödeme: <strong>{bill.formatted_next_due || `Her ayın ${bill.due_day}'i`}</strong></span>
+                  {bill.wallet_name && (
+                    <span>💳 <strong>{bill.wallet_name}</strong></span>
+                  )}
                 </div>
               </div>
             );

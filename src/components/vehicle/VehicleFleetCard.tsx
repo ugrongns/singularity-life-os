@@ -168,18 +168,18 @@ export default function VehicleFleetCard({
         </div>
       )}
 
-      <div className="card-action-bar" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        <button className="btn-subtle" style={{ fontSize: '12px', padding: '6px 12px', whiteSpace: 'nowrap' }} onClick={onOpenHistory}>
+      <div style={{ display: 'grid', gridTemplateColumns: onAddVehicle && (!data?.vehicles || data.vehicles.length <= 1) ? '1fr 1fr' : '1fr', gap: '8px', marginBottom: '14px' }}>
+        <button className="btn-subtle" style={{ fontSize: '12px', padding: '8px 12px', whiteSpace: 'nowrap', textAlign: 'center' }} onClick={onOpenHistory}>
           📜 Servis Geçmişi & Kayıtlar
         </button>
         {(!data?.vehicles || data.vehicles.length <= 1) && onAddVehicle && (
           <button
             onClick={onAddVehicle}
             style={{
-              padding: '6px 12px', borderRadius: 'var(--radius-full)',
+              padding: '8px 12px', borderRadius: 'var(--radius-md)',
               border: '1px solid var(--border)', background: 'var(--surface-subtle)',
               color: 'var(--text-main)', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap', textAlign: 'center'
             }}
           >
             ＋ Garaja Araç Ekle
@@ -217,7 +217,7 @@ export default function VehicleFleetCard({
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
               <input
                 type="number"
-                placeholder={`Yeni KM Gir (${currentKm.toLocaleString('tr-TR')})`}
+                placeholder={`Yeni KM (mevcut: ${currentKm.toLocaleString('tr-TR')})`}
                 value={kmInput}
                 onChange={e => setKmInput(e.target.value)}
                 style={{
@@ -298,9 +298,9 @@ export default function VehicleFleetCard({
 
         {/* 15.000 KM Periyodik Bakım Çubuğu */}
         <div style={{ background: 'var(--surface)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 800, marginBottom: '6px' }}>
-            <span>Periyodik Bakım Hedefi ({nextServiceKm.toLocaleString('tr-TR')} KM)</span>
-            <span className="tabular-nums" style={{ color: isDueSoon ? 'var(--rose)' : 'var(--emerald)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontSize: '12px', fontWeight: 800, marginBottom: '6px', gap: '8px' }}>
+            <span style={{ wordBreak: 'keep-all', overflowWrap: 'normal' }}>Periyodik Bakım Hedefi ({nextServiceKm.toLocaleString('tr-TR')} KM)</span>
+            <span className="tabular-nums" style={{ color: isDueSoon ? 'var(--rose)' : 'var(--emerald)', flexShrink: 0, whiteSpace: 'nowrap' }}>
               {remainingKm.toLocaleString('tr-TR')} KM Kaldı
             </span>
           </div>
@@ -320,15 +320,15 @@ export default function VehicleFleetCard({
 
         {/* Yasal Hatırlatıcı Sayaçları (TÜVTÜRK, Kasko, Sigorta, MTV) */}
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
-              🛡️ Muayene, Sigorta & Yasal Takvim
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '8px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
+              🛡️ Muayene & Yasal Takvim
             </div>
             <button
               type="button"
               onClick={() => setIsLegalModalOpen(true)}
               className="btn-subtle"
-              style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer' }}
+              style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
             >
               ✏️ Tarihleri Düzenle
             </button>
