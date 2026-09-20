@@ -73,59 +73,73 @@ async function findExistingBookInLibrary(
 
 // 1. KAYNAK: Google Books API
 async function fetchFromGoogleBooks(cleanIsbn: string): Promise<BookSearchResult | null> {
-  const apiKey = process.env.GOOGLE_BOOKS_API_KEY;
-  const url = apiKey
-    ? `https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}&key=${apiKey}`
-    : `https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}`;
+  try {
+    const apiKey = process.env.GOOGLE_BOOKS_API_KEY;
+    const url = apiKey
+      ? `https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}&key=${apiKey}`
+      : `https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}`;
 
-  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-  if (!res.ok) return null;
-  const json = await res.json();
-  if (json.items && json.items.length > 0) {
-    const info = json.items[0].volumeInfo || {};
-    if (info.title) {
-      const rawCat = info.categories ? info.categories.join(' / ') : '';
-      const resolvedCategory = normalizeBookCategory(rawCat, info.title, info.description);
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.items && json.items.length > 0) {
+      const info = json.items[0].volumeInfo || {};
+      if (info.title) {
+        const rawCat = info.categories ? info.categories.join(' / ') : '';
+        const resolvedCategory = normalizeBookCategory(rawCat, info.title, info.description);
 
-      return {
-        title: info.title,
-        author: info.authors ? info.authors.join(', ') : '',
-        publisher: info.publisher || '',
-        total_pages: info.pageCount || 200,
-        category: resolvedCategory,
-        summary: info.description || '',
-        cover_url: info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || null,
-        source: 'Google Books API'
-      };
+        return {
+          title: info.title,
+          author: info.authors ? info.authors.join(', ') : '',
+          publisher: info.publisher || '',
+          total_pages: info.pageCount || 200,
+          category: resolvedCategory,
+          summary: info.description || '',
+          cover_url: info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || null,
+          source: 'Google Books API'
+        };
+      }
     }
+  } catch (err) {
+    console.warn('Google Books API fetch hatası:', err);
   }
   return null;
 }
 
 // 2. KAYNAK: Open Library API
 async function fetchFromOpenLibrary(cleanIsbn: string): Promise<BookSearchResult | null> {
-  const url = `https://openlibrary.org/api/books?bibkeys=ISBN:${cleanIsbn}&format=json&jscmd=data`;
-  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-  if (!res.ok) return null;
-  const json = await res.json();
-  const key = `ISBN:${cleanIsbn}`;
-  if (json[key]) {
-    const item = json[key];
-    if (item.title) {
-      const rawSubject = item.subjects ? item.subjects.map((s: any) => s.name).join(' / ') : '';
-      const resolvedCategory = normalizeBookCategory(rawSubject, item.title);
+  try {
+    const url = `https://openlibrary.org/api/books?bibkeys=ISBN:${cleanIsbn}&format=json&jscmd=data`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const key = `ISBN:${cleanIsbn}`;
+    if (json[key]) {
+      const item = json[key];
+      if (item.title) {
+        const rawSubject = item.subjects ? item.subjects.map((s: any) => s.name).join(' / ') : '';
+        const resolvedCategory = normalizeBookCategory(rawSubject, item.title);
 
-      return {
-        title: item.title,
-        author: item.authors ? item.authors.map((a: any) => a.name).join(', ') : '',
-        publisher: item.publishers ? item.publishers.map((p: any) => p.name).join(', ') : '',
-        total_pages: item.number_of_pages || 200,
-        category: resolvedCategory,
-        summary: '',
-        cover_url: item.cover?.medium || item.cover?.large || null,
-        source: 'Open Library'
-      };
+        return {
+          title: item.title,
+          author: item.authors ? item.authors.map((a: any) => a.name).join(', ') : '',
+          publisher: item.publishers ? item.publishers.map((p: any) => p.name).join(', ') : '',
+          total_pages: item.number_of_pages || 200,
+          category: resolvedCategory,
+          summary: '',
+          cover_url: item.cover?.medium || item.cover?.large || null,
+          source: 'Open Library'
+        };
+      }
     }
+  } catch (err) {
+    console.warn('Open Library fetch hatası:', err);
   }
   return null;
 }
@@ -185,7 +199,7 @@ async function fetchFromGeminiAI(
 }
 \`\`\``;
 
-  const models = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'];
+  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   for (const modelName of models) {
     try {
       const response = await fetch(
@@ -196,7 +210,8 @@ async function fetchFromGeminiAI(
           body: JSON.stringify({
             contents: [{ parts: [{ text: promptText }] }],
             generationConfig: { temperature: 0.0 }
-          })
+          }),
+          signal: AbortSignal.timeout(8000)
         }
       );
 
@@ -235,7 +250,8 @@ async function fetchFromTurkishBookstores(cleanIsbn: string): Promise<BookSearch
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8'
-      }
+      },
+      signal: AbortSignal.timeout(5000)
     });
 
     if (!res.ok) return null;
@@ -444,6 +460,11 @@ export async function POST(req: Request) {
     }, { status: 444 });
 
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message || 'Sorgulama sırasında bir hata oluştu.' }, { status: 500 });
+    console.error('ISBN tarama genel hatası:', error);
+    const isFetchFail = error?.message?.toLowerCase().includes('fetch failed') || error?.name === 'TypeError';
+    const errorMsg = isFetchFail
+      ? 'Dış katalog servisleri geçici olarak yanıt vermedi (bağlantı zaman aşımı). Lütfen birkaç saniye sonra tekrar deneyin veya kitap bilgilerini manuel girin.'
+      : (error?.message || 'Sorgulama sırasında bir hata oluştu.');
+    return NextResponse.json({ success: false, error: errorMsg }, { status: 500 });
   }
 }
