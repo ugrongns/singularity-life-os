@@ -468,8 +468,12 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                         <span style={{ fontSize: '10px', background: '#FEF3C7', color: '#92400E', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
                           ⏳ Ödeme Açık ({bill.days_left === 0 ? 'Bugün Son!' : `${bill.days_left} gün kaldı`})
                         </span>
+                      ) : bill.formatted_next_billing ? (
+                        <span style={{ fontSize: '10px', background: 'var(--surface-subtle)', color: 'var(--text-muted)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600, border: '1px solid var(--border)' }}>
+                          ✂️ Tebliğ Bekleniyor ({bill.formatted_next_billing})
+                        </span>
                       ) : (
-                        <span style={{ fontSize: '10px', background: 'var(--surface-subtle)', color: 'var(--text-muted)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                        <span style={{ fontSize: '10px', background: 'var(--surface-subtle)', color: 'var(--text-muted)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600, border: '1px solid var(--border)' }}>
                           📅 Gelecek Dönem ({bill.formatted_next_due || `${bill.days_left} gün kaldı`})
                         </span>
                       )}
@@ -502,19 +506,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
 
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                     {/* Ödeme Butonu */}
-                    {!bill.is_paid_this_month ? (
-                      <button
-                        onClick={() => openPayModal(bill)}
-                        style={{
-                          padding: '6px 12px', fontSize: '11px', fontWeight: 800,
-                          background: 'linear-gradient(135deg, #10B981, #059669)', color: 'white',
-                          border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                          boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)'
-                        }}
-                      >
-                        ✓ Öde
-                      </button>
-                    ) : (
+                    {bill.is_paid_this_month ? (
                       <button
                         onClick={() => handleUnmarkPaid(bill)}
                         style={{
@@ -526,7 +518,19 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                       >
                         ↩
                       </button>
-                    )}
+                    ) : (bill.is_overdue || bill.is_billing_open) ? (
+                      <button
+                        onClick={() => openPayModal(bill)}
+                        style={{
+                          padding: '6px 12px', fontSize: '11px', fontWeight: 800,
+                          background: 'linear-gradient(135deg, #10B981, #059669)', color: 'white',
+                          border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                          boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)'
+                        }}
+                      >
+                        ✓ Öde
+                      </button>
+                    ) : null}
 
                     {/* Düzenle Butonu */}
                     <button

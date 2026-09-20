@@ -92,7 +92,11 @@ export function calculateBillSchedule(bill: any, today: Date) {
 
   // Tebliğ / Kesim Günü Hesabı
   let nextBillingDate: Date | null = null;
-  let isBillingOpen = true;
+  let isBillingOpen = false;
+
+  const nextDueMonthStr = localYYYYMM(nextDueDate);
+  const isPaidThisMonth = bill.last_paid_month === currentMonthStr || (bill.last_paid_month && bill.last_paid_month >= nextDueMonthStr);
+  const isDueThisMonth = isOverdue || nextDueMonthStr === currentMonthStr;
 
   if (billingDay) {
     if (billingDay <= dueDay) {
@@ -109,11 +113,10 @@ export function calculateBillSchedule(bill: any, today: Date) {
     }
 
     isBillingOpen = isOverdue || nextBillingDate <= todayStart;
+  } else {
+    // Tebliğ günü yoksa (sabit abonelik / kira): Sadece gecikmede ise veya vadesi bu ay içindeyse ödeme açıktır
+    isBillingOpen = isOverdue || isDueThisMonth;
   }
-
-  const nextDueMonthStr = localYYYYMM(nextDueDate);
-  const isPaidThisMonth = bill.last_paid_month === currentMonthStr || (bill.last_paid_month && bill.last_paid_month >= nextDueMonthStr);
-  const isDueThisMonth = isOverdue || nextDueMonthStr === currentMonthStr;
 
   const formattedNextDue = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }).format(nextDueDate);
   const formattedNextBilling = nextBillingDate
