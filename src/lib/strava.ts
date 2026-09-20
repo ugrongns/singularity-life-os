@@ -150,6 +150,19 @@ export function mapStravaActivityToWorkout(act: any, userId?: string | null) {
   const dateStr = startDate.split('T')[0];
   const startTimeStr = startDate.split('T')[1]?.substring(0, 5);
 
+  const durationSeconds = Math.round(act.moving_time || act.elapsed_time || 0);
+  const hrs = Math.floor(durationSeconds / 3600);
+  const mins = Math.floor((durationSeconds % 3600) / 60);
+  const secs = Math.round(durationSeconds % 60);
+  const formattedDuration = hrs > 0
+    ? `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+    : `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+  const distanceMeters = Math.round(act.distance || 0);
+  const formattedDistance = (sportType === 'swimming' || distanceMeters < 1000)
+    ? `${distanceMeters} m`
+    : `${(distanceMeters / 1000).toFixed(2).replace('.', ',')} km`;
+
   const now = new Date().toISOString();
 
   return {
@@ -159,7 +172,11 @@ export function mapStravaActivityToWorkout(act: any, userId?: string | null) {
     date: dateStr,
     start_time: startTimeStr,
     duration_minutes: durationMinutes,
+    duration_seconds: durationSeconds,
+    formatted_duration: formattedDuration,
     distance_km: distanceKm,
+    distance_meters: distanceMeters,
+    formatted_distance: formattedDistance,
     calories: act.calories ? Math.round(act.calories) : 0,
     avg_speed_kmh: avgSpeedKmh,
     max_speed_kmh: maxSpeedKmh,

@@ -26,8 +26,12 @@ interface WorkoutSession {
   date: string;
   start_time?: string;
   duration_minutes: number;
+  duration_seconds?: number;
+  formatted_duration?: string;
   total_volume_kg: number;
   distance_km?: number;
+  distance_meters?: number;
+  formatted_distance?: string;
   calories?: number;
   avg_speed_kmh?: number;
   max_speed_kmh?: number;
@@ -253,7 +257,7 @@ export default function HomeWorkoutTrackerCard() {
                         )}
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        📅 {wk.date} {wk.start_time ? `• ${wk.start_time}` : ''} • ⏱️ {wk.duration_minutes || 0} Dk
+                        📅 {wk.date} {wk.start_time ? `• ${wk.start_time}` : ''} • ⏱️ {wk.formatted_duration || `${wk.duration_minutes || 0} Dk`}
                       </div>
                     </div>
                   </div>
@@ -271,9 +275,9 @@ export default function HomeWorkoutTrackerCard() {
                 {/* Önemli Metrik Rozetleri */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   {/* Mesafe */}
-                  {wk.distance_km !== undefined && wk.distance_km > 0 && (
+                  {(wk.formatted_distance || (wk.distance_km !== undefined && wk.distance_km > 0)) && (
                     <span style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', color: '#10B981', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
-                      📍 {wk.sport_type === 'swimming' ? `${Math.round(wk.distance_km * 1000)} m` : `${wk.distance_km} km`}
+                      📍 {wk.formatted_distance || (wk.sport_type === 'swimming' ? `${Math.round((wk.distance_km || 0) * 1000)} m` : `${wk.distance_km} km`)}
                     </span>
                   )}
 

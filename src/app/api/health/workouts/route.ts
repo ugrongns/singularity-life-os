@@ -69,7 +69,11 @@ export async function POST(req: Request) {
       date,
       start_time,
       duration_minutes = 45,
+      duration_seconds,
+      formatted_duration,
       distance_km = 0,
+      distance_meters,
+      formatted_distance,
       calories = 0,
       avg_speed_kmh,
       max_speed_kmh,
@@ -101,6 +105,47 @@ export async function POST(req: Request) {
     if (action === 'create') {
       const workoutId = `wk-${Date.now()}`;
       const workoutDate = date || now.split('T')[0];
+
+      // Süre atomik hesaplaması (saniye & formatlı metin)
+      let durSec = parseIntNum(duration_seconds);
+      let formDur = formatted_duration ? String(formatted_duration).trim() : null;
+
+      if (!durSec && typeof duration_minutes === 'string' && duration_minutes.includes(':')) {
+        formDur = duration_minutes.trim();
+        const parts = formDur.split(':').map(p => parseFloat(p));
+        if (parts.length === 3) durSec = Math.round(parts[0] * 3600 + parts[1] * 60 + parts[2]);
+        else if (parts.length === 2) durSec = Math.round(parts[0] * 60 + parts[1]);
+      } else if (!durSec && duration_minutes) {
+        durSec = Math.round(Number(duration_minutes) * 60);
+      }
+
+      if (!formDur && durSec) {
+        const hrs = Math.floor(durSec / 3600);
+        const mins = Math.floor((durSec % 3600) / 60);
+        const secs = Math.round(durSec % 60);
+        formDur = hrs > 0
+          ? `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+          : `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      }
+
+      const durMin = durSec ? Math.round(durSec / 60) : (parseIntNum(duration_minutes) ?? 45);
+
+      // Mesafe atomik hesaplaması (metre, km & formatlı metin)
+      let distM = parseNum(distance_meters);
+      let distKm = parseNum(distance_km);
+      let formDist = formatted_distance ? String(formatted_distance).trim() : null;
+
+      if (distM === null && distKm !== null && distKm > 0) {
+        distM = Math.round(distKm * 1000);
+      } else if (distM !== null && (distKm === null || distKm === 0)) {
+        distKm = Number((distM / 1000).toFixed(3));
+      }
+
+      if (!formDist && distKm !== null && distKm > 0) {
+        formDist = (sport_type === 'swimming' || distKm < 1)
+          ? `${Math.round(distKm * 1000)} m`
+          : `${distKm.toFixed(2).replace('.', ',')} km`;
+      }
 
       let totalWorkoutVolume = 0;
 
@@ -142,9 +187,13 @@ export async function POST(req: Request) {
         sport_type,
         date: workoutDate,
         start_time: start_time || now.split('T')[1]?.substring(0, 5),
-        duration_minutes: parseIntNum(duration_minutes) ?? 45,
+        duration_minutes: durMin,
+        duration_seconds: durSec,
+        formatted_duration: formDur,
         total_volume_kg: totalWorkoutVolume,
-        distance_km: parseNum(distance_km) ?? 0,
+        distance_km: distKm ?? 0,
+        distance_meters: distM,
+        formatted_distance: formDist,
         calories: parseNum(calories) ?? 0,
         avg_speed_kmh: parseNum(avg_speed_kmh),
         max_speed_kmh: parseNum(max_speed_kmh),

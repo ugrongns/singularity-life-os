@@ -53,7 +53,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
   const [sportType, setSportType] = useState<SportType>('cycling');
   const [title, setTitle] = useState('Bisiklet Antrenmanı');
   const [workoutDate, setWorkoutDate] = useState(new Date().toISOString().split('T')[0]);
-  const [durationMinutes, setDurationMinutes] = useState('45');
+  const [durationInput, setDurationInput] = useState('45:00');
   const [distanceKm, setDistanceKm] = useState('');
   const [calories, setCalories] = useState('');
   const [avgSpeedKmh, setAvgSpeedKmh] = useState('');
@@ -154,7 +154,11 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
         }
         if (d.title) setTitle(d.title);
         if (d.date) setWorkoutDate(d.date);
-        if (d.duration_minutes) setDurationMinutes(String(Math.round(Number(d.duration_minutes))));
+        if (d.duration_text) {
+          setDurationInput(d.duration_text);
+        } else if (d.duration_minutes) {
+          setDurationInput(`${Math.round(Number(d.duration_minutes))}:00`);
+        }
         if (d.distance_km !== undefined) setDistanceKm(String(d.distance_km));
         if (d.calories !== undefined) setCalories(String(d.calories));
         if (d.avg_speed_kmh !== undefined) setAvgSpeedKmh(String(d.avg_speed_kmh));
@@ -217,13 +221,27 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
 
     setSubmitting(true);
     try {
+      const distVal = parseNum(distanceKm) ?? 0;
+      const distMeters = sportType === 'swimming'
+        ? distVal
+        : (distVal > 0 ? Math.round(distVal * 1000) : null);
+      const distKm = sportType === 'swimming'
+        ? Number((distVal / 1000).toFixed(3))
+        : distVal;
+      const formattedDist = distanceKm
+        ? (sportType === 'swimming' ? `${distVal} m` : `${distVal} km`)
+        : null;
+
       const payload: any = {
         action: 'create',
         sport_type: sportType,
         title,
         date: workoutDate,
-        duration_minutes: parseIntNum(durationMinutes) ?? 30,
-        distance_km: parseNum(distanceKm) ?? 0,
+        duration_minutes: durationInput,
+        formatted_duration: durationInput,
+        distance_km: distKm,
+        distance_meters: distMeters,
+        formatted_distance: formattedDist,
         calories: parseNum(calories) ?? 0,
         avg_speed_kmh: parseNum(avgSpeedKmh),
         max_speed_kmh: parseNum(maxSpeedKmh),
@@ -409,12 +427,12 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
               {/* Süre, Mesafe, Kalori */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
                 <div>
-                  <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>⏱️ Süre (Dk):</label>
+                  <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>⏱️ Süre (Örn: 46:24):</label>
                   <input
-                    type="number"
-                    value={durationMinutes}
-                    onChange={e => setDurationMinutes(e.target.value)}
-                    placeholder="45"
+                    type="text"
+                    value={durationInput}
+                    onChange={e => setDurationInput(e.target.value)}
+                    placeholder="46:24"
                     required
                     style={{ width: '100%', boxSizing: 'border-box', padding: '8px', fontSize: '13px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-main)' }}
                   />

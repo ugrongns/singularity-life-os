@@ -3,8 +3,12 @@ export interface ParsedWorkout {
   title: string;
   date: string;
   duration_minutes: number;
+  duration_seconds?: number;
+  duration_text?: string; // Örn: "46:24" veya "01:15:30"
   total_duration_minutes?: number;
   distance_km: number;
+  distance_meters?: number;
+  formatted_distance?: string; // Örn: "14,98 km" veya "425 m"
   calories: number;
   avg_speed_kmh?: number;
   max_speed_kmh?: number;
@@ -49,6 +53,31 @@ export interface ParsedWorkout {
   device_source?: string;
 }
 
+export function parseTimeToSeconds(timeStr: string | number): number {
+  if (typeof timeStr === 'number') return Math.round(timeStr * 60);
+  if (!timeStr) return 0;
+  const str = String(timeStr).trim();
+  const parts = str.split(':').map(p => parseFloat(p));
+  if (parts.length === 3) {
+    return Math.round(parts[0] * 3600 + parts[1] * 60 + parts[2]);
+  } else if (parts.length === 2) {
+    return Math.round(parts[0] * 60 + parts[1]);
+  }
+  const val = parseFloat(str.replace(',', '.'));
+  return isNaN(val) ? 0 : Math.round(val * 60);
+}
+
+export function formatSecondsToTime(totalSeconds: number): string {
+  if (!totalSeconds || isNaN(totalSeconds)) return '00:00';
+  const hrs = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = Math.round(totalSeconds % 60);
+  if (hrs > 0) {
+    return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
 /**
  * Antrenman Ekran Görüntüsü / Rapor Ayrıştırma Motoru (AI Vision Pipeline)
  * Samsung Health, Strava, Apple Health, Garmin vb. ekran görüntülerini analiz eder.
@@ -73,35 +102,36 @@ Tespit Edilecek Alanlar:
 1. sport_type: 'cycling' (Bisiklet), 'running' (Koşu), 'walking' (Yürüyüş), 'swimming' (Yüzme), 'strength' (Kuvvet/Ağırlık), 'hiit', 'other'.
 2. title: Şık ve anlaşılır bir başlık (örn: "Göksu Parkı Bisiklet", "Sabah Koşusu", "Havuzda Yüzme (25m)").
 3. date: YYYY-MM-DD formatında tarih (görselde varsa oku, yoksa bugünün tarihini ver).
-4. duration_minutes: Antrenman süresi (dakika cinsinden ondalıklı veya tam sayı, örn: 38:04 -> 38).
-5. distance_km: Kat edilen mesafe (km cinsinden sayı, örn: 9.70 veya 0.425).
-6. calories: Yakılan kalori (kcal cinsinden sayı, örn: 291).
-7. avg_speed_kmh: Ortalama hız (km/sa, örn: 15.2).
-8. max_speed_kmh: Maksimum hız (km/sa, örn: 42.3).
-9. avg_pace: Ortalama adım hızı / tempo (örn: "03'55\" /km" veya "05'13\" /100 m").
-10. avg_heart_rate: Ortalama kalp atış hızı (bpm, örn: 112).
-11. max_heart_rate: Maksimum kalp atış hızı (bpm, örn: 147).
-12. vo2_max: Maksimum VO2 değeri (sayı, örn: 39.6).
-13. elevation_gain_m: Tırmanış / Yükselme (metre, örn: 340 veya 4).
-14. elevation_loss_m: İniş (metre).
-15. step_count: Toplam adım sayısı (yürüyüş/koşu için, örn: 6476).
-16. cadence_spm: Ortalama tempo / kadans (adım/dk veya rpm, örn: 110 veya 128).
-17. sweat_loss_ml: Tahmini ter kaybı (ml cinsinden, örn: 244 veya 237).
-18. swim_pool_length_m: Havuz uzunluğu (metre, örn: 25).
-19. swim_total_lengths: Toplam havuz uzunluğu / tur sayısı (örn: 17).
-20. swim_stroke_count: Toplam kulaç sayısı (örn: 464).
-21. swim_avg_swolf: Ortalama SWOLF skoru (örn: 105).
-22. swim_best_swolf: En iyi SWOLF skoru (örn: 22).
-23. swim_style: Yüzme stili (örn: "Serbest stil").
-24. heart_rate_zones: Kalp atış hızı bölgeleri {
+4. duration_text: Antrenman süresinin tam dakika ve saniye metni (örn: "46:24" veya "01:15:30" veya "38:04").
+5. distance_text: Mesafenin birimiyle orijinal metni (örn: "14,98 km" veya "425 m" veya "5,16 km").
+6. distance_km: Kat edilen mesafe (km cinsinden sayı, örn: 14.98 veya 0.425).
+7. calories: Yakılan kalori (kcal cinsinden tam sayı, örn: 498 veya 291).
+8. avg_speed_kmh: Ortalama hız (km/sa, örn: 19.3 veya 15.2).
+9. max_speed_kmh: Maksimum hız (km/sa, örn: 46.6 veya 42.3).
+10. avg_pace: Ortalama adım hızı / tempo (örn: "03'05\" /km" veya "05'13\" /100 m").
+11. avg_heart_rate: Ortalama kalp atış hızı (bpm, örn: 128 veya 112).
+12. max_heart_rate: Maksimum kalp atış hızı (bpm, örn: 158 veya 147).
+13. vo2_max: Maksimum VO2 değeri (sayı, örn: 39.3 veya 39.6).
+14. elevation_gain_m: Tırmanış / Yükselme (metre, örn: 174 veya 340).
+15. elevation_loss_m: İniş (metre).
+16. step_count: Toplam adım sayısı (yürüyüş/koşu için, örn: 6476).
+17. cadence_spm: Ortalama tempo / kadans (adım/dk veya rpm, örn: 110 veya 128).
+18. sweat_loss_ml: Tahmini ter kaybı (ml cinsinden, örn: 244 veya 237).
+19. swim_pool_length_m: Havuz uzunluğu (metre, örn: 25).
+20. swim_total_lengths: Toplam havuz uzunluğu / tur sayısı (örn: 17).
+21. swim_stroke_count: Toplam kulaç sayısı (örn: 464).
+22. swim_avg_swolf: Ortalama SWOLF skoru (örn: 105).
+23. swim_best_swolf: En iyi SWOLF skoru (örn: 22).
+24. swim_style: Yüzme stili (örn: "Serbest stil").
+25. heart_rate_zones: Kalp atış hızı bölgeleri {
       zone1: { label: "Düşük yoğunluk", duration: "07:55", percent: 22.4 },
       zone2: { label: "Kilo kontrolü", duration: "20:35", percent: 58.1 },
       zone3: { label: "Aerobik", duration: "05:04", percent: 14.4 },
       zone4: { label: "Anaerobik", duration: "00:25", percent: 1.2 },
       zone5: { label: "Maksimum", duration: "00:00", percent: 0.0 }
     }
-25. splits_data: Varsa bölme/tur tablosu dizi olarak.
-26. running_dynamics: Koşu dinamikleri {
+26. splits_data: Varsa bölme/tur tablosu dizi olarak.
+27. running_dynamics: Koşu dinamikleri {
       asymmetry: "Harika %92",
       ground_contact_time_ms: 176,
       flight_time_ms: 191,
@@ -109,7 +139,7 @@ Tespit Edilecek Alanlar:
       vertical_oscillation_cm: 9.0,
       stiffness: "Gelişmiş"
     }
-27. device_source: Cihaz bilgisi (örn: "Galaxy Watch6").
+28. device_source: Cihaz bilgisi (örn: "Galaxy Watch6").
 
 SADECE geçerli bir JSON çıktısı üret, markdown veya açıklama yazma.`;
 
@@ -146,13 +176,34 @@ SADECE geçerli bir JSON çıktısı üret, markdown veya açıklama yazma.`;
         if (textOutput) {
           const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
           const parsed = JSON.parse(cleanJson);
+          const durationText = parsed.duration_text || (parsed.duration_minutes ? formatSecondsToTime(Math.round(Number(parsed.duration_minutes) * 60)) : '30:00');
+          const durationSeconds = parsed.duration_seconds ? Number(parsed.duration_seconds) : parseTimeToSeconds(durationText);
+          const durationMinutes = Math.round(durationSeconds / 60) || 30;
+
+          let distanceKm = Number(parsed.distance_km) || 0;
+          let distanceMeters = parsed.distance_meters ? Number(parsed.distance_meters) : undefined;
+          let formattedDistance = parsed.distance_text || undefined;
+
+          if (distanceMeters === undefined && distanceKm > 0) {
+            distanceMeters = Math.round(distanceKm * 1000);
+          }
+          if (!formattedDistance && distanceKm > 0) {
+            formattedDistance = (parsed.sport_type === 'swimming' || distanceKm < 1)
+              ? `${Math.round(distanceKm * 1000)} m`
+              : `${distanceKm.toFixed(2).replace('.', ',')} km`;
+          }
+
           return {
             sport_type: parsed.sport_type || 'other',
             title: parsed.title || 'Antrenman',
             date: parsed.date || new Date().toISOString().split('T')[0],
-            duration_minutes: Math.round(Number(parsed.duration_minutes)) || 30,
-            total_duration_minutes: Math.round(Number(parsed.total_duration_minutes) || Number(parsed.duration_minutes)) || 30,
-            distance_km: Number(parsed.distance_km) || 0,
+            duration_minutes: durationMinutes,
+            duration_seconds: durationSeconds,
+            duration_text: durationText,
+            total_duration_minutes: Math.round(Number(parsed.total_duration_minutes) || durationMinutes),
+            distance_km: distanceKm,
+            distance_meters: distanceMeters,
+            formatted_distance: formattedDistance,
             calories: Math.round(Number(parsed.calories)) || 0,
             avg_speed_kmh: parsed.avg_speed_kmh ? Number(parsed.avg_speed_kmh) : undefined,
             max_speed_kmh: parsed.max_speed_kmh ? Number(parsed.max_speed_kmh) : undefined,

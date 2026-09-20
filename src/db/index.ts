@@ -448,8 +448,12 @@ async function _runInit(): Promise<void> {
         start_time TEXT,
         end_time TEXT,
         duration_minutes INTEGER DEFAULT 45,
+        duration_seconds INTEGER,
+        formatted_duration TEXT,
         total_volume_kg DOUBLE PRECISION DEFAULT 0,
         distance_km DOUBLE PRECISION DEFAULT 0,
+        distance_meters DOUBLE PRECISION,
+        formatted_distance TEXT,
         calories DOUBLE PRECISION DEFAULT 0,
         avg_speed_kmh DOUBLE PRECISION,
         max_speed_kmh DOUBLE PRECISION,
@@ -802,6 +806,10 @@ async function _runInit(): Promise<void> {
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS splits_data TEXT;
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS running_dynamics TEXT;
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual';
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS duration_seconds INTEGER;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS formatted_duration TEXT;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS distance_meters DOUBLE PRECISION;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS formatted_distance TEXT;
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS external_id TEXT;
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS map_polyline TEXT;
     `;
