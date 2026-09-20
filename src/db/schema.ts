@@ -466,11 +466,13 @@ export const workoutSessions = pgTable('workout_sessions', {
   start_time: text('start_time'),
   end_time: text('end_time'),
   duration_minutes: integer('duration_minutes').default(45),
-  duration_seconds: integer('duration_seconds'), // Toplam saniye (örn: 2784 sn)
+  duration_seconds: doublePrecision('duration_seconds'), // Kesirli veya tam saniye (örn: 2784.35 sn)
+  duration_centiseconds: integer('duration_centiseconds'), // Toplam salise (1/100 sn, örn: 278435)
   formatted_duration: text('formatted_duration'), // Örn: "46:24" veya "01:15:30"
   total_volume_kg: doublePrecision('total_volume_kg').default(0),
   distance_km: doublePrecision('distance_km').default(0),
   distance_meters: doublePrecision('distance_meters'), // Metre cinsinden kesin mesafe (örn: 14980 veya 425)
+  distance_cm: doublePrecision('distance_cm'), // Santimetre cinsinden atomik mesafe (örn: 1498000 cm)
   formatted_distance: text('formatted_distance'), // Örn: "14,98 km" veya "425 m"
   calories: doublePrecision('calories').default(0),
   avg_speed_kmh: doublePrecision('avg_speed_kmh'),

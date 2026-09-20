@@ -224,7 +224,8 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
       const distVal = parseNum(distanceKm) ?? 0;
       const distMeters = sportType === 'swimming'
         ? distVal
-        : (distVal > 0 ? Math.round(distVal * 1000) : null);
+        : (distVal > 0 ? Number((distVal * 1000).toFixed(2)) : null);
+      const distCm = distMeters !== null ? Math.round(distMeters * 100) : null;
       const distKm = sportType === 'swimming'
         ? Number((distVal / 1000).toFixed(3))
         : distVal;
@@ -232,15 +233,33 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
         ? (sportType === 'swimming' ? `${distVal} m` : `${distVal} km`)
         : null;
 
+      // Süre atomik hesaplaması (salise ve saniye)
+      let durSec: number | null = null;
+      let durCenti: number | null = null;
+      if (durationInput && durationInput.includes(':')) {
+        const parts = durationInput.split(':').map(p => parseFloat(p.replace(',', '.')));
+        if (parts.length === 3) durSec = Number((parts[0] * 3600 + parts[1] * 60 + parts[2]).toFixed(2));
+        else if (parts.length === 2) durSec = Number((parts[0] * 60 + parts[1]).toFixed(2));
+      } else if (durationInput) {
+        const dMin = parseNum(durationInput);
+        durSec = dMin ? Number((dMin * 60).toFixed(2)) : null;
+      }
+      if (durSec !== null) {
+        durCenti = Math.round(durSec * 100);
+      }
+
       const payload: any = {
         action: 'create',
         sport_type: sportType,
         title,
         date: workoutDate,
         duration_minutes: durationInput,
+        duration_seconds: durSec,
+        duration_centiseconds: durCenti,
         formatted_duration: durationInput,
         distance_km: distKm,
         distance_meters: distMeters,
+        distance_cm: distCm,
         formatted_distance: formattedDist,
         calories: parseNum(calories) ?? 0,
         avg_speed_kmh: parseNum(avgSpeedKmh),
@@ -299,70 +318,69 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
           <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>🏅</span> Antrenman Kaydet & Tara
           </div>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '20px',
+              cursor: 'pointer',
+              color: 'var(--text-muted)'
+            }}
+          >
+            ✕
+          </button>
         </div>
 
-        {/* 📸 AI Vision Ekran Görüntüsü Yükleme Bandı */}
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)',
-          border: '1px dashed var(--indigo)',
-          borderRadius: '12px',
-          padding: '12px 14px',
-          marginBottom: '14px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>📸</span> Akıllı Saat / Samsung Health Ekran Görüntüsü Yükle
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                Ekran görüntüsünü yükleyin; süre, mesafe, nabız, kalori ve turlar otomatik dolsun.
-              </div>
-            </div>
-
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImageUpload}
-              accept="image/*"
-              multiple
-              style={{ display: 'none' }}
-            />
-
-            <button
-              type="button"
-              disabled={scanning}
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                padding: '7px 14px',
-                fontSize: '12px',
-                fontWeight: 800,
-                borderRadius: '8px',
-                border: '1px solid var(--indigo)',
-                background: 'var(--indigo)',
-                color: '#FFF',
-                cursor: scanning ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              {scanning ? '⏳ Taranıyor...' : '⚡ Görsel Seç & Tara'}
-            </button>
-          </div>
+        {/* AI OCR Hızlı Tarama Butonu */}
+        <div style={{ marginBottom: '14px' }}>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImageUpload}
+            accept="image/*"
+            multiple
+            style={{ display: 'none' }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={scanning}
+            style={{
+              width: '100%',
+              padding: '12px 14px',
+              borderRadius: '10px',
+              border: '1px dashed var(--primary)',
+              background: 'var(--indigo-bg)',
+              color: 'var(--primary)',
+              fontSize: '13px',
+              fontWeight: 800,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              cursor: scanning ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <span>{scanning ? '⏳' : '📸'}</span>
+            <span>
+              {scanning
+                ? 'AI Vision Ekran Görüntüsünü İnceliyor (Gemini 3.5 Flash)...'
+                : 'Ekran Görüntüsü Yükle (Samsung Health / Strava / Garmin)'}
+            </span>
+          </button>
 
           {scanMessage && (
-            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--emerald)', background: 'rgba(16, 185, 129, 0.1)', padding: '6px 10px', borderRadius: '6px' }}>
+            <div style={{ marginTop: '8px', padding: '8px 12px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid var(--emerald)', color: 'var(--emerald)', fontSize: '12px', fontWeight: 700 }}>
               {scanMessage}
             </div>
           )}
         </div>
 
-        {/* Spor Türü Seçici Sekmeler */}
-        <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '6px', marginBottom: '12px', scrollbarWidth: 'thin' }}>
+        {/* Spor Türü Tab Bar */}
+        <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '8px' }}>
           {SPORTS.map(s => {
             const isActive = sportType === s.type;
             return (
@@ -372,11 +390,11 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                 onClick={() => handleSportChange(s.type)}
                 style={{
                   padding: '7px 12px',
-                  borderRadius: '8px',
+                  borderRadius: '20px',
                   fontSize: '12px',
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
+                  fontWeight: isActive ? 800 : 600,
                   cursor: 'pointer',
+                  whiteSpace: 'nowrap',
                   border: isActive ? '1px solid var(--primary)' : '1px solid var(--border)',
                   background: isActive ? 'var(--indigo-bg)' : 'var(--surface-subtle)',
                   color: isActive ? 'var(--primary)' : 'var(--text-main)',
@@ -436,6 +454,26 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                     required
                     style={{ width: '100%', boxSizing: 'border-box', padding: '8px', fontSize: '13px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-main)' }}
                   />
+                  {durationInput && (
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {(() => {
+                        let sec: number | null = null;
+                        if (durationInput.includes(':')) {
+                          const parts = durationInput.split(':').map(p => parseFloat(p.replace(',', '.')));
+                          if (parts.length === 3) sec = parts[0] * 3600 + parts[1] * 60 + parts[2];
+                          else if (parts.length === 2) sec = parts[0] * 60 + parts[1];
+                        } else {
+                          const n = parseFloat(durationInput.replace(',', '.'));
+                          if (!isNaN(n)) sec = n * 60;
+                        }
+                        if (sec !== null && !isNaN(sec)) {
+                          const centi = Math.round(sec * 100);
+                          return `⚡ ${sec.toFixed(2)} sn (${centi.toLocaleString('tr-TR')} salise)`;
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>
@@ -449,6 +487,19 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                     placeholder={sportType === 'swimming' ? '425' : '9.70'}
                     style={{ width: '100%', boxSizing: 'border-box', padding: '8px', fontSize: '13px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--emerald)' }}
                   />
+                  {distanceKm && (
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {(() => {
+                        const n = parseFloat(distanceKm.replace(',', '.'));
+                        if (!isNaN(n) && n > 0) {
+                          const meters = sportType === 'swimming' ? n : n * 1000;
+                          const cm = Math.round(meters * 100);
+                          return `📏 ${meters.toLocaleString('tr-TR')} m (${cm.toLocaleString('tr-TR')} cm)`;
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>🔥 Kalori (kcal):</label>

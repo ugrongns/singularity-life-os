@@ -806,9 +806,12 @@ async function _runInit(): Promise<void> {
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS splits_data TEXT;
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS running_dynamics TEXT;
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual';
-      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS duration_seconds INTEGER;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS duration_seconds DOUBLE PRECISION;
+      ALTER TABLE workout_sessions ALTER COLUMN duration_seconds TYPE DOUBLE PRECISION USING duration_seconds::double precision;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS duration_centiseconds INTEGER;
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS formatted_duration TEXT;
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS distance_meters DOUBLE PRECISION;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS distance_cm DOUBLE PRECISION;
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS formatted_distance TEXT;
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS external_id TEXT;
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS map_polyline TEXT;

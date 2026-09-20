@@ -4,10 +4,12 @@ export interface ParsedWorkout {
   date: string;
   duration_minutes: number;
   duration_seconds?: number;
-  duration_text?: string; // Örn: "46:24" veya "01:15:30"
+  duration_centiseconds?: number; // Toplam salise (1/100 sn, örn: 278435)
+  duration_text?: string; // Örn: "46:24", "21:59.40" veya "01:15:30"
   total_duration_minutes?: number;
   distance_km: number;
   distance_meters?: number;
+  distance_cm?: number; // Toplam santimetre (örn: 1498000 cm)
   formatted_distance?: string; // Örn: "14,98 km" veya "425 m"
   calories: number;
   avg_speed_kmh?: number;
@@ -54,28 +56,40 @@ export interface ParsedWorkout {
 }
 
 export function parseTimeToSeconds(timeStr: string | number): number {
-  if (typeof timeStr === 'number') return Math.round(timeStr * 60);
+  if (typeof timeStr === 'number') return Number((timeStr * 60).toFixed(2));
   if (!timeStr) return 0;
-  const str = String(timeStr).trim();
+  const str = String(timeStr).trim().replace(',', '.');
   const parts = str.split(':').map(p => parseFloat(p));
   if (parts.length === 3) {
-    return Math.round(parts[0] * 3600 + parts[1] * 60 + parts[2]);
+    return Number((parts[0] * 3600 + parts[1] * 60 + parts[2]).toFixed(2));
   } else if (parts.length === 2) {
-    return Math.round(parts[0] * 60 + parts[1]);
+    return Number((parts[0] * 60 + parts[1]).toFixed(2));
   }
-  const val = parseFloat(str.replace(',', '.'));
-  return isNaN(val) ? 0 : Math.round(val * 60);
+  const val = parseFloat(str);
+  return isNaN(val) ? 0 : Number((val * 60).toFixed(2));
+}
+
+export function parseTimeToCentiseconds(timeStr: string | number): number {
+  const secs = parseTimeToSeconds(timeStr);
+  return Math.round(secs * 100);
 }
 
 export function formatSecondsToTime(totalSeconds: number): string {
   if (!totalSeconds || isNaN(totalSeconds)) return '00:00';
   const hrs = Math.floor(totalSeconds / 3600);
-  const mins = Math.floor((totalSeconds % 3600) / 60);
-  const secs = Math.round(totalSeconds % 60);
+  const remainingSecs = totalSeconds % 3600;
+  const mins = Math.floor(remainingSecs / 60);
+  const secs = remainingSecs % 60;
+  
+  const hasCentis = Math.round(secs * 100) % 100 !== 0;
+  const formattedSecs = hasCentis
+    ? secs.toFixed(2).padStart(5, '0')
+    : String(Math.floor(secs)).padStart(2, '0');
+
   if (hrs > 0) {
-    return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    return `${hrs}:${String(mins).padStart(2, '0')}:${formattedSecs}`;
   }
-  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  return `${String(mins).padStart(2, '0')}:${formattedSecs}`;
 }
 
 /**
@@ -102,7 +116,7 @@ Tespit Edilecek Alanlar:
 1. sport_type: 'cycling' (Bisiklet), 'running' (Koşu), 'walking' (Yürüyüş), 'swimming' (Yüzme), 'strength' (Kuvvet/Ağırlık), 'hiit', 'other'.
 2. title: Şık ve anlaşılır bir başlık (örn: "Göksu Parkı Bisiklet", "Sabah Koşusu", "Havuzda Yüzme (25m)").
 3. date: YYYY-MM-DD formatında tarih (görselde varsa oku, yoksa bugünün tarihini ver).
-4. duration_text: Antrenman süresinin tam dakika ve saniye metni (örn: "46:24" veya "01:15:30" veya "38:04").
+4. duration_text: Antrenman süresinin tam dakika, saniye ve varsa salise metni (örn: "46:24", "21:59.40", "01:15:30" veya "38:04").
 5. distance_text: Mesafenin birimiyle orijinal metni (örn: "14,98 km" veya "425 m" veya "5,16 km").
 6. distance_km: Kat edilen mesafe (km cinsinden sayı, örn: 14.98 veya 0.425).
 7. calories: Yakılan kalori (kcal cinsinden tam sayı, örn: 498 veya 291).
@@ -176,20 +190,25 @@ SADECE geçerli bir JSON çıktısı üret, markdown veya açıklama yazma.`;
         if (textOutput) {
           const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
           const parsed = JSON.parse(cleanJson);
-          const durationText = parsed.duration_text || (parsed.duration_minutes ? formatSecondsToTime(Math.round(Number(parsed.duration_minutes) * 60)) : '30:00');
-          const durationSeconds = parsed.duration_seconds ? Number(parsed.duration_seconds) : parseTimeToSeconds(durationText);
+          const durationText = parsed.duration_text || (parsed.duration_minutes ? formatSecondsToTime(Number(parsed.duration_minutes) * 60) : '30:00');
+          const durationSeconds = parsed.duration_seconds !== undefined ? Number(parsed.duration_seconds) : parseTimeToSeconds(durationText);
+          const durationCentiseconds = parsed.duration_centiseconds !== undefined ? Math.round(Number(parsed.duration_centiseconds)) : parseTimeToCentiseconds(durationSeconds);
           const durationMinutes = Math.round(durationSeconds / 60) || 30;
 
           let distanceKm = Number(parsed.distance_km) || 0;
-          let distanceMeters = parsed.distance_meters ? Number(parsed.distance_meters) : undefined;
+          let distanceMeters = parsed.distance_meters !== undefined ? Number(parsed.distance_meters) : undefined;
+          let distanceCm = parsed.distance_cm !== undefined ? Number(parsed.distance_cm) : undefined;
           let formattedDistance = parsed.distance_text || undefined;
 
           if (distanceMeters === undefined && distanceKm > 0) {
-            distanceMeters = Math.round(distanceKm * 1000);
+            distanceMeters = Number((distanceKm * 1000).toFixed(2));
+          }
+          if (distanceCm === undefined && distanceMeters !== undefined) {
+            distanceCm = Math.round(distanceMeters * 100);
           }
           if (!formattedDistance && distanceKm > 0) {
             formattedDistance = (parsed.sport_type === 'swimming' || distanceKm < 1)
-              ? `${Math.round(distanceKm * 1000)} m`
+              ? `${distanceMeters} m`
               : `${distanceKm.toFixed(2).replace('.', ',')} km`;
           }
 
@@ -199,10 +218,12 @@ SADECE geçerli bir JSON çıktısı üret, markdown veya açıklama yazma.`;
             date: parsed.date || new Date().toISOString().split('T')[0],
             duration_minutes: durationMinutes,
             duration_seconds: durationSeconds,
+            duration_centiseconds: durationCentiseconds,
             duration_text: durationText,
             total_duration_minutes: Math.round(Number(parsed.total_duration_minutes) || durationMinutes),
             distance_km: distanceKm,
             distance_meters: distanceMeters,
+            distance_cm: distanceCm,
             formatted_distance: formattedDistance,
             calories: Math.round(Number(parsed.calories)) || 0,
             avg_speed_kmh: parsed.avg_speed_kmh ? Number(parsed.avg_speed_kmh) : undefined,
