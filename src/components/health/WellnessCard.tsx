@@ -305,22 +305,24 @@ export default function WellnessCard({
                   background: s.is_taken_today ? 'var(--emerald-bg)' : isLowStock ? 'var(--amber-bg)' : 'var(--surface-subtle)',
                   border: `1px solid ${s.is_taken_today ? 'var(--emerald)' : isLowStock ? 'var(--amber)' : 'var(--border)'}`,
                   borderRadius: 'var(--radius-md)',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
+                  gap: '8px',
+                  flexWrap: 'wrap'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: '1 1 160px' }}>
                   <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: s.is_taken_today ? 'var(--emerald)' : 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {s.is_taken_today ? <span style={{ color: 'white', fontSize: '12px', fontWeight: 800 }}>✓</span> : null}
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '14px', fontWeight: 800, color: s.is_taken_today ? 'var(--text-muted)' : 'var(--text-main)', textDecoration: s.is_taken_today ? 'line-through' : 'none' }}>
                       {s.name}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
-                      <span>{getFormIcon(s.form_type)} {s.dose}</span>
-                      {s.streak_days > 0 && <span style={{ color: 'var(--amber)', fontWeight: 700 }}>🔥 {s.streak_days} Gün Seri</span>}
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
+                      <span style={{ whiteSpace: 'nowrap' }}>{getFormIcon(s.form_type)} {s.dose}</span>
+                      {s.streak_days > 0 && <span style={{ color: 'var(--amber)', fontWeight: 700, whiteSpace: 'nowrap' }}>🔥 {s.streak_days} Gün Seri</span>}
                       {s.remaining_pills !== null && s.remaining_pills !== undefined && (
-                        <span style={{ color: isLowStock ? '#D97706' : 'var(--text-muted)', fontWeight: isLowStock ? 800 : 500 }}>
+                        <span style={{ color: isLowStock ? '#D97706' : 'var(--text-muted)', fontWeight: isLowStock ? 800 : 500, whiteSpace: 'nowrap' }}>
                           • Kalan: {s.remaining_pills} {getFormUnit(s)} {isLowStock ? '⚠️ (Stok Azaldı!)' : ''}
                         </span>
                       )}
@@ -328,18 +330,18 @@ export default function WellnessCard({
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: 'auto' }}>
                   {!s.is_taken_today ? (
                     <button
                       className="btn-primary"
-                      style={{ fontSize: '11px', padding: '4px 10px', fontWeight: 800 }}
+                      style={{ fontSize: '11px', padding: '4px 10px', fontWeight: 800, whiteSpace: 'nowrap' }}
                       onClick={() => handleTake(s.id)}
                       disabled={taking === s.id}
                     >
                       {taking === s.id ? '...' : 'Al ✓'}
                     </button>
                   ) : (
-                    <span style={{ fontSize: '11px', color: 'var(--emerald)', fontWeight: 800 }}>Alındı</span>
+                    <span style={{ fontSize: '11px', color: 'var(--emerald)', fontWeight: 800, whiteSpace: 'nowrap' }}>Alındı</span>
                   )}
                   {onOpenAddSupplement && (
                     <button
@@ -453,15 +455,17 @@ export default function WellnessCard({
                             alignItems: 'center',
                             background: s.is_taken_today ? 'var(--emerald-bg)' : isDue ? 'var(--rose-bg)' : 'var(--indigo-bg)',
                             border: `1px solid ${s.is_taken_today ? 'var(--emerald)' : isDue ? 'var(--rose)' : 'var(--indigo)'}`,
-                            borderRadius: 'var(--radius-md)'
+                            borderRadius: 'var(--radius-md)',
+                            gap: '8px',
+                            flexWrap: 'wrap'
                           }}
                         >
-                          <div>
+                          <div style={{ minWidth: 0, flex: '1 1 180px' }}>
                             <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
-                              ⏳ {s.name} <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--indigo)' }}>({interval} Günde Bir)</span>
+                              ⏳ {s.name} <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--indigo)', whiteSpace: 'nowrap' }}>({interval} Günde Bir)</span>
                             </div>
-                            <div style={{ fontSize: '11px', marginTop: '2px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                              <span>💊 {s.dose}</span>
+                            <div style={{ fontSize: '11px', marginTop: '2px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                              <span style={{ whiteSpace: 'nowrap' }}>💊 {s.dose}</span>
                               <span>•</span>
                               <span style={{ fontWeight: 700, color: s.is_taken_today ? 'var(--emerald)' : isDue ? 'var(--rose)' : 'var(--indigo)' }}>
                                 {s.is_taken_today
@@ -473,18 +477,18 @@ export default function WellnessCard({
                             </div>
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: 'auto' }}>
                             {!s.is_taken_today ? (
                               <button
                                 className="btn-primary"
-                                style={{ fontSize: '11px', padding: '4px 10px', fontWeight: 800, background: isDue ? 'var(--rose)' : 'var(--indigo)' }}
+                                style={{ fontSize: '11px', padding: '4px 10px', fontWeight: 800, background: isDue ? 'var(--rose)' : 'var(--indigo)', whiteSpace: 'nowrap' }}
                                 onClick={() => handleTake(s.id)}
                                 disabled={taking === s.id}
                               >
                                 {taking === s.id ? '...' : 'Şimdi Aldım ✓'}
                               </button>
                             ) : (
-                              <span style={{ fontSize: '11px', color: 'var(--emerald)', fontWeight: 800 }}>✓ Alındı</span>
+                              <span style={{ fontSize: '11px', color: 'var(--emerald)', fontWeight: 800, whiteSpace: 'nowrap' }}>✓ Alındı</span>
                             )}
                             {onOpenAddSupplement && (
                               <button type="button" onClick={() => onOpenAddSupplement(s)} style={{ background: 'none', border: 'none', fontSize: '12px', cursor: 'pointer', opacity: 0.6 }}>✏️</button>
@@ -517,22 +521,24 @@ export default function WellnessCard({
                             alignItems: 'center',
                             background: 'var(--amber-bg)',
                             border: '1px solid var(--amber)',
-                            borderRadius: 'var(--radius-md)'
+                            borderRadius: 'var(--radius-md)',
+                            gap: '8px',
+                            flexWrap: 'wrap'
                           }}
                         >
-                          <div>
+                          <div style={{ minWidth: 0, flex: '1 1 180px' }}>
                             <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
-                              🚑 {s.name} <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>({s.dose})</span>
+                              🚑 {s.name} <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>({s.dose})</span>
                             </div>
                             <div style={{ fontSize: '11px', color: 'var(--amber)', fontWeight: 700, marginTop: '2px' }}>
                               🕒 En Son Alındı: {s.last_taken_date ? `${daysPassed === 0 ? 'Bugün' : `${daysPassed} gün önce`} (${s.last_taken_date})` : 'Henüz Kayıt Yok'}
                             </div>
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: 'auto' }}>
                             <button
                               className="btn-subtle"
-                              style={{ fontSize: '11px', padding: '4px 10px', fontWeight: 800, background: 'var(--surface)', border: '1px solid var(--amber)', color: 'var(--amber)' }}
+                              style={{ fontSize: '11px', padding: '4px 10px', fontWeight: 800, background: 'var(--surface)', border: '1px solid var(--amber)', color: 'var(--amber)', whiteSpace: 'nowrap' }}
                               onClick={() => handleTake(s.id)}
                               disabled={taking === s.id}
                             >

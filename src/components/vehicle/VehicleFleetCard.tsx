@@ -118,7 +118,7 @@ export default function VehicleFleetCard({
 
       {/* Çoklu Araç Filo Seçici Tabs */}
       {data?.vehicles && data.vehicles.length > 1 && (
-        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '0 0 12px 0', borderBottom: '1px solid var(--border)', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '0 0 12px 0', borderBottom: '1px solid var(--border)', marginBottom: '14px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {data.vehicles.map((v: any) => {
             const isSelected = v.id === vehicle.id;
             return (
@@ -168,8 +168,8 @@ export default function VehicleFleetCard({
         </div>
       )}
 
-      <div className="card-action-bar">
-        <button className="btn-subtle" style={{ fontSize: '12px', padding: '6px 12px' }} onClick={onOpenHistory}>
+      <div className="card-action-bar" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <button className="btn-subtle" style={{ fontSize: '12px', padding: '6px 12px', whiteSpace: 'nowrap' }} onClick={onOpenHistory}>
           📜 Servis Geçmişi & Kayıtlar
         </button>
         {(!data?.vehicles || data.vehicles.length <= 1) && onAddVehicle && (
@@ -178,7 +178,8 @@ export default function VehicleFleetCard({
             style={{
               padding: '6px 12px', borderRadius: 'var(--radius-full)',
               border: '1px solid var(--border)', background: 'var(--surface-subtle)',
-              color: 'var(--text-main)', fontSize: '12px', fontWeight: 700, cursor: 'pointer'
+              color: 'var(--text-main)', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+              whiteSpace: 'nowrap'
             }}
           >
             ＋ Garaja Araç Ekle
@@ -213,14 +214,15 @@ export default function VehicleFleetCard({
           {/* Hızlı KM Güncelleme & Aksiyon Butonları Barı */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
             {/* KM Güncelleme Satırı */}
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
               <input
                 type="number"
-                placeholder={`Yeni KM Gir (Mevcut: ${currentKm.toLocaleString('tr-TR')})`}
+                placeholder={`Yeni KM Gir (${currentKm.toLocaleString('tr-TR')})`}
                 value={kmInput}
                 onChange={e => setKmInput(e.target.value)}
                 style={{
-                  flex: 1,
+                  flex: '1 1 140px',
+                  minWidth: 0,
                   padding: '8px 12px',
                   fontSize: '13px',
                   border: '1px solid var(--border)',
@@ -235,7 +237,7 @@ export default function VehicleFleetCard({
                 onClick={handleUpdateKm}
                 disabled={updatingKm}
                 className="btn-subtle"
-                style={{ padding: '8px 14px', fontSize: '12px', fontWeight: 700 }}
+                style={{ padding: '8px 14px', fontSize: '12px', fontWeight: 700, flexShrink: 0, whiteSpace: 'nowrap' }}
               >
                 {updatingKm ? '...' : '⚙️ KM Güncelle'}
               </button>

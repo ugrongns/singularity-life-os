@@ -71,11 +71,13 @@ export default function MarketRatesBar({ rates, onRefresh, loading = false }: Ma
         justifyContent: 'space-between',
         marginBottom: '10px',
         paddingBottom: '8px',
-        borderBottom: '1px solid var(--border)'
+        borderBottom: '1px solid var(--border)',
+        flexWrap: 'wrap',
+        gap: '8px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '16px' }}>📊</span>
-          <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.2px' }}>
+          <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.2px', whiteSpace: 'nowrap' }}>
             Canlı Finans & Piyasa Kurları
           </span>
           <span style={{
@@ -84,15 +86,16 @@ export default function MarketRatesBar({ rates, onRefresh, loading = false }: Ma
             padding: '2px 6px',
             borderRadius: '4px',
             background: 'var(--indigo-bg)',
-            color: 'var(--indigo)'
+            color: 'var(--indigo)',
+            whiteSpace: 'nowrap'
           }}>
             {rates.source === 'truncgil' ? 'Kapalıçarşı & Serbest Piyasa' : rates.source === 'tcmb' ? 'TCMB Gösterge' : 'Global API'}
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, marginLeft: 'auto' }}>
           {updateTimeFormatted && (
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
               Son Güncelleme: <strong>{updateTimeFormatted}</strong>
             </span>
           )}
@@ -113,7 +116,9 @@ export default function MarketRatesBar({ rates, onRefresh, loading = false }: Ma
                 cursor: loading ? 'not-allowed' : 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '4px'
+                gap: '4px',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
               }}
             >
               <span style={{ display: 'inline-block', transform: loading ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }}>🔄</span>

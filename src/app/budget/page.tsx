@@ -93,7 +93,7 @@ export default function BudgetPage() {
         </div>
         
         {/* İşlem Butonları Toolbar */}
-        <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center', flexWrap: 'nowrap' }}>
+        <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             onClick={() => setIsTransferOpen(true)}
             style={{
@@ -157,7 +157,9 @@ export default function BudgetPage() {
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-lg)',
           marginBottom: '16px',
-          overflowX: 'auto'
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none'
         }}>
           <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
             👥 Görünüm Filtresi:
