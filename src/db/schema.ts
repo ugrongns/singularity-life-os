@@ -602,6 +602,22 @@ export const supplementRoutines = pgTable('supplement_routines', {
   family_id: text('family_id')
 });
 
+export const supplementIntakeLogs = pgTable('supplement_intake_logs', {
+  id: text('id').primaryKey(),
+  supplement_id: text('supplement_id').notNull().references(() => supplementRoutines.id),
+  user_id: text('user_id'),
+  family_id: text('family_id'),
+  member_id: text('member_id'),
+  supplement_name: text('supplement_name').notNull(),
+  dose: text('dose'),
+  timing: text('timing'),
+  date: text('date').notNull(),
+  taken_at: text('taken_at').notNull(),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+});
+
+
 export const sleepLogs = pgTable('sleep_logs', {
   id: text('id').primaryKey(),
   user_id: text('user_id'),

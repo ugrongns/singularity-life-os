@@ -1,8 +1,17 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { supplementRoutines, sleepLogs, moodLogs, biometrics, waterIntakeLogs, smartScaleLogs, userHealthProfile } from '@/db/schema';
-import { desc, eq, and, sql , or } from 'drizzle-orm';
+import { supplementRoutines, supplementIntakeLogs, sleepLogs, moodLogs, biometrics, waterIntakeLogs, smartScaleLogs, userHealthProfile } from '@/db/schema';
+import { desc, eq, and, sql, or, ne, isNull } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+
+function getTodayTurkeyDate(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date());
+}
+
+function getDaysAgoTurkeyDate(days: number): string {
+  const d = new Date(Date.now() - days * 86400000);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(d);
+}
 
 export async function GET() {
   try {
@@ -10,11 +19,45 @@ export async function GET() {
     const user = await getAuthUser();
     const userId = user?.id;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayTurkeyDate();
 
-    const supplements = userId
+    // 1. Lazy Self-Healing: DB'de dünden veya önceki günlerden kalma is_taken_today = 1 satırlarını sıfırla
+    if (userId) {
+      await db.update(supplementRoutines)
+        .set({ is_taken_today: 0, updated_at: new Date().toISOString() })
+        .where(
+          and(
+            eq(supplementRoutines.user_id, userId),
+            eq(supplementRoutines.is_taken_today, 1),
+            or(
+              ne(supplementRoutines.last_taken_date, today),
+              isNull(supplementRoutines.last_taken_date)
+            )
+          )
+        );
+    }
+
+    // 2. Takviyeleri ve bugünkü alım loglarını çek
+    const rawSupplements = userId
       ? await db.select().from(supplementRoutines).where(and(eq(supplementRoutines.is_active, 1), eq(supplementRoutines.user_id, userId)))
       : [];
+
+    const todayIntakeLogs = userId
+      ? await db.select().from(supplementIntakeLogs).where(and(eq(supplementIntakeLogs.user_id, userId), eq(supplementIntakeLogs.date, today)))
+      : [];
+
+    const intakeMap = new Map(todayIntakeLogs.map(l => [l.supplement_id, l]));
+
+    // 3. Dinamik kesin doğrulama: last_taken_date bugünse veya bugünkü log varsa taken = 1
+    const supplements = rawSupplements.map((s: any) => {
+      const isTaken = (s.last_taken_date === today || intakeMap.has(s.id)) ? 1 : 0;
+      const log = intakeMap.get(s.id);
+      return {
+        ...s,
+        is_taken_today: isTaken,
+        taken_at: log?.taken_at || null
+      };
+    });
 
     const todayMood = userId
       ? await db.select().from(moodLogs).where(and(eq(moodLogs.date, today), eq(moodLogs.user_id, userId)))
@@ -36,8 +79,8 @@ export async function GET() {
 
     const todayWater = todayWaterList[0] || { amount_ml: userProfile?.consumed_water_ml || 0, goal_ml: defaultGoal };
 
-    // Son 7 gün trendler
-    const last7Days = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+    // Son 7 gün trendler (Türkiye saati)
+    const last7Days = getDaysAgoTurkeyDate(7);
     const moodHistory = userId
       ? await db.select().from(moodLogs)
           .where(and(sql`${moodLogs.date} >= ${last7Days}`, eq(moodLogs.user_id, userId)))
@@ -54,6 +97,12 @@ export async function GET() {
       ? await db.select().from(waterIntakeLogs)
           .where(and(sql`${waterIntakeLogs.date} >= ${last7Days}`, eq(waterIntakeLogs.user_id, userId)))
           .orderBy(desc(waterIntakeLogs.date))
+      : [];
+
+    const recentIntakeLogs = userId
+      ? await db.select().from(supplementIntakeLogs)
+          .where(and(sql`${supplementIntakeLogs.date} >= ${last7Days}`, eq(supplementIntakeLogs.user_id, userId)))
+          .orderBy(desc(supplementIntakeLogs.taken_at))
       : [];
 
     // Son biyometri
@@ -86,7 +135,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       data: {
-        supplements: { morning: morningSupps, evening: eveningSupps, with_meal: mealSupps, total: totalSupps, taken: takenSupps, all: supplements },
+        supplements: { morning: morningSupps, evening: eveningSupps, with_meal: mealSupps, total: totalSupps, taken: takenSupps, all: supplements, todayLogs: todayIntakeLogs, recentLogs: recentIntakeLogs },
         todayMood:   todayMood[0] || null,
         todaySleep:  todaySleep[0] || null,
         todayWater,
@@ -111,7 +160,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { action, ...data } = body;
     const now = new Date().toISOString();
-    const today = now.split('T')[0];
+    const today = getTodayTurkeyDate();
     const familyId = user.family_id || `fam-${user.id}`;
 
     if (action === 'take_supplement') {
@@ -119,7 +168,7 @@ export async function POST(request: Request) {
       const supp = suppList[0];
       if (supp) {
         const lastDate = supp.last_taken_date;
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        const yesterday = getDaysAgoTurkeyDate(1);
         const newStreak = (lastDate === yesterday || lastDate === today) ? (supp.streak_days || 0) + 1 : 1;
         const newRemaining = supp.remaining_pills !== null && supp.remaining_pills !== undefined 
           ? Math.max(0, supp.remaining_pills - 1) 
@@ -132,8 +181,106 @@ export async function POST(request: Request) {
           last_taken_date: today,
           updated_at: now
         }).where(and(eq(supplementRoutines.id, data.id), eq(supplementRoutines.user_id, user.id)));
+
+        // Log tablosuna ekle
+        const logId = `supp-log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        await db.insert(supplementIntakeLogs).values({
+          id: logId,
+          supplement_id: supp.id,
+          user_id: user.id,
+          family_id: familyId,
+          member_id: supp.member_id || null,
+          supplement_name: supp.name,
+          dose: supp.dose,
+          timing: supp.timing,
+          date: today,
+          taken_at: now,
+          created_at: now,
+          updated_at: now
+        });
       }
       return NextResponse.json({ success: true, message: 'Takviye alındı!' });
+    }
+
+    if (action === 'undo_supplement') {
+      const suppList = await db.select().from(supplementRoutines).where(and(eq(supplementRoutines.id, data.id), eq(supplementRoutines.user_id, user.id)));
+      const supp = suppList[0];
+      if (supp) {
+        // 1. Bugünkü log kaydını sil
+        await db.delete(supplementIntakeLogs).where(
+          and(
+            eq(supplementIntakeLogs.supplement_id, supp.id),
+            eq(supplementIntakeLogs.user_id, user.id),
+            eq(supplementIntakeLogs.date, today)
+          )
+        );
+
+        // 2. Bir önceki alım tarihini loglardan bul (varsa)
+        const prevLogs = await db.select().from(supplementIntakeLogs)
+          .where(and(eq(supplementIntakeLogs.supplement_id, supp.id), eq(supplementIntakeLogs.user_id, user.id)))
+          .orderBy(desc(supplementIntakeLogs.date))
+          .limit(1);
+        const prevDate = prevLogs[0]?.date || null;
+
+        const restoredRemaining = supp.remaining_pills !== null && supp.remaining_pills !== undefined
+          ? (supp.total_pills !== null && supp.total_pills !== undefined ? Math.min(supp.total_pills, supp.remaining_pills + 1) : supp.remaining_pills + 1)
+          : null;
+        const restoredStreak = Math.max(0, (supp.streak_days || 1) - 1);
+
+        await db.update(supplementRoutines).set({
+          is_taken_today: 0,
+          streak_days: restoredStreak,
+          remaining_pills: restoredRemaining,
+          last_taken_date: prevDate,
+          updated_at: now
+        }).where(and(eq(supplementRoutines.id, data.id), eq(supplementRoutines.user_id, user.id)));
+      }
+      return NextResponse.json({ success: true, message: 'Takviye alımı geri alındı!' });
+    }
+
+    if (action === 'take_all') {
+      const activeSupps = await db.select().from(supplementRoutines).where(
+        and(eq(supplementRoutines.is_active, 1), eq(supplementRoutines.user_id, user.id))
+      );
+
+      const yesterday = getDaysAgoTurkeyDate(1);
+      let updatedCount = 0;
+
+      for (const supp of activeSupps) {
+        // Bugün henüz alınmamışsa
+        if (supp.last_taken_date !== today) {
+          const newStreak = (supp.last_taken_date === yesterday) ? (supp.streak_days || 0) + 1 : 1;
+          const newRemaining = supp.remaining_pills !== null && supp.remaining_pills !== undefined
+            ? Math.max(0, supp.remaining_pills - 1)
+            : null;
+
+          await db.update(supplementRoutines).set({
+            is_taken_today: 1,
+            streak_days: newStreak,
+            remaining_pills: newRemaining,
+            last_taken_date: today,
+            updated_at: now
+          }).where(eq(supplementRoutines.id, supp.id));
+
+          const logId = `supp-log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+          await db.insert(supplementIntakeLogs).values({
+            id: logId,
+            supplement_id: supp.id,
+            user_id: user.id,
+            family_id: familyId,
+            member_id: supp.member_id || null,
+            supplement_name: supp.name,
+            dose: supp.dose,
+            timing: supp.timing,
+            date: today,
+            taken_at: now,
+            created_at: now,
+            updated_at: now
+          });
+          updatedCount++;
+        }
+      }
+      return NextResponse.json({ success: true, message: `${updatedCount} takviye alındı!` });
     }
 
     if (action === 'log_water') {
@@ -278,7 +425,8 @@ export async function POST(request: Request) {
 
     if (action === 'reset_supplements') {
       await db.update(supplementRoutines).set({ is_taken_today: 0, updated_at: now }).where(eq(supplementRoutines.user_id, user.id));
-      return NextResponse.json({ success: true });
+      await db.delete(supplementIntakeLogs).where(and(eq(supplementIntakeLogs.user_id, user.id), eq(supplementIntakeLogs.date, today)));
+      return NextResponse.json({ success: true, message: 'Bugünkü takviyeler sıfırlandı!' });
     }
 
     if (action === 'add_mood') {

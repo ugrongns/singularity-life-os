@@ -570,6 +570,21 @@ async function _runInit(): Promise<void> {
         user_id TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS supplement_intake_logs (
+        id TEXT PRIMARY KEY,
+        supplement_id TEXT NOT NULL,
+        user_id TEXT,
+        family_id TEXT,
+        member_id TEXT,
+        supplement_name TEXT NOT NULL,
+        dose TEXT,
+        timing TEXT,
+        date TEXT NOT NULL,
+        taken_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS sleep_logs (
         id TEXT PRIMARY KEY,
         member_id TEXT,

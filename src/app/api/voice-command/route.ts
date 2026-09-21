@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { transactions, walletsAccounts, userHealthProfile, books, shoppingListItems, supplementRoutines, moodLogs, users } from '@/db/schema';
+import { transactions, walletsAccounts, userHealthProfile, books, shoppingListItems, supplementRoutines, supplementIntakeLogs, moodLogs, users } from '@/db/schema';
 import { eq, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
@@ -151,11 +151,50 @@ export async function POST(req: Request) {
           results.push(`🛒 ${act.details.name} (Market Listesine eklendi)`);
         } else if (act.type === 'supplement') {
           if (currentUserId) {
-            await db.update(supplementRoutines)
-              .set({ is_taken_today: 1, updated_at: nowISO })
-              .where(eq(supplementRoutines.user_id, currentUserId));
+            const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date());
+            const yesterdayDate = new Date(Date.now() - 86400000);
+            const yesterdayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(yesterdayDate);
+
+            const activeSupps = await db.select().from(supplementRoutines).where(
+              and(eq(supplementRoutines.is_active, 1), eq(supplementRoutines.user_id, currentUserId))
+            );
+
+            let suppCount = 0;
+            for (const supp of activeSupps) {
+              if (supp.last_taken_date !== todayStr) {
+                const newStreak = (supp.last_taken_date === yesterdayStr) ? (supp.streak_days || 0) + 1 : 1;
+                const newRemaining = supp.remaining_pills !== null && supp.remaining_pills !== undefined
+                  ? Math.max(0, supp.remaining_pills - 1)
+                  : null;
+
+                await db.update(supplementRoutines).set({
+                  is_taken_today: 1,
+                  streak_days: newStreak,
+                  remaining_pills: newRemaining,
+                  last_taken_date: todayStr,
+                  updated_at: nowISO
+                }).where(eq(supplementRoutines.id, supp.id));
+
+                const logId = `supp-log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+                await db.insert(supplementIntakeLogs).values({
+                  id: logId,
+                  supplement_id: supp.id,
+                  user_id: currentUserId,
+                  family_id: currentFamilyId,
+                  member_id: supp.member_id || null,
+                  supplement_name: supp.name,
+                  dose: supp.dose,
+                  timing: supp.timing,
+                  date: todayStr,
+                  taken_at: nowISO,
+                  created_at: nowISO,
+                  updated_at: nowISO
+                });
+                suppCount++;
+              }
+            }
+            results.push(`💊 ${suppCount > 0 ? `${suppCount} takviye alındı olarak işlendi` : 'Takviyeleriniz bugün zaten alınmıştı'}`);
           }
-          results.push(`💊 Günlük takviyeler alındı olarak işaretlendi`);
         }
       }
 

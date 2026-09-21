@@ -16,6 +16,7 @@ interface Supplement {
   notes?: string | null;
   form_type?: string | null;
   unit?: string | null;
+  taken_at?: string | null;
 }
 
 interface SleepLog {
@@ -64,7 +65,7 @@ const MOODS = [
 
 function getDaysPassed(lastTakenDate?: string | null) {
   if (!lastTakenDate) return 999;
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date());
   if (lastTakenDate === todayStr) return 0;
   const today = new Date(todayStr);
   const last = new Date(lastTakenDate);
@@ -85,6 +86,8 @@ export default function WellnessCard({
 }: Props) {
   const [tab, setTab] = useState<'supplements' | 'water' | 'sleep' | 'mood' | 'ai'>('supplements');
   const [taking, setTaking] = useState<string | null>(null);
+  const [undoing, setUndoing] = useState<string | null>(null);
+  const [takingAll, setTakingAll] = useState(false);
 
   // Water State
   const [waterAmount, setWaterAmount] = useState(todayWater?.amount_ml || 0);
@@ -143,6 +146,36 @@ export default function WellnessCard({
       if (onRefresh) onRefresh();
     } finally {
       setTaking(null);
+    }
+  };
+
+  const handleUndo = async (id: string) => {
+    setUndoing(id);
+    try {
+      await fetch('/api/wellness', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'undo_supplement', id })
+      });
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      if (onRefresh) onRefresh();
+    } finally {
+      setUndoing(null);
+    }
+  };
+
+  const handleTakeAll = async () => {
+    setTakingAll(true);
+    try {
+      await fetch('/api/wellness', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'take_all' })
+      });
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      if (onRefresh) onRefresh();
+    } finally {
+      setTakingAll(false);
     }
   };
 
@@ -341,7 +374,28 @@ export default function WellnessCard({
                       {taking === s.id ? '...' : 'Al ✓'}
                     </button>
                   ) : (
-                    <span style={{ fontSize: '11px', color: 'var(--emerald)', fontWeight: 800, whiteSpace: 'nowrap' }}>Alındı</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--emerald)', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                        ✓ Alındı{s.taken_at ? ` (${new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit' }).format(new Date(s.taken_at))})` : ''}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleUndo(s.id)}
+                        disabled={undoing === s.id}
+                        style={{
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          padding: '2px 5px',
+                          cursor: 'pointer',
+                          opacity: 0.8
+                        }}
+                        title="Alımı Geri Al"
+                      >
+                        {undoing === s.id ? '...' : '↩️'}
+                      </button>
+                    </div>
                   )}
                   {onOpenAddSupplement && (
                     <button
@@ -379,11 +433,23 @@ export default function WellnessCard({
         </div>
       </div>
 
-      {tab === 'supplements' && onOpenAddSupplement && (
-        <div className="card-action-bar">
-          <button className="btn-primary" onClick={() => onOpenAddSupplement()}>
-            + Yeni Takviye / İlaç Ekle
-          </button>
+      {tab === 'supplements' && (
+        <div className="card-action-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {totalDaily > takenDaily && (
+            <button
+              className="btn-primary"
+              style={{ background: 'var(--emerald)', fontSize: '12px', padding: '6px 14px', fontWeight: 800 }}
+              onClick={handleTakeAll}
+              disabled={takingAll}
+            >
+              {takingAll ? 'İşleniyor...' : '✓ Kalan Hepsini Al'}
+            </button>
+          )}
+          {onOpenAddSupplement && (
+            <button className="btn-subtle" onClick={() => onOpenAddSupplement()} style={{ marginLeft: 'auto', fontSize: '12px', padding: '6px 12px' }}>
+              + Yeni Takviye / İlaç Ekle
+            </button>
+          )}
         </div>
       )}
 
@@ -488,7 +554,28 @@ export default function WellnessCard({
                                 {taking === s.id ? '...' : 'Şimdi Aldım ✓'}
                               </button>
                             ) : (
-                              <span style={{ fontSize: '11px', color: 'var(--emerald)', fontWeight: 800, whiteSpace: 'nowrap' }}>✓ Alındı</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <span style={{ fontSize: '11px', color: 'var(--emerald)', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                                  ✓ Alındı{s.taken_at ? ` (${new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit' }).format(new Date(s.taken_at))})` : ''}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUndo(s.id)}
+                                  disabled={undoing === s.id}
+                                  style={{
+                                    background: 'var(--surface)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '4px',
+                                    fontSize: '11px',
+                                    padding: '2px 5px',
+                                    cursor: 'pointer',
+                                    opacity: 0.8
+                                  }}
+                                  title="Alımı Geri Al"
+                                >
+                                  {undoing === s.id ? '...' : '↩️'}
+                                </button>
+                              </div>
                             )}
                             {onOpenAddSupplement && (
                               <button type="button" onClick={() => onOpenAddSupplement(s)} style={{ background: 'none', border: 'none', fontSize: '12px', cursor: 'pointer', opacity: 0.6 }}>✏️</button>
