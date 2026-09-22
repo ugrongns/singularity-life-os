@@ -1,5 +1,6 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 interface PageCalibrationModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export default function PageCalibrationModal({
   onCalibrated,
   onSuccess
 }: PageCalibrationModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<'upload' | 'scanning' | 'confirm'>('upload');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -35,7 +37,12 @@ export default function PageCalibrationModal({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -134,30 +141,85 @@ export default function PageCalibrationModal({
 
   const density = getDensityBadge(calibratedCount);
 
-  return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1100 }}>
+  // Portal ile doğrudan document.body üzerine render (Ebeveyn modal flex/backdrop-filter çakışmalarını sıfırlar)
+  return createPortal(
+    <div
+      className="modal-overlay"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        background: 'rgba(0, 0, 0, 0.70)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+        padding: 0,
+        margin: 0,
+        boxSizing: 'border-box'
+      }}
+    >
       <div
         className="bottom-sheet"
         onClick={e => e.stopPropagation()}
-        style={{ maxWidth: '520px', maxHeight: '92vh', overflowY: 'auto' }}
+        style={{
+          width: '100%',
+          maxWidth: '480px',
+          maxHeight: '92vh',
+          overflowY: 'auto',
+          margin: '0 auto',
+          padding: '16px 16px calc(env(safe-area-inset-bottom, 20px) + 16px) 16px',
+          boxSizing: 'border-box',
+          background: 'var(--surface)',
+          borderRadius: '24px 24px 0 0',
+          boxShadow: '0 -8px 30px rgba(0, 0, 0, 0.3)'
+        }}
       >
-        <div className="sheet-handle"></div>
+        <div className="sheet-handle" style={{ marginBottom: '10px' }}></div>
 
         {/* Modal Başlık */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
-          <div>
-            <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '12px' }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span>🔬</span>
               <span>Sayfa Kelime Kalibrasyonu</span>
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-              {bookTitle ? `"${bookTitle}" için hassas WPM & ETA motoru` : 'Hassas okuma hızı (WPM) ve bitiş süresi hesabı'}
-            </div>
+            {bookTitle && (
+              <div
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--text-muted)',
+                  marginTop: '2px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: '300px'
+                }}
+                title={bookTitle}
+              >
+                "{bookTitle}"
+              </div>
+            )}
           </div>
           <button
             type="button"
             onClick={onClose}
-            style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' }}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '18px',
+              cursor: 'pointer',
+              color: 'var(--text-muted)',
+              padding: '2px 6px',
+              flexShrink: 0
+            }}
           >
             ✕
           </button>
@@ -171,15 +233,15 @@ export default function PageCalibrationModal({
 
         {/* AŞAMA 1: YÜKLEME & ÇEKME */}
         {step === 'upload' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', padding: '12px', borderRadius: 'var(--radius-md)', fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-              📖 <strong>Nasıl Çalışır?</strong> Kitabınızın tam dolu standart 1 sayfasının fotoğrafını çekin. 
-              Yapay zekâ (Gemini OCR) sayfadaki tüm kelimeleri sayarak o kitaba özel net sayfa yoğunluğunu hesaplar. Böylece okuma seanslarınızdaki <strong>WPM (Dakikada Kelime)</strong> ve <strong>Kalan Süre (ETA)</strong> tahminleriniz milimetrik doğrulanır.
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', padding: '10px 12px', borderRadius: 'var(--radius-md)', fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+              📖 Kitabınızın tam dolu standart 1 sayfasının fotoğrafını çekin. 
+              Yapay zekâ (Gemini OCR) sayfadaki kelimeleri sayarak net sayfa yoğunluğunu hesaplar. <strong>WPM</strong> ve <strong>Kalan Süre (ETA)</strong> tahminleriniz kitaba özel milimetrik doğrulanır.
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-subtle)', padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)' }}>Mevcut Ayarlı Yoğunluk:</span>
-              <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--indigo)' }}>⚡ {currentWordsPerPage} kelime/sayfa</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-subtle)', padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)' }}>Mevcut Yoğunluk:</span>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--indigo)' }}>⚡ {currentWordsPerPage} kelime/sayfa</span>
             </div>
 
             {/* Yükleme Butonu & Alanı */}
@@ -197,7 +259,7 @@ export default function PageCalibrationModal({
               style={{
                 border: '2px dashed var(--indigo)',
                 borderRadius: 'var(--radius-lg)',
-                padding: '30px 16px',
+                padding: '24px 16px',
                 textAlign: 'center',
                 cursor: 'pointer',
                 background: 'var(--indigo-bg)',
@@ -205,24 +267,24 @@ export default function PageCalibrationModal({
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: '8px'
+                gap: '6px'
               }}
             >
-              <div style={{ fontSize: '36px' }}>📸</div>
-              <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--indigo)' }}>
+              <div style={{ fontSize: '32px' }}>📸</div>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--indigo)' }}>
                 Sayfa Fotoğrafı Çek veya Seç
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', maxWidth: '300px' }}>
-                Standart, paragraflarla dolu bir sayfayı kameraya düz tutarak çekin.
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', maxWidth: '280px' }}>
+                Standart, dolu bir sayfayı kameraya düz tutarak çekin.
               </div>
             </div>
 
             {/* Hızlı Manuel Şablonlar */}
-            <div style={{ marginTop: '4px' }}>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '6px' }}>
+            <div style={{ marginTop: '2px' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 VEYA STANDART ŞABLONLARDAN BİRİNİ SEÇİN:
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                 {[
                   { label: 'Seyrek / Büyük Punto', count: 200 },
                   { label: 'Standart Roman (Varsayılan)', count: 250 },
@@ -265,44 +327,44 @@ export default function PageCalibrationModal({
 
         {/* AŞAMA 2: AI TARAMA & ANALİZ SÜRÜYOR */}
         {step === 'scanning' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '36px 16px', textAlign: 'center', gap: '14px' }}>
-            <div className="spinner" style={{ width: '42px', height: '42px', border: '3px solid var(--border)', borderTopColor: 'var(--indigo)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 16px', textAlign: 'center', gap: '12px' }}>
+            <div className="spinner" style={{ width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--indigo)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
             {previewUrl && (
               <img
                 src={previewUrl}
                 alt="Taranan sayfa"
-                style={{ width: '70px', height: '95px', objectFit: 'cover', borderRadius: '6px', opacity: 0.7, border: '1px solid var(--indigo)' }}
+                style={{ width: '65px', height: '90px', objectFit: 'cover', borderRadius: '6px', opacity: 0.8, border: '1px solid var(--indigo)' }}
               />
             )}
             <div>
               <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)' }}>
                 Gemini AI Sayfayı İnceliyor...
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                Metin transkribe ediliyor ve kelimeler tek tek sayılıyor.
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                Metin transkribe ediliyor ve kelimeler sayılıyor.
               </div>
             </div>
           </div>
         )}
 
-        {/* AŞAMA 3: KULLANICI ONAY & DÜZENLEME FORMU (Non-negotiable AI Vision Prensibi) */}
+        {/* AŞAMA 3: KULLANICI ONAY & DÜZENLEME FORMU */}
         {step === 'confirm' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {/* Önizleme Kartı */}
-            <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '8px 10px', display: 'flex', gap: '10px', alignItems: 'center' }}>
               {previewUrl ? (
                 <img
                   src={previewUrl}
                   alt="Önizleme"
-                  style={{ width: '55px', height: '75px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0, border: '1px solid var(--border)' }}
+                  style={{ width: '42px', height: '58px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0, border: '1px solid var(--border)' }}
                 />
               ) : (
-                <div style={{ width: '55px', height: '75px', background: 'var(--indigo-bg)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>
+                <div style={{ width: '42px', height: '58px', background: 'var(--indigo-bg)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>
                   📄
                 </div>
               )}
 
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '10px', background: isLowConfidence ? 'var(--amber-bg)' : 'var(--emerald-bg)', color: isLowConfidence ? 'var(--amber)' : 'var(--emerald)', fontWeight: 800, padding: '2px 6px', borderRadius: '4px' }}>
                     {isLowConfidence ? '⚠️ Düşük Güvenilirlik' : '✅ Yüksek Güvenilirlik'}
@@ -312,23 +374,23 @@ export default function PageCalibrationModal({
                   </span>
                 </div>
 
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Model: <strong>{detectedModel}</strong> {unreadableCount > 0 ? `(${unreadableCount} okunamayan kelime)` : ''}
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                  Model: <strong>{detectedModel}</strong> {unreadableCount > 0 ? `(${unreadableCount} okunamadı)` : ''}
                 </div>
               </div>
             </div>
 
             {/* Kelime Sayısı Ayarlama / Onaylama Alanı */}
-            <div style={{ background: 'var(--indigo-bg)', border: '1px solid var(--indigo)', borderRadius: 'var(--radius-md)', padding: '14px', textAlign: 'center' }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--indigo)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <div style={{ background: 'var(--indigo-bg)', border: '1px solid var(--indigo)', borderRadius: 'var(--radius-md)', padding: '10px 12px', textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--indigo)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 HESAPLANAN SAYFA BAŞI KELİME
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
                 <button
                   type="button"
                   onClick={() => setCalibratedCount(prev => Math.max(50, prev - 10))}
-                  style={{ width: '36px', height: '36px', borderRadius: '8px', border: '1px solid var(--indigo)', background: 'var(--surface)', fontSize: '16px', fontWeight: 800, cursor: 'pointer', color: 'var(--indigo)' }}
+                  style={{ width: '36px', height: '36px', borderRadius: '8px', border: '1px solid var(--indigo)', background: 'var(--surface)', fontSize: '15px', fontWeight: 800, cursor: 'pointer', color: 'var(--indigo)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   -10
                 </button>
@@ -340,11 +402,11 @@ export default function PageCalibrationModal({
                   value={calibratedCount}
                   onChange={e => setCalibratedCount(parseInt(e.target.value) || 0)}
                   style={{
-                    width: '110px',
+                    width: '95px',
                     textAlign: 'center',
-                    fontSize: '24px',
+                    fontSize: '22px',
                     fontWeight: 900,
-                    padding: '6px 8px',
+                    padding: '4px 6px',
                     borderRadius: '8px',
                     border: '2px solid var(--indigo)',
                     background: 'var(--surface)',
@@ -355,22 +417,22 @@ export default function PageCalibrationModal({
                 <button
                   type="button"
                   onClick={() => setCalibratedCount(prev => Math.min(1000, prev + 10))}
-                  style={{ width: '36px', height: '36px', borderRadius: '8px', border: '1px solid var(--indigo)', background: 'var(--surface)', fontSize: '16px', fontWeight: 800, cursor: 'pointer', color: 'var(--indigo)' }}
+                  style={{ width: '36px', height: '36px', borderRadius: '8px', border: '1px solid var(--indigo)', background: 'var(--surface)', fontSize: '15px', fontWeight: 800, cursor: 'pointer', color: 'var(--indigo)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   +10
                 </button>
               </div>
 
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
                 Kelime / Standart Sayfa
               </div>
             </div>
 
             {/* Metin Doğrulama Önizlemesi */}
             {sampleText && (
-              <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
+              <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '8px 10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>
                     📖 OKUNAN İLK KELİMELER:
                   </span>
                   {fullText && (
@@ -384,42 +446,84 @@ export default function PageCalibrationModal({
                   )}
                 </div>
 
-                <div style={{ fontSize: '12px', fontStyle: 'italic', color: 'var(--text-main)', marginTop: '4px', lineHeight: '1.4' }}>
+                <div style={{ fontSize: '11px', fontStyle: 'italic', color: 'var(--text-main)', marginTop: '3px', lineHeight: '1.4' }}>
                   "{sampleText}..."
                 </div>
 
                 {showFullText && fullText && (
-                  <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border)', fontSize: '11px', color: 'var(--text-muted)', maxHeight: '120px', overflowY: 'auto', whiteSpace: 'pre-wrap' }}>
+                  <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed var(--border)', fontSize: '10px', color: 'var(--text-muted)', maxHeight: '90px', overflowY: 'auto', whiteSpace: 'pre-wrap' }}>
                     {fullText}
                   </div>
                 )}
               </div>
             )}
 
-            {/* Butonlar */}
-            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+            {/* Butonlar: Taşmayan ve Ezilmeyen Grid Düzeni */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1.6fr',
+              gap: '10px',
+              marginTop: '4px',
+              width: '100%',
+              boxSizing: 'border-box'
+            }}>
               <button
                 type="button"
-                className="btn-secondary"
                 onClick={() => setStep('upload')}
-                style={{ flex: '0 0 auto', padding: '12px 14px' }}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '12px 8px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface-subtle)',
+                  color: 'var(--text-main)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px'
+                }}
               >
-                🔄 Yeniden Çek
+                <span>🔄</span>
+                <span>Yeniden Çek</span>
               </button>
+
               <button
                 type="button"
-                className="btn-primary"
                 onClick={handleApplyCalibration}
                 disabled={isSubmitting}
-                style={{ flex: 1, padding: '12px', fontSize: '14px', fontWeight: 800 }}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '12px 10px',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                  borderRadius: 'var(--radius-md)',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #4F46E5, #6366F1)',
+                  color: '#FFFFFF',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 3px 12px rgba(79, 70, 229, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
               >
-                {isSubmitting ? 'Kaydediliyor...' : `✅ Bu Değeri Onayla (${calibratedCount} wpp)`}
+                <span>✅</span>
+                <span>{isSubmitting ? 'Kaydediliyor...' : `Onayla (${calibratedCount} wpp)`}</span>
               </button>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
