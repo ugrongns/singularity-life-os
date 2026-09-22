@@ -215,20 +215,20 @@ export default function HomePage() {
       {/* Zaman Odaklı Akıllı Dashboard Akışı */}
       <TimeContextualFeed
         morningWidgets={
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
             {wellnessCard}
             {fastingCard}
           </div>
         }
         dayWidgets={
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
             {recentTxCard}
             {shoppingCard}
             {vehicleCard}
           </div>
         }
         eveningWidgets={
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
             {recentTxCard}
             {libraryCard}
             {wellnessCard}
@@ -236,7 +236,7 @@ export default function HomePage() {
         }
         /* Sabah primary'de wellness+oruç var -> secondary'de finans+araç+alışveriş */
         morningSecondary={
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
             {recentTxCard}
             {vehicleCard}
             {shoppingCard}
@@ -244,7 +244,7 @@ export default function HomePage() {
         }
         /* Gün içi primary'de finans+alışveriş+araç var -> secondary'de sağlık+kütüphane */
         daySecondary={
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
             {wellnessCard}
             {fastingCard}
             {libraryCard}
@@ -252,7 +252,7 @@ export default function HomePage() {
         }
         /* Akşam primary'de finans+kütüphane+wellness var -> secondary'de araç+alışveriş */
         eveningSecondary={
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
             {vehicleCard}
             {shoppingCard}
             {fastingCard}

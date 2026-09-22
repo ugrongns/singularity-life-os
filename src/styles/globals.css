@@ -148,6 +148,14 @@ select option {
   -webkit-font-smoothing: antialiased;
 }
 
+html, body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  position: relative;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   background-color: var(--bg);
   color: var(--text-main);
@@ -170,6 +178,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  box-sizing: border-box;
 }
 
 /* Header */
@@ -179,6 +188,29 @@ body {
   align-items: center;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    padding-bottom: 12px;
+  }
+  .header-subtitle {
+    display: none !important;
+  }
+  .header-brand-title {
+    font-size: 14px !important;
+  }
+  .header-actions {
+    gap: 6px !important;
+  }
+  .header-action-btn {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 14px !important;
+  }
 }
 
 .brand-badge {
@@ -489,16 +521,20 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
+  width: 100%;
+  max-width: 100vw;
   background: var(--surface);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-top: 1px solid var(--border);
-  padding: 8px 16px calc(10px + env(safe-area-inset-bottom, 0px));
-  display: flex;
-  justify-content: space-around;
+  padding: 6px 0 calc(8px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   align-items: center;
+  justify-items: center;
   z-index: 100;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
 }
 
 .quick-ingest-container {
@@ -893,11 +929,18 @@ body {
 
 /* Mobil Ekranlarda Sidebar'ı Gizle, Bottom Dock'u Göster */
 @media (max-width: 768px) {
+  .app-container {
+    padding: 16px 12px 90px !important;
+    gap: 16px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
   .sidebar-nav {
     display: none !important;
   }
   .bottom-dock {
-    display: flex !important;
+    display: grid !important;
   }
   .mobile-hamburger-btn {
     display: flex !important;

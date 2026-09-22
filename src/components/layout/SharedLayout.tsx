@@ -217,7 +217,7 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
 
         {/* Header */}
         <header className="app-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flexShrink: 1 }}>
             <button
               className="mobile-hamburger-btn"
               onClick={() => setIsMobileDrawerOpen(true)}
@@ -232,7 +232,8 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
                 justifyContent: 'center',
                 cursor: 'pointer',
                 fontSize: '18px',
-                color: 'var(--text-main)'
+                color: 'var(--text-main)',
+                flexShrink: 0
               }}
               title="Tüm Menüyü Aç"
             >
@@ -241,26 +242,27 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
             <div
               className="brand-badge"
               onClick={() => setActiveModal('showcase')}
-              style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}
+              style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}
               title="Singularity Özellik Vitrini"
             >
               <div style={{ width: '36px', height: '36px', borderRadius: '10px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-subtle)', border: '1px solid var(--border)', flexShrink: 0 }}>
                 <img src="/icon.svg" alt="Singularity" style={{ width: '28px', height: '28px' }} />
               </div>
-              <div>
-                <div className="brand-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                <div className="brand-title header-brand-title" style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
                   <span>Singularity Life OS</span>
                   <span style={{ fontSize: '10px', background: 'var(--emerald-bg)', color: 'var(--emerald)', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
                     v2.1
                   </span>
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Kişisel & Aile Yönetim Merkezi</div>
+                <div className="header-subtitle" style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Kişisel & Aile Yönetim Merkezi</div>
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             {/* 🌙 / ☀️ Dark/Light Tema Butonu */}
             <button
+              className="header-action-btn"
               onClick={toggleTheme}
               style={{
                 background: 'var(--surface-subtle)', border: '1px solid var(--border)',
@@ -275,6 +277,7 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
 
             {/* Hızlı Sesli Komut Butonu */}
             <button
+              className="header-action-btn"
               onClick={() => setActiveModal('voice')}
               style={{
                 background: 'var(--surface-subtle)', border: '1px solid var(--border)',
@@ -295,6 +298,7 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
             )}
             {/* Kilit Butonu */}
             <button
+              className="header-action-btn"
               onClick={handleLock}
               style={{
                 background: 'var(--surface-subtle)', border: '1px solid var(--border)',
@@ -313,141 +317,146 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
         <main style={{ flex: 1, paddingBottom: '40px' }}>
           {children}
         </main>
+      </div>
 
-        {/* Quick Action Drawer / Menu */}
-        {isQuickMenuOpen && (
+      {/* Quick Action Drawer / Menu */}
+      {isQuickMenuOpen && (
+        <div
+          onClick={() => setIsQuickMenuOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+            zIndex: 150, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+            paddingBottom: '80px', backdropFilter: 'blur(4px)'
+          }}
+        >
           <div
-            onClick={() => setIsQuickMenuOpen(false)}
+            onClick={e => e.stopPropagation()}
             style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-              zIndex: 150, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-              paddingBottom: '80px', backdropFilter: 'blur(4px)'
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)', padding: '16px', width: '90%', maxWidth: '380px',
+              boxShadow: 'var(--shadow-xl)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'
             }}
           >
-            <div
-              onClick={e => e.stopPropagation()}
-              style={{
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-lg)', padding: '16px', width: '90%', maxWidth: '380px',
-                boxShadow: 'var(--shadow-xl)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'
-              }}
-            >
-              <button
-                onClick={() => { setIsQuickMenuOpen(false); setActiveModal('voice'); }}
-                className="btn-subtle"
-                style={{ padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, gridColumn: 'span 2', background: '#ECFDF5', borderColor: '#A7F3D0', color: '#065F46' }}
-              >
-                <span style={{ fontSize: '26px' }}>🎙️</span>
-                <span>Sesli Çoklu Komut Girişi</span>
-              </button>
-              <button
-                onClick={() => { setIsQuickMenuOpen(false); setActiveModal('receipt'); }}
-                className="btn-subtle"
-                style={{ padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600 }}
-              >
-                <span style={{ fontSize: '24px' }}>🧾</span>
-                <span>Fiş / Fatura Tara</span>
-              </button>
-              <button
-                onClick={() => { setIsQuickMenuOpen(false); setActiveModal('manual'); }}
-                className="btn-subtle"
-                style={{ padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600 }}
-              >
-                <span style={{ fontSize: '24px' }}>💳</span>
-                <span>Hızlı Harcama</span>
-              </button>
-              <button
-                onClick={() => { setIsQuickMenuOpen(false); setActiveModal('plate'); }}
-                className="btn-subtle"
-                style={{ padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600 }}
-              >
-                <span style={{ fontSize: '24px' }}>📸</span>
-                <span>Tabak Tara</span>
-              </button>
-              <button
-                onClick={() => { setIsQuickMenuOpen(false); setActiveModal('barcode'); }}
-                className="btn-subtle"
-                style={{ padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600 }}
-              >
-                <span style={{ fontSize: '24px' }}>📊</span>
-                <span>Barkod Tara</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Mobile Bottom Dock Navigation */}
-        <nav className="bottom-dock">
-          {/* Sol 2 Sekme: Ana, Finans */}
-          {navItems.map(item => {
-            const isActive = pathname === item.href;
-            return (
-              <Link key={item.href} href={item.href} style={{
-                flex: 1, display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center', gap: '2px',
-                textDecoration: 'none', transition: 'opacity 0.15s',
-                opacity: isActive ? 1 : 0.55
-              }}>
-                <span style={{ fontSize: '22px' }}>{item.icon}</span>
-                <span style={{ fontSize: '10px', fontWeight: isActive ? 700 : 400, color: isActive ? 'var(--emerald)' : 'var(--text-muted)' }}>
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
-
-          {/* Ortadaki Hızlı Ekle / Tara Butonu */}
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <button
-              id="quick-scan-btn"
-              onClick={() => {
-                loadQuickData();
-                setIsQuickMenuOpen(!isQuickMenuOpen);
-              }}
-              style={{
-                width: '48px', height: '48px', borderRadius: '50%',
-                background: isQuickMenuOpen ? 'var(--text-main)' : 'linear-gradient(135deg, #10B981, #059669)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 14px rgba(16,185,129,0.45)',
-                cursor: 'pointer', fontSize: '22px', color: 'white',
-                border: '3px solid var(--surface)',
-                transition: 'transform 0.2s',
-                transform: isQuickMenuOpen ? 'rotate(45deg)' : 'none'
-              }}
+              onClick={() => { setIsQuickMenuOpen(false); setActiveModal('voice'); }}
+              className="btn-subtle"
+              style={{ padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, gridColumn: 'span 2', background: '#ECFDF5', borderColor: '#A7F3D0', color: '#065F46' }}
             >
-              ＋
+              <span style={{ fontSize: '26px' }}>🎙️</span>
+              <span>Sesli Çoklu Komut Girişi</span>
+            </button>
+            <button
+              onClick={() => { setIsQuickMenuOpen(false); setActiveModal('receipt'); }}
+              className="btn-subtle"
+              style={{ padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600 }}
+            >
+              <span style={{ fontSize: '24px' }}>🧾</span>
+              <span>Fiş / Fatura Tara</span>
+            </button>
+            <button
+              onClick={() => { setIsQuickMenuOpen(false); setActiveModal('manual'); }}
+              className="btn-subtle"
+              style={{ padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600 }}
+            >
+              <span style={{ fontSize: '24px' }}>💳</span>
+              <span>Hızlı Harcama</span>
+            </button>
+            <button
+              onClick={() => { setIsQuickMenuOpen(false); setActiveModal('plate'); }}
+              className="btn-subtle"
+              style={{ padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600 }}
+            >
+              <span style={{ fontSize: '24px' }}>📸</span>
+              <span>Tabak Tara</span>
+            </button>
+            <button
+              onClick={() => { setIsQuickMenuOpen(false); setActiveModal('barcode'); }}
+              className="btn-subtle"
+              style={{ padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600 }}
+            >
+              <span style={{ fontSize: '24px' }}>📊</span>
+              <span>Barkod Tara</span>
             </button>
           </div>
+        </div>
+      )}
 
-          {/* Sağ 2 Sekme: Sağlık, Menü */}
-          <Link href="/health" style={{
-            flex: 1, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: '2px',
-            textDecoration: 'none', transition: 'opacity 0.15s',
-            opacity: pathname === '/health' ? 1 : 0.55
-          }}>
-            <span style={{ fontSize: '22px' }}>🧬</span>
-            <span style={{ fontSize: '10px', fontWeight: pathname === '/health' ? 700 : 400, color: pathname === '/health' ? 'var(--emerald)' : 'var(--text-muted)' }}>
-              Sağlık
-            </span>
-          </Link>
-
-          <button
-            onClick={() => setIsMobileDrawerOpen(true)}
-            style={{
-              flex: 1, display: 'flex', flexDirection: 'column',
+      {/* Mobile Bottom Dock Navigation (5 Eşit Sütunlu Grid - Kusursuz Merkezde +) */}
+      <nav className="bottom-dock">
+        {/* Sol 2 Sekme: Ana, Finans */}
+        {navItems.map(item => {
+          const isActive = pathname === item.href;
+          return (
+            <Link key={item.href} href={item.href} style={{
+              width: '100%', display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center', gap: '2px',
-              border: 'none', background: 'transparent', cursor: 'pointer',
-              opacity: isMobileDrawerOpen ? 1 : 0.55
+              textDecoration: 'none', transition: 'opacity 0.15s',
+              opacity: isActive ? 1 : 0.55
+            }}>
+              <span style={{ fontSize: '22px' }}>{item.icon}</span>
+              <span style={{ fontSize: '10px', fontWeight: isActive ? 700 : 400, color: isActive ? 'var(--emerald)' : 'var(--text-muted)' }}>
+                {item.label}
+              </span>
+            </Link>
+          );
+        })}
+
+        {/* Ortadaki Hızlı Ekle / Tara Butonu (Tam Ekran Merkezinde Geometrik SVG FAB) */}
+        <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button
+            id="quick-scan-btn"
+            onClick={() => {
+              loadQuickData();
+              setIsQuickMenuOpen(!isQuickMenuOpen);
+            }}
+            aria-label="Hızlı İşlem / Ekle"
+            style={{
+              width: '46px', height: '46px', borderRadius: '50%',
+              background: isQuickMenuOpen ? 'var(--text-main)' : 'linear-gradient(135deg, #10B981, #059669)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 14px rgba(16,185,129,0.45)',
+              cursor: 'pointer', color: 'white',
+              border: '3px solid var(--surface)',
+              transition: 'transform 0.2s',
+              transform: isQuickMenuOpen ? 'rotate(45deg)' : 'none',
+              padding: 0, margin: 0
             }}
           >
-            <span style={{ fontSize: '22px' }}>☰</span>
-            <span style={{ fontSize: '10px', fontWeight: isMobileDrawerOpen ? 700 : 400, color: isMobileDrawerOpen ? 'var(--emerald)' : 'var(--text-muted)' }}>
-              Menü
-            </span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
           </button>
-        </nav>
-      </div>
+        </div>
+
+        {/* Sağ 2 Sekme: Sağlık, Menü */}
+        <Link href="/health" style={{
+          width: '100%', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: '2px',
+          textDecoration: 'none', transition: 'opacity 0.15s',
+          opacity: pathname === '/health' ? 1 : 0.55
+        }}>
+          <span style={{ fontSize: '22px' }}>🧬</span>
+          <span style={{ fontSize: '10px', fontWeight: pathname === '/health' ? 700 : 400, color: pathname === '/health' ? 'var(--emerald)' : 'var(--text-muted)' }}>
+            Sağlık
+          </span>
+        </Link>
+
+        <button
+          onClick={() => setIsMobileDrawerOpen(true)}
+          style={{
+            width: '100%', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: '2px',
+            border: 'none', background: 'transparent', cursor: 'pointer',
+            opacity: isMobileDrawerOpen ? 1 : 0.55
+          }}
+        >
+          <span style={{ fontSize: '22px' }}>☰</span>
+          <span style={{ fontSize: '10px', fontWeight: isMobileDrawerOpen ? 700 : 400, color: isMobileDrawerOpen ? 'var(--emerald)' : 'var(--text-muted)' }}>
+            Menü
+          </span>
+        </button>
+      </nav>
 
       {/* Mobil Yan Çekmece Menüsü (Full Mobile Navigation Drawer) */}
       {isMobileDrawerOpen && (
