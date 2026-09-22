@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { BOOK_CATEGORIES } from '@/lib/book-categories';
+import PageCalibrationModal from '@/components/modals/PageCalibrationModal';
 
 interface Book {
   id: string;
@@ -13,6 +14,7 @@ interface Book {
   status: string;
   format?: string;
   shelf_location?: string;
+  words_per_page?: number;
   cover_url?: string;
   rating?: number;
   category?: string;
@@ -51,6 +53,8 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
   const [shelfLocation, setShelfLocation] = useState('Salon Kitaplığı');
   const [totalPages, setTotalPages] = useState<number | ''>(200);
   const [currentPage, setCurrentPage] = useState<number | ''>(0);
+  const [wordsPerPage, setWordsPerPage] = useState<number | ''>(250);
+  const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
   const [rating, setRating] = useState<number>(5);
   const [coverUrl, setCoverUrl] = useState('');
   const [purchasedFrom, setPurchasedFrom] = useState('');
@@ -77,6 +81,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
       setShelfLocation(book.shelf_location || 'Salon Kitaplığı');
       setTotalPages(book.total_pages ?? 200);
       setCurrentPage(book.current_page ?? 0);
+      setWordsPerPage(book.words_per_page ?? 250);
       setRating(book.rating ?? 5);
       setCoverUrl(book.cover_url || '');
       setPurchasedFrom(book.purchased_from || '');
@@ -119,6 +124,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
           shelf_location: shelfLocation,
           total_pages: Number(totalPages) || 0,
           current_page: Number(currentPage) || 0,
+          words_per_page: wordsPerPage !== '' ? Number(wordsPerPage) : 250,
           rating,
           cover_url: coverUrl.trim(),
           purchased_from: purchasedFrom.trim(),
@@ -429,6 +435,48 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
               </div>
             </div>
 
+            {/* Sayfa Başı Ortalama Kelime (WPP) & Kalibrasyon */}
+            <div style={{
+              marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              background: 'var(--surface-subtle)', padding: '8px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)'
+            }}>
+              <div>
+                <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>SAYFA BAŞI KELİME (WPP)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                  <input
+                    type="number"
+                    min={50}
+                    max={1000}
+                    value={wordsPerPage}
+                    onChange={e => setWordsPerPage(e.target.value === '' ? '' : Number(e.target.value))}
+                    style={{ width: '65px', padding: '4px 6px', fontSize: '12px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text-main)' }}
+                  />
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>kelime/sayfa</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsCalibrationOpen(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  background: 'var(--indigo-bg)',
+                  border: '1px solid var(--indigo)',
+                  color: 'var(--indigo)',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  padding: '6px 10px',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer'
+                }}
+              >
+                <span>🔬</span>
+                <span>Sayfayı Tara & Kalibre Et</span>
+              </button>
+            </div>
+
             {/* O Kitaba Özel Okuma Hızı & Seans İstatistikleri (Otomatik) */}
             <div style={{
               marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed var(--border)',
@@ -439,7 +487,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
                 <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--indigo)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span>⚡ {book.stats?.wpm || 220} WPM</span>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
-                    (~{book.stats?.avgMinutesPerPage || '0.8'} dk / sayfa)
+                    (~{book.stats?.avgMinutesPerPage || '0.8'} dk / sayfa • {wordsPerPage || 250} wpp)
                   </span>
                 </div>
               </div>
@@ -586,6 +634,23 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
           </div>
         </form>
       </div>
+
+      {isCalibrationOpen && (
+        <PageCalibrationModal
+          isOpen={isCalibrationOpen}
+          onClose={() => setIsCalibrationOpen(false)}
+          bookId={book.id}
+          bookTitle={book.title}
+          currentWordsPerPage={Number(wordsPerPage) || 250}
+          onCalibrated={(newCount) => {
+            setWordsPerPage(newCount);
+            if (book) book.words_per_page = newCount;
+          }}
+          onSuccess={(msg) => {
+            if (onSuccess) onSuccess(msg);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -186,11 +186,15 @@ export default function BookShelfList({ books, onQuickPageUpdate, onOpenAddBookM
                         {book.rating && (
                           <span style={{ color: 'var(--amber)', fontWeight: 800 }}>⭐ {book.rating}/5</span>
                         )}
-                        {book.stats?.wpm && (
+                        {book.stats?.wpm ? (
                           <span style={{ color: 'var(--indigo)', fontWeight: 700, background: 'var(--indigo-bg)', padding: '1px 5px', borderRadius: '3px' }}>
-                            ⚡ {book.stats.wpm} WPM
+                            ⚡ {book.stats.wpm} WPM {book.words_per_page ? `(${book.words_per_page} wpp)` : ''}
                           </span>
-                        )}
+                        ) : book.words_per_page && book.words_per_page !== 250 ? (
+                          <span style={{ color: 'var(--indigo)', fontWeight: 700, background: 'var(--indigo-bg)', padding: '1px 5px', borderRadius: '3px' }}>
+                            🔬 {book.words_per_page} wpp
+                          </span>
+                        ) : null}
                       </div>
 
                       {/* Satın alım bilgisi etiketi */}

@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
 import LiveBarcodeScannerModal from './LiveBarcodeScannerModal';
+import PageCalibrationModal from './PageCalibrationModal';
 import { BOOK_CATEGORIES, sortCategoriesInTurkish } from '@/lib/book-categories';
 
 interface AddBookModalProps {
@@ -23,6 +24,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
   const [format, setFormat] = useState<'physical' | 'ebook' | 'audiobook'>('physical');
   const [shelfLocation, setShelfLocation] = useState('Salon Kitaplığı A-3');
   const [wordsPerPage, setWordsPerPage] = useState('250');
+  const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
   const [summary, setSummary] = useState('');
   const [rating, setRating] = useState('5');
   const [coverUrl, setCoverUrl] = useState('');
@@ -745,6 +747,50 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                     <option value="1" style={{ background: 'var(--surface)', color: 'var(--text-main)' }}>⭐ (1/5)</option>
                   </select>
                 </div>
+
+                {/* Sayfa Başı Ortalama Kelime (WPP) & Kalibrasyon */}
+                <div style={{ gridColumn: 'span 3', background: 'var(--surface-subtle)', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
+                      ⚡ Sayfa Başı Ortalama Kelime (WPP)
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="number"
+                        min="50"
+                        max="1000"
+                        value={wordsPerPage}
+                        onChange={e => setWordsPerPage(e.target.value)}
+                        style={{
+                          width: '80px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px',
+                          padding: '6px 10px', color: 'var(--text-main)', fontSize: '13px', fontWeight: 800
+                        }}
+                      />
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>kelime/sayfa (WPM ve ETA motoru için)</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsCalibrationOpen(true)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'var(--indigo-bg)',
+                      border: '1px solid var(--indigo)',
+                      color: 'var(--indigo)',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span>📸</span>
+                    <span>Sayfa Fotoğrafı ile Kalibre Et</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -864,6 +910,22 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
         onClose={() => setIsBarcodeScannerOpen(false)}
         onDetected={handleBarcodeDetected}
       />
+
+      {/* 4. Aşama: Sayfa Kelime Kalibrasyon Modalı */}
+      {isCalibrationOpen && (
+        <PageCalibrationModal
+          isOpen={isCalibrationOpen}
+          onClose={() => setIsCalibrationOpen(false)}
+          bookTitle={title || 'Yeni Kitap'}
+          currentWordsPerPage={parseInt(wordsPerPage) || 250}
+          onCalibrated={(newCount) => {
+            setWordsPerPage(String(newCount));
+          }}
+          onSuccess={(msg) => {
+            setSuccessNotice(msg);
+          }}
+        />
+      )}
     </>
   );
 }

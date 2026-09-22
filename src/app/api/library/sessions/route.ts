@@ -61,8 +61,13 @@ export async function POST(req: Request) {
     }
 
     // 3. WPM ve Sayfa Başı Saniye Kalibrasyonu (Kullanıcının Son 100 Seansı)
-    const recentSessions = await db.select()
+    const recentSessionsWithBook = await db.select({
+      pages_read: readingSessions.pages_read,
+      duration_minutes: readingSessions.duration_minutes,
+      words_per_page: books.words_per_page
+    })
       .from(readingSessions)
+      .leftJoin(books, eq(readingSessions.book_id, books.id))
       .where(eq(readingSessions.user_id, user.id))
       .orderBy(desc(readingSessions.created_at))
       .limit(100);
@@ -71,10 +76,11 @@ export async function POST(req: Request) {
     let totalMinutes = 0;
     let totalPages = 0;
 
-    for (const s of recentSessions) {
+    for (const s of recentSessionsWithBook) {
       const pRead = s.pages_read || 0;
       const dMin = s.duration_minutes || 0;
-      totalWords += pRead * 250;
+      const wpp = s.words_per_page || 250;
+      totalWords += pRead * wpp;
       totalMinutes += dMin;
       totalPages += pRead;
     }

@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import PageCalibrationModal from '@/components/modals/PageCalibrationModal';
 
 interface Book {
   id: string;
@@ -33,6 +34,8 @@ export default function ReadingSessionModal({
   const [endPage, setEndPage] = useState(String((activeBook?.current_page || 0) + 15));
   const [durationMinutes, setDurationMinutes] = useState('25');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
+  const [overrideWordsPerPage, setOverrideWordsPerPage] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (preselectedBookId) {
@@ -92,7 +95,7 @@ export default function ReadingSessionModal({
     : Math.max(1, (parseInt(endPage) || 0) - (parseInt(startPage) || 0));
 
   const durMin = Math.max(0.1, parseFloat(durationMinutes) || 1);
-  const wordsPerPage = activeBook?.words_per_page || 250;
+  const wordsPerPage = overrideWordsPerPage[selectedBookId || activeBook?.id || ''] || activeBook?.words_per_page || 250;
   const estimatedWpm = Math.round((pagesRead * wordsPerPage) / durMin);
   const minutesPerPage = (durMin / pagesRead).toFixed(1);
 
@@ -294,11 +297,63 @@ export default function ReadingSessionModal({
             </div>
           </div>
 
+          {/* Sayfa Yoğunluğu & Kalibre Et Butonu */}
+          <div style={{
+            background: 'var(--surface-subtle)',
+            border: '1px solid var(--border)',
+            padding: '8px 12px',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              Sayfa Yoğunluğu: <strong style={{ color: 'var(--text-main)' }}>{wordsPerPage} kelime/sayfa</strong>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCalibrationOpen(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--indigo)',
+                fontSize: '11px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '2px 4px'
+              }}
+            >
+              <span>📸</span>
+              <span>Sayfayı Tara & Kalibre Et</span>
+            </button>
+          </div>
+
           <button type="submit" className="btn-primary" disabled={isSubmitting} style={{ padding: '12px', fontSize: '14px', fontWeight: 800 }}>
             {isSubmitting ? 'Seans Kaydediliyor...' : '✅ Seansı Kaydet & Sayfayı İlerlet'}
           </button>
         </form>
       </div>
+
+      {isCalibrationOpen && activeBook && (
+        <PageCalibrationModal
+          isOpen={isCalibrationOpen}
+          onClose={() => setIsCalibrationOpen(false)}
+          bookId={selectedBookId || activeBook.id}
+          bookTitle={activeBook.title}
+          currentWordsPerPage={wordsPerPage}
+          onCalibrated={(newCount) => {
+            const bId = selectedBookId || activeBook.id;
+            setOverrideWordsPerPage(prev => ({ ...prev, [bId]: newCount }));
+            if (activeBook) activeBook.words_per_page = newCount;
+          }}
+          onSuccess={(msg) => {
+            onSuccess(msg);
+          }}
+        />
+      )}
     </div>
   );
 }

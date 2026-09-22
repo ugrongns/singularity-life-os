@@ -314,6 +314,7 @@ export async function POST(req: Request) {
           format: format || 'physical',
           shelf_location: shelf_location || 'Salon Kitaplığı',
           rating: rating !== undefined ? parseInt(rating) : 5,
+          words_per_page: body.words_per_page !== undefined ? (parseInt(body.words_per_page) || 250) : undefined,
           cover_url: body.cover_url || null,
           purchased_date: body.purchased_date || null,
           purchased_from: body.purchased_from || null,
@@ -332,6 +333,24 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         message: `✅ "${title || 'Kitap'}" detayları ve notları başarıyla güncellendi!`
+      });
+    }
+
+    // 4. Sayfa Kelime Yoğunluğu Kalibrasyon Güncellemesi
+    if (action === 'update_words_per_page' && book_id) {
+      const wpp = parseInt(body.words_per_page) || 250;
+      await db.update(books)
+        .set({
+          words_per_page: wpp,
+          updated_at: now
+        })
+        .where(eq(books.id, book_id))
+        ;
+
+      return NextResponse.json({
+        success: true,
+        words_per_page: wpp,
+        message: `🎯 Kitabın sayfa yoğunluğu ${wpp} kelime/sayfa olarak kalibre edildi!`
       });
     }
 
