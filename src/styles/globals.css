@@ -172,7 +172,7 @@ body {
 /* Container & Layout */
 .app-container {
   width: 100%;
-  max-width: 1180px;
+  max-width: 100%;
   margin: 0 auto;
   padding: 24px 20px 100px;
   display: flex;
@@ -308,12 +308,21 @@ body {
   border-color: var(--text-main);
 }
 
-/* Dashboard Grid - Tek Sütun Düzeni */
+/* Dashboard Grid - Çok Sütunlu Responsive Düzen */
 .dashboard-grid {
   display: flex;
   flex-direction: column;
   gap: 24px;
   width: 100%;
+}
+
+@media (min-width: 960px) {
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+    gap: 24px;
+    align-items: start;
+  }
 }
 
 .card {
@@ -916,7 +925,12 @@ body {
 /* Masaüstü Ekranlarda Main Layout Ayarlamaları */
 @media (min-width: 769px) {
   .app-container {
-    padding-left: 270px !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding-left: 280px !important;
+    padding-right: 32px !important;
+    padding-top: 24px !important;
     padding-bottom: 40px !important;
   }
   .bottom-dock {

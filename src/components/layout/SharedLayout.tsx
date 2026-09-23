@@ -42,7 +42,6 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
 
   const [isScreenLocked, setIsScreenLocked] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Hızlı işlem modalları için hesap + kategori verisi (lazy yüklenir)
   const [quickData, setQuickData] = useState<{ accounts: any[]; categories: any[] }>({ accounts: [], categories: [] });
@@ -89,42 +88,13 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
     // Tema tercihini yükle
     const savedTheme = (localStorage.getItem('singularity_theme') as 'dark' | 'light') || 'dark';
     setTheme(savedTheme);
-    document.documentElement.setAttribute('data-theme', savedTheme);
-
-    const onFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', onFullscreenChange);
-    };
-  }, []);
+    document.documentElement.setAttribute('data-theme', savedTheme);  }, []);
 
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
     localStorage.setItem('singularity_theme', nextTheme);
     document.documentElement.setAttribute('data-theme', nextTheme);
-  };
-
-  const toggleFullscreen = () => {
-    try {
-      if (!document.fullscreenElement) {
-        if (document.documentElement.requestFullscreen) {
-          document.documentElement.requestFullscreen().catch(err => {
-            console.warn('Tam ekran moduna geçilemedi:', err);
-          });
-        }
-      } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen().catch(err => {
-            console.warn('Tam ekrandan çıkılamadı:', err);
-          });
-        }
-      }
-    } catch (e) {
-      console.warn('Fullscreen API hatası:', e);
-    }
   };
 
   const handleLock = () => {
@@ -218,15 +188,6 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
 
         {/* Sidebar Alt Butonlar */}
         <div className="sidebar-footer">
-          <button
-            className="sidebar-item"
-            onClick={toggleFullscreen}
-            style={{ width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-            title={isFullscreen ? 'Tam Ekrandan Çık (Esc)' : 'Tam Ekran Moduna Geç'}
-          >
-            <span style={{ fontSize: '18px' }}>{isFullscreen ? '🗗' : '⛶'}</span>
-            <span>{isFullscreen ? 'Tam Ekrandan Çık' : 'Tam Ekran'}</span>
-          </button>
           <Link
             href="/settings"
             className={`sidebar-item ${pathname === '/settings' ? 'active' : ''}`}
@@ -298,32 +259,6 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
             </div>
           </div>
           <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-            {/* ⛶ Tam Ekran Butonu */}
-            <button
-              className="header-action-btn"
-              onClick={toggleFullscreen}
-              style={{
-                background: isFullscreen ? 'rgba(59, 130, 246, 0.15)' : 'var(--surface-subtle)',
-                border: isFullscreen ? '1px solid #3B82F6' : '1px solid var(--border)',
-                color: isFullscreen ? '#3B82F6' : 'var(--text-main)',
-                borderRadius: '50%', width: '36px', height: '36px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', transition: 'all 0.15s'
-              }}
-              title={isFullscreen ? 'Tam Ekrandan Çık (Esc)' : 'Tam Ekran Moduna Geç'}
-              aria-label={isFullscreen ? 'Tam Ekrandan Çık' : 'Tam Ekran Moduna Geç'}
-            >
-              {isFullscreen ? (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
-                </svg>
-              ) : (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-                </svg>
-              )}
-            </button>
-
             {/* 🌙 / ☀️ Dark/Light Tema Butonu */}
             <button
               className="header-action-btn"
@@ -593,21 +528,8 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
               })}
             </div>
 
-            {/* Drawer Alt İşlemler (Tam Ekran, Ayarlar & Kilit) */}
+            {/* Drawer Alt İşlemler (Ayarlar & Kilit) */}
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <button
-                onClick={() => { setIsMobileDrawerOpen(false); toggleFullscreen(); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '12px',
-                  padding: '10px 14px', borderRadius: 'var(--radius-md)',
-                  border: 'none', background: 'transparent',
-                  color: 'var(--text-main)', fontSize: '13px', fontWeight: 600,
-                  cursor: 'pointer', textAlign: 'left', width: '100%'
-                }}
-              >
-                <span style={{ fontSize: '18px' }}>{isFullscreen ? '🗗' : '⛶'}</span>
-                <span>{isFullscreen ? 'Tam Ekrandan Çık' : 'Tam Ekran Modu'}</span>
-              </button>
               <Link
                 href="/settings"
                 onClick={() => setIsMobileDrawerOpen(false)}
