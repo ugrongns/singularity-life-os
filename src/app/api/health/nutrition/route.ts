@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { nutritionMeals, userHealthProfile, waterIntakeLogs } from '@/db/schema';
-import { eq, desc, and , or } from 'drizzle-orm';
+import { nutritionMeals, userHealthProfile, waterIntakeLogs, familyMembers } from '@/db/schema';
+import { eq, desc, and, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 export async function GET() {
@@ -166,9 +166,30 @@ export async function POST(req: Request) {
 
     const mealId = `meal-${Date.now()}`;
 
+    // Aktif aile üyesi kimliğini bul (varsa member_id, yoksa null - FK hatasını önler)
+    let memberId: string | null = null;
+    try {
+      const member = (await db.select().from(familyMembers).where(
+        and(
+          eq(familyMembers.is_active, 1),
+          eq(familyMembers.user_id, user.id)
+        )
+      ))[0] || (familyId ? (await db.select().from(familyMembers).where(
+        and(
+          eq(familyMembers.is_active, 1),
+          eq(familyMembers.family_id, familyId)
+        )
+      ))[0] : null);
+      if (member) {
+        memberId = member.id;
+      }
+    } catch {
+      memberId = null;
+    }
+
     await db.insert(nutritionMeals).values({
       id: mealId,
-      member_id: user.id || 'member-default',
+      member_id: memberId,
       name,
       meal_type,
       calories,

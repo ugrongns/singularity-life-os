@@ -107,6 +107,7 @@ export default function DietPlanModal({ isOpen, onClose, onSuccess }: DietModalP
         body: JSON.stringify({
           option_id: selectedOption.id,
           custom_title: selectedOption.title,
+          meal_type: selectedOption.meal_type,
           calories: selectedOption.calories,
           protein_g: selectedOption.protein_g,
           carbs_g: selectedOption.carbs_g,

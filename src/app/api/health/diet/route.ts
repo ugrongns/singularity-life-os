@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { dietMealOptions, nutritionMeals } from '@/db/schema';
+import { dietMealOptions, nutritionMeals, familyMembers } from '@/db/schema';
 import { getAuthUser } from '@/lib/auth';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, and, or } from 'drizzle-orm';
 
 export async function GET() {
   try {
@@ -75,16 +75,45 @@ export async function POST(req: Request) {
     }
 
     // 2. Mevcut Menüyü Günlük Beslenmeye / Makrolara İşleme İşlemi (Varsayılan)
-    const { custom_title, calories, protein_g, carbs_g, fat_g } = body;
+    const { custom_title, calories, protein_g, carbs_g, fat_g, meal_type } = body;
 
     const now = new Date().toISOString();
     const today = now.split('T')[0];
 
+    const userId = user.id;
+    const familyId = user.family_id || (userId ? `fam-${userId}` : null);
+
+    // Aktif aile üyesi kimliğini bul (varsa member_id, yoksa null - FK hatasını önler)
+    let memberId: string | null = null;
+    try {
+      const member = (await db.select().from(familyMembers).where(
+        and(
+          eq(familyMembers.is_active, 1),
+          eq(familyMembers.user_id, userId)
+        )
+      ))[0] || (familyId ? (await db.select().from(familyMembers).where(
+        and(
+          eq(familyMembers.is_active, 1),
+          eq(familyMembers.family_id, familyId)
+        )
+      ))[0] : null);
+      if (member) {
+        memberId = member.id;
+      }
+    } catch {
+      memberId = null;
+    }
+
+    const mealId = `meal-${Date.now()}`;
+    const finalMealType = meal_type || 'breakfast';
+
     await db.insert(nutritionMeals).values({
-      id: `meal-${Date.now()}`,
-      member_id: user.id,
+      id: mealId,
+      member_id: memberId,
+      user_id: userId,
+      family_id: familyId,
       name: custom_title || 'Diyetisyen Menüsü Öğünü',
-      meal_type: 'breakfast',
+      meal_type: finalMealType,
       calories: parseFloat(calories) || 380,
       protein_g: parseFloat(protein_g) || 20,
       carbs_g: parseFloat(carbs_g) || 35,
@@ -93,9 +122,27 @@ export async function POST(req: Request) {
       date: today,
       is_verified: 1,
       is_family_shared: 0,
+      sync_status: 'synced',
+      device_id: 'web-client',
       created_at: now,
       updated_at: now
     });
+
+    // Event Bus üzerinden beslenme olayını bildir
+    try {
+      const { eventBus, EVENTS } = await import('@/lib/events');
+      await eventBus.emit(EVENTS.DIET_MEAL_RECORDED, {
+        mealId,
+        name: custom_title || 'Diyetisyen Menüsü Öğünü',
+        calories: parseFloat(calories) || 380,
+        protein_g: parseFloat(protein_g) || 20,
+        carbs_g: parseFloat(carbs_g) || 35,
+        fat_g: parseFloat(fat_g) || 15,
+        userId
+      });
+    } catch (e) {
+      console.warn('EventBus emit failed:', e);
+    }
 
     return NextResponse.json({
       success: true,
