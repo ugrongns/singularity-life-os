@@ -46,6 +46,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -226,6 +227,59 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
     }
   };
 
+  // 4. Aşama: İsim / Yazar ile Künye Otomatik Arama & Doldurma
+  const handleTitleSearch = async (overrideTitle?: string) => {
+    const queryTitle = (overrideTitle || title || '').trim();
+    if (!queryTitle || queryTitle.length < 2) {
+      setErrorMessage('Lütfen künye araması yapabilmek için en az 2 karakterlik Kitap Adı girin.');
+      titleInputRef.current?.focus();
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setErrorMessage(null);
+    setSuccessNotice(null);
+
+    try {
+      const res = await fetch('/api/library/scan-isbn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: queryTitle,
+          author: author.trim() || undefined
+        })
+      });
+
+      const json = await res.json();
+      if (json.success && json.data) {
+        const b = json.data;
+        if (b.title) setTitle(b.title);
+        if (b.author) setAuthor(b.author);
+        if (b.publisher) setPublisher(b.publisher);
+        if (b.isbn) setIsbn(b.isbn);
+        if (b.total_pages) setTotalPages(String(b.total_pages));
+        if (b.category) applyIncomingCategory(b.category);
+        if (b.summary) setSummary(b.summary);
+        if (b.cover_url) setCoverUrl(b.cover_url);
+
+        if (json.already_in_library && json.existing_book) {
+          setExistingBook(json.existing_book);
+          setAllowDuplicate(false);
+        } else {
+          setExistingBook(null);
+        }
+
+        setSuccessNotice(json.message || `✨ "${b.title}" künyesi başarıyla bulundu ve forma aktarıldı!`);
+      } else {
+        setErrorMessage(json.error || `"${queryTitle}" kataloglarda bulunamadı. Lütfen bilgileri manuel tamamlayın.`);
+      }
+    } catch (err: any) {
+      setErrorMessage('Arama yapılırken bağlantı hatası oluştu.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !author.trim()) {
@@ -331,8 +385,8 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
             </button>
           </div>
 
-          {/* Aksiyon Butonları (Barkod & Kapak Fotoğrafı) */}
-          <div style={{ padding: '20px 24px 0 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          {/* Aksiyon Butonları (Barkod, Kapak Fotoğrafı & İsimle Künye Arama) */}
+          <div style={{ padding: '20px 24px 0 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
             <input
               type="file"
               accept="image/*"
@@ -352,7 +406,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                 color: '#FFFFFF',
                 border: 'none',
                 borderRadius: '16px',
-                padding: '14px',
+                padding: '12px 14px',
                 fontSize: '13px',
                 fontWeight: 700,
                 cursor: isAnalyzing ? 'not-allowed' : 'pointer',
@@ -376,7 +430,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                 background: 'var(--indigo-bg)',
                 border: '1.5px solid var(--indigo)',
                 borderRadius: '16px',
-                padding: '14px',
+                padding: '12px 14px',
                 color: 'var(--indigo)',
                 fontSize: '13px',
                 fontWeight: 700,
@@ -389,6 +443,37 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
               }}
             >
               📸 Kapak Çek / Yükle
+            </button>
+
+            {/* 4. Aşama: İsimle Künye Arama Butonu */}
+            <button
+              type="button"
+              onClick={() => {
+                if (title.trim().length >= 2) {
+                  handleTitleSearch();
+                } else {
+                  titleInputRef.current?.focus();
+                  setSuccessNotice('💡 Lütfen aramak istediğiniz kitap adını aşağıdaki "Kitap Adı" kutusuna yazın ve "✨ Künyeyi Ara & Doldur" butonuna basın.');
+                }
+              }}
+              disabled={isAnalyzing}
+              style={{
+                background: 'rgba(139, 92, 246, 0.12)',
+                border: '1.5px solid #8B5CF6',
+                borderRadius: '16px',
+                padding: '12px 14px',
+                color: '#8B5CF6',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: isAnalyzing ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              🔍 İsimle Künye Ara
             </button>
           </div>
 
@@ -438,9 +523,38 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
             {errorMessage && (
               <div style={{
                 background: 'var(--rose-bg)', border: '1px solid var(--rose)',
-                borderRadius: '12px', padding: '12px 16px', color: 'var(--rose)', fontSize: '13px', fontWeight: 600
+                borderRadius: '14px', padding: '14px 16px', color: 'var(--rose)', fontSize: '13px', fontWeight: 600,
+                display: 'flex', flexDirection: 'column', gap: '8px'
               }}>
-                ⚠️ {errorMessage}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                  <span style={{ fontSize: '16px' }}>⚠️</span>
+                  <span style={{ lineHeight: '1.4' }}>{errorMessage}</span>
+                </div>
+                {title.trim().length >= 2 && (
+                  <div style={{ marginTop: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleTitleSearch(title)}
+                      disabled={isAnalyzing}
+                      style={{
+                        background: '#8B5CF6',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: isAnalyzing ? 'not-allowed' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)'
+                      }}
+                    >
+                      ✨ "{title.trim()}" İsmiyle Otomatik Ara & Doldur
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -562,8 +676,34 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ gridColumn: 'span 2' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Kitap Adı *</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Kitap Adı *</label>
+                    {title.trim().length >= 2 && (
+                      <button
+                        type="button"
+                        onClick={() => handleTitleSearch()}
+                        disabled={isAnalyzing}
+                        style={{
+                          background: 'rgba(99, 102, 241, 0.12)',
+                          color: 'var(--indigo)',
+                          border: '1px solid rgba(99, 102, 241, 0.3)',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: isAnalyzing ? 'wait' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {isAnalyzing ? '⏳ Künye Aranıyor...' : '✨ Künyeyi Ara & Doldur'}
+                      </button>
+                    )}
+                  </div>
                   <input
+                    ref={titleInputRef}
                     type="text"
                     placeholder="Örn: Atomik Alışkanlıklar"
                     value={title}

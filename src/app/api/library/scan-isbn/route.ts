@@ -16,6 +16,7 @@ interface BookSearchResult {
   category: string;
   summary: string;
   cover_url: string | null;
+  isbn?: string;
   source: string;
 }
 
@@ -105,6 +106,58 @@ async function fetchFromGoogleBooks(cleanIsbn: string): Promise<BookSearchResult
     }
   } catch (err) {
     console.warn('Google Books API fetch hatası:', err);
+  }
+  return null;
+}
+
+// 1.1 KAYNAK: Google Books Arama (İsim / Yazar ile Sorgu)
+async function fetchFromGoogleBooksByQuery(title: string, author?: string): Promise<BookSearchResult | null> {
+  try {
+    const apiKey = process.env.GOOGLE_BOOKS_API_KEY;
+    const cleanTitle = title.trim();
+    const cleanAuthor = (author || '').trim();
+    const qParam = cleanAuthor
+      ? `intitle:${encodeURIComponent(cleanTitle)}+inauthor:${encodeURIComponent(cleanAuthor)}`
+      : encodeURIComponent(cleanTitle);
+
+    const url = apiKey
+      ? `https://www.googleapis.com/books/v1/volumes?q=${qParam}&maxResults=3&key=${apiKey}`
+      : `https://www.googleapis.com/books/v1/volumes?q=${qParam}&maxResults=3`;
+
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(6000)
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.items && json.items.length > 0) {
+      const item = json.items[0];
+      const info = item.volumeInfo || {};
+      if (info.title) {
+        const rawCat = info.categories ? info.categories.join(' / ') : '';
+        const resolvedCategory = normalizeBookCategory(rawCat, info.title, info.description);
+        let foundIsbn = '';
+        if (info.industryIdentifiers) {
+          const isbn13 = info.industryIdentifiers.find((id: any) => id.type === 'ISBN_13')?.identifier;
+          const isbn10 = info.industryIdentifiers.find((id: any) => id.type === 'ISBN_10')?.identifier;
+          foundIsbn = isbn13 || isbn10 || '';
+        }
+
+        return {
+          title: info.title,
+          author: info.authors ? info.authors.join(', ') : '',
+          publisher: info.publisher || '',
+          total_pages: info.pageCount || 200,
+          category: resolvedCategory,
+          summary: info.description || '',
+          cover_url: info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || null,
+          isbn: foundIsbn,
+          source: 'Google Books'
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Google Books query fetch hatası:', err);
   }
   return null;
 }
@@ -242,6 +295,74 @@ async function fetchFromGeminiAI(
   return null;
 }
 
+// 3.1 KAYNAK: Gemini AI İsim / Yazar ile Künye Analizi & Zenginleştirme
+async function fetchFromGeminiAIByTitle(
+  title: string,
+  author?: string,
+  publisher?: string
+): Promise<BookSearchResult | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  const authorHint = author ? ` (Yazar: ${author})` : '';
+  const pubHint = publisher ? ` (Yayınevi: ${publisher})` : '';
+  const promptText = `Sen uzman bir kütüphanecisin. Adı "${title}"${authorHint}${pubHint} olan kitabın Türkiye ve dünya kataloglarındaki gerçek ve tam adını, yazarını, yayınevini, yaklaşık sayfa sayısını, ISBN numarasını (varsa), açıklayıcı Türkçe arka kapak özetini (2-3 cümle) ve kitabın gerçek konusuna/türüne göre en doğru Türkçe kategorisini (Örn: Tarih, Felsefe, Psikoloji, Bilim, Kişisel Gelişim, Kurgu (Fiction), Beden, Zihin & Ruh, İş & Ekonomi, Din, Sosyal Bilimler, Tıp, Sanat, Teknoloji & Mühendislik vb.) araştır ve SADECE JSON formatında çıktı ver:
+\`\`\`json
+{
+  "title": "Kitap Tam Adı",
+  "author": "Yazar Adı",
+  "publisher": "Yayınevi Adı",
+  "isbn": "978...",
+  "total_pages": 250,
+  "category": "Kitabın Gerçek Türkçe Kategorisi",
+  "summary": "Kitabın konusu, anlattıkları ve arka kapak metni hakkında 2-3 cümlelik açıklayıcı Türkçe özet."
+}
+\`\`\``;
+
+  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  for (const modelName of models) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptText }] }],
+            generationConfig: { temperature: 0.0 }
+          }),
+          signal: AbortSignal.timeout(8000)
+        }
+      );
+
+      if (response.ok) {
+        const json = await response.json();
+        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          const parsed = extractJsonFromText(text);
+          if (parsed && parsed.title && parsed.title !== 'Kitap Tam Adı' && parsed.title.length >= 2) {
+            const resolvedCategory = normalizeBookCategory(parsed.category, parsed.title, parsed.summary);
+            return {
+              title: decodeHtmlEntities(parsed.title),
+              author: decodeHtmlEntities((parsed.author || author || '').replace(/Yazar Adı/i, '').trim()),
+              publisher: decodeHtmlEntities((parsed.publisher || publisher || '').replace(/Yayınevi Adı/i, '').trim()),
+              isbn: cleanIsbnString(parsed.isbn || ''),
+              total_pages: Number(parsed.total_pages) || 200,
+              category: resolvedCategory,
+              summary: decodeHtmlEntities(parsed.summary || ''),
+              cover_url: null,
+              source: 'Gemini AI'
+            };
+          }
+        }
+      }
+    } catch (e) {
+      // Continue to next model
+    }
+  }
+  return null;
+}
+
 // 4. KAYNAK: DuckDuckGo HTML + Türkçe Kitabevleri (Gelişmiş Yedek Arama)
 async function fetchFromTurkishBookstores(cleanIsbn: string): Promise<BookSearchResult | null> {
   try {
@@ -326,7 +447,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { isbn, image_base64, mime_type } = body;
+    const { isbn, image_base64, mime_type, query, title, author } = body;
 
     const familyId = user.family_id || `fam-${user.id}`;
 
@@ -363,9 +484,101 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. SEÇENEK: ISBN Barkod Sorgulama (Hibrit Akıllı Birleştirme Motoru)
+    // 2. SEÇENEK: Kitap Adı / Yazar ile Künye Arama (Nadir/Yerel Kitaplar ve Barkodsuz Eklemeler İçin)
+    const cleanSearchTitle = (title || query || '').trim();
+    const cleanSearchAuthor = (author || '').trim();
+
+    if (!isbn && cleanSearchTitle) {
+      if (cleanSearchTitle.length < 2) {
+        return NextResponse.json({ success: false, error: 'Lütfen arama için en az 2 karakter girin.' }, { status: 400 });
+      }
+
+      // Kullanıcının kütüphanesinde mükerrer kontrolü
+      const existingInLibrary = await findExistingBookInLibrary(user.id, familyId, undefined, cleanSearchTitle, cleanSearchAuthor);
+
+      // 1. Aşama: Google Books Arama
+      const catalogBook = await fetchFromGoogleBooksByQuery(cleanSearchTitle, cleanSearchAuthor);
+
+      // 2. Aşama: Gemini AI Künye Analizi
+      const geminiBook = await fetchFromGeminiAIByTitle(
+        cleanSearchTitle,
+        catalogBook?.author || cleanSearchAuthor,
+        catalogBook?.publisher
+      );
+
+      let book: BookSearchResult | null = null;
+      if (geminiBook && catalogBook) {
+        book = {
+          title: geminiBook.title || catalogBook.title,
+          author: geminiBook.author || catalogBook.author,
+          publisher: geminiBook.publisher || catalogBook.publisher,
+          total_pages: catalogBook.total_pages > 0 ? catalogBook.total_pages : geminiBook.total_pages,
+          category: geminiBook.category || catalogBook.category,
+          summary: geminiBook.summary || catalogBook.summary || '',
+          cover_url: catalogBook.cover_url || null,
+          isbn: catalogBook.isbn || geminiBook.isbn || '',
+          source: `${catalogBook.source} + Gemini AI Fusion`
+        };
+      } else if (geminiBook) {
+        book = geminiBook;
+      } else if (catalogBook) {
+        book = catalogBook;
+      }
+
+      if (book) {
+        const cleanFoundIsbn = cleanIsbnString(book.isbn || '');
+        const existingWithIsbn = cleanFoundIsbn
+          ? await findExistingBookInLibrary(user.id, familyId, cleanFoundIsbn, book.title, book.author)
+          : existingInLibrary;
+
+        return NextResponse.json({
+          success: true,
+          already_in_library: !!existingWithIsbn,
+          existing_book: existingWithIsbn || null,
+          data: {
+            title: book.title,
+            author: book.author,
+            publisher: book.publisher,
+            isbn: book.isbn || '',
+            total_pages: book.total_pages,
+            category: book.category,
+            summary: book.summary,
+            cover_url: book.cover_url || null
+          },
+          message: existingWithIsbn
+            ? `⚠️ Bu kitap kütüphanenizde zaten kayıtlı: "${existingWithIsbn.title}"`
+            : `🔍 "${book.title}" (${book.source}) künyesi başarıyla bulundu!`
+        });
+      }
+
+      if (existingInLibrary) {
+        return NextResponse.json({
+          success: true,
+          already_in_library: true,
+          existing_book: existingInLibrary,
+          data: {
+            title: existingInLibrary.title,
+            author: existingInLibrary.author,
+            publisher: existingInLibrary.publisher || '',
+            isbn: existingInLibrary.isbn || '',
+            total_pages: existingInLibrary.total_pages,
+            category: existingInLibrary.category || 'Kişisel Gelişim',
+            summary: existingInLibrary.summary || '',
+            cover_url: existingInLibrary.cover_url || null
+          },
+          message: `⚠️ Bu kitap kütüphanenizde zaten kayıtlı: "${existingInLibrary.title}"`
+        });
+      }
+
+      return NextResponse.json({
+        success: false,
+        error: `"${cleanSearchTitle}" adlı kitap kataloglarda bulunamadı. Lütfen bilgileri manuel girin.`
+      }, { status: 444 });
+    }
+
+    // 3. SEÇENEK: ISBN Barkod Sorgulama (Hibrit Akıllı Birleştirme Motoru)
     if (!isbn) {
-      return NextResponse.json({ success: false, error: 'Lütfen geçerli bir ISBN veya Görsel yükleyin.' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'Lütfen geçerli bir ISBN numarası, kitap adı veya kapak görseli girin.' }, { status: 400 });
     }
 
     const cleanIsbn = cleanIsbnString(isbn);
@@ -456,7 +669,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: false,
-      error: `ISBN (${cleanIsbn}) veritabanında bulunamadı. Lütfen bilgileri manuel girin.`
+      error: `ISBN (${cleanIsbn}) uluslararası kataloglarda bulunamadı. Kitap adını yazıp "🔍 İsimle Künye Ara" butonunu kullanarak künyeyi otomatik bulabilir veya bilgileri manuel tamamlayabilirsiniz.`
     }, { status: 444 });
 
   } catch (error: any) {
