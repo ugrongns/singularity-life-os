@@ -237,8 +237,8 @@ export async function POST(req: Request) {
       // 2. Secret Token Doğrulaması (Eğer kullanıcı veya sistemde ayarlanmışsa)
       const configuredSecret = targetUser.telegram_secret_token || process.env.TELEGRAM_SECRET_TOKEN;
       const incomingSecret = req.headers.get('x-telegram-bot-api-secret-token');
-      if (configuredSecret && incomingSecret && incomingSecret !== configuredSecret) {
-        console.warn('[Telegram Webhook] Geçersiz Secret Token reddedildi.');
+      if (configuredSecret && incomingSecret !== configuredSecret) {
+        console.warn('[Telegram Webhook] Geçersiz veya eksik Secret Token reddedildi.');
         return NextResponse.json({ success: false, error: 'Unauthorized webhook' }, { status: 403 });
       }
 

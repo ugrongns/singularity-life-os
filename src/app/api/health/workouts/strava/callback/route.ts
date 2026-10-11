@@ -2,12 +2,23 @@ import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { appSettings } from '@/db/schema';
 import { getStravaConfig } from '@/lib/strava';
+import { getAuthUser } from '@/lib/auth';
 
 export async function GET(req: Request) {
   try {
+    const user = await getAuthUser();
     const url = new URL(req.url);
+    if (!user) {
+      return NextResponse.redirect(`${url.origin}/health?strava_error=unauthorized`);
+    }
+
     const code = url.searchParams.get('code');
     const error = url.searchParams.get('error');
+    const state = url.searchParams.get('state');
+
+    if (state && state !== user.id) {
+      return NextResponse.redirect(`${url.origin}/health?strava_error=invalid_state`);
+    }
 
     if (error || !code) {
       return NextResponse.redirect(`${url.origin}/health?strava_error=${error || 'no_code'}`);

@@ -26,18 +26,14 @@ export async function POST(req: Request) {
         ))
         .limit(1).then((r: any) => r[0]);
 
-      if (!targetUser) {
-        return NextResponse.json({
-          success: false,
-          error: 'Bu e-posta adresi veya kullanıcı adı ile kayıtlı hesap bulunamadı.'
-        }, { status: 404 });
-      }
+      const isValidPass = targetUser
+        ? verifyPassword(password, targetUser.password_hash, targetUser.password_salt)
+        : false;
 
-      const isValidPass = verifyPassword(password, targetUser.password_hash, targetUser.password_salt);
-      if (!isValidPass) {
+      if (!targetUser || !isValidPass) {
         return NextResponse.json({
           success: false,
-          error: 'Hatalı Master Parola. Lütfen tekrar deneyin.'
+          error: 'E-posta, kullanıcı adı veya parola hatalı.'
         }, { status: 401 });
       }
     }

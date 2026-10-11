@@ -3,9 +3,9 @@ import { db, initDatabase } from '@/db';
 import {
   digitalVaultItems, importantDates, petRecords,
   vehicleLegalReminders, homeMaintenanceRecords,
-  walletsAccounts, recurringBills
+  walletsAccounts, recurringBills, vehicles
 } from '@/db/schema';
-import { eq, sql, or, and } from 'drizzle-orm';
+import { eq, sql, or, and, inArray } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 interface Notification {
@@ -23,16 +23,23 @@ export async function GET() {
   try {
     await initDatabase();
     const user = await getAuthUser();
-    const userId = user?.id;
-    const familyId = user?.family_id;
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+    }
+    const userId = user.id;
+    const familyId = user.family_id || `fam-${userId}`;
 
     const today = new Date();
     const todayISO = today.toISOString().split('T')[0];
 
     const notifications: Notification[] = [];
 
-    // 1. Dijital Kasa — Evrak bitiş uyarıları
-    const vaultItems = userId ? await db.select().from(digitalVaultItems).where(or(eq(digitalVaultItems.user_id, userId), eq(digitalVaultItems.is_family_shared, 1))) : [];
+    // 1. Dijital Kasa — Evrak bitiş uyarıları (yalnızca kullanıcının ailesine ait)
+    const vaultItems = await db.select().from(digitalVaultItems).where(
+      familyId
+        ? and(eq(digitalVaultItems.family_id, familyId), or(eq(digitalVaultItems.user_id, userId), eq(digitalVaultItems.is_family_shared, 1)))
+        : eq(digitalVaultItems.user_id, userId)
+    );
     for (const item of vaultItems) {
       if (!item.expiry_date) continue;
       const expDate = new Date(item.expiry_date);
@@ -58,7 +65,11 @@ export async function GET() {
     }
 
     // 2. Önemli Günler — Yaklaşan doğum günleri vs.
-    const dates = userId ? await db.select().from(importantDates).where(eq(importantDates.user_id, userId)) : [];
+    const dates = await db.select().from(importantDates).where(
+      familyId
+        ? or(eq(importantDates.family_id, familyId), eq(importantDates.user_id, userId))
+        : eq(importantDates.user_id, userId)
+    );
     for (const d of dates) {
       if (!d.event_date) continue;
       const parts = d.event_date.split(/[-/.]/);
@@ -97,8 +108,22 @@ export async function GET() {
       }
     }
 
-    // 3. Araç yasal hatırlatıcılar
-    const legalReminders = await db.select().from(vehicleLegalReminders).where(eq(vehicleLegalReminders.is_completed, 0));
+    // 3. Araç yasal hatırlatıcılar (yalnızca kullanıcının/ailenin araçları)
+    const userVehicles = await db.select({ id: vehicles.id }).from(vehicles).where(
+      familyId
+        ? or(eq(vehicles.family_id, familyId), eq(vehicles.user_id, userId))
+        : eq(vehicles.user_id, userId)
+    );
+    const vehicleIds = userVehicles.map(v => v.id);
+    const legalReminders = vehicleIds.length > 0
+      ? await db.select().from(vehicleLegalReminders).where(
+          and(
+            eq(vehicleLegalReminders.is_completed, 0),
+            inArray(vehicleLegalReminders.vehicle_id, vehicleIds)
+          )
+        )
+      : [];
+
     for (const leg of legalReminders) {
       const legDate = new Date(leg.due_date);
       const daysLeft = Math.ceil((legDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -117,8 +142,15 @@ export async function GET() {
       }
     }
 
-    // 4. Ev Bakım Uyarıları
-    const homeMaint = await db.select().from(homeMaintenanceRecords).where(eq(homeMaintenanceRecords.status, 'warning'));
+    // 4. Ev Bakım Uyarıları (kullanıcı/aile filtresi)
+    const homeMaint = await db.select().from(homeMaintenanceRecords).where(
+      and(
+        eq(homeMaintenanceRecords.status, 'warning'),
+        familyId
+          ? or(eq(homeMaintenanceRecords.family_id, familyId), eq(homeMaintenanceRecords.user_id, userId))
+          : eq(homeMaintenanceRecords.user_id, userId)
+      )
+    );
     for (const h of homeMaint) {
       const dueDate = new Date(h.next_due_date);
       const daysLeft = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));

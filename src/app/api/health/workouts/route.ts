@@ -8,12 +8,16 @@ export async function GET() {
   try {
     await initDatabase();
     const user = await getAuthUser();
-    const userId = user?.id;
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+    }
+    const userId = user.id;
 
-    // Son antrenman seanslarını çek
-    const sessions = userId
-      ? await db.select().from(workoutSessions).where(eq(workoutSessions.user_id, userId)).orderBy(desc(workoutSessions.date), desc(workoutSessions.created_at)).limit(20)
-      : await db.select().from(workoutSessions).orderBy(desc(workoutSessions.date), desc(workoutSessions.created_at)).limit(20);
+    // Son antrenman seanslarını çek (yalnızca oturum açmış kullanıcı)
+    const sessions = await db.select().from(workoutSessions)
+      .where(eq(workoutSessions.user_id, userId))
+      .orderBy(desc(workoutSessions.date), desc(workoutSessions.created_at))
+      .limit(20);
 
     const sessionIds = sessions.map(s => s.id);
 
@@ -48,6 +52,9 @@ export async function POST(req: Request) {
   try {
     await initDatabase();
     const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+    }
     const body = await req.json();
     const parseNum = (val: any): number | null => {
       if (val === undefined || val === null || val === '') return null;
@@ -202,7 +209,7 @@ export async function POST(req: Request) {
             total_reps: exTotalReps,
             created_at: now,
             updated_at: now,
-            user_id: user?.id || null
+            user_id: user.id
           });
         }
       }
@@ -247,7 +254,7 @@ export async function POST(req: Request) {
         notes,
         created_at: now,
         updated_at: now,
-        user_id: user?.id || null
+        user_id: user.id
       });
 
       return NextResponse.json({
@@ -258,6 +265,13 @@ export async function POST(req: Request) {
     } else if (action === 'delete') {
       const { workout_id } = body;
       if (workout_id) {
+        const canDelete = user.is_master_account === 1
+          ? eq(workoutSessions.id, workout_id)
+          : and(eq(workoutSessions.id, workout_id), eq(workoutSessions.user_id, user.id));
+        const targetSession = (await db.select().from(workoutSessions).where(canDelete).limit(1))[0];
+        if (!targetSession) {
+          return NextResponse.json({ success: false, error: 'Antrenman bulunamadı veya yetkisiz işlem.' }, { status: 404 });
+        }
         await db.delete(workoutExerciseLogs).where(eq(workoutExerciseLogs.workout_id, workout_id));
         await db.delete(workoutSessions).where(eq(workoutSessions.id, workout_id));
         return NextResponse.json({ success: true, message: 'Antrenman kaydı silindi.' });

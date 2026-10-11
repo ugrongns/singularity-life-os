@@ -8,15 +8,16 @@ export async function GET() {
   try {
     await initDatabase();
     const user = await getAuthUser();
-    const userId = user?.id;
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+    }
+    const userId = user.id;
 
-    const activeSession = userId
-      ? (await db.select()
-          .from(fastingSessions)
-          .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, userId)))
-          .orderBy(desc(fastingSessions.created_at))
-          .limit(1))[0]
-      : null;
+    const activeSession = (await db.select()
+      .from(fastingSessions)
+      .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, userId)))
+      .orderBy(desc(fastingSessions.created_at))
+      .limit(1))[0];
 
     if (!activeSession) {
       return NextResponse.json({
@@ -104,19 +105,22 @@ export async function POST(req: Request) {
   try {
     await initDatabase();
     const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+    }
     const body = await req.json();
     const { action, protocol = '16:8' } = body;
 
     const now = new Date();
     const nowISO = now.toISOString();
 
-    const familyId = user?.family_id || (user?.id ? `fam-${user.id}` : null);
+    const familyId = user.family_id || `fam-${user.id}`;
 
     if (action === 'start') {
       // Önceki tüm aktif seansları kapat
-      if (user?.id) {
-        await db.update(fastingSessions).set({ is_active: 0, actual_end_time: nowISO }).where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id)));
-      }
+      await db.update(fastingSessions)
+        .set({ is_active: 0, actual_end_time: nowISO })
+        .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id)));
 
       let hours = 16;
       if (protocol === '12:12') hours = 12;
@@ -141,17 +145,15 @@ export async function POST(req: Request) {
         is_active: 1,
         created_at: nowISO,
         updated_at: nowISO,
-        user_id: user?.id || null,
+        user_id: user.id,
         family_id: familyId
       });
 
       return NextResponse.json({ success: true, message: `${protocol} Oruç seansı başlatıldı! ⏳` });
     } else if (action === 'end') {
-      if (user?.id) {
-        await db.update(fastingSessions)
-          .set({ is_active: 0, actual_end_time: nowISO, updated_at: nowISO })
-          .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id)));
-      }
+      await db.update(fastingSessions)
+        .set({ is_active: 0, actual_end_time: nowISO, updated_at: nowISO })
+        .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id)));
 
       return NextResponse.json({ success: true, message: 'Oruç seansı tamamlandı ve günlüğe kaydedildi. 🥗' });
     }

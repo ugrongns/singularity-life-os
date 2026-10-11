@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     const redirectUri = `${origin}/api/health/workouts/strava/callback`;
     const scope = 'read,activity:read_all';
 
-    const stravaAuthUrl = `https://www.strava.com/oauth/authorize?client_id=${config.clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&approval_prompt=auto&scope=${scope}`;
+    const stravaAuthUrl = `https://www.strava.com/oauth/authorize?client_id=${config.clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&approval_prompt=auto&scope=${scope}&state=${encodeURIComponent(user.id)}`;
 
     return NextResponse.redirect(stravaAuthUrl);
   } catch (error: any) {

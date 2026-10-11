@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { walletsAccounts, categories, transactions, vehicleLegalReminders, familyMembers, recurringBills } from '@/db/schema';
-import { desc, asc, eq, and, sql , or } from 'drizzle-orm';
+import { walletsAccounts, categories, transactions, vehicleLegalReminders, familyMembers, recurringBills, vehicles } from '@/db/schema';
+import { desc, asc, eq, and, sql, or, inArray } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 import { calculateBillSchedule, calculateCreditCardSchedule } from '@/lib/bill-schedule';
@@ -11,7 +11,10 @@ export async function GET(req: Request) {
   try {
     await initDatabase();
     const user = await getAuthUser();
-    const userId = user?.id;
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+    }
+    const userId = user.id;
 
     const { searchParams } = new URL(req.url, 'http://localhost');
     const monthParam = searchParams.get('month'); // YYYY-MM
@@ -192,8 +195,23 @@ export async function GET(req: Request) {
       }
     }
 
-    // C. Araç Yasal & Muayene Hatırlatıcıları
-    const legalReminders = await db.select().from(vehicleLegalReminders).where(eq(vehicleLegalReminders.is_completed, 0));
+    // C. Araç Yasal & Muayene Hatırlatıcıları (Kullanıcı / Aile Araçlarına Göre Filtreli)
+    const userVehicles = userId
+      ? await db.select({ id: vehicles.id }).from(vehicles).where(
+          familyId
+            ? or(eq(vehicles.family_id, familyId), eq(vehicles.user_id, userId))
+            : eq(vehicles.user_id, userId)
+        )
+      : [];
+    const vehicleIds = userVehicles.map(v => v.id);
+    const legalReminders = vehicleIds.length > 0
+      ? await db.select().from(vehicleLegalReminders).where(
+          and(
+            eq(vehicleLegalReminders.is_completed, 0),
+            inArray(vehicleLegalReminders.vehicle_id, vehicleIds)
+          )
+        )
+      : [];
     for (const leg of legalReminders) {
       const legDate = new Date(leg.due_date);
       const diffDays = Math.ceil((legDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));

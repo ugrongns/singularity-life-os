@@ -228,7 +228,14 @@ export async function POST(request: Request) {
       };
       const jsonString = JSON.stringify(payloadObject, null, 2);
 
-      const passphrase = body.passphrase || 'SingularityMasterKey2026';
+      const rawPassphrase = body.passphrase;
+      if (!rawPassphrase || typeof rawPassphrase !== 'string' || rawPassphrase.trim().length < 8) {
+        return NextResponse.json({
+          success: false,
+          error: 'Şifreli yedek oluşturmak için en az 8 karakter uzunluğunda bir parola belirtmelisiniz.'
+        }, { status: 400 });
+      }
+      const passphrase = rawPassphrase.trim();
       const salt = crypto.randomBytes(16);
       const key = crypto.pbkdf2Sync(passphrase, salt, 100000, 32, 'sha256');
       const iv = crypto.randomBytes(16);

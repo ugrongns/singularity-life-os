@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { packagedFoodScans } from '@/db/schema';
-import { desc, eq, or, ilike } from 'drizzle-orm';
+import { desc, eq, or, and, ilike } from 'drizzle-orm';
 import { parsePlateImage, parsePackagedFoodImage } from '@/lib/ai-vision';
 import { getAuthUser } from '@/lib/auth';
 
@@ -12,11 +12,14 @@ export async function GET() {
   try {
     await initDatabase();
     const user = await getAuthUser();
-    const userId = user?.id;
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+    }
 
-    const scans = userId
-      ? await db.select().from(packagedFoodScans).where(or(eq(packagedFoodScans.user_id, userId), eq(packagedFoodScans.user_id, ''))).orderBy(desc(packagedFoodScans.created_at)).limit(10)
-      : await db.select().from(packagedFoodScans).orderBy(desc(packagedFoodScans.created_at)).limit(10);
+    const scans = await db.select().from(packagedFoodScans)
+      .where(eq(packagedFoodScans.user_id, user.id))
+      .orderBy(desc(packagedFoodScans.created_at))
+      .limit(10);
     return NextResponse.json({ success: true, data: scans });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -26,6 +29,10 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     await initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+    }
     const body = await req.json();
     const { type = 'plate', base64, mimeType = 'image/jpeg', barcode_text } = body;
 
@@ -346,7 +353,6 @@ SADECE aşağıdaki JSON formatında yanıt ver:
         foodAnalysis.micronutrient_profile = JSON.stringify(customProfile);
       }
 
-      const user = await getAuthUser();
       const now = new Date().toISOString();
       const scanId = `scan-${Date.now()}`;
       foodAnalysis.id = scanId;
@@ -362,7 +368,7 @@ SADECE aşağıdaki JSON formatında yanıt ver:
         pesticide_risk_summary: foodAnalysis.pesticide_risk_summary,
         alternative_suggestions: foodAnalysis.alternative_suggestions,
         micronutrient_profile: foodAnalysis.micronutrient_profile,
-        user_id: user?.id || null,
+        user_id: user.id,
         created_at: now,
         updated_at: now
       });
@@ -380,18 +386,31 @@ SADECE aşağıdaki JSON formatında yanıt ver:
 export async function DELETE(req: Request) {
   try {
     await initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     const clearJunk = searchParams.get('clear_junk') === 'true';
 
     if (clearJunk) {
-      // Çöp/bulunamayan ve okunamayan tekrarlayan taramaları sil
-      await db.delete(packagedFoodScans).where(
-        or(
-          ilike(packagedFoodScans.product_name, '%Taranan Barkod%'),
-          ilike(packagedFoodScans.product_name, '%Etiketi Okunamad%')
-        )
-      );
+      // Yalnızca kullanıcının kendi çöp/okunamayan taramalarını sil (veya master admin tümünü)
+      const userCondition = user.is_master_account === 1
+        ? or(
+            ilike(packagedFoodScans.product_name, '%Taranan Barkod%'),
+            ilike(packagedFoodScans.product_name, '%Etiketi Okunamad%')
+          )
+        : and(
+            eq(packagedFoodScans.user_id, user.id),
+            or(
+              ilike(packagedFoodScans.product_name, '%Taranan Barkod%'),
+              ilike(packagedFoodScans.product_name, '%Etiketi Okunamad%')
+            )
+          );
+
+      await db.delete(packagedFoodScans).where(userCondition);
       return NextResponse.json({ success: true, message: 'Başarısız ve çöp taramalar temizlendi.' });
     }
 
@@ -399,7 +418,11 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Silinecek tarama ID sağlanmalıdır.' }, { status: 400 });
     }
 
-    await db.delete(packagedFoodScans).where(eq(packagedFoodScans.id, id));
+    const canDelete = user.is_master_account === 1
+      ? eq(packagedFoodScans.id, id)
+      : and(eq(packagedFoodScans.id, id), eq(packagedFoodScans.user_id, user.id));
+
+    await db.delete(packagedFoodScans).where(canDelete);
     return NextResponse.json({ success: true, message: 'Ürün tarama kaydı kalıcı olarak silindi.' });
   } catch (error: any) {
     console.error('Delete Food Scan API Error:', error);
