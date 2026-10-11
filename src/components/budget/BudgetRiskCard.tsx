@@ -14,6 +14,13 @@ interface Account {
   interest_rate_late?: number;
   overdraft_limit?: number;
   currency: string;
+  is_overdue?: boolean;
+  overdue_amount?: number;
+  days_overdue?: number;
+  estimated_late_interest?: number;
+  next_due_date?: string;
+  days_until_due?: number;
+  current_cycle_spending?: number;
 }
 
 interface BudgetRiskCardProps {
@@ -27,16 +34,21 @@ export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({ accounts }) => {
 
   // 1. Gecikmedeki Kredi Kartları
   const overdueCards = accounts.filter(acc => {
-    if (acc.type !== 'credit_card' || acc.balance <= 0 || !acc.due_day) return false;
-    // Eğer bugün son ödeme gününden sonraysa gecikmededir
-    return currentDay > acc.due_day;
+    if (acc.type !== 'credit_card' || acc.balance <= 0) return false;
+    // Backend tarafından hesaplanan gerçek gecikme durumu (cari dönem harcamaları muaf tutulur)
+    if (typeof acc.is_overdue === 'boolean') {
+      return acc.is_overdue && (acc.overdue_amount || 0) > 0;
+    }
+    return false;
   }).map(acc => {
-    const daysOverdue = currentDay - (acc.due_day || 1);
+    const overdueAmount = acc.overdue_amount ?? acc.balance;
+    const daysOverdue = acc.days_overdue ?? Math.max(1, currentDay - (acc.due_day || 1));
     const lateRatePercent = acc.interest_rate_late || 4.55;
     const dailyRate = (lateRatePercent / 100) / 30;
-    const estimatedInterest = Math.round(acc.balance * dailyRate * daysOverdue);
+    const estimatedInterest = acc.estimated_late_interest ?? Math.round(overdueAmount * dailyRate * daysOverdue);
     return {
       ...acc,
+      overdueAmount,
       daysOverdue,
       lateRatePercent,
       estimatedInterest
@@ -104,9 +116,9 @@ export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({ accounts }) => {
               </div>
 
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '11px', color: '#7F1D1D', fontWeight: 700 }}>Güncel Ekstre Borcu</div>
+                <div style={{ fontSize: '11px', color: '#7F1D1D', fontWeight: 700 }}>Geciken Ekstre Borcu</div>
                 <div style={{ fontSize: '16px', fontWeight: 800, color: '#991B1B' }}>
-                  ₺{card.balance.toLocaleString('tr-TR')}
+                  ₺{card.overdueAmount.toLocaleString('tr-TR')}
                 </div>
                 <div style={{ fontSize: '11px', color: '#DC2626', fontWeight: 800, marginTop: '2px' }}>
                   ⚡ İşleyen Faiz: ~₺{card.estimatedInterest.toLocaleString('tr-TR')}

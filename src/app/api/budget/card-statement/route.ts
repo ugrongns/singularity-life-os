@@ -3,6 +3,7 @@ import { db, initDatabase } from '@/db';
 import { walletsAccounts, transactions, categories } from '@/db/schema';
 import { eq, desc , or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { calculateCreditCardSchedule } from '@/lib/bill-schedule';
 
 export async function GET(req: Request) {
   try {
@@ -96,6 +97,8 @@ export async function GET(req: Request) {
     // Gelecek aylara sarkan taksit borcu
     const futureInstallmentsDebt = Math.max(0, cardAccount.balance - currentStatementDebt);
 
+    const ccSchedule = calculateCreditCardSchedule(cardAccount, allCardTx, today);
+
     return NextResponse.json({
       success: true,
       data: {
@@ -107,14 +110,21 @@ export async function GET(req: Request) {
           available_limit: Math.max(0, (cardAccount.credit_limit || 0) - cardAccount.balance),
           cutoff_day: cardAccount.cutoff_day || null,
           due_day: cardAccount.due_day || null,
-          currency: cardAccount.currency || 'TRY'
+          currency: cardAccount.currency || 'TRY',
+          is_overdue: ccSchedule.is_overdue,
+          overdue_amount: ccSchedule.overdue_amount,
+          days_overdue: ccSchedule.days_overdue,
+          estimated_late_interest: ccSchedule.estimated_late_interest,
+          next_due_date: ccSchedule.next_due_date,
+          days_until_due: ccSchedule.days_until_due
         },
         summary: {
           singleTotal,
           monthlyInstallmentTotal,
           currentStatementDebt,      // BU AYKİ GÜNCEL EKSTRE BORCU
           futureInstallmentsDebt,    // GELECEK DÖNEM TAKSİT BORÇLARI
-          totalCardDebt: cardAccount.balance // TOPLAM KART BORCU
+          totalCardDebt: cardAccount.balance, // TOPLAM KART BORCU
+          schedule: ccSchedule
         },
         singleTransactions,
         activeInstallments

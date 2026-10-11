@@ -136,3 +136,197 @@ export function calculateBillSchedule(bill: any, today: Date) {
     formatted_next_billing: formattedNextBilling
   };
 }
+
+export interface CreditCardScheduleResult {
+  is_overdue: boolean;
+  overdue_amount: number;
+  days_overdue: number;
+  estimated_late_interest: number;
+  next_due_date: string;
+  days_until_due: number;
+  current_cycle_spending: number;
+  last_due_date: string;
+  statement_cutoff_date: string;
+}
+
+/**
+ * Kredi kartı ekstre ve vade döngüsünü doğru hesaplar.
+ * - Cari açık döngüde (son kesimden sonra veya son ödemeden sonra) yapılan harcamalar asla 'gecikmede' sayılmaz.
+ * - Sadece geçmiş döneme ait ödenmemiş ekstre borcu varsa gecikme ve faiz hesaplanır.
+ */
+export function calculateCreditCardSchedule(
+  card: {
+    balance: number;
+    due_day?: number | null;
+    cutoff_day?: number | null;
+    interest_rate_late?: number | null;
+    interest_rate_contractual?: number | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  },
+  cardTransactions: Array<{
+    amount: number;
+    transaction_date: string;
+    is_installment?: number | null;
+  }> = [],
+  today: Date = new Date()
+): CreditCardScheduleResult {
+  const currYear = today.getFullYear();
+  const currMonth = today.getMonth(); // 0-11
+  const currDate = today.getDate();
+  const todayStart = new Date(currYear, currMonth, currDate);
+
+  const balance = Number(card.balance) || 0;
+  const dueDay = card.due_day ? Number(card.due_day) : null;
+  // Kesim günü belirtilmemişse: Son ödeme gününden 10 gün önce (veya ayın 25'i)
+  const cutoffDay = card.cutoff_day ? Number(card.cutoff_day) : (dueDay && dueDay > 10 ? dueDay - 10 : 25);
+
+  const defaultResult: CreditCardScheduleResult = {
+    is_overdue: false,
+    overdue_amount: 0,
+    days_overdue: 0,
+    estimated_late_interest: 0,
+    next_due_date: localYYYYMMDD(todayStart),
+    days_until_due: 0,
+    current_cycle_spending: 0,
+    last_due_date: localYYYYMMDD(todayStart),
+    statement_cutoff_date: localYYYYMMDD(todayStart)
+  };
+
+  if (balance <= 0 || !dueDay) {
+    if (dueDay) {
+      let candDue = new Date(currYear, currMonth, Math.min(dueDay, daysInMonth(currYear, currMonth)));
+      if (candDue < todayStart) {
+        const nextM = (currMonth + 1) % 12;
+        const nextY = currMonth === 11 ? currYear + 1 : currYear;
+        candDue = new Date(nextY, nextM, Math.min(dueDay, daysInMonth(nextY, nextM)));
+      }
+      defaultResult.next_due_date = localYYYYMMDD(candDue);
+      defaultResult.days_until_due = Math.round((candDue.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24));
+    }
+    return defaultResult;
+  }
+
+  // 1. Son Ödeme & Kesim Tarihlerini Belirle
+  let lastDueDate: Date;
+  let lastCutoffDate: Date;
+  let nextDueDate: Date;
+  let nextCutoffDate: Date;
+
+  if (dueDay < cutoffDay) {
+    // Klasik döngü: Örn. Kesim 25, Son Ödeme bir sonraki ayın 5'i
+    // Bu ayın son ödeme tarihi (önceki ayın kesimine ait)
+    const thisMonthDue = new Date(currYear, currMonth, Math.min(dueDay, daysInMonth(currYear, currMonth)));
+
+    // Bu ayki son ödemeye ait kesim tarihi (önceki ayın cutoff günü)
+    const prevMonthCutoffMonth = currMonth === 0 ? 11 : currMonth - 1;
+    const prevMonthCutoffYear = currMonth === 0 ? currYear - 1 : currYear;
+    const thisMonthDueCutoff = new Date(prevMonthCutoffYear, prevMonthCutoffMonth, Math.min(cutoffDay, daysInMonth(prevMonthCutoffYear, prevMonthCutoffMonth)));
+
+    if (todayStart > thisMonthDue) {
+      // Bu ayki son ödeme günü (örn: 5 Ekim) geçmiş!
+      lastDueDate = thisMonthDue;
+      lastCutoffDate = thisMonthDueCutoff;
+
+      // Sonraki kesim (örn: 25 Ekim) ve sonraki son ödeme (örn: 5 Kasım)
+      nextCutoffDate = new Date(currYear, currMonth, Math.min(cutoffDay, daysInMonth(currYear, currMonth)));
+      const nextMonthDueMonth = (currMonth + 1) % 12;
+      const nextMonthDueYear = currMonth === 11 ? currYear + 1 : currYear;
+      nextDueDate = new Date(nextMonthDueYear, nextMonthDueMonth, Math.min(dueDay, daysInMonth(nextMonthDueYear, nextMonthDueMonth)));
+    } else {
+      // Bu ayki son ödeme henüz gelmedi (örn: bugün 2 Ekim, son ödeme 5 Ekim)
+      nextDueDate = thisMonthDue;
+      nextCutoffDate = thisMonthDueCutoff;
+
+      const prevDueMonth = currMonth === 0 ? 11 : currMonth - 1;
+      const prevDueYear = currMonth === 0 ? currYear - 1 : currYear;
+      lastDueDate = new Date(prevDueYear, prevDueMonth, Math.min(dueDay, daysInMonth(prevDueYear, prevDueMonth)));
+
+      const prev2CutoffMonth = prevDueMonth === 0 ? 11 : prevDueMonth - 1;
+      const prev2CutoffYear = prevDueMonth === 0 ? prevDueYear - 1 : prevDueYear;
+      lastCutoffDate = new Date(prev2CutoffYear, prev2CutoffMonth, Math.min(cutoffDay, daysInMonth(prev2CutoffYear, prev2CutoffMonth)));
+    }
+  } else {
+    // Aynı ay döngüsü: Örn. Kesim 10, Son Ödeme 20
+    const thisMonthCutoff = new Date(currYear, currMonth, Math.min(cutoffDay, daysInMonth(currYear, currMonth)));
+    const thisMonthDue = new Date(currYear, currMonth, Math.min(dueDay, daysInMonth(currYear, currMonth)));
+
+    if (todayStart > thisMonthDue) {
+      lastDueDate = thisMonthDue;
+      lastCutoffDate = thisMonthCutoff;
+
+      const nextMonth = (currMonth + 1) % 12;
+      const nextYear = currMonth === 11 ? currYear + 1 : currYear;
+      nextCutoffDate = new Date(nextYear, nextMonth, Math.min(cutoffDay, daysInMonth(nextYear, nextMonth)));
+      nextDueDate = new Date(nextYear, nextMonth, Math.min(dueDay, daysInMonth(nextYear, nextMonth)));
+    } else {
+      nextDueDate = thisMonthDue;
+      nextCutoffDate = thisMonthCutoff;
+
+      const prevMonth = currMonth === 0 ? 11 : currMonth - 1;
+      const prevYear = currMonth === 0 ? currYear - 1 : currYear;
+      lastDueDate = new Date(prevYear, prevMonth, Math.min(dueDay, daysInMonth(prevYear, prevMonth)));
+      lastCutoffDate = new Date(prevYear, prevMonth, Math.min(cutoffDay, daysInMonth(prevYear, prevMonth)));
+    }
+  }
+
+  // Cari açık dönem başlangıç tarihi: lastCutoffDate'den bir sonraki gün
+  const cycleStart = new Date(lastCutoffDate.getTime() + 24 * 60 * 60 * 1000);
+  const cycleStartISO = localYYYYMMDD(cycleStart);
+  const todayISO = localYYYYMMDD(todayStart);
+
+  // 2. Harcamaları Analiz Et
+  let currentCycleSpending = 0;
+  let futureInstallments = 0;
+
+  for (const tx of cardTransactions) {
+    if (tx.is_installment === 1 && tx.transaction_date > todayISO) {
+      futureInstallments += tx.amount;
+    } else if (tx.transaction_date >= cycleStartISO) {
+      currentCycleSpending += tx.amount;
+    }
+  }
+
+  // İşlem kaydı bulunmayan kartlarda hesap güncelleme/oluşturma tarihini kontrol et
+  if (cardTransactions.length === 0) {
+    const updatedDate = card.updated_at ? new Date(card.updated_at) : (card.created_at ? new Date(card.created_at) : null);
+    if (updatedDate && updatedDate >= lastDueDate) {
+      // Son ödeme tarihinden sonra oluşturulmuş/güncellenmiş bakiye cari döngüdedir, gecikmede değildir
+      currentCycleSpending = balance;
+    }
+  }
+
+  // Gelecek ayların taksitleri cari borçtan düşülür
+  const effectiveDebt = Math.max(0, balance - futureInstallments);
+
+  // Cari döngüde yapılan harcamalar düşüldükten sonra kalan tutar (geçmiş dönemin ödenmemiş ekstre borcu)
+  const overdueCandidate = Math.max(0, Math.round((effectiveDebt - currentCycleSpending) * 100) / 100);
+
+  // Kart henüz son ödeme gününü geçtiyse ve geçmiş ekstre borcu kaldıysa gecikmededir
+  const hasPastDuePassed = todayStart > lastDueDate;
+  const isOverdue = hasPastDuePassed && overdueCandidate > 0;
+
+  const daysOverdue = isOverdue
+    ? Math.max(1, Math.round((todayStart.getTime() - lastDueDate.getTime()) / (1000 * 60 * 60 * 24)))
+    : 0;
+
+  const lateRatePercent = card.interest_rate_late || 4.55;
+  const dailyRate = (lateRatePercent / 100) / 30;
+  const estimatedLateInterest = isOverdue
+    ? Math.round(overdueCandidate * dailyRate * daysOverdue)
+    : 0;
+
+  const daysUntilDue = Math.round((nextDueDate.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24));
+
+  return {
+    is_overdue: isOverdue,
+    overdue_amount: isOverdue ? overdueCandidate : 0,
+    days_overdue: daysOverdue,
+    estimated_late_interest: estimatedLateInterest,
+    next_due_date: localYYYYMMDD(nextDueDate),
+    days_until_due: daysUntilDue,
+    current_cycle_spending: Math.round(currentCycleSpending * 100) / 100,
+    last_due_date: localYYYYMMDD(lastDueDate),
+    statement_cutoff_date: localYYYYMMDD(lastCutoffDate)
+  };
+}

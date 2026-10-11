@@ -4,7 +4,7 @@ import { walletsAccounts, categories, transactions, vehicleLegalReminders, famil
 import { desc, asc, eq, and, sql , or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
-import { calculateBillSchedule } from '@/lib/bill-schedule';
+import { calculateBillSchedule, calculateCreditCardSchedule } from '@/lib/bill-schedule';
 import { fetchLiveExchangeRates } from '@/lib/market-data';
 
 export async function GET(req: Request) {
@@ -135,43 +135,60 @@ export async function GET(req: Request) {
       badge: string;
     }> = [];
 
-    // B. Kredi Kartı Son Ödeme Günleri
+    // B. Kredi Kartı Son Ödeme & Risk Motoru
     for (const acc of accounts) {
-      if (acc.type === 'credit_card' && acc.due_day) {
-        let cardDueDate = new Date(today.getFullYear(), today.getMonth(), acc.due_day);
-        if (cardDueDate < today) {
-          cardDueDate = new Date(today.getFullYear(), today.getMonth() + 1, acc.due_day);
-        }
-        const diffDays = Math.ceil((cardDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        const dueDateStr = localYYYYMMDD(cardDueDate); // ✅ Timezone-safe
-
-        // Bu kartın bu ayki net ekstre borcunu hesapla
+      if (acc.type === 'credit_card') {
         const cardTx = await db.select().from(transactions).where(eq(transactions.wallet_id, acc.id));
+        const ccSchedule = calculateCreditCardSchedule(acc, cardTx as any[], today);
 
-        const singleTotal = (cardTx)
-          .filter((t: any) => (!t.is_installment || t.is_installment === 0) && t.transaction_date.startsWith(currentMonthStr))
-          .reduce((sum: number, t: any) => sum + t.amount, 0);
+        // Hesaba ekstre & gecikme alanlarını ekle
+        acc.is_overdue = ccSchedule.is_overdue;
+        acc.overdue_amount = ccSchedule.overdue_amount;
+        acc.days_overdue = ccSchedule.days_overdue;
+        acc.estimated_late_interest = ccSchedule.estimated_late_interest;
+        acc.next_due_date = ccSchedule.next_due_date;
+        acc.days_until_due = ccSchedule.days_until_due;
+        acc.current_cycle_spending = ccSchedule.current_cycle_spending;
 
-        const instMap = new Map<string, number>();
-        for (const t of (cardTx)) {
-          if (t.is_installment === 1) {
-            const key = t.parent_transaction_id || `${t.merchant}-${t.total_installments}`;
-            instMap.set(key, t.amount);
+        if (acc.due_day) {
+          const singleTotal = (cardTx)
+            .filter((t: any) => (!t.is_installment || t.is_installment === 0) && t.transaction_date.startsWith(currentMonthStr))
+            .reduce((sum: number, t: any) => sum + t.amount, 0);
+
+          const instMap = new Map<string, number>();
+          for (const t of (cardTx)) {
+            if (t.is_installment === 1) {
+              const key = t.parent_transaction_id || `${t.merchant}-${t.total_installments}`;
+              instMap.set(key, t.amount);
+            }
+          }
+          const installmentMonthlyTotal = Array.from(instMap.values()).reduce((sum, amt) => sum + amt, 0);
+          const cardStatementAmount = (singleTotal + installmentMonthlyTotal) > 0 ? (singleTotal + installmentMonthlyTotal) : acc.balance;
+
+          if (ccSchedule.is_overdue) {
+            upcomingList.push({
+              id: `cc-${acc.id}`,
+              title: `${acc.name} Geciken Ekstre`,
+              category: 'Kredi Kartı',
+              amount: ccSchedule.overdue_amount,
+              due_date: ccSchedule.last_due_date,
+              days_left: -ccSchedule.days_overdue,
+              type: 'card_due',
+              badge: '🚨 Gecikmede'
+            });
+          } else {
+            upcomingList.push({
+              id: `cc-${acc.id}`,
+              title: `${acc.name} Ekstre Borcu`,
+              category: 'Kredi Kartı',
+              amount: cardStatementAmount,
+              due_date: ccSchedule.next_due_date,
+              days_left: ccSchedule.days_until_due,
+              type: 'card_due',
+              badge: '💳 Ekstre'
+            });
           }
         }
-        const installmentMonthlyTotal = Array.from(instMap.values()).reduce((sum, amt) => sum + amt, 0);
-        const cardStatementAmount = (singleTotal + installmentMonthlyTotal) > 0 ? (singleTotal + installmentMonthlyTotal) : acc.balance;
-
-        upcomingList.push({
-          id: `cc-${acc.id}`,
-          title: `${acc.name} Ekstre Borcu`,
-          category: 'Kredi Kartı',
-          amount: cardStatementAmount,
-          due_date: dueDateStr,
-          days_left: diffDays,
-          type: 'card_due',
-          badge: '💳 Ekstre'
-        });
       }
     }
 
