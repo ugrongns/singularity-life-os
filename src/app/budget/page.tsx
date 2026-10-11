@@ -278,7 +278,7 @@ export default function BudgetPage() {
         );
       })()}
 
-      {/* Gelecek 6 Ay Bütçe & Taksit Projeksiyon Kartı */}
+      {/* 6 Aylık Bütçe & Taksit Projeksiyon Kartı */}
       <FutureForecastCard
         forecast={data?.monthlySummary?.futureForecast || []}
         selectedMonth={selectedMonth}

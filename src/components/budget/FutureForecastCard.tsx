@@ -33,7 +33,7 @@ export default function FutureForecastCard({ forecast, selectedMonth, onSelectMo
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span>🔮</span>
-          <span style={{ fontSize: '16px', fontWeight: 800 }}>Gelecek 6 Ay Bütçe & Taksit Projeksiyonu</span>
+          <span style={{ fontSize: '16px', fontWeight: 800 }}>6 Aylık Bütçe & Taksit Projeksiyonu</span>
         </div>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
           Ay başlamadan taksit yükünüzü öngörün
