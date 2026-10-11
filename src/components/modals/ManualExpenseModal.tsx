@@ -216,13 +216,14 @@ export default function ManualExpenseModal({ isOpen, onClose, accounts, categori
                 onChange={e => setWalletId(e.target.value)}
                 style={{ width: '100%', padding: '10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)' }}
               >
-                {activeAccounts.map(acc => {
+                {activeAccounts.map((acc: any) => {
                   const avail = acc.type === 'credit_card'
                     ? Math.max(0, (acc.credit_limit || 0) - acc.balance)
                     : acc.balance;
+                  const owner = acc.owner_name ? ` • ${acc.owner_avatar || '👤'} ${acc.owner_name}` : (acc.is_joint ? ' • 👥 Ortak' : '');
                   return (
                     <option key={acc.id} value={acc.id}>
-                      {acc.type === 'credit_card' ? '💳' : '🏦'} {acc.name} {txType === 'expense' ? `(Kalan: ${avail.toLocaleString('tr-TR')} ₺)` : `(Bakiye: ${acc.balance.toLocaleString('tr-TR')} ₺)`}
+                      {acc.type === 'credit_card' ? '💳' : '🏦'} {acc.name}{owner} {txType === 'expense' ? `(Kalan: ${avail.toLocaleString('tr-TR')} ₺)` : `(Bakiye: ${acc.balance.toLocaleString('tr-TR')} ₺)`}
                     </option>
                   );
                 })}

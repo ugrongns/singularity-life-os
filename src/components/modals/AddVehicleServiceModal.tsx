@@ -167,11 +167,14 @@ export default function AddVehicleServiceModal({
               style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             >
               <option value="">Cüzdandan düşme (Sadece kayıt al)</option>
-              {wallets.map(w => (
-                <option key={w.id} value={w.id}>
-                  💳 {w.name} (₺{w.balance.toLocaleString('tr-TR')})
-                </option>
-              ))}
+              {wallets.map((w: any) => {
+                const owner = w.owner_name ? ` • ${w.owner_avatar || '👤'} ${w.owner_name}` : (w.is_joint ? ' • 👥 Ortak' : '');
+                return (
+                  <option key={w.id} value={w.id}>
+                    {w.type === 'credit_card' ? '💳' : '🏦'} {w.name}{owner} (₺{w.balance.toLocaleString('tr-TR')})
+                  </option>
+                );
+              })}
             </select>
           </div>
 

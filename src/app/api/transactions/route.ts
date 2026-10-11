@@ -93,6 +93,10 @@ export async function POST(req: Request) {
     const familyId = user.family_id || `fam-${user.id}`;
 
     let memberId = body.member_id || null;
+    if (!memberId && wallet.user_id) {
+      const ownerMember = (await db.select().from(familyMembers).where(and(eq(familyMembers.is_active, 1), eq(familyMembers.user_id, wallet.user_id))))[0];
+      memberId = ownerMember?.id || null;
+    }
     if (!memberId) {
       const member = (await db.select().from(familyMembers).where(and(eq(familyMembers.is_active, 1), eq(familyMembers.family_id, familyId))))[0];
       memberId = member?.id || null;

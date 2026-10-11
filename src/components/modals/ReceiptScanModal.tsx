@@ -1,10 +1,22 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 
+export interface AccountOption {
+  id: string;
+  name: string;
+  type: string;
+  owner_name?: string;
+  owner_avatar?: string;
+  is_mine?: boolean;
+  is_joint?: boolean;
+  credit_limit?: number;
+  balance?: number;
+}
+
 interface ReceiptScanModalProps {
   isOpen: boolean;
   onClose: () => void;
-  accounts?: Array<{ id: string; name: string; type: string }>;
+  accounts?: AccountOption[];
   onSuccess: (msg?: string) => void;
 }
 
@@ -16,7 +28,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
 
-  const [fetchedAccounts, setFetchedAccounts] = useState<Array<{ id: string; name: string; type: string }>>([]);
+  const [fetchedAccounts, setFetchedAccounts] = useState<AccountOption[]>([]);
 
   useEffect(() => {
     if (isOpen && accounts.length === 0) {
@@ -715,24 +727,63 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
 
             {/* Ödeme Hesabı / Kart Seçimi */}
             <div>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>ÖDEME YAPAN HESAP / KART:</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>ÖDEME YAPAN HESAP / KART:</span>
+                {selectedAccount && (
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: '#4F46E5' }}>
+                    {selectedAccount.owner_name ? `Sahibi: ${selectedAccount.owner_avatar || '👤'} ${selectedAccount.owner_name}` : (selectedAccount.is_joint ? '👥 Ortak Hesap' : '')}
+                  </span>
+                )}
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '6px' }}>
-                {activeAccounts.map(acc => {
+                {activeAccounts.map((acc: any) => {
                   const isCard = acc.type === 'credit_card';
                   const icon = isCard ? '💳' : acc.type === 'bank' ? '🏦' : acc.type === 'cash' ? '💵' : '💰';
+                  const isSelected = selectedWalletId === acc.id;
+                  const ownerBadge = acc.owner_name
+                    ? `${acc.owner_avatar || '👤'} ${acc.owner_name.split(' ')[0]}`
+                    : (acc.is_joint ? '👥 Ortak' : null);
+
                   return (
                     <button
                       key={acc.id}
-                      className={`choice-pill ${selectedWalletId === acc.id ? 'selected' : ''}`}
+                      type="button"
+                      className={`choice-pill ${isSelected ? 'selected' : ''}`}
                       onClick={() => {
                         setSelectedWalletId(acc.id);
                         if (acc.type !== 'credit_card') {
                           setSelectedInstallments(1);
                         }
                       }}
-                      style={{ padding: '8px 10px', fontSize: '11px', fontWeight: 600, textAlign: 'center' }}
+                      style={{
+                        padding: '8px 6px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '2px',
+                        textAlign: 'center',
+                        minHeight: '48px'
+                      }}
                     >
-                      {icon} {acc.name}
+                      <div style={{ fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span>{icon}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{acc.name}</span>
+                      </div>
+                      {ownerBadge && (
+                        <div style={{
+                          fontSize: '9px',
+                          fontWeight: 700,
+                          opacity: isSelected ? 0.95 : 0.65,
+                          color: isSelected ? '#312E81' : 'var(--text-muted)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          maxWidth: '120px'
+                        }}>
+                          {ownerBadge}
+                        </div>
+                      )}
                     </button>
                   );
                 })}

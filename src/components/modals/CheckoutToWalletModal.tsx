@@ -96,11 +96,14 @@ export default function CheckoutToWalletModal({
               required
               style={{ width: '100%', padding: '10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             >
-              {wallets.map(w => (
-                <option key={w.id} value={w.id}>
-                  💳 {w.name} ({formatTRY(w.balance)})
-                </option>
-              ))}
+              {wallets.map((w: any) => {
+                const owner = w.owner_name ? ` • ${w.owner_avatar || '👤'} ${w.owner_name}` : (w.is_joint ? ' • 👥 Ortak' : '');
+                return (
+                  <option key={w.id} value={w.id}>
+                    {w.type === 'credit_card' ? '💳' : '🏦'} {w.name}{owner} ({formatTRY(w.balance)})
+                  </option>
+                );
+              })}
             </select>
           </div>
 
