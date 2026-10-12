@@ -32,7 +32,7 @@ export default function PageCalibrationModal({
   const [showFullText, setShowFullText] = useState<boolean>(false);
   const [isLowConfidence, setIsLowConfidence] = useState<boolean>(false);
   const [unreadableCount, setUnreadableCount] = useState<number>(0);
-  const [detectedModel, setDetectedModel] = useState<string>('gemini-3.5-flash');
+  const [detectedModel, setDetectedModel] = useState<string>('Gemini Flash');
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -84,7 +84,7 @@ export default function PageCalibrationModal({
         setFullText(json.data.full_text || '');
         setIsLowConfidence(Boolean(json.is_low_confidence));
         setUnreadableCount(json.unreadable_count || 0);
-        setDetectedModel(json.source === 'ai' ? 'Gemini 3.5 Flash' : 'Standart Heuristic');
+        setDetectedModel(json.model_name ? `Gemini (${json.model_name})` : (json.source === 'ai' ? 'Gemini Flash' : 'Standart Heuristic'));
         setStep('confirm');
       } else {
         throw new Error(json.error || 'Sayfa analizi başarısız oldu.');

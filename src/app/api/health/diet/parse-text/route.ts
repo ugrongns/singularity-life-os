@@ -57,27 +57,40 @@ SADECE aşağıdaki JSON formatında çıktı üret, başka hiçbir açıklama y
   "fat_g": 18
 }`;
 
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [{ text: promptText }]
-                }
-              ],
-              generationConfig: {
-                responseMimeType: 'application/json',
-                temperature: 0.2
-              }
-            })
-          }
-        );
+        const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+        let jsonResult: any = null;
 
-        if (geminiRes.ok) {
-          const jsonResult = await geminiRes.json();
+        for (const modelName of MODELS) {
+          try {
+            const geminiRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [
+                    {
+                      parts: [{ text: promptText }]
+                    }
+                  ],
+                  generationConfig: {
+                    responseMimeType: 'application/json',
+                    temperature: 0.2
+                  }
+                })
+              }
+            );
+
+            if (geminiRes.ok) {
+              jsonResult = await geminiRes.json();
+              break;
+            }
+          } catch (mErr) {
+            console.warn(`[Diet Parser] Error calling ${modelName}:`, mErr);
+          }
+        }
+
+        if (jsonResult) {
           const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
           if (textOutput) {
             const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();

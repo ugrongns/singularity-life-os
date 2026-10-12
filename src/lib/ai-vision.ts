@@ -14,6 +14,49 @@ export interface ParsedReceipt {
 }
 
 /**
+ * Resmi Gemini Modelleri Öncelik Zinciri
+ */
+export const RESILIENT_GEMINI_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-flash-latest'
+];
+
+/**
+ * Otomatik Failover / Yeniden Deneme Özellikli Gemini Vision API Çağrıcısı
+ */
+async function callGeminiVision(
+  apiKey: string,
+  contents: any[],
+  generationConfig: any = { responseMimeType: 'application/json', temperature: 0.1 }
+): Promise<any> {
+  for (const model of RESILIENT_GEMINI_MODELS) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents,
+            generationConfig
+          })
+        }
+      );
+
+      if (response.ok) {
+        return await response.json();
+      }
+      console.warn(`[AI Vision] Model ${model} döndürdü: ${response.status}`);
+    } catch (err) {
+      console.warn(`[AI Vision] ${model} çağrılırken hata:`, err);
+    }
+  }
+  return null;
+}
+
+/**
  * Fiş & Fatura Görsel Ayrıştırma Motoru (AI Vision Pipeline)
  * Gemini Vision API veya Gelişmiş Yerel OCR Deseni kullanır.
  */
@@ -61,52 +104,46 @@ Buruşukluk, eksik ışık veya kısmi silinme durumunda dahi en mantıklı tahm
 
 Şimdi gönderilen görseli analiz et ve SADECE yukarıdaki gibi geçerli bir JSON çıktısı üret.`;
 
-      // Gerçek Gemini 3.5 Flash API Çağrısı
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
+      const jsonResult = await callGeminiVision(
+        apiKey,
+        [
+          {
+            parts: [
               {
-                parts: [
-                  {
-                    text: promptText
-                  },
-                  ...base64Images.map((base64Image, index) => ({
-                    inlineData: {
-                      mimeType: mimeTypes[index] || 'image/jpeg',
-                      data: base64Image.replace(/^data:image\/\w+;base64,/, '')
-                    }
-                  }))
-                ]
-              }
-            ],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature: 0.1
-            }
-          })
+                text: promptText
+              },
+              ...base64Images.map((base64Image, index) => ({
+                inlineData: {
+                  mimeType: mimeTypes[index] || 'image/jpeg',
+                  data: base64Image.replace(/^data:image\/\w+;base64,/, '')
+                }
+              }))
+            ]
+          }
+        ],
+        {
+          responseMimeType: 'application/json',
+          temperature: 0.1
         }
       );
 
-      const jsonResult = await response.json();
-      console.log('[AI Vision Debug] Gemini Response:', JSON.stringify(jsonResult, null, 2));
-      const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (textOutput) {
-        const parsed = JSON.parse(textOutput);
-        return {
-          merchant: parsed.merchant || 'Market / İşletme',
-          amount: Number(parsed.amount) || 0,
-          currency: parsed.currency || 'TRY',
-          date: parsed.date || new Date().toISOString().split('T')[0],
-          category_id: mapCategoryToId(parsed.category_suggestion),
-          category_name: parsed.category_suggestion || 'Market & Gıda',
-          items: parsed.items || [],
-          tax_amount: parsed.tax_amount || 0,
-          confidence: 0.95
-        };
+      if (jsonResult) {
+        console.log('[AI Vision Debug] Gemini Response:', JSON.stringify(jsonResult, null, 2));
+        const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (textOutput) {
+          const parsed = JSON.parse(textOutput);
+          return {
+            merchant: parsed.merchant || 'Market / İşletme',
+            amount: Number(parsed.amount) || 0,
+            currency: parsed.currency || 'TRY',
+            date: parsed.date || new Date().toISOString().split('T')[0],
+            category_id: mapCategoryToId(parsed.category_suggestion),
+            category_name: parsed.category_suggestion || 'Market & Gıda',
+            items: parsed.items || [],
+            tax_amount: parsed.tax_amount || 0,
+            confidence: 0.95
+          };
+        }
       }
     } catch (err) {
       console.warn('[AI Vision] Gemini API hatası, akıllı simülasyona dönülüyor:', err);
@@ -153,17 +190,13 @@ export async function parseVaultDocumentImage(
 
   if (apiKey) {
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
+      const jsonResult = await callGeminiVision(
+        apiKey,
+        [
+          {
+            parts: [
               {
-                parts: [
-                  {
-                    text: `Sen bir profesyonel resmi belge, kimlik, pasaport, tapu, sigorta ve garanti belgesi tarayıcısısın. Gönderilen görseldeki belgeyi analiz et ve SADECE aşağıdaki JSON formatında geçerli bir JSON çıktısı üret, başka hiçbir metin ekleme:
+                text: `Sen bir profesyonel resmi belge, kimlik, pasaport, tapu, sigorta ve garanti belgesi tarayıcısısın. Gönderilen görseldeki belgeyi analiz et ve SADECE aşağıdaki JSON formatında geçerli bir JSON çıktısı üret, başka hiçbir metin ekleme:
 {
   "title": "Belge Başlığı / Adı (Örn: T.C. Bordo Pasaport, Samsung TV Garanti Belgesi, Kadıköy Daire Tapusu)",
   "type": "passport | id_card | title_deed | warranty | insurance | contract | license | other",
@@ -174,26 +207,23 @@ export async function parseVaultDocumentImage(
   "expiry_date": "YYYY-MM-DD formatında son kullanma / bitiş tarihi veya boş string",
   "notes": "Belgeden okunan önemli detaylar ve özet bilgiler"
 }`
-                  },
-                  {
-                    inlineData: {
-                      mimeType: mimeType,
-                      data: base64Image.replace(/^data:image\/\w+;base64,/, '')
-                    }
-                  }
-                ]
+              },
+              {
+                inlineData: {
+                  mimeType: mimeType,
+                  data: base64Image.replace(/^data:image\/\w+;base64,/, '')
+                }
               }
-            ],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature: 0.1
-            }
-          })
+            ]
+          }
+        ],
+        {
+          responseMimeType: 'application/json',
+          temperature: 0.1
         }
       );
 
-      const jsonResult = await response.json();
-      const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
+      const textOutput = jsonResult?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (textOutput) {
         const parsed = JSON.parse(textOutput);
         return {
@@ -259,17 +289,13 @@ export async function parseApplianceInvoiceImage(
 
   if (apiKey) {
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
+      const json = await callGeminiVision(
+        apiKey,
+        [
+          {
+            parts: [
               {
-                parts: [
-                  {
-                    text: `Lütfen bu fatura/fiş veya garanti belgesi görselini analiz et ve aşağıdaki JSON formatında döndür:
+                text: `Lütfen bu fatura/fiş veya garanti belgesi görselini analiz et ve aşağıdaki JSON formatında döndür:
 {
   "name": "Cihaz veya Ürün Adı (Örn: Çamaşır Makinesi, Buzdolabı, Klima, Robot Süpürge, TV)",
   "brand": "Marka (Örn: Bosch, Siemens, Roborock, Samsung, Arçelik)",
@@ -280,21 +306,21 @@ export async function parseApplianceInvoiceImage(
   "notes": "Fatura Numarası, Tutar ve Mağaza Notları"
 }
 Sadece geçerli JSON yanıtı döndür.`
-                  },
-                  {
-                    inline_data: {
-                      mime_type: mimeType,
-                      data: base64Image
-                    }
-                  }
-                ]
+              },
+              {
+                inlineData: {
+                  mimeType: mimeType,
+                  data: base64Image.replace(/^data:image\/\w+;base64,/, '')
+                }
               }
             ]
-          })
+          }
+        ],
+        {
+          responseMimeType: 'application/json',
+          temperature: 0.1
         }
       );
-
-      const json = await response.json();
       const textResponse = json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
       const cleanJsonStr = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
 
@@ -355,35 +381,28 @@ export async function parsePlateImage(
     try {
       const promptText = `Sen profesyonel bir diyetisyen ve besin değerleri uzmanısın. Fotoğraftaki yemek tabağını analiz et ve içindeki yiyeceklerin gramaj, kalori ve makro besin değerlerini tahmin et. SADECE aşağıdaki JSON formatında çıktı üret:\n{"name":"Yemeğin Türkçe adı","meal_type":"breakfast|lunch|dinner|snack","base_calories":550,"base_protein":42,"base_carbs":35,"base_fat":20,"confidence":0.88,"items":[{"name":"Malzeme adı ve gramaj","calories":300,"protein":30,"carbs":0,"fat":12}]}`;
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
+      const jsonResult = await callGeminiVision(
+        apiKey,
+        [
+          {
+            parts: [
+              { text: promptText },
               {
-                parts: [
-                  { text: promptText },
-                  {
-                    inlineData: {
-                      mimeType: mimeType,
-                      data: base64Image.replace(/^data:image\/\w+;base64,/, '')
-                    }
-                  }
-                ]
+                inlineData: {
+                  mimeType: mimeType,
+                  data: base64Image.replace(/^data:image\/\w+;base64,/, '')
+                }
               }
-            ],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: 0.2
-            }
-          })
+            ]
+          }
+        ],
+        {
+          responseMimeType: 'application/json',
+          temperature: 0.2
         }
       );
 
-      const jsonResult = await response.json();
-      const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
+      const textOutput = jsonResult?.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (textOutput) {
         const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -577,35 +596,28 @@ SADECE aşağıdaki JSON formatında yanıt ver, başka açıklama ekleme:
   "alternative_suggestions": "Daha katkısız ve sağlıklı alternatif tavsiyesi"
 }`;
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
+      const jsonResult = await callGeminiVision(
+        apiKey,
+        [
+          {
+            parts: [
+              { text: promptText },
               {
-                parts: [
-                  { text: promptText },
-                  {
-                    inlineData: {
-                      mimeType: mimeType,
-                      data: base64Image.replace(/^data:image\/\w+;base64,/, '')
-                    }
-                  }
-                ]
+                inlineData: {
+                  mimeType: mimeType,
+                  data: base64Image.replace(/^data:image\/\w+;base64,/, '')
+                }
               }
-            ],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: 0.1
-            }
-          })
+            ]
+          }
+        ],
+        {
+          responseMimeType: 'application/json',
+          temperature: 0.1
         }
       );
 
-      const jsonResult = await response.json();
-      const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
+      const textOutput = jsonResult?.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (textOutput) {
         const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();

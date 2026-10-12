@@ -157,35 +157,48 @@ Tespit Edilecek Alanlar:
 
 SADECE geçerli bir JSON çıktısı üret, markdown veya açıklama yazma.`;
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: promptText },
-                  ...base64Images.map((base64Image, index) => ({
-                    inlineData: {
-                      mimeType: mimeTypes[index] || 'image/jpeg',
-                      data: base64Image.replace(/^data:image\/\w+;base64,/, '')
-                    }
-                  }))
-                ]
-              }
-            ],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: 0.1
-            }
-          })
-        }
-      );
+      const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+      let jsonResult: any = null;
 
-      if (response.ok) {
-        const jsonResult = await response.json();
+      for (const modelName of MODELS) {
+        try {
+          const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [
+                      { text: promptText },
+                      ...base64Images.map((base64Image, index) => ({
+                        inlineData: {
+                          mimeType: mimeTypes[index] || 'image/jpeg',
+                          data: base64Image.replace(/^data:image\/\w+;base64,/, '')
+                        }
+                      }))
+                    ]
+                  }
+                ],
+                generationConfig: {
+                  responseMimeType: 'application/json',
+                  temperature: 0.1
+                }
+              })
+            }
+          );
+
+          if (response.ok) {
+            jsonResult = await response.json();
+            break;
+          }
+        } catch (err) {
+          console.warn(`[Workout OCR] Error calling ${modelName}:`, err);
+        }
+      }
+
+      if (jsonResult) {
         const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
         if (textOutput) {
           const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
