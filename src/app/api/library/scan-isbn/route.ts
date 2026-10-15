@@ -229,6 +229,51 @@ function decodeHtmlEntities(str: string): string {
     .replace(/&#x2F;/g, '/');
 }
 
+// 2.1 KAYNAK: Kitapsepeti Türkiye Kitap Ağı (Doğrudan Türkçe ISBN Künyesi & Orijinal Kapak Görseli)
+async function fetchFromKitapsepeti(queryOrIsbn: string): Promise<BookSearchResult | null> {
+  try {
+    const url = `https://www.kitapsepeti.com/arama?q=${encodeURIComponent(queryOrIsbn)}`;
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+      },
+      signal: AbortSignal.timeout(4000)
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+
+    const titleMatch = html.match(/class="[^"]*product-title[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
+    const authorMatch = html.match(/class="[^"]*model-title[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
+    const publisherMatch = html.match(/class="[^"]*brand-title[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
+    const imgMatch = html.match(/<img[^>]+class="[^"]*product-image[^"]*"[^>]+src="([^"]+)"/i) ||
+                     html.match(/<img[^>]+data-src="([^"]+)"[^>]+class="[^"]*product-image[^"]*"/i);
+
+    if (titleMatch && titleMatch[1]) {
+      const title = decodeHtmlEntities(titleMatch[1].replace(/<[^>]+>/g, '').trim());
+      const author = authorMatch ? decodeHtmlEntities(authorMatch[1].replace(/<[^>]+>/g, '').trim()) : '';
+      const publisher = publisherMatch ? decodeHtmlEntities(publisherMatch[1].replace(/<[^>]+>/g, '').trim()) : '';
+      const coverUrl = imgMatch ? imgMatch[1].trim() : null;
+
+      if (title && title.length >= 2) {
+        const resolvedCategory = normalizeBookCategory('', title);
+        return {
+          title,
+          author,
+          publisher,
+          cover_url: coverUrl,
+          total_pages: 200,
+          category: resolvedCategory,
+          summary: '',
+          source: 'Kitapsepeti Türkiye'
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('Kitapsepeti fetch error:', e);
+  }
+  return null;
+}
+
 // 3. KAYNAK: Gemini AI Canlı Arama / Google Search Grounding & Künye Analizi
 async function fetchFromGeminiAI(
   cleanIsbn: string,
@@ -256,16 +301,21 @@ async function fetchFromGeminiAI(
     'gemini-flash-latest',
     'gemini-3.8-flash',
     'gemini-3.5-flash',
-    'gemini-3.1-flash-lite',
-    'gemini-2.5-flash'
+    'gemini-3.1-flash-lite'
   ];
 
+  let searchAvailable = true;
+
   for (const modelName of models) {
-    for (const withSearch of [true, false]) {
+    const searchOptions = searchAvailable ? [true, false] : [false];
+    for (const withSearch of searchOptions) {
       try {
         const body: any = {
           contents: [{ parts: [{ text: promptText }] }],
-          generationConfig: { temperature: 0.0 }
+          generationConfig: {
+            temperature: 0.0,
+            thinkingConfig: { thinkingBudget: 0 }
+          }
         };
         if (withSearch) {
           body.tools = [{ googleSearch: {} }];
@@ -277,9 +327,13 @@ async function fetchFromGeminiAI(
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
-            signal: AbortSignal.timeout(8000)
+            signal: AbortSignal.timeout(10000)
           }
         );
+
+        if (response.status === 429 && withSearch) {
+          searchAvailable = false;
+        }
 
         if (response.ok) {
           const json = await response.json();
@@ -338,16 +392,21 @@ async function fetchFromGeminiAIByTitle(
     'gemini-flash-latest',
     'gemini-3.8-flash',
     'gemini-3.5-flash',
-    'gemini-3.1-flash-lite',
-    'gemini-2.5-flash'
+    'gemini-3.1-flash-lite'
   ];
 
+  let searchAvailable = true;
+
   for (const modelName of models) {
-    for (const withSearch of [true, false]) {
+    const searchOptions = searchAvailable ? [true, false] : [false];
+    for (const withSearch of searchOptions) {
       try {
         const body: any = {
           contents: [{ parts: [{ text: promptText }] }],
-          generationConfig: { temperature: 0.0 }
+          generationConfig: {
+            temperature: 0.0,
+            thinkingConfig: { thinkingBudget: 0 }
+          }
         };
         if (withSearch) {
           body.tools = [{ googleSearch: {} }];
@@ -359,9 +418,13 @@ async function fetchFromGeminiAIByTitle(
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
-            signal: AbortSignal.timeout(8000)
+            signal: AbortSignal.timeout(10000)
           }
         );
+
+        if (response.status === 429 && withSearch) {
+          searchAvailable = false;
+        }
 
         if (response.ok) {
           const json = await response.json();
@@ -534,8 +597,11 @@ export async function POST(req: Request) {
       // Kullanıcının kütüphanesinde mükerrer kontrolü
       const existingInLibrary = await findExistingBookInLibrary(user.id, familyId, undefined, cleanSearchTitle, cleanSearchAuthor);
 
-      // 1. Aşama: Google Books Arama
-      const catalogBook = await fetchFromGoogleBooksByQuery(cleanSearchTitle, cleanSearchAuthor);
+      // 1. Aşama: Google Books & Kitapsepeti Arama
+      let catalogBook = await fetchFromGoogleBooksByQuery(cleanSearchTitle, cleanSearchAuthor);
+      if (!catalogBook) {
+        catalogBook = await fetchFromKitapsepeti(cleanSearchTitle);
+      }
 
       // 2. Aşama: Gemini AI Künye Analizi
       const geminiBook = await fetchFromGeminiAIByTitle(
@@ -627,10 +693,13 @@ export async function POST(req: Request) {
     // Kullanıcının kendi kütüphanesinde mükerrer kontrolü
     const existingInLibrary = await findExistingBookInLibrary(user.id, familyId, cleanIsbn);
 
-    // 1. Aşama: Dış Katalogları Sorgula (Google Books & Open Library -> Kapak resmi, sayfa sayısı ve temel künye)
+    // 1. Aşama: Dış Katalogları Sorgula (Google Books, Open Library & Kitapsepeti -> Kapak resmi, sayfa sayısı ve temel künye)
     let catalogBook: BookSearchResult | null = await fetchFromGoogleBooks(cleanIsbn);
     if (!catalogBook) {
       catalogBook = await fetchFromOpenLibrary(cleanIsbn);
+    }
+    if (!catalogBook) {
+      catalogBook = await fetchFromKitapsepeti(cleanIsbn);
     }
 
     // 2. Aşama: Gemini AI ile Canlı Künye, Zengin Türkçe Özet ve Derinlemesine Kategori Analizi Yap
