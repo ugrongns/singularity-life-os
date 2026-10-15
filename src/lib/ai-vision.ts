@@ -17,10 +17,11 @@ export interface ParsedReceipt {
  * Resmi Gemini Modelleri Öncelik Zinciri
  */
 export const RESILIENT_GEMINI_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-flash-latest'
+  'gemini-flash-latest',
+  'gemini-3.8-flash',
+  'gemini-3.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash'
 ];
 
 /**
@@ -472,7 +473,7 @@ export async function parseBookCoverOrISBNImage(
   "words_per_page": 250
 }`;
 
-      const MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+      const MODELS = RESILIENT_GEMINI_MODELS;
       for (const modelName of MODELS) {
         try {
           const response = await fetch(

@@ -252,44 +252,59 @@ async function fetchFromGeminiAI(
 }
 \`\`\``;
 
-  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
-  for (const modelName of models) {
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: promptText }] }],
-            generationConfig: { temperature: 0.0 }
-          }),
-          signal: AbortSignal.timeout(8000)
-        }
-      );
+  const models = [
+    'gemini-flash-latest',
+    'gemini-3.8-flash',
+    'gemini-3.5-flash',
+    'gemini-3.1-flash-lite',
+    'gemini-2.5-flash'
+  ];
 
-      if (response.ok) {
-        const json = await response.json();
-        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) {
-          const parsed = extractJsonFromText(text);
-          if (parsed && parsed.title && parsed.title !== 'Kitap Tam Adı' && parsed.title.length >= 2) {
-            const resolvedCategory = normalizeBookCategory(parsed.category, parsed.title, parsed.summary);
-            return {
-              title: decodeHtmlEntities(parsed.title),
-              author: decodeHtmlEntities((parsed.author || seedAuthor || '').replace(/Yazar Adı/i, '').trim()),
-              publisher: decodeHtmlEntities((parsed.publisher || seedPublisher || '').replace(/Yayınevi Adı/i, '').trim()),
-              total_pages: Number(parsed.total_pages) || 200,
-              category: resolvedCategory,
-              summary: decodeHtmlEntities(parsed.summary || ''),
-              cover_url: null,
-              source: 'Gemini AI'
-            };
+  for (const modelName of models) {
+    for (const withSearch of [true, false]) {
+      try {
+        const body: any = {
+          contents: [{ parts: [{ text: promptText }] }],
+          generationConfig: { temperature: 0.0 }
+        };
+        if (withSearch) {
+          body.tools = [{ googleSearch: {} }];
+        }
+
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(8000)
+          }
+        );
+
+        if (response.ok) {
+          const json = await response.json();
+          const parts = json.candidates?.[0]?.content?.parts || [];
+          const text = parts.map((p: any) => p.text || '').join('');
+          if (text) {
+            const parsed = extractJsonFromText(text);
+            if (parsed && parsed.title && parsed.title !== 'Kitap Tam Adı' && parsed.title.length >= 2) {
+              const resolvedCategory = normalizeBookCategory(parsed.category, parsed.title, parsed.summary);
+              return {
+                title: decodeHtmlEntities(parsed.title),
+                author: decodeHtmlEntities((parsed.author || seedAuthor || '').replace(/Yazar Adı/i, '').trim()),
+                publisher: decodeHtmlEntities((parsed.publisher || seedPublisher || '').replace(/Yayınevi Adı/i, '').trim()),
+                total_pages: Number(parsed.total_pages) || 200,
+                category: resolvedCategory,
+                summary: decodeHtmlEntities(parsed.summary || ''),
+                cover_url: null,
+                source: withSearch ? 'Gemini AI (Google Search Grounding)' : 'Gemini AI'
+              };
+            }
           }
         }
+      } catch (e) {
+        // Continue to next attempt/model
       }
-    } catch (e) {
-      // Continue to next model
     }
   }
   return null;
@@ -319,45 +334,60 @@ async function fetchFromGeminiAIByTitle(
 }
 \`\`\``;
 
-  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
-  for (const modelName of models) {
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: promptText }] }],
-            generationConfig: { temperature: 0.0 }
-          }),
-          signal: AbortSignal.timeout(8000)
-        }
-      );
+  const models = [
+    'gemini-flash-latest',
+    'gemini-3.8-flash',
+    'gemini-3.5-flash',
+    'gemini-3.1-flash-lite',
+    'gemini-2.5-flash'
+  ];
 
-      if (response.ok) {
-        const json = await response.json();
-        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) {
-          const parsed = extractJsonFromText(text);
-          if (parsed && parsed.title && parsed.title !== 'Kitap Tam Adı' && parsed.title.length >= 2) {
-            const resolvedCategory = normalizeBookCategory(parsed.category, parsed.title, parsed.summary);
-            return {
-              title: decodeHtmlEntities(parsed.title),
-              author: decodeHtmlEntities((parsed.author || author || '').replace(/Yazar Adı/i, '').trim()),
-              publisher: decodeHtmlEntities((parsed.publisher || publisher || '').replace(/Yayınevi Adı/i, '').trim()),
-              isbn: cleanIsbnString(parsed.isbn || ''),
-              total_pages: Number(parsed.total_pages) || 200,
-              category: resolvedCategory,
-              summary: decodeHtmlEntities(parsed.summary || ''),
-              cover_url: null,
-              source: 'Gemini AI'
-            };
+  for (const modelName of models) {
+    for (const withSearch of [true, false]) {
+      try {
+        const body: any = {
+          contents: [{ parts: [{ text: promptText }] }],
+          generationConfig: { temperature: 0.0 }
+        };
+        if (withSearch) {
+          body.tools = [{ googleSearch: {} }];
+        }
+
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(8000)
+          }
+        );
+
+        if (response.ok) {
+          const json = await response.json();
+          const parts = json.candidates?.[0]?.content?.parts || [];
+          const text = parts.map((p: any) => p.text || '').join('');
+          if (text) {
+            const parsed = extractJsonFromText(text);
+            if (parsed && parsed.title && parsed.title !== 'Kitap Tam Adı' && parsed.title.length >= 2) {
+              const resolvedCategory = normalizeBookCategory(parsed.category, parsed.title, parsed.summary);
+              return {
+                title: decodeHtmlEntities(parsed.title),
+                author: decodeHtmlEntities((parsed.author || author || '').replace(/Yazar Adı/i, '').trim()),
+                publisher: decodeHtmlEntities((parsed.publisher || publisher || '').replace(/Yayınevi Adı/i, '').trim()),
+                isbn: cleanIsbnString(parsed.isbn || ''),
+                total_pages: Number(parsed.total_pages) || 200,
+                category: resolvedCategory,
+                summary: decodeHtmlEntities(parsed.summary || ''),
+                cover_url: null,
+                source: withSearch ? 'Gemini AI (Google Search Grounding)' : 'Gemini AI'
+              };
+            }
           }
         }
+      } catch (e) {
+        // Continue to next attempt/model
       }
-    } catch (e) {
-      // Continue to next model
     }
   }
   return null;
@@ -372,11 +402,19 @@ async function fetchFromTurkishBookstores(cleanIsbn: string): Promise<BookSearch
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8'
       },
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(3500)
     });
 
-    if (!res.ok) return null;
+    if (!res.ok || res.status === 202 || res.status === 403) return null;
     const html = await res.text();
+    if (
+      html.includes('anomaly-modal') ||
+      html.includes('challenge-form') ||
+      html.includes('bot challenge') ||
+      html.includes('duckduckgo.com/html')
+    ) {
+      return null;
+    }
 
     const headings = [...html.matchAll(/<h2 class="result__title">[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/gi)];
     const storePattern = /[\s\-_|–·•]*(BKM\s*Kitap|Bkmkitap|Kitapyurdu|D&R|İdefix|Idefix|Amazon|Hepsiburada|Trendyol|Nadir\s*Kitap|Nadirkitap|Palme\s*Kitabevi|Destek\s*Dükkan|Scala\s*Kitapçı|Kitapbulan|Kırmızı\s*Kedi|Pandora|Eganba|Pelikan\s*Kitabevi|Kidega|OdaKitap|Kitap365|Hugendubel[\s\S]*)[\s\S]*/gi;
