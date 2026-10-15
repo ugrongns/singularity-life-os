@@ -78,39 +78,48 @@ export default function BookShelfList({ books, onQuickPageUpdate, onOpenAddBookM
       </div>
 
       {/* Sekmeler (Tab Pills) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', background: 'var(--surface-subtle)', padding: '4px', borderRadius: 'var(--radius-md)' }}>
+      <div style={{
+        display: 'flex',
+        overflowX: 'auto',
+        gap: '6px',
+        background: 'var(--surface-subtle)',
+        padding: '4px',
+        borderRadius: 'var(--radius-md)',
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none'
+      }}>
+        <button 
+          className={`choice-pill ${activeTab === 'reading' ? 'selected' : ''}`}
+          onClick={() => setActiveTab('reading')}
+          style={{ flex: '1 1 auto', padding: '6px 10px', fontSize: '11px', whiteSpace: 'nowrap' }}
+        >
+          📖 Okunuyor ({readingBooks.length})
+        </button>
         <button 
           className={`choice-pill ${activeTab === 'all' ? 'selected' : ''}`}
           onClick={() => setActiveTab('all')}
-          style={{ padding: '6px 2px', fontSize: '11px' }}
+          style={{ flex: '1 1 auto', padding: '6px 10px', fontSize: '11px', whiteSpace: 'nowrap' }}
         >
           Tümü ({books.length})
         </button>
         <button 
-          className={`choice-pill ${activeTab === 'reading' ? 'selected' : ''}`}
-          onClick={() => setActiveTab('reading')}
-          style={{ padding: '6px 2px', fontSize: '11px' }}
-        >
-          Okunuyor ({readingBooks.length})
-        </button>
-        <button 
           className={`choice-pill ${activeTab === 'completed' ? 'selected' : ''}`}
           onClick={() => setActiveTab('completed')}
-          style={{ padding: '6px 2px', fontSize: '11px' }}
+          style={{ flex: '1 1 auto', padding: '6px 10px', fontSize: '11px', whiteSpace: 'nowrap' }}
         >
           Tamamlandı ({completedBooks.length})
         </button>
         <button 
           className={`choice-pill ${activeTab === 'wishlist' ? 'selected' : ''}`}
           onClick={() => setActiveTab('wishlist')}
-          style={{ padding: '6px 2px', fontSize: '11px' }}
+          style={{ flex: '1 1 auto', padding: '6px 10px', fontSize: '11px', whiteSpace: 'nowrap' }}
         >
           Okunacak ({wishlistBooks.length})
         </button>
         <button 
           className={`choice-pill ${activeTab === 'lent' ? 'selected' : ''}`}
           onClick={() => setActiveTab('lent')}
-          style={{ padding: '6px 2px', fontSize: '11px', color: lentBooks.length > 0 ? '#D97706' : 'inherit' }}
+          style={{ flex: '1 1 auto', padding: '6px 10px', fontSize: '11px', whiteSpace: 'nowrap', color: lentBooks.length > 0 ? '#D97706' : 'inherit' }}
         >
           🤝 Emanet ({lentBooks.length})
         </button>

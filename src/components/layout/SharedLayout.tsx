@@ -88,7 +88,20 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
     // Tema tercihini yükle
     const savedTheme = (localStorage.getItem('singularity_theme') as 'dark' | 'light') || 'dark';
     setTheme(savedTheme);
-    document.documentElement.setAttribute('data-theme', savedTheme);  }, []);
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  }, []);
+
+  // Modaller veya Drawer açıkken arkadaki sayfanın kaymasını (body scroll rubber-banding) engelle
+  useEffect(() => {
+    if (activeModal || isQuickMenuOpen || isMobileDrawerOpen || isScreenLocked) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [activeModal, isQuickMenuOpen, isMobileDrawerOpen, isScreenLocked]);
 
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
@@ -429,17 +442,22 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
         </div>
 
         {/* Sağ 2 Sekme: Sağlık, Menü */}
-        <Link href="/health" style={{
-          width: '100%', display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: '2px',
-          textDecoration: 'none', transition: 'opacity 0.15s',
-          opacity: pathname === '/health' ? 1 : 0.55
-        }}>
-          <span style={{ fontSize: '22px' }}>🧬</span>
-          <span style={{ fontSize: '10px', fontWeight: pathname === '/health' ? 700 : 400, color: pathname === '/health' ? 'var(--emerald)' : 'var(--text-muted)' }}>
-            Sağlık
-          </span>
-        </Link>
+        {(() => {
+          const isHealthActive = pathname.startsWith('/health') || pathname === '/wellness';
+          return (
+            <Link href="/health" style={{
+              width: '100%', display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: '2px',
+              textDecoration: 'none', transition: 'opacity 0.15s',
+              opacity: isHealthActive ? 1 : 0.55
+            }}>
+              <span style={{ fontSize: '22px' }}>🧬</span>
+              <span style={{ fontSize: '10px', fontWeight: isHealthActive ? 700 : 400, color: isHealthActive ? 'var(--emerald)' : 'var(--text-muted)' }}>
+                Sağlık
+              </span>
+            </Link>
+          );
+        })()}
 
         <button
           onClick={() => setIsMobileDrawerOpen(true)}

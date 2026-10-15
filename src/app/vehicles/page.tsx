@@ -92,7 +92,7 @@ export default function VehiclesPage() {
   return (
     <SharedLayout notifications={notifData}>
       {toastMsg && (
-        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--text-main)', color: 'white', padding: '10px 20px', borderRadius: 'var(--radius-full)', fontSize: '13px', zIndex: 999, boxShadow: 'var(--shadow-lg)' }}>
+        <div className="toast-glass">
           {toastMsg}
         </div>
       )}

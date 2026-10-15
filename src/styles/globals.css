@@ -559,9 +559,16 @@ body {
 
 @media (max-width: 768px) {
   .quick-ingest-container {
-    bottom: 84px;
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
     right: 16px;
   }
+}
+
+.bottom-dock a,
+.bottom-dock button {
+  min-height: 48px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .dock-btn {
@@ -570,11 +577,14 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   font-size: 11px;
   font-weight: 500;
   color: var(--text-muted);
   cursor: pointer;
+  min-height: 48px;
+  width: 100%;
 }
 
 .dock-btn.active {
@@ -639,6 +649,13 @@ body {
   gap: 16px;
   max-height: 90vh;
   overflow-y: auto;
+}
+
+@media (max-width: 639px) {
+  .bottom-sheet,
+  .modal-card {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+  }
 }
 
 @media (min-width: 640px) {
@@ -740,6 +757,11 @@ body {
 }
 
 /* ===== Animations ===== */
+@keyframes slideUp {
+  0% { opacity: 0; transform: translateY(12px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -944,7 +966,7 @@ body {
 /* Mobil Ekranlarda Sidebar'ı Gizle, Bottom Dock'u Göster */
 @media (max-width: 768px) {
   .app-container {
-    padding: 16px 12px 90px !important;
+    padding: 16px 12px calc(96px + env(safe-area-inset-bottom, 0px)) !important;
     gap: 16px !important;
     width: 100% !important;
     max-width: 100% !important;
@@ -958,6 +980,18 @@ body {
   }
   .mobile-hamburger-btn {
     display: flex !important;
+  }
+  /* iOS Safari otomatik odaklanma yakınlaştırmasını (auto-zoom) engelle */
+  input[type="text"],
+  input[type="number"],
+  input[type="password"],
+  input[type="email"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="date"],
+  select,
+  textarea {
+    font-size: 16px !important;
   }
 }
 
