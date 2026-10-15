@@ -22,7 +22,16 @@ export async function GET(req: Request) {
           )
         )
       : [];
-    const wallets = await db.select().from(walletsAccounts).where(eq(walletsAccounts.is_active, 1));
+    const wallets = userId
+      ? await db.select().from(walletsAccounts).where(
+          and(
+            eq(walletsAccounts.is_active, 1),
+            familyId
+              ? or(eq(walletsAccounts.family_id, familyId), eq(walletsAccounts.user_id, userId))
+              : eq(walletsAccounts.user_id, userId)
+          )
+        )
+      : [];
 
     if (allVehicles.length === 0) {
       return NextResponse.json({
@@ -253,11 +262,23 @@ export async function POST(req: Request) {
     if (action === 'update_km' || (!action && data.vehicle_id && data.current_km)) {
       const vehicleId = data.vehicle_id;
       const newKm = parseFloat(data.current_km);
+      const familyId = user.family_id || `fam-${user.id}`;
+
+      // Güvenlik: Araç bu kullanıcıya veya ailesine mi ait? (IDOR Koruması)
+      const targetVeh = (await db.select({ id: vehicles.id }).from(vehicles).where(
+        and(
+          eq(vehicles.id, vehicleId),
+          or(eq(vehicles.user_id, user.id), eq(vehicles.family_id, familyId))
+        )
+      ).limit(1))[0];
+
+      if (!targetVeh) {
+        return NextResponse.json({ success: false, error: 'Araç bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
+      }
 
       await db.update(vehicles)
         .set({ current_km: newKm, updated_at: now })
-        .where(eq(vehicles.id, vehicleId))
-        ;
+        .where(eq(vehicles.id, vehicleId));
 
       return NextResponse.json({ success: true, message: `🚗 Araç kilometresi ${newKm.toLocaleString('tr-TR')} KM olarak güncellendi.` });
     }
@@ -272,6 +293,18 @@ export async function POST(req: Request) {
       const totalAmount = parseFloat(data.total_amount) || (liters * pricePerLiter);
       const fuelStation = data.fuel_station || 'Opet';
       const walletId = data.wallet_id;
+      const familyId = user.family_id || `fam-${user.id}`;
+
+      // Güvenlik: Araç bu kullanıcıya veya ailesine mi ait?
+      const veh = (await db.select().from(vehicles).where(
+        and(
+          eq(vehicles.id, vehicleId),
+          or(eq(vehicles.user_id, user.id), eq(vehicles.family_id, familyId))
+        )
+      ).limit(1))[0];
+      if (!veh) {
+        return NextResponse.json({ success: false, error: 'Araç bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
+      }
 
       await db.insert(vehicleFuelLogs).values({
         id: fuelId,
@@ -287,14 +320,19 @@ export async function POST(req: Request) {
       });
 
       // Araç KM güncelle
-      const veh = (await db.select().from(vehicles).where(eq(vehicles.id, vehicleId)).limit(1))[0];
-      if (veh && km > veh.current_km) {
+      if (km > veh.current_km) {
         await db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId));
       }
 
       // Cüzdandan düş & harcama kaydet
       if (walletId) {
-        const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).limit(1))[0];
+        const wallet = (await db.select().from(walletsAccounts).where(
+          and(
+            eq(walletsAccounts.id, walletId),
+            or(eq(walletsAccounts.user_id, user.id), eq(walletsAccounts.family_id, familyId))
+          )
+        ).limit(1))[0];
+
         if (wallet) {
           const newBalance = wallet.type === 'credit_card'
             ? (wallet.balance || 0) + totalAmount // Kredi kartı borcu artar
@@ -305,7 +343,6 @@ export async function POST(req: Request) {
             updated_at: now
           }).where(eq(walletsAccounts.id, walletId));
 
-          const familyId = user.family_id || `fam-${user.id}`;
           await db.insert(transactions).values({
             id: `tx-fuel-${Date.now()}`,
             wallet_id: walletId,
@@ -336,6 +373,18 @@ export async function POST(req: Request) {
       const km = parseFloat(data.km_at_service);
       const cost = parseFloat(data.cost) || 0;
       const nextKm = km + 15000;
+      const familyId = user.family_id || `fam-${user.id}`;
+
+      // Güvenlik: Araç bu kullanıcıya veya ailesine mi ait?
+      const veh = (await db.select().from(vehicles).where(
+        and(
+          eq(vehicles.id, vehicleId),
+          or(eq(vehicles.user_id, user.id), eq(vehicles.family_id, familyId))
+        )
+      ).limit(1))[0];
+      if (!veh) {
+        return NextResponse.json({ success: false, error: 'Araç bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
+      }
 
       await db.insert(vehicleMaintenanceRecords).values({
         id: serviceId,
@@ -353,14 +402,19 @@ export async function POST(req: Request) {
       });
 
       // Araç KM güncelle
-      const veh = (await db.select().from(vehicles).where(eq(vehicles.id, vehicleId)))[0];
-      if (veh && km > veh.current_km) {
+      if (km > veh.current_km) {
         await db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId));
       }
 
       // Cüzdandan düş
       if (data.wallet_id && cost > 0) {
-        const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, data.wallet_id)))[0];
+        const wallet = (await db.select().from(walletsAccounts).where(
+          and(
+            eq(walletsAccounts.id, data.wallet_id),
+            or(eq(walletsAccounts.user_id, user.id), eq(walletsAccounts.family_id, familyId))
+          )
+        ).limit(1))[0];
+
         if (wallet) {
           const newBalance = wallet.type === 'credit_card'
             ? (wallet.balance || 0) + cost // Kredi kartı borcu artar

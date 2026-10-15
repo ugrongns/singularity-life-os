@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { homeMaintenanceRecords, homeAppliances } from '@/db/schema';
-import { desc, eq , or } from 'drizzle-orm';
+import { desc, eq, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 export async function GET() {
@@ -80,8 +80,12 @@ export async function POST(req: Request) {
           next_due_date: nextDate,
           updated_at: nowStr
         })
-        .where(eq(homeMaintenanceRecords.id, targetId))
-        ;
+        .where(
+          and(
+            eq(homeMaintenanceRecords.id, targetId),
+            or(eq(homeMaintenanceRecords.user_id, user.id), eq(homeMaintenanceRecords.family_id, familyId))
+          )
+        );
 
       return NextResponse.json({
         success: true,
@@ -140,7 +144,12 @@ export async function POST(req: Request) {
     }
 
     if (action === 'delete_appliance') {
-      await db.delete(homeAppliances).where(eq(homeAppliances.id, data.id));
+      await db.delete(homeAppliances).where(
+        and(
+          eq(homeAppliances.id, data.id),
+          or(eq(homeAppliances.user_id, user.id), eq(homeAppliances.family_id, familyId))
+        )
+      );
       return NextResponse.json({ success: true, message: 'Cihaz kaydı silindi.' });
     }
 

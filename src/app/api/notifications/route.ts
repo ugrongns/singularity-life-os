@@ -3,10 +3,11 @@ import { db, initDatabase } from '@/db';
 import {
   digitalVaultItems, importantDates, petRecords,
   vehicleLegalReminders, homeMaintenanceRecords,
-  walletsAccounts, recurringBills, vehicles
+  walletsAccounts, recurringBills, vehicles, transactions
 } from '@/db/schema';
 import { eq, sql, or, and, inArray } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { calculateCreditCardSchedule } from '@/lib/bill-schedule';
 
 interface Notification {
   id: string;
@@ -168,7 +169,7 @@ export async function GET() {
       }
     }
 
-    // 5. Kredi kartı ödeme tarihleri (7 gün içindekiler)
+    // 5. Kredi kartı ekstre ve gecikme uyarıları (Doğru döngü & gecikme motoru)
     const accounts = userId
       ? await db.select().from(walletsAccounts).where(
           and(
@@ -180,25 +181,52 @@ export async function GET() {
         )
       : [];
 
-    for (const acc of accounts) {
-      if (acc.type === 'credit_card' && acc.balance > 0 && acc.due_day) {
-        const currentMonth = today.getMonth();
-        const currentYear  = today.getFullYear();
-        let cardDue = new Date(currentYear, currentMonth, acc.due_day);
-        if (cardDue < today) cardDue = new Date(currentYear, currentMonth + 1, acc.due_day);
-        const daysLeft = Math.ceil((cardDue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        if (daysLeft <= 7) {
-          notifications.push({
-            id: `card-${acc.id}`,
-            title: `${acc.name} Ekstre Ödemesi`,
-            subtitle: `${new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(acc.balance)} — ${daysLeft <= 0 ? 'Bugün!' : `${daysLeft} gün kaldı`}`,
-            module: 'Finans',
-            icon: '💳',
-            days_left: daysLeft,
-            priority: daysLeft <= 2 ? 'critical' : 'warning',
-            due_date: cardDue.toISOString().split('T')[0]
-          });
-        }
+    const creditCardAccounts = accounts.filter(a => a.type === 'credit_card' && (a.balance || 0) > 0 && a.due_day);
+    const creditCardIds = creditCardAccounts.map(a => a.id);
+    const cardTransactions = creditCardIds.length > 0
+      ? await db.select({
+          wallet_id: transactions.wallet_id,
+          amount: transactions.amount,
+          transaction_date: transactions.transaction_date,
+          is_installment: transactions.is_installment
+        })
+        .from(transactions)
+        .where(inArray(transactions.wallet_id, creditCardIds))
+      : [];
+
+    for (const acc of creditCardAccounts) {
+      const txsForCard = cardTransactions
+        .filter(t => t.wallet_id === acc.id)
+        .map(t => ({
+          amount: t.amount,
+          transaction_date: t.transaction_date,
+          is_installment: t.is_installment
+        }));
+
+      const sched = calculateCreditCardSchedule(acc, txsForCard, today);
+
+      if (sched.is_overdue) {
+        notifications.push({
+          id: `card-overdue-${acc.id}`,
+          title: `🚨 ${acc.name} Ekstre Gecikmede!`,
+          subtitle: `${new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(sched.overdue_amount)} — ${sched.days_overdue} gündür gecikmede!`,
+          module: 'Finans',
+          icon: '💳',
+          days_left: -sched.days_overdue,
+          priority: 'critical',
+          due_date: sched.last_due_date
+        });
+      } else if (sched.days_until_due <= 7) {
+        notifications.push({
+          id: `card-${acc.id}`,
+          title: `${acc.name} Ekstre Ödemesi`,
+          subtitle: `${new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(acc.balance)} — ${sched.days_until_due <= 0 ? 'Bugün!' : `${sched.days_until_due} gün kaldı`}`,
+          module: 'Finans',
+          icon: '💳',
+          days_left: sched.days_until_due,
+          priority: sched.days_until_due <= 2 ? 'critical' : 'warning',
+          due_date: sched.next_due_date
+        });
       }
     }
 

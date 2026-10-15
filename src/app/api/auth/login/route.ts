@@ -86,7 +86,7 @@ export async function POST(req: Request) {
     cookieStore.set('singularity_session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',  // 'lax' → 'strict' (daha güçlü CSRF koruması)
+      sameSite: 'lax', // OAuth (Strava vb.) harici yönlendirmeleriyle uyumluluk için 'lax' standardı
       path: '/',
       maxAge: 30 * 86400
     });

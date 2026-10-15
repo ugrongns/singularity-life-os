@@ -59,6 +59,7 @@ const PUBLIC_API_ROUTES = [
   '/api/auth/register',
   '/api/auth/session',
   '/api/telegram', // Webhook kendi secret token & chat_id doğrulamasını yapar
+  '/api/health/workouts/strava/callback', // OAuth dönüşü (kendi içinde getAuthUser ve state kontrolü yapar)
 ];
 
 // ─── Middleware ─────────────────────────────────────────────────────────────

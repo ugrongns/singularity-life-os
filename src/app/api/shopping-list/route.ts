@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { shoppingListItems, walletsAccounts, transactions } from '@/db/schema';
-import { eq, and , or } from 'drizzle-orm';
+import { shoppingListItems, walletsAccounts, transactions, categories } from '@/db/schema';
+import { eq, and, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 export async function GET() {
@@ -239,19 +239,36 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'Alınan ürün tutarı 0 TL. Harcama kaydedilemedi.' }, { status: 400 });
       }
 
-      // Cüzdanı al ve bakiyesini güncelle (Kredi kartı ise borç artar, nakit/vadesiz ise bakiye düşer)
-      const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).limit(1))[0];
-      if (wallet) {
-        const isCreditCard = wallet.type === 'credit_card';
-        const newBalance = isCreditCard
-          ? (wallet.balance || 0) + totalAmount
-          : (wallet.balance || 0) - totalAmount;
+      // Cüzdanı al ve yetkisini doğrula (Kredi kartı ise borç artar, nakit/vadesiz ise bakiye düşer)
+      const wallet = (await db.select().from(walletsAccounts).where(
+        and(
+          eq(walletsAccounts.id, walletId),
+          familyId ? or(eq(walletsAccounts.family_id, familyId), eq(walletsAccounts.user_id, user.id)) : eq(walletsAccounts.user_id, user.id)
+        )
+      ).limit(1))[0];
 
-        await db.update(walletsAccounts).set({
-          balance: newBalance,
-          updated_at: now
-        }).where(eq(walletsAccounts.id, walletId));
+      if (!wallet) {
+        return NextResponse.json({ success: false, error: 'Seçilen hesap bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
       }
+
+      const isCreditCard = wallet.type === 'credit_card';
+      const newBalance = isCreditCard
+        ? (wallet.balance || 0) + totalAmount
+        : (wallet.balance || 0) - totalAmount;
+
+      await db.update(walletsAccounts).set({
+        balance: newBalance,
+        updated_at: now
+      }).where(eq(walletsAccounts.id, walletId));
+
+      // Kategori eşleştirme (Market veya Gıda & Mutfak)
+      const marketCat = (await db.select().from(categories).where(
+        or(
+          eq(categories.name, 'Market'),
+          eq(categories.name, 'Gıda & Mutfak'),
+          eq(categories.name, 'Mutfak & Gıda')
+        )
+      ).limit(1))[0];
 
       // Harcama işlemi kaydet (transactions)
       const txId = `tx-shop-${Date.now()}`;
@@ -259,6 +276,7 @@ export async function POST(request: Request) {
       await db.insert(transactions).values({
         id: txId,
         wallet_id: walletId,
+        category_id: marketCat?.id || null,
         merchant: 'Market Alışverişi',
         amount: totalAmount,
         currency: 'TRY',

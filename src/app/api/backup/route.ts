@@ -33,6 +33,7 @@ const SAFE_EXPORT_TABLES = [
   { name: 'fasting_sessions', table: schema.fastingSessions },
   { name: 'water_intake_logs', table: schema.waterIntakeLogs },
   { name: 'supplement_routines', table: schema.supplementRoutines },
+  { name: 'supplement_intake_logs', table: schema.supplementIntakeLogs },
   { name: 'sleep_logs', table: schema.sleepLogs },
   { name: 'mood_logs', table: schema.moodLogs },
   { name: 'biometrics', table: schema.biometrics },
