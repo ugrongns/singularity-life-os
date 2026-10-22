@@ -115,7 +115,6 @@ export default function LibraryPage() {
           onClose={() => setSelectedBookDetail(null)}
           onOpenSession={(bId) => handleOpenSessionForBook(bId)}
           onSuccess={(msg) => {
-            setSelectedBookDetail(null);
             handleUpdate(msg);
           }}
         />

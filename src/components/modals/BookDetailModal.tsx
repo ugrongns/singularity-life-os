@@ -1,6 +1,6 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { BOOK_CATEGORIES } from '@/lib/book-categories';
+import { useState, useEffect, useMemo } from 'react';
+import { BOOK_CATEGORIES, sortCategoriesInTurkish } from '@/lib/book-categories';
 import PageCalibrationModal from '@/components/modals/PageCalibrationModal';
 
 interface Book {
@@ -29,6 +29,7 @@ interface Book {
   lent_date?: string;
   stats?: {
     wpm?: number;
+    hasSessionData?: boolean;
     totalDurationText?: string;
     sessionCount?: number;
     avgMinutesPerPage?: string;
@@ -65,10 +66,19 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
   const [notes, setNotes] = useState('');
   const [isLentOut, setIsLentOut] = useState(false);
   const [lentToName, setLentToName] = useState('');
+  const [lentDate, setLentDate] = useState('');
   
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const categoriesList = useMemo(() => {
+    const base = [...BOOK_CATEGORIES];
+    if (category && !base.includes(category)) {
+      base.push(category);
+    }
+    return sortCategoriesInTurkish(base);
+  }, [category]);
 
   useEffect(() => {
     if (book) {
@@ -92,11 +102,17 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
       setNotes(book.notes || '');
       setIsLentOut(Boolean(book.is_lent_out));
       setLentToName(book.lent_to_name || '');
+      setLentDate(book.lent_date || new Date().toISOString().split('T')[0]);
       setErrorMsg(null);
     }
-  }, [book]);
+  }, [book?.id]);
 
   if (!isOpen || !book) return null;
+
+  const effectiveWpm = book.stats?.wpm || 220;
+  const effectiveWpp = Number(wordsPerPage) > 0 ? Number(wordsPerPage) : (book.words_per_page || 250);
+  const dynamicAvgMinutesPerPage = (effectiveWpp / effectiveWpm).toFixed(1);
+  const hasSessions = (book.stats?.sessionCount || 0) > 0;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,7 +137,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
           category,
           status,
           format,
-          shelf_location: shelfLocation,
+          shelf_location: shelfLocation.trim() || 'Salon Kitaplığı',
           total_pages: Number(totalPages) || 0,
           current_page: Number(currentPage) || 0,
           words_per_page: wordsPerPage !== '' ? Number(wordsPerPage) : 250,
@@ -134,7 +150,8 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
           finish_date: finishDate || null,
           notes: notes.trim(),
           is_lent_out: isLentOut ? 1 : 0,
-          lent_to_name: isLentOut ? lentToName.trim() : null
+          lent_to_name: isLentOut ? lentToName.trim() : null,
+          lent_date: isLentOut ? (lentDate || new Date().toISOString().split('T')[0]) : null
         })
       });
 
@@ -253,10 +270,10 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-main)', lineHeight: '1.2' }}>
-              {book.title}
+              {title || book.title}
             </div>
             <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px', fontWeight: 600 }}>
-              {book.author}
+              {author || book.author}
             </div>
 
             {/* Cihazdan Görsel Yükle / Kaldır Butonları */}
@@ -357,11 +374,13 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+          {/* Yayınevi & Kategori (2 Sütun - Metin Kesilmesini Önler) */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
               <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>YAYINEVİ</label>
               <input
                 type="text"
+                placeholder="Ör. Pegasus Yayınları"
                 value={publisher}
                 onChange={e => setPublisher(e.target.value)}
                 style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
@@ -369,20 +388,20 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
             </div>
             <div>
               <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>KATEGORİ</label>
-              <input
-                type="text"
-                list="book-categories-list"
+              <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
                 style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
-                placeholder="Kategori seçin veya yazın..."
-              />
-              <datalist id="book-categories-list">
-                {BOOK_CATEGORIES.map(cat => (
-                  <option key={cat} value={cat} />
+              >
+                {categoriesList.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
                 ))}
-              </datalist>
+              </select>
             </div>
+          </div>
+
+          {/* Format & Raf Konumu (2 Sütun) */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
               <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>FORMAT</label>
               <select
@@ -395,6 +414,16 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
                 <option value="audiobook">🎧 Sesli Kitap</option>
               </select>
             </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>RAF KONUMU</label>
+              <input
+                type="text"
+                placeholder="Ör. Salon Kitaplığı"
+                value={shelfLocation}
+                onChange={e => setShelfLocation(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
+              />
+            </div>
           </div>
 
           {/* İlerleme & Durum */}
@@ -402,13 +431,19 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
             <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '8px', color: 'var(--text-main)' }}>
               📖 Okuma İlerlemesi & Durum
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-              <div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>DURUM</label>
                 <select
                   value={status}
-                  onChange={e => setStatus(e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+                  onChange={e => {
+                    const nextStatus = e.target.value;
+                    setStatus(nextStatus);
+                    if (nextStatus === 'completed' && Number(totalPages) > 0) {
+                      setCurrentPage(Number(totalPages));
+                    }
+                  }}
+                  style={{ width: '100%', padding: '7px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
                 >
                   <option value="wishlist">📌 Okunacak</option>
                   <option value="reading">📖 Okunuyor</option>
@@ -419,18 +454,30 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
                 <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>GÜNCEL SAYFA</label>
                 <input
                   type="number"
+                  min={0}
                   value={currentPage}
-                  onChange={e => setCurrentPage(e.target.value === '' ? '' : Number(e.target.value))}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+                  onChange={e => {
+                    const val = e.target.value === '' ? '' : Number(e.target.value);
+                    setCurrentPage(val);
+                    if (typeof val === 'number') {
+                      if (Number(totalPages) > 0 && val >= Number(totalPages)) {
+                        setStatus('completed');
+                      } else if (val > 0 && status === 'wishlist') {
+                        setStatus('reading');
+                      }
+                    }
+                  }}
+                  style={{ width: '100%', padding: '7px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
                 />
               </div>
               <div>
                 <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>TOPLAM SAYFA</label>
                 <input
                   type="number"
+                  min={1}
                   value={totalPages}
                   onChange={e => setTotalPages(e.target.value === '' ? '' : Number(e.target.value))}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+                  style={{ width: '100%', padding: '7px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
                 />
               </div>
             </div>
@@ -438,6 +485,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
             {/* Sayfa Başı Ortalama Kelime (WPP) & Kalibrasyon */}
             <div style={{
               marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              flexWrap: 'wrap', gap: '10px',
               background: 'var(--surface-subtle)', padding: '8px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)'
             }}>
               <div>
@@ -449,9 +497,9 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
                     max={1000}
                     value={wordsPerPage}
                     onChange={e => setWordsPerPage(e.target.value === '' ? '' : Number(e.target.value))}
-                    style={{ width: '65px', padding: '4px 6px', fontSize: '12px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text-main)' }}
+                    style={{ width: '72px', padding: '4px 8px', fontSize: '12px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text-main)' }}
                   />
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>kelime/sayfa</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>kelime/sayfa</span>
                 </div>
               </div>
 
@@ -459,17 +507,19 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
                 type="button"
                 onClick={() => setIsCalibrationOpen(true)}
                 style={{
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '4px',
+                  justifyContent: 'center',
+                  gap: '6px',
                   background: 'var(--indigo-bg)',
                   border: '1px solid var(--indigo)',
                   color: 'var(--indigo)',
                   fontSize: '11px',
                   fontWeight: 800,
-                  padding: '6px 10px',
+                  padding: '7px 12px',
                   borderRadius: 'var(--radius-md)',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 <span>🔬</span>
@@ -477,22 +527,24 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
               </button>
             </div>
 
-            {/* O Kitaba Özel Okuma Hızı & Seans İstatistikleri (Otomatik) */}
+            {/* O Kitaba Özel Okuma Hızı & Seans İstatistikleri (Otomatik & Dinamik) */}
             <div style={{
               marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed var(--border)',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px'
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))', gap: '10px', alignItems: 'center'
             }}>
               <div>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>OKUMA HIZI (KİTABA ÖZEL)</div>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--indigo)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span>⚡ {book.stats?.wpm || 220} WPM</span>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>
+                  {hasSessions ? 'OKUMA HIZI (KİTABA ÖZEL)' : 'TAHMİNİ OKUMA HIZI (GENEL PROFİL)'}
+                </div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--indigo)', marginTop: '2px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                  <span>⚡ {effectiveWpm} WPM</span>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
-                    (~{book.stats?.avgMinutesPerPage || '0.8'} dk / sayfa • {wordsPerPage || 250} wpp)
+                    (~{dynamicAvgMinutesPerPage} dk / sayfa • {effectiveWpp} wpp)
                   </span>
                 </div>
               </div>
 
-              <div style={{ textAlign: 'right' }}>
+              <div>
                 <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>OKUNAN SÜRE & SEANSLAR</div>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)', marginTop: '2px' }}>
                   ⏱️ {book.stats?.totalDurationText || '0 dk'} ({book.stats?.sessionCount || 0} Seans)
@@ -521,35 +573,35 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
             <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '8px', color: 'var(--emerald)' }}>
               🛒 Satın Alım & Finans Bilgileri
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-              <div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--emerald)' }}>NEREDEN ALINDI?</label>
                 <input
                   type="text"
                   placeholder="Ör. Amazon, D&R, Sahaf"
                   value={purchasedFrom}
                   onChange={e => setPurchasedFrom(e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
+                  style={{ width: '100%', padding: '7px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--emerald)' }}>ALIM FİYATI (₺)</label>
+                <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--emerald)', whiteSpace: 'nowrap' }}>ALIM FİYATI (₺)</label>
                 <input
                   type="number"
                   step="0.01"
                   placeholder="Ör. 185.50"
                   value={purchasePrice}
                   onChange={e => setPurchasePrice(e.target.value === '' ? '' : Number(e.target.value))}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
+                  style={{ width: '100%', padding: '7px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--emerald)' }}>ALIM TARİHİ</label>
+                <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--emerald)', whiteSpace: 'nowrap' }}>ALIM TARİHİ</label>
                 <input
                   type="date"
                   value={purchasedDate}
                   onChange={e => setPurchasedDate(e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
+                  style={{ width: '100%', padding: '7px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
                 />
               </div>
             </div>
@@ -558,7 +610,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
           {/* Tarih Çizelgesi */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>🚀 BAŞLAMA TARİHİ</label>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>🚀 BAŞLAMA TARİHİ</label>
               <input
                 type="date"
                 value={startDate}
@@ -567,7 +619,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
               />
             </div>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>🎯 BİTİRME TARİHİ</label>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>🎯 BİTİRME TARİHİ</label>
               <input
                 type="date"
                 value={finishDate}
@@ -590,7 +642,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
           </div>
 
           {/* Emanet Verildi Bilgisi */}
-          <div style={{ borderTop: '1px border var(--border)', paddingTop: '10px' }}>
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer' }}>
               <input
                 type="checkbox"
@@ -601,14 +653,26 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
             </label>
 
             {isLentOut && (
-              <div style={{ marginTop: '8px' }}>
-                <input
-                  type="text"
-                  placeholder="Emanet verilen kişinin adı (Ör. John Doe)"
-                  value={lentToName}
-                  onChange={e => setLentToName(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
-                />
+              <div style={{ marginTop: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>EMANET VERİLEN KİŞİ</label>
+                  <input
+                    type="text"
+                    placeholder="Ör. Ahmet Yılmaz"
+                    value={lentToName}
+                    onChange={e => setLentToName(e.target.value)}
+                    style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>EMANET TARİHİ</label>
+                  <input
+                    type="date"
+                    value={lentDate}
+                    onChange={e => setLentDate(e.target.value)}
+                    style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -647,6 +711,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
             if (book) book.words_per_page = newCount;
           }}
           onSuccess={(msg) => {
+            window.dispatchEvent(new CustomEvent('singularity-refresh'));
             if (onSuccess) onSuccess(msg);
           }}
         />

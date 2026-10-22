@@ -28,6 +28,7 @@ interface Book {
   lent_date?: string;
   stats?: {
     wpm?: number;
+    hasSessionData?: boolean;
     totalDurationText?: string;
     sessionCount?: number;
     avgMinutesPerPage?: string;
@@ -293,8 +294,8 @@ export default function BookShelfList({ books, onQuickPageUpdate, onOpenAddBookM
           isOpen={Boolean(selectedBookDetail)}
           book={selectedBookDetail}
           onClose={() => setSelectedBookDetail(null)}
+          onOpenSession={(bId) => onOpenSessionForBook && onOpenSessionForBook(bId)}
           onSuccess={(msg) => {
-            setSelectedBookDetail(null);
             window.dispatchEvent(new CustomEvent('singularity-refresh'));
             if (onUpdate) onUpdate(msg);
           }}

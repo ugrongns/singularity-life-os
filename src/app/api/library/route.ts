@@ -50,6 +50,9 @@ export async function GET() {
         avgMinutesPerPage = (totalDurationMinutes / totalPagesRead).toFixed(1);
       }
 
+      const effectiveWpm = bookWpm || profile.calibrated_avg_wpm || 220;
+      const effectiveAvgMinutesPerPage = avgMinutesPerPage || (wordsPerPage / effectiveWpm).toFixed(1);
+
       const hours = Math.floor(totalDurationMinutes / 60);
       const mins = Math.round(totalDurationMinutes % 60);
       const totalDurationText = totalDurationMinutes > 0
@@ -62,9 +65,9 @@ export async function GET() {
           sessionCount,
           totalDurationMinutes,
           totalDurationText,
-          wpm: bookWpm || profile.calibrated_avg_wpm || 220,
+          wpm: effectiveWpm,
           hasSessionData: bookWpm !== null,
-          avgMinutesPerPage: avgMinutesPerPage || ((profile.avg_seconds_per_page || 84) / 60).toFixed(1)
+          avgMinutesPerPage: effectiveAvgMinutesPerPage
         }
       };
     });
