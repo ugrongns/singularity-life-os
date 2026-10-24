@@ -19,6 +19,9 @@ interface SharedLayoutProps {
   notifications?: { notifications: any[]; critical: number; warning: number };
 }
 
+// Sayfa geçişlerinde (route navigation) tekrar tekrar beyaz ekran ve oturum sorgusu oluşmasını önleyen istemci önbelleği
+let _clientSessionCache: { isInitialized: boolean; isAuthenticated: boolean; user: any } | null = null;
+
 export default function SharedLayout({ children, notifications }: SharedLayoutProps) {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
@@ -33,12 +36,12 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
     isAuthenticated: boolean;
     user: any;
     loading: boolean;
-  }>({
-    isInitialized: true,
-    isAuthenticated: true,
-    user: null,
-    loading: true
-  });
+  }>(() => ({
+    isInitialized: _clientSessionCache ? _clientSessionCache.isInitialized : true,
+    isAuthenticated: _clientSessionCache ? _clientSessionCache.isAuthenticated : true,
+    user: _clientSessionCache ? _clientSessionCache.user : null,
+    loading: !_clientSessionCache
+  }));
 
   const [isScreenLocked, setIsScreenLocked] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -70,12 +73,15 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
       const res = await fetch('/api/auth/session');
       const json = await res.json();
       if (json.success && json.data) {
-        setAuthSession({
+        const nextState = {
           isInitialized: json.data.is_initialized,
           isAuthenticated: json.data.is_authenticated,
-          user: json.data.user,
-          loading: false
-        });
+          user: json.data.user
+        };
+        _clientSessionCache = nextState;
+        setAuthSession({ ...nextState, loading: false });
+      } else {
+        setAuthSession(prev => ({ ...prev, loading: false }));
       }
     } catch (e) {
       setAuthSession(prev => ({ ...prev, loading: false }));

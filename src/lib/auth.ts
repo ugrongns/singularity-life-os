@@ -53,9 +53,6 @@ export function generateSessionToken(): string {
 }
 
 /**
- * Sunucu tarafı API rotalarında aktif oturum açan kullanıcıyı döndürür
- */
-/**
  * Hassas sütunları (parola hash/salt, PIN hash, bot token) nesneden ayıklar (OWASP BOPLA koruması)
  */
 export function sanitizeUser(user: any) {
@@ -71,6 +68,20 @@ export function sanitizeUser(user: any) {
   return safeUser;
 }
 
+// Paralel composite çağrılarında aynı token için mükerrer DB sorgularını birleştiren kısa ömürlü (2sn) önbellek
+const _authCache = new Map<string, { user: any; expiresAt: number }>();
+const _inFlightAuth = new Map<string, Promise<any>>();
+
+export function clearAuthSessionCache(token?: string) {
+  if (token) {
+    _authCache.delete(token);
+    _inFlightAuth.delete(token);
+  } else {
+    _authCache.clear();
+    _inFlightAuth.clear();
+  }
+}
+
 /**
  * Sunucu tarafı API rotalarında aktif oturum açan kullanıcıyı döndürür.
  * Varsayılan olarak parola hash/salt/PIN/token gibi gizli alanları ayıklar.
@@ -78,23 +89,44 @@ export function sanitizeUser(user: any) {
 export async function getAuthUser(options?: { includeSecrets?: boolean }) {
   try {
     const { cookies } = await import('next/headers');
-    const { db } = await import('@/db');
-    const { authSessions, users } = await import('@/db/schema');
-    const { eq } = await import('drizzle-orm');
-
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get('singularity_session')?.value;
     if (!sessionToken) return null;
 
-    const now = new Date().toISOString();
-    const session = (await db.select().from(authSessions)
-      .where(eq(authSessions.token, sessionToken))
-      .limit(1))[0];
+    const nowMs = Date.now();
+    const cached = _authCache.get(sessionToken);
+    if (cached && cached.expiresAt > nowMs) {
+      return options?.includeSecrets ? cached.user : sanitizeUser(cached.user);
+    }
 
-    if (!session || session.expires_at < now) return null;
+    let pending = _inFlightAuth.get(sessionToken);
+    if (!pending) {
+      pending = (async () => {
+        const { db } = await import('@/db');
+        const { authSessions, users } = await import('@/db/schema');
+        const { eq } = await import('drizzle-orm');
 
-    const user = (await db.select().from(users).where(eq(users.id, session.user_id)).limit(1))[0];
-    return options?.includeSecrets ? user : sanitizeUser(user);
+        const nowISO = new Date().toISOString();
+        const session = (await db.select().from(authSessions)
+          .where(eq(authSessions.token, sessionToken))
+          .limit(1))[0];
+
+        if (!session || session.expires_at < nowISO) return null;
+
+        const user = (await db.select().from(users).where(eq(users.id, session.user_id)).limit(1))[0];
+        if (user) {
+          _authCache.set(sessionToken, { user, expiresAt: Date.now() + 2000 });
+        }
+        return user || null;
+      })().finally(() => {
+        _inFlightAuth.delete(sessionToken);
+      });
+      _inFlightAuth.set(sessionToken, pending);
+    }
+
+    const rawUser = await pending;
+    if (!rawUser) return null;
+    return options?.includeSecrets ? rawUser : sanitizeUser(rawUser);
   } catch (err) {
     return null;
   }

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { calculateBillSchedule, calculateCreditCardSchedule, localYYYYMM, localYYYYMMDD } from '../src/lib/bill-schedule';
+import { sanitizeUser } from '../src/lib/auth';
 
-describe('Financial Schedule & Installment Calculations', () => {
+describe('Financial Schedule, Installment & Security Calculations', () => {
   it('dates and timezone formatting work correctly', () => {
     const testDate = new Date(2026, 9, 24); // 24 Oct 2026
     expect(localYYYYMM(testDate)).toBe('2026-10');
@@ -30,7 +31,6 @@ describe('Financial Schedule & Installment Calculations', () => {
   });
 
   it('income vs expense reversal math on transaction deletion', () => {
-    // 1. Bank account with 100,000 balance
     const bankBalance = 100000;
     const incomeAmount = 50000;
     const isIncome = true;
@@ -39,13 +39,13 @@ describe('Financial Schedule & Installment Calculations', () => {
     const newBankBalance = isIncome ? Math.max(0, bankBalance - incomeAmount) : bankBalance + incomeAmount;
     expect(newBankBalance).toBe(50000);
 
-    // 2. Bank account with 100,000 balance deleting an expense must INCREASE bank balance (refund)
+    // Deleting an expense must INCREASE bank balance (refund)
     const expenseAmount = 15000;
     const isExpense = false;
     const refundedBankBalance = isExpense ? Math.max(0, bankBalance - expenseAmount) : bankBalance + expenseAmount;
     expect(refundedBankBalance).toBe(115000);
 
-    // 3. Credit card with 20,000 debt deleting a purchase must DECREASE debt
+    // Credit card with 20,000 debt deleting a purchase must DECREASE debt
     const cardDebt = 20000;
     const cardPurchaseAmount = 5000;
     const newCardDebt = Math.max(0, cardDebt - cardPurchaseAmount);
@@ -70,5 +70,29 @@ describe('Financial Schedule & Installment Calculations', () => {
     expect(schedule).toBeDefined();
     expect(schedule.next_due_date).toBeDefined();
     expect(schedule.statement_cutoff_date).toBeDefined();
+  });
+
+  it('sanitizeUser strips sensitive BOPLA fields (password_hash, salt, pin, telegram tokens)', () => {
+    const rawUser = {
+      id: 'u-1',
+      username: 'ugur',
+      full_name: 'Uğur',
+      role: 'admin',
+      family_id: 'fam-u-1',
+      password_hash: 'secret_hash_123',
+      password_salt: 'secret_salt_456',
+      quick_pin_hash: 'secret_pin_789',
+      telegram_bot_token: 'bot_token_abc',
+      telegram_secret_token: 'sec_token_xyz'
+    };
+
+    const safe = sanitizeUser(rawUser);
+    expect(safe.id).toBe('u-1');
+    expect(safe.username).toBe('ugur');
+    expect(safe.password_hash).toBeUndefined();
+    expect(safe.password_salt).toBeUndefined();
+    expect(safe.quick_pin_hash).toBeUndefined();
+    expect(safe.telegram_bot_token).toBeUndefined();
+    expect(safe.telegram_secret_token).toBeUndefined();
   });
 });

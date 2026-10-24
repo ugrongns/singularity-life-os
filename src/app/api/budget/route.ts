@@ -75,12 +75,16 @@ export async function GET(req: Request) {
       };
     });
 
-    // 2. Kategoriler
-    const allCategories = await db.select().from(categories);
+    // 2. Kategoriler (Sadece çekirdek kategoriler ve bu aileye ait özel kategoriler)
+    const allCategories = await db.select().from(categories).where(
+      familyId
+        ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
+        : or(sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
+    );
     const categoryMap = new Map((allCategories).map((c: any) => [c.id, c]));
 
-    // 3. Son 5 Harcama (Geçmiş İşlemler)
-    const allRecentTx = userId
+    // 3. Tüm Aile İşlemlerini Tek Sorguda Çek ve Bellekte İndeksle (15+ N+1 sorguyu 1 sorguya indirir)
+    const allFamilyTxs = userId
       ? await db.select()
           .from(transactions)
           .where(
@@ -89,8 +93,26 @@ export async function GET(req: Request) {
               : eq(transactions.user_id, userId)
           )
           .orderBy(desc(transactions.transaction_date), desc(transactions.created_at))
-          .limit(50)
       : [];
+
+    const allRecentTx = allFamilyTxs.slice(0, 50);
+
+    // O(1) erişim için Cüzdan bazlı ve Ay (YYYY-MM) bazlı işlem indeksleri
+    const cardTxByWallet = new Map<string, any[]>();
+    const txByMonth = new Map<string, any[]>();
+    for (const tx of allFamilyTxs) {
+      if (tx.wallet_id) {
+        const wList = cardTxByWallet.get(tx.wallet_id);
+        if (wList) wList.push(tx);
+        else cardTxByWallet.set(tx.wallet_id, [tx]);
+      }
+      if (tx.transaction_date) {
+        const mKey = tx.transaction_date.slice(0, 7);
+        const mList = txByMonth.get(mKey);
+        if (mList) mList.push(tx);
+        else txByMonth.set(mKey, [tx]);
+      }
+    }
 
     // Gelir ve Transfer/Ödeme olan tüm işlemleri harcamalar listesinden çıkar (Sadece gerçek 3. şahıs giderleri görünsün)
     const recentTx = (allRecentTx)
@@ -141,7 +163,7 @@ export async function GET(req: Request) {
     // B. Kredi Kartı Son Ödeme & Risk Motoru
     for (const acc of accounts) {
       if (acc.type === 'credit_card') {
-        const cardTx = await db.select().from(transactions).where(eq(transactions.wallet_id, acc.id));
+        const cardTx = cardTxByWallet.get(acc.id) || [];
         const ccSchedule = calculateCreditCardSchedule(acc, cardTx as any[], today);
 
         // Hesaba ekstre & gecikme alanlarını ekle
@@ -269,16 +291,7 @@ export async function GET(req: Request) {
     let totalMonthlyExpense = 0;
     let totalMonthlyIncome = 0;
 
-    const monthlyTx = userId
-      ? await db.select().from(transactions).where(
-          and(
-            familyId
-              ? and(eq(transactions.family_id, familyId), or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)))
-              : eq(transactions.user_id, userId),
-            sql`substr(${transactions.transaction_date}, 1, 7) = ${currentMonthStr}`
-          )
-        )
-      : [];
+    const monthlyTx = txByMonth.get(currentMonthStr) || [];
 
     for (const tx of monthlyTx) {
       const cat = tx.category_id ? categoryMap.get(tx.category_id) : null;
@@ -359,17 +372,7 @@ export async function GET(req: Request) {
       for (let back = 1; back <= 3; back++) {
         const pastDate = new Date(today.getFullYear(), today.getMonth() - back, 1);
         const pastMonth = localYYYYMM(pastDate);
-        const pastTxs = userId
-          ? await db.select().from(transactions)
-              .where(
-                and(
-                  familyId
-                    ? and(eq(transactions.family_id, familyId), or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)))
-                    : eq(transactions.user_id, userId),
-                  sql`substr(${transactions.transaction_date}, 1, 7) = ${pastMonth}`
-                )
-              )
-          : [];
+        const pastTxs = txByMonth.get(pastMonth) || [];
         const pastIncome = (pastTxs)
           .filter((t: any) => {
             const c = t.category_id ? categoryMap.get(t.category_id) : null;
@@ -512,18 +515,7 @@ export async function GET(req: Request) {
       const fMonthStr = localYYYYMM(fDate); // ✅ Timezone-safe
       const fMonthName = new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric' }).format(fDate);
 
-      const monthTxs = userId
-        ? await db.select()
-            .from(transactions)
-            .where(
-              and(
-                familyId
-                  ? and(eq(transactions.family_id, familyId), or(eq(transactions.user_id, userId), eq(transactions.is_family_shared, 1)))
-                  : eq(transactions.user_id, userId),
-                sql`substr(${transactions.transaction_date}, 1, 7) = ${fMonthStr}`
-              )
-            )
-        : [];
+      const monthTxs = txByMonth.get(fMonthStr) || [];
 
       const installmentTxs = (monthTxs).filter((t: any) => t.is_installment === 1);
       const committedAmount = (installmentTxs).reduce((sum: number, t: any) => sum + t.amount, 0);

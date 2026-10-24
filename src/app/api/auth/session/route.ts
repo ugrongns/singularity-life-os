@@ -10,8 +10,8 @@ export async function GET() {
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get('singularity_session')?.value;
 
-    const allUsers = await db.select().from(users);
-    const isInitialized = allUsers.length > 0;
+    const firstUser = await db.select({ id: users.id }).from(users).limit(1);
+    const isInitialized = firstUser.length > 0;
 
     if (!sessionToken) {
       return NextResponse.json({
@@ -20,7 +20,7 @@ export async function GET() {
           is_initialized: isInitialized,
           is_authenticated: false,
           user: null,
-          users_count: allUsers.length
+          users_count: firstUser.length
         }
       });
     }
@@ -37,7 +37,7 @@ export async function GET() {
           is_initialized: isInitialized,
           is_authenticated: false,
           user: null,
-          users_count: allUsers.length
+          users_count: firstUser.length
         }
       });
     }
