@@ -49,7 +49,7 @@ import { cookies } from 'next/headers';
 export async function POST(req: Request) {
   try {
     await initDatabase();
-    const user = await getAuthUser();
+    const user = await getAuthUser({ includeSecrets: true });
 
     if (!user || !user.id) {
       return NextResponse.json({ success: false, error: 'Oturum bulunamadı. Lütfen giriş yapın.' }, { status: 401 });

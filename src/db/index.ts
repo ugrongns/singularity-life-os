@@ -847,12 +847,7 @@ async function _runInit(): Promise<void> {
     await pgClient.unsafe(createTablesSQL);
     await pgClient.unsafe(alterMissingColumnsSQL);
     await pgClient.unsafe(seedCategoriesSQL);
-    await pgClient.unsafe(`
-      UPDATE categories 
-      SET monthly_budget_limit = 0 
-      WHERE id IN ('cat-market', 'cat-kira', 'cat-fatura', 'cat-ulasim', 'cat-eeglence', 'cat-saglik', 'cat-diger') 
-        AND (family_id IS NULL OR family_id = '');
-    `);
+    
     await pgClient.unsafe(enableRlsSQL);
   } catch (err) {
     _initPromise = null; // Hata durumunda sıfırla, bir sonraki istekte tekrar denensin

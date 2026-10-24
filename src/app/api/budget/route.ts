@@ -158,15 +158,13 @@ export async function GET(req: Request) {
             .filter((t: any) => (!t.is_installment || t.is_installment === 0) && t.transaction_date.startsWith(currentMonthStr))
             .reduce((sum: number, t: any) => sum + t.amount, 0);
 
-          const instMap = new Map<string, number>();
-          for (const t of (cardTx)) {
-            if (t.is_installment === 1) {
-              const key = t.parent_transaction_id || `${t.merchant}-${t.total_installments}`;
-              instMap.set(key, t.amount);
-            }
-          }
-          const installmentMonthlyTotal = Array.from(instMap.values()).reduce((sum, amt) => sum + amt, 0);
-          const cardStatementAmount = (singleTotal + installmentMonthlyTotal) > 0 ? (singleTotal + installmentMonthlyTotal) : acc.balance;
+          // Sadece bu ayın taksit dilimleri toplanır (geçmişte bitmiş veya gelecekteki taksitler filtrelenir)
+          const installmentMonthlyTotal = (cardTx)
+            .filter((t: any) => t.is_installment === 1 && t.transaction_date.startsWith(currentMonthStr))
+            .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+
+          const computedCycleAmount = singleTotal + installmentMonthlyTotal;
+          const cardStatementAmount = computedCycleAmount > 0 ? Math.min(acc.balance, computedCycleAmount) : acc.balance;
 
           if (ccSchedule.is_overdue) {
             upcomingList.push({

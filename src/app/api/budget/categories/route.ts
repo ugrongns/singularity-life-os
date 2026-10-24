@@ -74,6 +74,16 @@ export async function POST(req: Request) {
 
     if (id) {
       // Güncelle
+      const seedCategories = ['cat-maas', 'cat-market', 'cat-kira', 'cat-fatura', 'cat-ulasim', 'cat-eeglence', 'cat-saglik', 'cat-diger'];
+      const existing = (await db.select().from(categories).where(eq(categories.id, id)))[0];
+      if (!existing) {
+        return NextResponse.json({ success: false, error: 'Kategori bulunamadı.' }, { status: 404 });
+      }
+      // OWASP BOLA: Özel kategoriyi sadece ait olduğu aile güncelleyebilir
+      if (!seedCategories.includes(id) && existing.family_id && existing.family_id !== familyId) {
+        return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu kategori ailenize ait değil.' }, { status: 403 });
+      }
+
       await db.update(categories)
         .set({
           name: name.trim(),
@@ -132,7 +142,17 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Sistem temel kategorileri silinemez. Dilerseniz bütçe limitini 0 yapabilirsiniz.' }, { status: 400 });
     }
 
-    await db.delete(categories).where(eq(categories.id, id));
+    // OWASP BOLA: Özel kategoriyi sadece sahibi olan aile silebilir
+    const existing = (await db.select().from(categories).where(eq(categories.id, id)))[0];
+    if (!existing) {
+      return NextResponse.json({ success: false, error: 'Kategori bulunamadı.' }, { status: 404 });
+    }
+    const familyId = user.family_id || `fam-${user.id}`;
+    if (existing.family_id && existing.family_id !== familyId) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu kategori ailenize ait değil.' }, { status: 403 });
+    }
+
+    await db.delete(categories).where(and(eq(categories.id, id), eq(categories.family_id, familyId)));
 
     return NextResponse.json({ success: true, message: 'Kategori başarıyla silindi.' });
   } catch (error: any) {

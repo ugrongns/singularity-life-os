@@ -55,7 +55,27 @@ export function generateSessionToken(): string {
 /**
  * Sunucu tarafı API rotalarında aktif oturum açan kullanıcıyı döndürür
  */
-export async function getAuthUser() {
+/**
+ * Hassas sütunları (parola hash/salt, PIN hash, bot token) nesneden ayıklar (OWASP BOPLA koruması)
+ */
+export function sanitizeUser(user: any) {
+  if (!user) return null;
+  const {
+    password_hash,
+    password_salt,
+    quick_pin_hash,
+    telegram_bot_token,
+    telegram_secret_token,
+    ...safeUser
+  } = user;
+  return safeUser;
+}
+
+/**
+ * Sunucu tarafı API rotalarında aktif oturum açan kullanıcıyı döndürür.
+ * Varsayılan olarak parola hash/salt/PIN/token gibi gizli alanları ayıklar.
+ */
+export async function getAuthUser(options?: { includeSecrets?: boolean }) {
   try {
     const { cookies } = await import('next/headers');
     const { db } = await import('@/db');
@@ -74,7 +94,7 @@ export async function getAuthUser() {
     if (!session || session.expires_at < now) return null;
 
     const user = (await db.select().from(users).where(eq(users.id, session.user_id)).limit(1))[0];
-    return user || null;
+    return options?.includeSecrets ? user : sanitizeUser(user);
   } catch (err) {
     return null;
   }

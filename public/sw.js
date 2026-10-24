@@ -1,9 +1,8 @@
 // Singularity Life OS — Progressive Web App Service Worker (v4.0)
-const CACHE_NAME = 'singularity-cache-v4';
+const CACHE_NAME = 'singularity-cache-v5';
 const PRECACHE_ASSETS = [
   '/',
   '/budget',
-  '/investments',
   '/vehicles',
   '/library',
   '/health',
@@ -57,7 +56,11 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request).catch(() => {
         return new Response(
-          JSON.stringify({ success: false, error: 'Çevrimdışı moddasınız. İşlem kuyruğa alındı.' }),
+          JSON.stringify({ 
+            success: false, 
+            error: 'Sunucuya bağlanılamadı veya ağ bağlantısı koptu. Lütfen internet bağlantınızı ve gerekiyorsa VPN durumunuzu kontrol edin.' 
+          }),
+          { status: 503, headers: { 'Content-Type': 'application/json' } },
           { headers: { 'Content-Type': 'application/json' } }
         );
       })

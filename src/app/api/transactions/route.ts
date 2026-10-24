@@ -48,9 +48,16 @@ export async function POST(req: Request) {
     }
 
     const numAmount = Number(amount);
+    const familyId = user.family_id || `fam-${user.id}`;
     const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)))[0];
     if (!wallet) {
       return NextResponse.json({ success: false, error: 'Seçilen hesap bulunamadı.' }, { status: 404 });
+    }
+
+    // OWASP BOLA Sahiplik Kontrolü: Cüzdan kullanıcıya veya kullanıcının ailesine ait olmalıdır
+    const isOwner = wallet.user_id === user.id || (wallet.family_id && wallet.family_id === familyId);
+    if (!isOwner) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu hesap sizin veya ailenizin hesabına ait değil.' }, { status: 403 });
     }
 
     // 1. İşlemin Gelir mi Gider mi Olduğunu Belirle
@@ -85,12 +92,12 @@ export async function POST(req: Request) {
     const nowISO = now.toISOString();
     const totalInstallments = Math.max(1, parseInt(installments, 10));
     const parentTxId = `tx-${Date.now()}`;
-    const monthlyAmount = Math.round((numAmount / totalInstallments) * 100) / 100;
+    const baseMonthly = Math.floor((numAmount / totalInstallments) * 100) / 100;
+    const remainder = Math.round((numAmount - (baseMonthly * totalInstallments)) * 100) / 100;
+    const approxMonthly = Math.round((numAmount / totalInstallments) * 100) / 100;
 
     const createdTxIds: string[] = [];
-
     const userId = user.id;
-    const familyId = user.family_id || `fam-${user.id}`;
 
     let memberId = body.member_id || null;
     if (!memberId && wallet.user_id) {
@@ -119,7 +126,7 @@ export async function POST(req: Request) {
         user_id: userId,
         family_id: familyId,
         merchant: merchant || (isIncome ? 'Gelir Girişi' : 'Genel Harcama'),
-        amount: monthlyAmount,
+        amount: (i === 0 ? Math.round((baseMonthly + remainder) * 100) / 100 : baseMonthly),
         currency: 'TRY',
         transaction_date: txDateString,
         notes: totalInstallments > 1 
@@ -175,7 +182,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: totalInstallments > 1 
-        ? `İşlem ${totalInstallments} taksit olarak kaydedildi (Aylık ${monthlyAmount} TL). Gelecek ekstrelere işlendi.` 
+        ? `İşlem ${totalInstallments} taksit olarak kaydedildi (Aylık ~${approxMonthly} TL). Gelecek ekstrelere işlendi.` 
         : 'İşlem başarıyla kaydedildi.',
       createdIds: createdTxIds
     });
@@ -203,7 +210,14 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Harcama kaydı bulunamadı.' }, { status: 404 });
     }
 
-    const canDelete = tx.user_id === user.id || user.is_master_account === 1 || user.role === 'admin';
+    const userFamilyId = user.family_id || `fam-${user.id}`;
+    // OWASP BOLA: İşlem kullanıcının ailesine ait mi?
+    const isFamilyMatch = tx.family_id ? tx.family_id === userFamilyId : tx.user_id === user.id;
+    if (!isFamilyMatch) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu işlem ailenize ait değil.' }, { status: 403 });
+    }
+
+    const canDelete = tx.user_id === user.id || user.is_master_account === 1;
     if (!canDelete) {
       return NextResponse.json({ 
         success: false, 
@@ -211,23 +225,63 @@ export async function DELETE(req: Request) {
       }, { status: 403 });
     }
 
+    // Taksit grubu mu kontrol et: Eğer taksitli işlemse, yetim taksit ve bakiye sapmasını önlemek için tüm kardeş taksitleri topla
+    let txsToDelete = [tx];
+    if (tx.is_installment === 1 && tx.parent_transaction_id) {
+      const siblings = await db.select().from(transactions).where(eq(transactions.parent_transaction_id, tx.parent_transaction_id));
+      if (siblings.length > 0) {
+        txsToDelete = siblings;
+      }
+    }
+
+    const totalRevertAmount = txsToDelete.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+    // İşlemin Gelir mi Gider mi Olduğunu Belirle
+    let isIncome = false;
+    if (tx.category_id) {
+      const cat = (await db.select().from(categories).where(eq(categories.id, tx.category_id)))[0];
+      if (cat?.type === 'income') isIncome = true;
+    }
+    if (!isIncome && tx.merchant?.includes('Gelir Girişi')) {
+      isIncome = true;
+    }
+
     // Bakiye İadesi
     if (tx.wallet_id) {
       const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, tx.wallet_id)))[0];
       if (wallet) {
-        const newBalance = wallet.type === 'credit_card'
-          ? wallet.balance - tx.amount
-          : wallet.balance + tx.amount;
+        let newBalance = wallet.balance;
+        if (isIncome) {
+          // Gelir siliniyor: Normal banka bakiyesi AZALIR, Kredi kartı borcu ARTAR
+          newBalance = wallet.type === 'credit_card'
+            ? wallet.balance + totalRevertAmount
+            : Math.max(0, wallet.balance - totalRevertAmount);
+        } else {
+          // Gider siliniyor: Normal banka bakiyesi ARTAR, Kredi kartı borcu AZALIR
+          newBalance = wallet.type === 'credit_card'
+            ? Math.max(0, wallet.balance - totalRevertAmount)
+            : wallet.balance + totalRevertAmount;
+        }
 
         await db.update(walletsAccounts)
-          .set({ balance: Math.max(0, newBalance), updated_at: new Date().toISOString() })
-          .where(eq(walletsAccounts.id, tx.wallet_id))
-          ;
+          .set({ balance: newBalance, updated_at: new Date().toISOString() })
+          .where(eq(walletsAccounts.id, tx.wallet_id));
       }
     }
-    await db.delete(transactions).where(eq(transactions.id, id));
 
-    return NextResponse.json({ success: true, message: 'Harcama kaydı silindi ve bakiye güncellendi.' });
+    // Taksitli ise tüm kardeş taksitleri sil, değilse sadece bu kaydı sil
+    if (tx.is_installment === 1 && tx.parent_transaction_id) {
+      await db.delete(transactions).where(eq(transactions.parent_transaction_id, tx.parent_transaction_id));
+    } else {
+      await db.delete(transactions).where(eq(transactions.id, id));
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      message: txsToDelete.length > 1 
+        ? `${txsToDelete.length} taksit kaydı silindi ve bakiye eksiksiz güncellendi.` 
+        : 'Harcama kaydı silindi ve bakiye güncellendi.' 
+    });
   } catch (error: any) {
     console.error('Delete Transaction API Error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

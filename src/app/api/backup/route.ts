@@ -305,10 +305,10 @@ export async function POST(request: Request) {
           const row = { ...rawRow };
 
           // Kullanıcı ve aile sahipliğini mevcut oturumla uyumla (varsa ve boşsa)
-          if ('user_id' in t && (!row.user_id || row.user_id === 'user-1')) {
+          if ('user_id' in t) {
             row.user_id = user.id;
           }
-          if ('family_id' in t && (!row.family_id || row.family_id === 'fam-1')) {
+          if ('family_id' in t) {
             row.family_id = familyId;
           }
 

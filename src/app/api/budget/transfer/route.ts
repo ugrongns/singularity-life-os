@@ -32,6 +32,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesaplardan biri bulunamadı.' }, { status: 404 });
     }
 
+    // OWASP BOLA Yetki Kontrolü: Transfer yapılacak hesaplar kullanıcıya veya ailesine ait olmalıdır
+    const userFamilyId = user.family_id || `fam-${user.id}`;
+    const isFromOwner = fromAcc.user_id === user.id || (fromAcc.family_id && fromAcc.family_id === userFamilyId);
+    const isToOwner = toAcc.user_id === user.id || (toAcc.family_id && toAcc.family_id === userFamilyId);
+    if (!isFromOwner || !isToOwner) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Transfer yapılacak hesaplar sizin veya ailenizin hesabına ait değil.' }, { status: 403 });
+    }
+
     // Yetersiz bakiye kontrolü (Banka/Nakit hesaplar eksiye düşemez)
     if (fromAcc.type !== 'credit_card' && numAmount > fromAcc.balance) {
       return NextResponse.json({

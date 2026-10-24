@@ -23,6 +23,27 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'Geçersiz dosya adı.' }, { status: 400 });
     }
 
+    // OWASP BOLA / Gizlilik Doğrulaması: Belgenin bu aileye ait ve erişilebilir olduğunu teyit et
+    const familyId = user.family_id || `fam-${user.id}`;
+    const { db } = await import('@/db');
+    const { digitalVaultItems } = await import('@/db/schema');
+    const { like } = await import('drizzle-orm');
+
+    const vaultRecord = (await db.select().from(digitalVaultItems).where(
+      like(digitalVaultItems.document_image_url, `%${sanitizedFilename}%`)
+    ).limit(1))[0];
+
+    if (vaultRecord) {
+      const isSameFamily = vaultRecord.family_id === familyId || vaultRecord.user_id === user.id;
+      if (!isSameFamily) {
+        return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu belge ailenize ait değil.' }, { status: 403 });
+      }
+      const canView = vaultRecord.user_id === user.id || vaultRecord.is_family_shared === 1 || user.is_master_account === 1;
+      if (!canView) {
+        return NextResponse.json({ success: false, error: 'Bu özel kasadaki belgeyi görüntüleme yetkiniz yok.' }, { status: 403 });
+      }
+    }
+
     // Önce private_storage/vault'a bak, geriye dönük uyumluluk için public/uploads/vault'a bak
     let filePath = path.join(process.cwd(), 'private_storage', 'vault', sanitizedFilename);
     if (!fs.existsSync(filePath)) {

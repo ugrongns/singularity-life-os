@@ -21,14 +21,33 @@ export async function POST(req: Request) {
       duration_minutes
     } = body;
 
-    const start = parseInt(start_page, 10);
-    const end = parseInt(end_page, 10);
-    const duration = parseFloat(duration_minutes);
-    const pagesRead = Math.max(1, end - start);
+    const familyId = user.family_id || `fam-${user.id}`;
+    const book = (await db.select().from(books).where(eq(books.id, book_id)))[0];
+    if (!book) {
+      return NextResponse.json({ success: false, error: 'Kitap bulunamadı.' }, { status: 404 });
+    }
 
+    // OWASP BOLA: Kitabın kullanıcıya veya ailesine ait olduğunu doğrula
+    const isOwner = book.user_id === user.id || (book.family_id && book.family_id === familyId);
+    if (!isOwner) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu kitap hesabınıza ait değil.' }, { status: 403 });
+    }
+
+    const currentBookPage = book.current_page || 0;
+    const start = !isNaN(parseInt(start_page, 10)) ? parseInt(start_page, 10) : currentBookPage;
+    let end = parseInt(end_page, 10);
+    let pagesRead = 0;
+
+    if (!isNaN(end) && end >= start) {
+      pagesRead = Math.max(1, end - start);
+    } else {
+      pagesRead = Math.max(1, parseInt(body.pages_read || body.pagesRead, 10) || 1);
+      end = Math.min(book.total_pages || 9999, start + pagesRead);
+    }
+
+    const duration = parseFloat(duration_minutes) || Math.max(1, Math.round(pagesRead * 1.5));
     const now = new Date().toISOString();
     const sessionId = `session-${Date.now()}`;
-    const familyId = user.family_id || `fam-${user.id}`;
 
     // 1. Seans Kaydet
     await db.insert(readingSessions).values({
@@ -46,9 +65,8 @@ export async function POST(req: Request) {
     });
 
     // 2. Kitabın güncel sayfasını ilerlet
-    const book = (await db.select().from(books).where(eq(books.id, book_id)))[0];
-    if (book && end > book.current_page) {
-      const isFinished = end >= book.total_pages;
+    if (end > currentBookPage) {
+      const isFinished = book.total_pages ? end >= book.total_pages : false;
       await db.update(books)
         .set({
           current_page: end,

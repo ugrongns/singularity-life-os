@@ -42,6 +42,18 @@ export async function GET() {
     let ccDebt = 0;
     let totalMonthlyPassiveIncome = 0;
     let walletsCount = 0;
+    let thisMonthIncome = 0;
+    let txsList: any[] = [];
+    let incomeCatIds = new Set<string>();
+
+    const getTryValue = (balance: number, currency: string) => {
+      const c = (currency || 'TRY').toUpperCase();
+      if (c === 'USD') return balance * 35;
+      if (c === 'EUR') return balance * 38;
+      if (c === 'GBP') return balance * 45;
+      if (c === 'GOLD') return balance * 3100;
+      return balance;
+    };
 
     try {
       const wallets = await db.select().from(walletsAccounts)
@@ -55,8 +67,18 @@ export async function GET() {
         );
       
       walletsCount = wallets.length;
-      liquidBalance = wallets.reduce((sum: number, w: any) => sum + (w.type !== 'credit_card' ? (w.balance || 0) : 0), 0);
-      ccDebt = wallets.reduce((sum: number, w: any) => sum + (w.type === 'credit_card' ? Math.abs(w.balance || 0) : 0), 0);
+      // Kredi ve kredi kartı hesapları borç olarak toplanır; nakit, vadesiz, vadeli ve yatırım hesapları varlık sayılır
+      liquidBalance = wallets.reduce((sum: number, w: any) => {
+        if (w.type === 'credit_card' || w.type === 'loan') return sum;
+        return sum + getTryValue(Number(w.balance) || 0, w.currency);
+      }, 0);
+
+      ccDebt = wallets.reduce((sum: number, w: any) => {
+        if (w.type === 'credit_card' || w.type === 'loan') {
+          return sum + getTryValue(Math.abs(Number(w.balance) || 0), w.currency);
+        }
+        return sum;
+      }, 0);
 
       // Vadeli mevduat veya pasif getiri hesaplama
       const timeDeposits = wallets.filter((w: any) => w.type === 'time_deposit');
@@ -77,6 +99,7 @@ export async function GET() {
         ? await db.select().from(categories).where(eq(categories.family_id, familyId))
         : await db.select().from(categories);
       totalBudgetLimit = allCats.reduce((sum: number, c: any) => sum + (c.monthly_budget_limit || 0), 0);
+      incomeCatIds = new Set(allCats.filter((c: any) => c.type === 'income').map((c: any) => c.id));
 
       const txs = await db.select().from(transactions)
         .where(
@@ -84,9 +107,21 @@ export async function GET() {
             ? or(eq(transactions.user_id, userId), and(eq(transactions.family_id, familyId), eq(transactions.is_family_shared, 1)))
             : eq(transactions.user_id, userId)
         );
+      txsList = txs;
       const thisMonthTxs = txs.filter((t: any) => t.transaction_date && t.transaction_date.startsWith(currentMonth));
       txCountThisMonth = thisMonthTxs.length;
-      totalSpentThisMonth = thisMonthTxs.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+
+      let thisMonthExpense = 0;
+      for (const t of thisMonthTxs) {
+        const isIncome = (t.category_id ? incomeCatIds.has(t.category_id) : false) || t.merchant?.includes('Gelir Girişi') || t.merchant?.includes('Maaş');
+        const isTransfer = t.merchant?.startsWith('🔄 Transfer') || t.merchant?.startsWith('💳 Kart Ödemesi');
+        if (isIncome) {
+          thisMonthIncome += (Number(t.amount) || 0);
+        } else if (!isTransfer) {
+          thisMonthExpense += (Number(t.amount) || 0);
+        }
+      }
+      totalSpentThisMonth = thisMonthExpense;
     } catch (e) {}
 
     let financeScore = 0;
@@ -219,8 +254,11 @@ export async function GET() {
     const totalNetWorth = liquidBalance - ccDebt;
     const fireProgressPercent = fireTargetNumber > 0 ? Math.min(100, Math.round((totalNetWorth / fireTargetNumber) * 100)) : 0;
 
-    // Kalan Yıl Tahmini
-    const monthlySavingsEst = Math.max(0, monthlyLivingExpenseEst - totalSpentThisMonth);
+    // Gerçekçi Aylık Tasarruf Tahmini: Bu ayki gelir - gider (veya kullanıcı profili geliri)
+    const effectiveMonthlyIncome = thisMonthIncome > 0
+      ? thisMonthIncome
+      : (Number(user?.monthly_income) || (totalBudgetLimit > 0 ? totalBudgetLimit * 1.2 : 0));
+    const monthlySavingsEst = Math.max(0, effectiveMonthlyIncome - totalSpentThisMonth);
     const remainingToFire = Math.max(0, fireTargetNumber - totalNetWorth);
     const totalAnnualSavings = (monthlySavingsEst * 12) + (totalMonthlyPassiveIncome * 12);
     const yearsToFire = (totalNetWorth > 0 && totalAnnualSavings > 0 && remainingToFire > 0)
@@ -228,10 +266,21 @@ export async function GET() {
       : 0;
 
     // ==========================================
-    // 6. 📈 KİŞİSEL ENFLASYON ENDEKSİ
+    // 6. 📈 KİŞİSEL ENFLASYON ENDEKSİ (Geçen aya göre harcama sepeti değişimi)
     // ==========================================
-    const personalInflationRate = totalSpentThisMonth > 0 ? 46.8 : 0;
-    const officialTuikRate = 58.5;
+    const prevMonthDate = new Date(today);
+    prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+    const prevMonthStr = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
+    const prevMonthExpense = txsList
+      .filter((t: any) => t.transaction_date && t.transaction_date.startsWith(prevMonthStr) && !(t.category_id && incomeCatIds.has(t.category_id)) && !t.merchant?.startsWith('🔄 Transfer') && !t.merchant?.startsWith('💳 Kart Ödemesi'))
+      .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+
+    let personalInflationRate = 0;
+    if (prevMonthExpense > 0 && totalSpentThisMonth > 0) {
+      const diffPercent = ((totalSpentThisMonth - prevMonthExpense) / prevMonthExpense) * 100;
+      personalInflationRate = Math.round(diffPercent * 10) / 10;
+    }
+    const officialTuikRate = 48.6; // Güncel TÜİK yıllık TÜFE referansı
     const savingVsOfficialTuikPercent = personalInflationRate > 0 ? Math.round((officialTuikRate - personalInflationRate) * 10) / 10 : 0;
 
     return NextResponse.json({

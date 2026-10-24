@@ -57,7 +57,17 @@ export async function GET(req: Request) {
         session: {
           is_authenticated: true,
           is_initialized: true,
-          user
+          user: {
+            id: user.id,
+            username: user.username,
+            full_name: user.full_name,
+            email: user.email,
+            role: user.role,
+            relationship_type: user.relationship_type || (user.role === 'admin' ? 'leader' : 'member'),
+            family_id: user.family_id || `fam-${user.id}`,
+            avatar_emoji: user.avatar_emoji,
+            is_master_account: user.is_master_account === 1
+          }
         },
         budget: getVal(budgetRes),
         vehicles: getVal(vehicleRes),
