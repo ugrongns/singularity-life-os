@@ -1,6 +1,13 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
-import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/library';
+import {
+  BrowserMultiFormatReader,
+  BarcodeFormat,
+  DecodeHintType,
+  BinaryBitmap,
+  HybridBinarizer,
+  HTMLCanvasElementLuminanceSource
+} from '@zxing/library';
 
 export interface AccountOption {
   id: string;
@@ -112,6 +119,8 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const zxingReaderRef = useRef<BrowserMultiFormatReader | null>(null);
   const isQrScanningActiveRef = useRef<boolean>(false);
+  const qrScanIntervalRef = useRef<any>(null);
+  const scanCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Sesli Bip ve Haptic Titreşim Bildirimi
   const playBeep = () => {
@@ -149,20 +158,28 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: 'environment' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
         }
       });
 
       mediaStreamRef.current = stream;
 
-      // Fener (Torch) yeteneğini kontrol et
+      // Fener (Torch) ve Sürekli Odaklanma (Autofocus) yeteneği
       const track = stream.getVideoTracks()[0];
       const caps = track?.getCapabilities?.() as any;
       if (caps && caps.torch) {
         setHasTorch(true);
       } else {
         setHasTorch(false);
+      }
+
+      if (caps && caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+        try {
+          await (track as any).applyConstraints({
+            advanced: [{ focusMode: 'continuous' }]
+          });
+        } catch (e) {}
       }
 
       if (videoRef.current) {
@@ -172,7 +189,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
         setIsCameraActive(true);
 
         if (isQrMode) {
-          startQrDetection(stream);
+          startQrDetection();
         }
       }
     } catch (err: any) {
@@ -198,65 +215,140 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
     }
   };
 
-  // Gerçek Zamanlı QR Tarama Döngüsü
-  const startQrDetection = (stream: MediaStream) => {
+  // Gerçek Zamanlı Çok Katmanlı QR Tarama Döngüsü (Sıfır Deadlock)
+  const startQrDetection = () => {
     isQrScanningActiveRef.current = true;
-    setQrScanningStatus('Fiş veya faturadaki karekodu çerçeveye odaklayın...');
+    setQrScanningStatus('Fiş veya faturadaki karekodu yeşil çerçeveye hizalayın...');
 
-    // 1. Native Hardware BarcodeDetector (Chrome/Android 60fps)
-    if ('BarcodeDetector' in window) {
+    if (qrScanIntervalRef.current) {
+      clearInterval(qrScanIntervalRef.current);
+      qrScanIntervalRef.current = null;
+    }
+
+    // 1. ZXing Reader (TRY_HARDER modu ile termal fişler için en hassas okuma)
+    const hints = new Map();
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE, BarcodeFormat.DATA_MATRIX]);
+    hints.set(DecodeHintType.TRY_HARDER, true);
+    const zxingReader = new BrowserMultiFormatReader(hints);
+    zxingReaderRef.current = zxingReader;
+
+    // 2. Tarayıcı Native Donanım BarcodeDetector (Chrome/Android destekliyorsa)
+    let nativeDetector: any = null;
+    if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
       try {
-        const detector = new (window as any).BarcodeDetector({
+        nativeDetector = new (window as any).BarcodeDetector({
           formats: ['qr_code', 'data_matrix']
         });
-
-        const scanFrame = async () => {
-          if (!isQrScanningActiveRef.current || !videoRef.current) return;
-          try {
-            if (videoRef.current.readyState >= 2) {
-              const barcodes = await detector.detect(videoRef.current);
-              if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-                const rawVal = barcodes[0].rawValue;
-                handleDetectedQr(rawVal);
-                return;
-              }
-            }
-          } catch (e) {}
-
-          if (isQrScanningActiveRef.current) {
-            requestAnimationFrame(scanFrame);
-          }
-        };
-
-        requestAnimationFrame(scanFrame);
-        return;
       } catch (e) {
-        // Fallback to ZXing
+        nativeDetector = null;
       }
     }
 
-    // 2. ZXing BrowserMultiFormatReader
-    try {
-      const hints = new Map();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE, BarcodeFormat.DATA_MATRIX]);
-      const reader = new BrowserMultiFormatReader(hints);
-      zxingReaderRef.current = reader;
-
-      reader.decodeFromStream(stream, videoRef.current!, (result) => {
-        if (!isQrScanningActiveRef.current) return;
-        if (result && result.getText()) {
-          handleDetectedQr(result.getText());
-        }
-      });
-    } catch (e) {
-      console.warn('ZXing live stream setup error:', e);
+    // Merkeze odaklı 2x dijital zoom ve kırpma için canvas
+    if (!scanCanvasRef.current && typeof document !== 'undefined') {
+      scanCanvasRef.current = document.createElement('canvas');
     }
+    const offscreenCanvas = scanCanvasRef.current;
+    const offscreenCtx = offscreenCanvas?.getContext('2d', { willReadFrequently: true });
+
+    let scanAttempts = 0;
+    let isProcessing = false;
+
+    qrScanIntervalRef.current = setInterval(async () => {
+      if (!isQrScanningActiveRef.current || !videoRef.current || isProcessing) return;
+
+      const video = videoRef.current;
+      if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) return;
+
+      isProcessing = true;
+      scanAttempts++;
+
+      // Kullanıcıya dinamik rehberlik ipuçları
+      if (scanAttempts === 20) {
+        setQrScanningStatus('Kamerayı fişe 15-20 cm mesafede ve düz tutun...');
+      } else if (scanAttempts === 45) {
+        setQrScanningStatus('Işık azsa feneri (🔦) açın veya "📁 Dosya" sekmesini deneyin');
+      }
+
+      try {
+        // A. KATMAN: Native BarcodeDetector (Tam Kare)
+        if (nativeDetector) {
+          try {
+            const barcodes = await nativeDetector.detect(video);
+            if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+              handleDetectedQr(barcodes[0].rawValue);
+              return;
+            }
+          } catch (e) {}
+        }
+
+        // B. KATMAN: Native BarcodeDetector (Yeşil Vizör Merkez Kırpma / 2x Zoom)
+        // Termal fişlerde karekod küçük olduğundan vizör bölgesini büyütmek anında okumayı sağlar
+        if (nativeDetector && offscreenCanvas && offscreenCtx) {
+          try {
+            const vw = video.videoWidth;
+            const vh = video.videoHeight;
+            const cropSize = Math.round(Math.min(vw, vh) * 0.65);
+            const sx = Math.round((vw - cropSize) / 2);
+            const sy = Math.round((vh - cropSize) / 2);
+
+            offscreenCanvas.width = 480;
+            offscreenCanvas.height = 480;
+            offscreenCtx.drawImage(video, sx, sy, cropSize, cropSize, 0, 0, 480, 480);
+
+            const barcodes = await nativeDetector.detect(offscreenCanvas);
+            if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+              handleDetectedQr(barcodes[0].rawValue);
+              return;
+            }
+          } catch (e) {}
+        }
+
+        // C. KATMAN: ZXing Motoru (Tam Video Karesi)
+        try {
+          const zResult = zxingReader.decode(video);
+          if (zResult && zResult.getText()) {
+            handleDetectedQr(zResult.getText());
+            return;
+          }
+        } catch (e) {}
+
+        // D. KATMAN: ZXing Motoru (Yeşil Vizör Merkez Kırpma / 2x Zoom)
+        if (offscreenCanvas && offscreenCtx) {
+          try {
+            if (offscreenCanvas.width !== 480) {
+              const vw = video.videoWidth;
+              const vh = video.videoHeight;
+              const cropSize = Math.round(Math.min(vw, vh) * 0.65);
+              const sx = Math.round((vw - cropSize) / 2);
+              const sy = Math.round((vh - cropSize) / 2);
+              offscreenCanvas.width = 480;
+              offscreenCanvas.height = 480;
+              offscreenCtx.drawImage(video, sx, sy, cropSize, cropSize, 0, 0, 480, 480);
+            }
+            const luminanceSource = new HTMLCanvasElementLuminanceSource(offscreenCanvas);
+            const bitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource));
+            const zResult = zxingReader.decodeBitmap(bitmap);
+            if (zResult && zResult.getText()) {
+              handleDetectedQr(zResult.getText());
+              return;
+            }
+          } catch (e) {}
+        }
+      } finally {
+        isProcessing = false;
+      }
+    }, 120);
   };
 
   // QR Algılandığında Tetiklenen Olay
   const handleDetectedQr = (qrData: string) => {
     if (!isQrScanningActiveRef.current) return;
     isQrScanningActiveRef.current = false;
+    if (qrScanIntervalRef.current) {
+      clearInterval(qrScanIntervalRef.current);
+      qrScanIntervalRef.current = null;
+    }
     playBeep();
     setQrScanningStatus('✅ Karekod Algılandı! e-Belge Çözümleniyor...');
     stopCamera();
@@ -266,6 +358,10 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
   // Kamera Durdurma
   const stopCamera = () => {
     isQrScanningActiveRef.current = false;
+    if (qrScanIntervalRef.current) {
+      clearInterval(qrScanIntervalRef.current);
+      qrScanIntervalRef.current = null;
+    }
     if (zxingReaderRef.current) {
       try {
         zxingReaderRef.current.reset();
@@ -739,6 +835,22 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
                 }}>
                   <span>⚡</span>
                   <span style={{ fontWeight: 600 }}>{qrScanningStatus}</span>
+                </div>
+
+                {/* Hızlı Tavsiye ve Rehberlik Rozetleri */}
+                <div style={{
+                  display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap',
+                  fontSize: '11px', color: 'var(--text-muted)', marginTop: '-4px'
+                }}>
+                  <span style={{ background: 'var(--surface)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                    📏 15-20 cm mesafe
+                  </span>
+                  <span style={{ background: 'var(--surface)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                    ✨ Parlamayı önleyin
+                  </span>
+                  <span style={{ background: 'var(--surface)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                    📁 veya Dosya yükleyin
+                  </span>
                 </div>
 
                 {/* Manuel Link Yapıştırma Aç/Kapa */}
