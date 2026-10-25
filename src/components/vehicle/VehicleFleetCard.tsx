@@ -67,10 +67,10 @@ export function TurkishPlateBadge({ plate }: { plate: string }) {
       </div>
       <div
         style={{
-          padding: '5px 10px',
+          padding: '5px 8px',
           fontWeight: 900,
-          fontSize: '15px',
-          letterSpacing: '1.5px',
+          fontSize: '14px',
+          letterSpacing: '1px',
           textTransform: 'uppercase',
           whiteSpace: 'nowrap',
           display: 'flex',
@@ -102,7 +102,7 @@ export default function VehicleFleetCard({
 
   if (!vehicle) {
     return (
-      <div className="card">
+      <div className="card" style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
         <div className="card-header-block">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div className="icon-badge icon-badge-cyan">
@@ -229,9 +229,9 @@ export default function VehicleFleetCard({
   };
 
   const getTypeName = (t: string) => {
-    if (t === 'muayene') return 'TÜVTÜRK Muayene';
-    if (t === 'sigorta') return 'Trafik Sigortası';
-    if (t === 'kasko') return 'Kasko Poliçesi';
+    if (t === 'muayene') return 'Muayene';
+    if (t === 'sigorta') return 'Sigorta';
+    if (t === 'kasko') return 'Kasko';
     if (t === 'mtv_1') return 'MTV 1. Taksit';
     if (t === 'mtv_2') return 'MTV 2. Taksit';
     return t.toUpperCase();
@@ -246,24 +246,24 @@ export default function VehicleFleetCard({
   };
 
   return (
-    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
       {/* Kart Başlığı & Hızlı Aksiyonlar */}
-      <div className="card-header-block" style={{ marginBottom: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div className="icon-badge icon-badge-cyan">
+      <div className="card-header-block" style={{ marginBottom: 0, gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: '1 1 auto' }}>
+          <div className="icon-badge icon-badge-cyan" style={{ flexShrink: 0 }}>
             <Car size={18} strokeWidth={1.75} />
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--text-muted)' }}>
               Garaj & Telemetri
             </div>
-            <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Araç Filosu & Bakım Takibi
             </h2>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           {onOpenHistory && (
             <button
               type="button"
@@ -316,7 +316,9 @@ export default function VehicleFleetCard({
             overflowX: 'auto',
             paddingBottom: '4px',
             scrollbarWidth: 'none',
-            msOverflowStyle: 'none'
+            msOverflowStyle: 'none',
+            width: '100%',
+            minWidth: 0
           }}
         >
           {data.vehicles.map((v: any) => {
@@ -338,7 +340,8 @@ export default function VehicleFleetCard({
                   fontWeight: isSelected ? 800 : 600,
                   fontSize: '12px',
                   cursor: 'pointer',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
                 }}
               >
                 <span>🚗</span>
@@ -355,74 +358,86 @@ export default function VehicleFleetCard({
           background: 'var(--surface-subtle)',
           borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--border)',
-          padding: '16px',
+          padding: '14px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '14px'
+          gap: '12px',
+          width: '100%',
+          minWidth: 0,
+          boxSizing: 'border-box'
         }}
       >
-        {/* Üst Satır: TR Plaka, Model ve Güncel KM */}
+        {/* Üst Satır: TR Plaka, Yakıt Türü & Model */}
         <div
           style={{
             display: 'flex',
+            alignItems: 'center',
             justifyContent: 'space-between',
-            alignItems: 'flex-start',
             flexWrap: 'wrap',
-            gap: '12px'
+            gap: '8px',
+            width: '100%',
+            minWidth: 0
           }}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <TurkishPlateBadge plate={vehicle.plate} />
-              <span
-                style={{
-                  fontSize: '11px',
-                  background: 'var(--indigo-bg)',
-                  color: 'var(--indigo)',
-                  padding: '3px 8px',
-                  borderRadius: 'var(--radius-sm)',
-                  fontWeight: 800,
-                  border: '1px solid rgba(99, 102, 241, 0.25)'
-                }}
-              >
-                {vehicle.fuel_type || 'Benzin'}
-              </span>
-            </div>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>
-              {vehicle.make} {vehicle.model} <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>• {vehicle.year}</span>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
+            <TurkishPlateBadge plate={vehicle.plate} />
+            <span
+              style={{
+                fontSize: '11px',
+                background: 'var(--indigo-bg)',
+                color: 'var(--indigo)',
+                padding: '3px 8px',
+                borderRadius: 'var(--radius-sm)',
+                fontWeight: 800,
+                border: '1px solid rgba(99, 102, 241, 0.25)',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {vehicle.fuel_type || 'Benzin'}
+            </span>
           </div>
 
-          {/* Odometer Göstergesi */}
+          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+            {vehicle.make} {vehicle.model} • {vehicle.year}
+          </div>
+        </div>
+
+        {/* 4'lü Symmetrical Telemetri & Canlı Değerler Grid (Mobilde 2x2, Masaüstünde 4'lü) */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: '8px',
+            width: '100%',
+            minWidth: 0,
+            paddingTop: '4px',
+            borderTop: '1px solid var(--border)'
+          }}
+        >
+          {/* Canlı Odometer */}
           <div
             style={{
               background: 'var(--surface)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
-              padding: '6px 12px',
-              textAlign: 'right',
-              boxShadow: 'var(--shadow-sm)'
+              padding: '8px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              minWidth: 0
             }}
           >
-            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800, letterSpacing: '0.5px' }}>
-              CANLI ODOMETER
+            <div style={{ color: 'var(--blue)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+              <Gauge size={16} />
             </div>
-            <div className="tabular-nums" style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-main)', letterSpacing: '0.5px' }}>
-              {currentKm.toLocaleString('tr-TR')} <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>KM</span>
+            <div style={{ minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: 800, letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>ODOMETER</div>
+              <div className="tabular-nums" style={{ fontSize: '13px', fontWeight: 900, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {currentKm.toLocaleString('tr-TR')} <span style={{ fontSize: '10px', fontWeight: 600 }}>KM</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* 3'lü Telemetri & Tüketim Barı */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-            gap: '8px',
-            paddingTop: '6px',
-            borderTop: '1px solid var(--border)'
-          }}
-        >
           {/* Ortalama Yakıt (L/100km) */}
           <div
             style={{
@@ -432,15 +447,16 @@ export default function VehicleFleetCard({
               padding: '8px 10px',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              minWidth: 0
             }}
           >
-            <div style={{ color: 'var(--indigo)', display: 'flex', alignItems: 'center' }}>
+            <div style={{ color: 'var(--indigo)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
               <Fuel size={16} />
             </div>
-            <div>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>TÜKETİM</div>
-              <div className="tabular-nums" style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>
+            <div style={{ minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: 800, letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>TÜKETİM</div>
+              <div className="tabular-nums" style={{ fontSize: '13px', fontWeight: 900, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {consumption.avgLitersPer100Km || '0'} <span style={{ fontSize: '10px', fontWeight: 600 }}>L/100km</span>
               </div>
             </div>
@@ -455,21 +471,22 @@ export default function VehicleFleetCard({
               padding: '8px 10px',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              minWidth: 0
             }}
           >
-            <div style={{ color: 'var(--emerald)', display: 'flex', alignItems: 'center' }}>
+            <div style={{ color: 'var(--emerald)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
               <TrendingUp size={16} />
             </div>
-            <div>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>BİRİM GİDER</div>
-              <div className="tabular-nums" style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>
+            <div style={{ minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: 800, letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>BİRİM GİDER</div>
+              <div className="tabular-nums" style={{ fontSize: '13px', fontWeight: 900, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 ₺{consumption.avgCostPerKm || '0.00'} <span style={{ fontSize: '10px', fontWeight: 600 }}>/ km</span>
               </div>
             </div>
           </div>
 
-          {/* Son Servis Durumu */}
+          {/* Bakım Vadesi */}
           <div
             style={{
               background: 'var(--surface)',
@@ -478,15 +495,16 @@ export default function VehicleFleetCard({
               padding: '8px 10px',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              minWidth: 0
             }}
           >
-            <div style={{ color: isDueSoon ? 'var(--rose)' : 'var(--blue)', display: 'flex', alignItems: 'center' }}>
-              <Gauge size={16} />
+            <div style={{ color: isDueSoon ? 'var(--rose)' : 'var(--blue)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+              <Wrench size={16} />
             </div>
-            <div>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>BAKIM VADESİ</div>
-              <div className="tabular-nums" style={{ fontSize: '13px', fontWeight: 800, color: isDueSoon ? 'var(--rose)' : 'var(--text-main)' }}>
+            <div style={{ minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: 800, letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>BAKIM VADESİ</div>
+              <div className="tabular-nums" style={{ fontSize: '13px', fontWeight: 900, color: isDueSoon ? 'var(--rose)' : 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {remainingKm.toLocaleString('tr-TR')} <span style={{ fontSize: '10px', fontWeight: 600 }}>KM</span>
               </div>
             </div>
@@ -494,9 +512,9 @@ export default function VehicleFleetCard({
         </div>
 
         {/* Hızlı Aksiyonlar & KM Güncelleme Çubuğu */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '6px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', minWidth: 0, paddingTop: '4px' }}>
           {/* Hızlı KM Girişi */}
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', minWidth: 0 }}>
             <input
               type="number"
               inputMode="numeric"
@@ -507,6 +525,7 @@ export default function VehicleFleetCard({
               style={{
                 flex: 1,
                 minWidth: 0,
+                width: '100%',
                 padding: '9px 12px',
                 fontSize: '13px',
                 fontWeight: 700,
@@ -514,7 +533,8 @@ export default function VehicleFleetCard({
                 borderRadius: 'var(--radius-md)',
                 background: 'var(--surface)',
                 color: 'var(--text-main)',
-                outline: 'none'
+                outline: 'none',
+                boxSizing: 'border-box'
               }}
             />
             <button
@@ -536,12 +556,12 @@ export default function VehicleFleetCard({
           </div>
 
           {/* 2'li Ana Aksiyon Butonları (Yakıt & Servis) */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px', width: '100%', minWidth: 0 }}>
             <button
               type="button"
               onClick={onOpenFuelModal}
               style={{
-                padding: '11px 14px',
+                padding: '11px 12px',
                 fontSize: '13px',
                 fontWeight: 800,
                 background: '#059669',
@@ -552,20 +572,22 @@ export default function VehicleFleetCard({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '8px',
+                gap: '6px',
                 boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)',
-                minHeight: '44px'
+                minHeight: '44px',
+                whiteSpace: 'nowrap',
+                minWidth: 0
               }}
             >
-              <Fuel size={16} />
-              <span>Yakıt Alımı Ekle</span>
+              <Fuel size={15} style={{ flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Yakıt Alımı Ekle</span>
             </button>
 
             <button
               type="button"
               onClick={onOpenServiceModal}
               style={{
-                padding: '11px 14px',
+                padding: '11px 12px',
                 fontSize: '13px',
                 fontWeight: 800,
                 background: '#2563EB',
@@ -576,23 +598,25 @@ export default function VehicleFleetCard({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '8px',
+                gap: '6px',
                 boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
-                minHeight: '44px'
+                minHeight: '44px',
+                whiteSpace: 'nowrap',
+                minWidth: 0
               }}
             >
-              <Wrench size={16} />
-              <span>Servis / Bakım Ekle</span>
+              <Wrench size={15} style={{ flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Servis / Bakım Ekle</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* 15.000 KM Periyodik Bakım Çubuğu */}
-      <div style={{ background: 'var(--surface)', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', fontWeight: 800, marginBottom: '6px', gap: '8px' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Wrench size={14} className="text-muted" />
+      <div style={{ background: 'var(--surface)', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', fontSize: '12px', fontWeight: 800, marginBottom: '6px', gap: '6px' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+            <Wrench size={14} className="text-muted" style={{ flexShrink: 0 }} />
             <span>Periyodik Bakım Döngüsü ({nextServiceKm.toLocaleString('tr-TR')} KM)</span>
           </span>
           <span className="tabular-nums" style={{ color: isDueSoon ? 'var(--rose)' : 'var(--emerald)', flexShrink: 0, fontWeight: 900 }}>
@@ -600,7 +624,7 @@ export default function VehicleFleetCard({
           </span>
         </div>
         
-        <div className="progress-bar" style={{ height: '8px', marginBottom: '8px' }}>
+        <div className="progress-bar" style={{ height: '8px', marginBottom: '8px', width: '100%' }}>
           <div 
             className={`progress-fill ${isDueSoon ? 'rose' : 'emerald'}`}
             style={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }} 
@@ -614,11 +638,11 @@ export default function VehicleFleetCard({
       </div>
 
       {/* 3 Kademeli Yasal Tarihler & Geri Sayım Şeridi */}
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+      <div style={{ width: '100%', minWidth: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
           <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <ShieldCheck size={15} style={{ color: 'var(--blue)' }} />
-            <span>Yasal Belgeler & Muayene Takvimi</span>
+            <ShieldCheck size={15} style={{ color: 'var(--blue)', flexShrink: 0 }} />
+            <span>Yasal Belgeler & Muayene</span>
           </div>
           <button
             type="button"
@@ -632,7 +656,8 @@ export default function VehicleFleetCard({
               padding: '4px 10px',
               borderRadius: 'var(--radius-full)',
               cursor: 'pointer',
-              fontWeight: 800
+              fontWeight: 800,
+              flexShrink: 0
             }}
           >
             <Edit3 size={12} />
@@ -640,12 +665,14 @@ export default function VehicleFleetCard({
           </button>
         </div>
 
-        {/* 3'lü Yasal Tarih Bento Kartları (Mobilde daralmadan responsive sarılır) */}
+        {/* 2'li Taşmasız Eşit Yasal Tarih Bento Kartları (minmax(0, 1fr)) */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-            gap: '8px'
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: '8px',
+            width: '100%',
+            minWidth: 0
           }}
         >
           {legalReminders.map((rem: any) => {
@@ -660,30 +687,37 @@ export default function VehicleFleetCard({
                 style={{
                   background: status.bg,
                   border: status.border,
-                  padding: '12px 10px',
+                  padding: '10px 10px',
                   borderRadius: 'var(--radius-md)',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '4px',
+                  gap: '3px',
                   cursor: 'pointer',
-                  transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  boxSizing: 'border-box'
                 }}
                 title="Tarihleri düzenlemek için tıklayın"
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: status.color, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span>{getTypeIcon(rem.type)}</span>
-                    <span>{getTypeName(rem.type)}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: 0 }}>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: status.color, display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ flexShrink: 0 }}>{getTypeIcon(rem.type)}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getTypeName(rem.type)}</span>
                   </span>
                 </div>
 
-                <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 900, color: status.color, marginTop: '2px' }}>
+                <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: status.color, marginTop: '2px', whiteSpace: 'nowrap' }}>
                   {status.badgeText}
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', color: 'var(--text-muted)', paddingTop: '4px', borderTop: '1px dashed var(--border)' }}>
-                  <span>Vade: {rem.due_date}</span>
-                  {rem.policy_no && <span style={{ fontWeight: 600 }}>#{rem.policy_no}</span>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', color: 'var(--text-muted)', paddingTop: '4px', borderTop: '1px dashed var(--border)', gap: '4px', minWidth: 0 }}>
+                  <span style={{ flexShrink: 0 }}>Vade: {rem.due_date}</span>
+                  {rem.policy_no && (
+                    <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, textAlign: 'right' }}>
+                      #{rem.policy_no}
+                    </span>
+                  )}
                 </div>
               </div>
             );
@@ -692,7 +726,7 @@ export default function VehicleFleetCard({
       </div>
 
       {/* Son Yakıt Kayıtları Şeridi */}
-      <div style={{ background: 'var(--surface)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+      <div style={{ background: 'var(--surface)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
           <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Fuel size={14} className="text-muted" />
@@ -720,14 +754,16 @@ export default function VehicleFleetCard({
                   padding: '7px 10px', 
                   background: 'var(--surface-subtle)', 
                   borderRadius: 'var(--radius-sm)', 
-                  border: '1px solid var(--border)' 
+                  border: '1px solid var(--border)',
+                  minWidth: 0,
+                  gap: '8px'
                 }}
               >
-                <div>
+                <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   <span style={{ fontWeight: 800 }}>⛽ {fuel.fuel_station || 'İstasyon'}</span>
                   <span style={{ color: 'var(--text-muted)', marginLeft: '6px' }}>({fuel.liters}L @ ₺{fuel.price_per_liter})</span>
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   <span className="tabular-nums" style={{ fontWeight: 900, color: 'var(--text-main)' }}>₺{Number(fuel.total_amount).toLocaleString('tr-TR')}</span>
                   <span style={{ color: 'var(--text-muted)', marginLeft: '6px' }}>• {Number(fuel.km).toLocaleString('tr-TR')} KM</span>
                 </div>

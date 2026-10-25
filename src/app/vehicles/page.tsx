@@ -104,9 +104,9 @@ export default function VehiclesPage() {
         </p>
       </div>
 
-      <div className="dashboard-grid" style={{ alignItems: 'start' }}>
+      <div className="dashboard-grid" style={{ alignItems: 'start', width: '100%', minWidth: 0 }}>
         {/* Sol Kolon: Araç Filosu */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', minWidth: 0 }}>
           <VehicleFleetCard
             data={vehicleData || { vehicles: [], maintenanceRecords: [] }}
             selectedVehicleId={selectedVehicleId || undefined}
@@ -121,7 +121,7 @@ export default function VehiclesPage() {
         </div>
 
         {/* Sağ Kolon: Ev Operasyonları */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', minWidth: 0 }}>
           <HomeOperationsCard
             maintenanceRecords={homeData?.maintenanceRecords || []}
             appliances={homeData?.appliances || []}
