@@ -30,6 +30,7 @@ export default function BudgetPage() {
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [cardStatementAccId, setCardStatementAccId] = useState<string | null>(null);
   const [categoryDetail, setCategoryDetail] = useState<{ catId: string | null; catName?: string }>({ catId: null });
+  const [preselectedCatId, setPreselectedCatId] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const showToast = (msg: string) => { setToastMsg(msg); setTimeout(() => setToastMsg(null), 3000); };
@@ -474,9 +475,10 @@ export default function BudgetPage() {
 
       <ManualExpenseModal
         isOpen={isManualOpen}
-        onClose={() => setIsManualOpen(false)}
+        onClose={() => { setIsManualOpen(false); setPreselectedCatId(null); }}
         accounts={data?.accounts || []}
         categories={data?.categories || []}
+        initialCategoryId={preselectedCatId}
         onSuccess={(msg) => handleUpdate(msg)}
       />
 
@@ -493,6 +495,11 @@ export default function BudgetPage() {
         monthStr={selectedMonth}
         onClose={() => setCategoryDetail({ catId: null })}
         onUpdate={(msg) => handleUpdate(msg)}
+        onAddExpense={(catId) => {
+          setCategoryDetail({ catId: null });
+          setPreselectedCatId(catId);
+          setIsManualOpen(true);
+        }}
       />
 
       <TransferModal

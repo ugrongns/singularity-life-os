@@ -22,10 +22,11 @@ interface Props {
   onClose: () => void;
   accounts: Account[];
   categories: Category[];
+  initialCategoryId?: string | null;
   onSuccess: (msg?: string) => void;
 }
 
-export default function ManualExpenseModal({ isOpen, onClose, accounts, categories, onSuccess }: Props) {
+export default function ManualExpenseModal({ isOpen, onClose, accounts, categories, initialCategoryId, onSuccess }: Props) {
   const [txType, setTxType] = useState<'expense' | 'income'>('expense');
   const [amount, setAmount] = useState('');
   const [merchant, setMerchant] = useState('');
@@ -62,12 +63,14 @@ export default function ManualExpenseModal({ isOpen, onClose, accounts, categori
     setServerError(null);
   }, [activeAccounts, isOpen]);
 
-  // Sekme değiştiğinde ilk uygun kategoriyi seç
+  // Başlangıç veya sekme değiştiğinde kategori seç
   useEffect(() => {
-    if (filteredCategories.length > 0) {
+    if (initialCategoryId && filteredCategories.some(c => c.id === initialCategoryId)) {
+      setCategoryId(initialCategoryId);
+    } else if (filteredCategories.length > 0) {
       setCategoryId(filteredCategories[0].id);
     }
-  }, [txType]);
+  }, [txType, isOpen, initialCategoryId]);
 
   if (!isOpen) return null;
 

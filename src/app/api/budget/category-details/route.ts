@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { categories, transactions, walletsAccounts } from '@/db/schema';
+import { categories, transactions, walletsAccounts, familyMembers } from '@/db/schema';
 import { eq, desc, sql, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'Bu kategoriye erişim yetkiniz yok.' }, { status: 403 });
     }
 
-    // Hesap isimlerini haritalamak için yalnızca ailenin cüzdanlarını al (BOLA Koruması)
+    // Hesap isimlerini ve tiplerini haritalamak için (BOLA Koruması)
     const wallets = familyId
       ? await db.select().from(walletsAccounts).where(
           and(
@@ -43,7 +43,22 @@ export async function GET(req: Request) {
         )
       : await db.select().from(walletsAccounts).where(eq(walletsAccounts.user_id, user.id));
 
-    const walletMap = new Map((wallets).map((w: any) => [w.id, w.name]));
+    const walletMap = new Map((wallets).map((w: any) => [w.id, {
+      name: w.name,
+      type: w.type,
+      color: w.color || '#111827'
+    }]));
+
+    // Aile üyelerini haritalamak için (member_id -> name, avatar, role)
+    const members = familyId
+      ? await db.select().from(familyMembers).where(eq(familyMembers.family_id, familyId))
+      : await db.select().from(familyMembers).where(eq(familyMembers.user_id, user.id));
+
+    const memberMap = new Map((members).map((m: any) => [m.id, {
+      name: m.name,
+      avatar: m.avatar || '👤',
+      role: m.role || 'Üye'
+    }]));
 
     // Bu kategoriye, seçili aya ve yalnızca bu aileye/kullanıcıya ait işlemler (BOLA Koruması)
     const familyTxFilter = familyId
@@ -64,12 +79,40 @@ export async function GET(req: Request) {
       )
       .orderBy(desc(transactions.transaction_date), desc(transactions.created_at));
 
-    const formattedTxList = (txList).map((tx: any) => ({
-      ...tx,
-      wallet_name: walletMap.get(tx.wallet_id) || 'Bilinmeyen Hesap'
-    }));
+    const formattedTxList = (txList).map((tx: any) => {
+      const walletObj = walletMap.get(tx.wallet_id);
+      const memberObj = tx.member_id ? memberMap.get(tx.member_id) : null;
+      return {
+        ...tx,
+        wallet_name: walletObj ? walletObj.name : 'Bilinmeyen Hesap',
+        wallet_type: walletObj ? walletObj.type : 'cash',
+        wallet_color: walletObj ? walletObj.color : '#111827',
+        member_name: memberObj ? memberObj.name : null,
+        member_avatar: memberObj ? memberObj.avatar : null,
+        member_role: memberObj ? memberObj.role : null
+      };
+    });
 
-    const totalSpent = (txList).reduce((sum: number, t: any) => sum + t.amount, 0);
+    const totalSpent = (txList).reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+    const txCount = txList.length;
+    const averageSpent = txCount > 0 ? Math.round(totalSpent / txCount) : 0;
+    const limit = category.monthly_budget_limit || 0;
+    const remainingBudget = limit > 0 ? limit - totalSpent : null;
+    const budgetPercentage = limit > 0 ? Math.round((totalSpent / limit) * 100) : 0;
+
+    // Ay sonu projeksiyonu için gün hesaplama
+    const [yearNum, monthNum] = currentMonthStr.split('-').map(Number);
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth1Based = now.getMonth() + 1;
+    const isCurrentMonth = yearNum === currentYear && monthNum === currentMonth1Based;
+    
+    const daysInMonth = new Date(yearNum, monthNum, 0).getDate();
+    const currentDay = isCurrentMonth ? now.getDate() : daysInMonth;
+    const daysRemaining = isCurrentMonth ? Math.max(1, daysInMonth - currentDay + 1) : 0;
+    const dailyAllowance = (limit > 0 && remainingBudget !== null && remainingBudget > 0 && daysRemaining > 0)
+      ? Math.round(remainingBudget / daysRemaining)
+      : null;
 
     return NextResponse.json({
       success: true,
@@ -77,7 +120,15 @@ export async function GET(req: Request) {
         category,
         monthStr: currentMonthStr,
         totalSpent,
-        monthlyBudgetLimit: category.monthly_budget_limit || 0,
+        txCount,
+        averageSpent,
+        monthlyBudgetLimit: limit,
+        remainingBudget,
+        budgetPercentage,
+        daysRemaining,
+        daysInMonth,
+        isCurrentMonth,
+        dailyAllowance,
         transactions: formattedTxList
       }
     });
