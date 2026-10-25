@@ -88,7 +88,7 @@ export default function VaultPage() {
       </div>
 
       <div className="dashboard-grid">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div className="col-full" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', minWidth: 0 }}>
           {data && (
             <DigitalVaultCard
               vaultItems={data.vaultItems || []}

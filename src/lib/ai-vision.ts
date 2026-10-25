@@ -226,7 +226,7 @@ export async function parseVaultDocumentImage(
                 text: `Sen bir profesyonel resmi belge, kimlik, pasaport, tapu, sigorta ve garanti belgesi tarayıcısısın. Gönderilen görseldeki belgeyi analiz et ve SADECE aşağıdaki JSON formatında geçerli bir JSON çıktısı üret, başka hiçbir metin ekleme:
 {
   "title": "Belge Başlığı / Adı (Örn: T.C. Bordo Pasaport, Samsung TV Garanti Belgesi, Kadıköy Daire Tapusu)",
-  "type": "passport | id_card | title_deed | warranty | insurance | contract | license | other",
+  "type": "passport | id_card | license | warranty | contract | title_deed | health | insurance | invoice | other",
   "owner": "Belge Sahibi / Adı Soyadı",
   "issuer": "Veren Kurum / Marka (Örn: Nüfus ve Vatandaşlık İşleri, Samsung Türkiye, Aksigorta)",
   "document_number": "Belge veya Seri Numarası (Örn: U12345678, SN2024-889)",

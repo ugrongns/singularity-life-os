@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 interface VaultItem {
   id?: string;
@@ -100,18 +100,21 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
   const [remindDaysBefore, setRemindDaysBefore] = useState(String(item?.remind_days_before || 30));
   const [documentImageUrl, setDocumentImageUrl] = useState(item?.document_image_url || '');
   const [notes, setNotes] = useState(item?.notes || '');
+
+  const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [scanningAI, setScanningAI] = useState(false);
+  const [aiSuccessMsg, setAiSuccessMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const [scanningAI, setScanningAI] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
-  const handleAIScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFile = e.target.files?.[0];
-    if (!rawFile) return;
-
+  const processAndScanFile = async (rawFile: File) => {
     setScanningAI(true);
+    setAiSuccessMsg(null);
     try {
       const file = await compressImageIfNeeded(rawFile);
       const formData = new FormData();
@@ -133,6 +136,9 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
         if (d.expiry_date) setExpiryDate(d.expiry_date);
         if (d.notes) setNotes(d.notes);
         if (d.document_image_url) setDocumentImageUrl(d.document_image_url);
+
+        setAiSuccessMsg('✨ Belge başarıyla tarandı ve bilgiler otomatik dolduruldu!');
+        setTimeout(() => setAiSuccessMsg(null), 5000);
       } else {
         alert(json.error || 'Belge tarama başarısız.');
       }
@@ -143,7 +149,15 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAIScanInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processAndScanFile(file);
+      e.target.value = '';
+    }
+  };
+
+  const handleManualUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFile = e.target.files?.[0];
     if (!rawFile) return;
 
@@ -167,6 +181,16 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
       alert('Dosya yükleme hatası.');
     } finally {
       setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processAndScanFile(file);
     }
   };
 
@@ -212,172 +236,393 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="bottom-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}>
+      <div
+        className="bottom-sheet"
+        onClick={e => e.stopPropagation()}
+        style={{
+          maxWidth: '860px',
+          maxHeight: '92vh',
+          overflowY: 'auto',
+          padding: '24px'
+        }}
+      >
         <div className="sheet-handle"></div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-main)' }}>
-            {isEditing ? '✏️ Kasadaki Belgeyi Düzenle' : '📁 Kasaya Yeni Belge / Evrak Ekle'}
-          </div>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✕</button>
-        </div>
-
-        {/* AI Fotoğraf Tara & Otomatik Doldur Banner */}
-        <div style={{ background: 'linear-gradient(135deg, #EEF2FF, #E0E7FF)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px dashed #6366F1', marginBottom: '12px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#4F46E5' }}>✨ Belge Fotoğrafı Tara (AI Otomatik Doldur)</div>
-              <div style={{ fontSize: '10px', color: '#6366F1', marginTop: '2px' }}>Pasaport, Kimlik, Tapu veya Garanti belgesinin fotoğrafını seçin</div>
-            </div>
-            <label style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px',
-              background: '#4F46E5', color: 'white', padding: '7px 12px',
-              borderRadius: '6px', fontSize: '11px', fontWeight: 800, cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(79,70,229,0.3)', flexShrink: 0
-            }}>
-              <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={handleAIScan} disabled={scanningAI} />
-              <span>📸 {scanningAI ? 'AI Okuyor...' : 'Belge Tara'}</span>
-            </label>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {/* Modal Üst Başlık */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
           <div>
-            <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>BELGE ADI *</label>
-            <input
-              type="text"
-              placeholder="Ör. Pasaport, Ev Tapusu, Buzdolabı Garantisi"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              required
-              style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>BELGE TÜRÜ *</label>
-              <select
-                value={type}
-                onChange={e => setType(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
-              >
-                <option value="passport">🛂 Pasaport</option>
-                <option value="id_card">🪪 Kimlik Kartı</option>
-                <option value="title_deed">🏠 Tapu / Gayrimenkul</option>
-                <option value="warranty">🛡️ Garanti Belgesi</option>
-                <option value="insurance">🏥 Sigorta / Kasko / DASK</option>
-                <option value="contract">📄 Sözleşme / Kontrat</option>
-                <option value="license">📋 Ehliyet / Ruhsat</option>
-                <option value="other">📁 Diğer</option>
-              </select>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>{isEditing ? '✏️' : '📁'}</span>
+              <span>{isEditing ? 'Belgeyi Düzenle' : 'Kasaya Yeni Belge / Evrak Ekle'}</span>
             </div>
-
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>SAHİBİ</label>
-              <input
-                type="text"
-                placeholder="Ör. Ben, Aile"
-                value={owner}
-                onChange={e => setOwner(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
-              />
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+              1Password & Apple Wallet standartlarında güvenli saklama ve AI belge ayrıştırma
             </div>
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'var(--surface-subtle)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-full)',
+              width: '32px',
+              height: '32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '16px',
+              cursor: 'pointer',
+              color: 'var(--text-muted)'
+            }}
+          >
+            ✕
+          </button>
+        </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>BELGE / SERİ NO</label>
-              <input
-                type="text"
-                placeholder="Ör. U12345678"
-                value={documentNumber}
-                onChange={e => setDocumentNumber(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>VEREN KURUM</label>
-              <input
-                type="text"
-                placeholder="Ör. İçişleri Bkn, Tapu Kadastro"
-                value={issuer}
-                onChange={e => setIssuer(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
-              />
-            </div>
+        {/* AI Başarı Bildirimi */}
+        {aiSuccessMsg && (
+          <div style={{
+            background: 'var(--emerald-bg)',
+            color: 'var(--emerald)',
+            border: '1px solid var(--emerald)',
+            padding: '10px 14px',
+            borderRadius: 'var(--radius-md)',
+            fontSize: '12px',
+            fontWeight: 700,
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <span>✓</span>
+            <span>{aiSuccessMsg}</span>
           </div>
+        )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-            <div>
-              <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>VERİLİŞ TARİHİ</label>
-              <input
-                type="date"
-                value={issueDate}
-                onChange={e => setIssueDate(e.target.value)}
-                style={{ width: '100%', padding: '7px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>SON KULLANMA</label>
-              <input
-                type="date"
-                value={expiryDate}
-                onChange={e => setExpiryDate(e.target.value)}
-                style={{ width: '100%', padding: '7px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>HATIRLAT (GÜN ÖNCE)</label>
-              <input
-                type="number"
-                value={remindDaysBefore}
-                onChange={e => setRemindDaysBefore(e.target.value)}
-                style={{ width: '100%', padding: '7px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
-              />
-            </div>
-          </div>
-
-          {/* Belge Yükleme Kutusu */}
-          <div style={{ background: '#EEF2FF', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid #C7D2FE' }}>
-            <label style={{ fontSize: '11px', color: '#4F46E5', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
-              📷 CİHAZDAN BELGE / FOTOĞRAF / PDF YÜKLE
+        {/* 2 Sütunlu Responsive Düzen (Desktop Split / Mobile Stack) */}
+        <div className="vault-modal-split">
+          {/* SOL SÜTUN: Belge Yükleme, Önizleme ve AI Tarama Alanı */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.5px' }}>
+              BELGE GÖRSELİ VEYA PDF
             </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <label style={{
-                display: 'inline-flex', alignItems: 'center', gap: '6px',
-                background: '#4F46E5', color: 'white', padding: '6px 12px',
-                borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer'
-              }}>
-                <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={handleFileUpload} disabled={uploading} />
-                <span>📷 {uploading ? 'Yükleniyor...' : documentImageUrl ? 'Belgeyi Değiştir' : 'Belge Seç & Yükle'}</span>
-              </label>
 
-              {documentImageUrl && (
-                <div style={{ fontSize: '11px', color: '#166534', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span>✓ Yüklendi</span>
-                  <button type="button" onClick={() => setDocumentImageUrl('')} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: '11px' }}>Sil</button>
+            {/* Drag & Drop Alanı / Önizleme Kutusu */}
+            <div
+              className={`vault-dropzone ${isDragging ? 'dragging' : ''}`}
+              onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+              style={{
+                position: 'relative',
+                background: documentImageUrl ? 'var(--surface)' : isDragging ? 'rgba(99, 102, 241, 0.08)' : 'var(--surface-subtle)',
+                borderColor: isDragging ? '#6366F1' : documentImageUrl ? 'var(--border)' : 'var(--border)'
+              }}
+            >
+              {scanningAI ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '24px 0' }}>
+                  <div style={{ fontSize: '32px', animation: 'spin 1.5s linear infinite' }}>✨</div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#4F46E5' }}>AI Belgeyi İnceliyor...</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
+                    Metinler okunuyor, belge türü ve tarihler tespit ediliyor.
+                  </div>
                 </div>
+              ) : documentImageUrl ? (
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '100%', height: '170px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {documentImageUrl.startsWith('data:application/pdf') || documentImageUrl.endsWith('.pdf') ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '40px' }}>📄</span>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>PDF Belgesi Yüklendi</span>
+                      </div>
+                    ) : (
+                      <img
+                        src={documentImageUrl}
+                        alt="Yüklenen Belge"
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                      />
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                    <button
+                      type="button"
+                      onClick={() => setDocumentImageUrl('')}
+                      style={{
+                        flex: 1,
+                        padding: '6px 10px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        background: 'var(--rose-bg)',
+                        color: 'var(--rose)',
+                        border: '1px solid var(--rose)',
+                        borderRadius: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      🗑️ Görseli Kaldır
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{
+                        flex: 1,
+                        padding: '6px 10px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        background: 'var(--surface-subtle)',
+                        color: 'var(--text-main)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      🔄 Değiştir
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: '36px' }}>📂</div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>
+                    Dosyayı Buraya Sürükleyin
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    veya aşağıdaki butonlarla cihazdan seçin
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    PNG, JPG, WEBP veya PDF (Maks. 4.5 MB)
+                  </div>
+                </>
               )}
             </div>
-          </div>
 
-          <div>
-            <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>NOTLAR & AÇIKLAMA</label>
-            <textarea
-              rows={2}
-              placeholder="Ek bilgiler, şifreler veya saklama konumu..."
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              style={{ width: '100%', padding: '8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+            {/* Gizli Inputlar */}
+            <input
+              type="file"
+              ref={cameraInputRef}
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={handleAIScanInput}
             />
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*,.pdf"
+              style={{ display: 'none' }}
+              onChange={handleAIScanInput}
+            />
+
+            {/* Aksiyon Butonları (Mobil Kamera ve Dosya Seçimi) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={scanningAI || uploading}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  background: 'linear-gradient(135deg, #4F46E5, #3B82F6)',
+                  color: '#FFFFFF',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(79, 70, 229, 0.3)'
+                }}
+              >
+                <span>📸</span>
+                <span>Kameradan Çek & AI ile Tara</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={scanningAI || uploading}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  background: 'var(--surface-subtle)',
+                  color: 'var(--text-main)',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  border: '1px solid var(--border)',
+                  cursor: 'pointer'
+                }}
+              >
+                <span>📁</span>
+                <span>Galeriden / Dosyalardan Seç</span>
+              </button>
+            </div>
+
+            <div style={{ background: 'var(--surface-subtle)', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+              💡 <strong>AI Vision Avantajı:</strong> Yüklediğiniz pasaport, kimlik veya garanti belgesindeki başlık, kişi adı, seri no ve geçerlilik tarihleri otomatik olarak okunur.
+            </div>
           </div>
 
-          <button type="submit" className="btn-primary" disabled={submitting} style={{ padding: '12px', fontSize: '14px', fontWeight: 800, marginTop: '4px' }}>
-            {submitting ? 'Kaydediliyor...' : isEditing ? '💾 Değişiklikleri Kaydet' : '➕ Kasaya Kaydet'}
-          </button>
-        </form>
+          {/* SAĞ SÜTUN: Belge Meta Veri Formu */}
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>BELGE ADI / BAŞLIK *</label>
+              <input
+                type="text"
+                placeholder="Ör. T.C. Bordo Pasaport, Kadıköy Tapu, Samsung TV Garanti"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                required
+                style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>BELGE TÜRÜ *</label>
+                <select
+                  value={type}
+                  onChange={e => setType(e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
+                >
+                  <option value="passport">🛂 Pasaport</option>
+                  <option value="id_card">🪪 Kimlik Kartı</option>
+                  <option value="license">📋 Ehliyet / Ruhsat</option>
+                  <option value="warranty">🛡️ Garanti Belgesi</option>
+                  <option value="contract">📄 Sözleşme / Kontrat</option>
+                  <option value="title_deed">🏠 Tapu / Gayrimenkul</option>
+                  <option value="health">🩺 Sağlık Raporu / Aşı</option>
+                  <option value="insurance">🏥 Sigorta / Kasko / DASK</option>
+                  <option value="invoice">🧾 Fatura / Makbuz</option>
+                  <option value="other">📁 Diğer Belge</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>BELGE SAHİBİ</label>
+                <input
+                  type="text"
+                  placeholder="Ör. Ben, Eşim, Aile"
+                  value={owner}
+                  onChange={e => setOwner(e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>BELGE / SERİ NO</label>
+                <input
+                  type="text"
+                  placeholder="Ör. U12345678, SN992-881"
+                  value={documentNumber}
+                  onChange={e => setDocumentNumber(e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)', fontFamily: 'monospace' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>VEREN KURUM / MARKA</label>
+                <input
+                  type="text"
+                  placeholder="Ör. NVİ, Samsung, Aksigorta"
+                  value={issuer}
+                  onChange={e => setIssuer(e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px' }}>
+              <div>
+                <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800 }}>VERİLİŞ TARİHİ</label>
+                <input
+                  type="date"
+                  value={issueDate}
+                  onChange={e => setIssueDate(e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800 }}>SON KULLANMA / BİTİŞ</label>
+                <input
+                  type="date"
+                  value={expiryDate}
+                  onChange={e => setExpiryDate(e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800 }}>UYARI (GÜN ÖNCE)</label>
+                <input
+                  type="number"
+                  value={remindDaysBefore}
+                  onChange={e => setRemindDaysBefore(e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>NOTLAR & SAKLAMA DETAYLARI</label>
+              <textarea
+                rows={2}
+                placeholder="Fiziksel saklama dolabı, poliçe detayları veya önemli şartlar..."
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                style={{ width: '100%', padding: '8px 12px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)', resize: 'vertical' }}
+              />
+            </div>
+
+            {/* Alt Butonlar */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  padding: '10px 18px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  background: 'var(--surface-subtle)',
+                  color: 'var(--text-main)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer'
+                }}
+              >
+                Vazgeç
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || scanningAI}
+                style={{
+                  padding: '10px 22px',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  background: 'var(--text-main)',
+                  color: 'var(--surface)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <span>{submitting ? 'Kaydediliyor...' : isEditing ? '💾 Değişiklikleri Kaydet' : '➕ Kasaya Kaydet'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
