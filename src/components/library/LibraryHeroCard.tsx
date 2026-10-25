@@ -1,4 +1,7 @@
-import { useState } from 'react';
+'use client';
+
+import React, { useState } from 'react';
+import { BookOpen, Clock, Zap, Trophy, Edit3, Check, Bookmark, Sparkles } from 'lucide-react';
 
 interface LibraryHeroProps {
   profile: {
@@ -29,7 +32,14 @@ interface LibraryHeroProps {
   onUpdate?: (msg?: string) => void;
 }
 
-export default function LibraryHeroCard({ profile, activeBook, onOpenSession, onOpenQuotes, onOpenBookDetail, onUpdate }: LibraryHeroProps) {
+export default function LibraryHeroCard({
+  profile,
+  activeBook,
+  onOpenSession,
+  onOpenQuotes,
+  onOpenBookDetail,
+  onUpdate
+}: LibraryHeroProps) {
   const [isEditingTarget, setIsEditingTarget] = useState(false);
   const [targetInput, setTargetInput] = useState(String(profile.yearly_target_books || 24));
   const [savingTarget, setSavingTarget] = useState(false);
@@ -66,151 +76,506 @@ export default function LibraryHeroCard({ profile, activeBook, onOpenSession, on
   };
 
   return (
-    <div className="card">
-      <div className="card-title-row">
-        <div className="card-title">
-          <span>📚</span>
-          <span>Dijital Kütüphane & Okuma Hızı</span>
+    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* 1. Üst Bar: Başlık ve Alıntı Defteri Butonu */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              backgroundColor: 'rgba(99, 102, 241, 0.12)',
+              color: '#6366F1',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}
+          >
+            <BookOpen size={20} color="#6366F1" />
+          </div>
+          <div>
+            <h2 style={{ fontSize: '17px', fontWeight: 900, margin: 0, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
+              Dijital Kütüphane & Okuma Analitiği
+            </h2>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              Literal.club & Apple Books Standardında Odaklanmış Okuma
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="card-action-bar">
-        <button className="btn-subtle" style={{ fontSize: '12px', padding: '6px 12px' }} onClick={onOpenQuotes}>
-          Alıntı Defteri ➔
+        <button
+          type="button"
+          onClick={onOpenQuotes}
+          style={{
+            height: '34px',
+            padding: '6px 14px',
+            fontSize: '12px',
+            fontWeight: 700,
+            color: '#6366F1',
+            backgroundColor: 'rgba(99, 102, 241, 0.08)',
+            border: '1px solid rgba(99, 102, 241, 0.25)',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.15s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.16)';
+            e.currentTarget.style.borderColor = '#6366F1';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.08)';
+            e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.25)';
+          }}
+        >
+          <Bookmark size={14} color="#6366F1" />
+          <span>Alıntı & Çıkarım Defteri</span>
+          <span style={{ fontSize: '12px' }}>➔</span>
         </button>
       </div>
 
-      {/* 2026 Yıllık Hedef & WPM Hızı */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '10px', background: 'var(--surface-subtle)', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>2026 Yıllık Okuma Hedefi</div>
-            <button
-              type="button"
-              onClick={() => setIsEditingTarget(!isEditingTarget)}
-              style={{ background: 'none', border: 'none', color: 'var(--blue)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', padding: '0 4px' }}
-            >
-              {isEditingTarget ? 'Kapat' : '✏️ Hedefi Değiştir'}
-            </button>
-          </div>
+      {/* 2. Hero Bento Grid: Sol: "Şu An Okunuyor" Vitrini (1.2fr) | Sağ: Hedef & WPM KPI'ları (1fr) */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '14px',
+          alignItems: 'stretch'
+        }}
+      >
+        {/* SOL: "ŞU AN OKUNUYOR" (NOW READING) VİTRİN KARTI */}
+        {activeBook ? (
+          <div
+            style={{
+              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%)',
+              border: '1px solid rgba(99, 102, 241, 0.25)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: '14px',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Arka plan zarif ışıltı deseni */}
+            <div
+              style={{
+                position: 'absolute',
+                top: '-30px',
+                right: '-30px',
+                width: '120px',
+                height: '120px',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%)',
+                pointerEvents: 'none'
+              }}
+            />
 
-          {isEditingTarget ? (
-            <form onSubmit={handleSaveTarget} style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px' }}>
-              <input
-                type="number"
-                min={1}
-                max={500}
-                value={targetInput}
-                onChange={e => setTargetInput(e.target.value)}
-                style={{ width: '70px', padding: '4px 8px', fontSize: '13px', fontWeight: 800, border: '1px solid var(--blue)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-main)' }}
-              />
-              <button
-                type="submit"
-                disabled={savingTarget}
-                style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 700, borderRadius: '6px', border: 'none', background: 'var(--blue)', color: 'white', cursor: 'pointer' }}
+            <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+              {/* Kitap Kapağı Vitrini */}
+              <div
+                onClick={() => onOpenBookDetail && onOpenBookDetail(activeBook)}
+                style={{
+                  width: '84px',
+                  height: '122px',
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                  flexShrink: 0,
+                  cursor: onOpenBookDetail ? 'pointer' : 'default',
+                  boxShadow: '0 8px 18px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  position: 'relative',
+                  transition: 'transform 0.2s ease'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
               >
-                {savingTarget ? '...' : 'Kaydet'}
-              </button>
-            </form>
-          ) : (
-            <div style={{ fontSize: '16px', fontWeight: 800, marginTop: '2px', color: 'var(--text-main)' }}>
-              {profile.completedBooksCount} / {profile.yearly_target_books} Kitap Tamamlandı
+                {activeBook.cover_url ? (
+                  <img
+                    src={activeBook.cover_url}
+                    alt={activeBook.title}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '32px'
+                    }}
+                  >
+                    📖
+                  </div>
+                )}
+              </div>
+
+              {/* Kitap Bilgileri & Rozet */}
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: 'var(--radius-full)',
+                      backgroundColor: 'rgba(99, 102, 241, 0.16)',
+                      color: '#6366F1',
+                      letterSpacing: '0.04em',
+                      textTransform: 'uppercase'
+                    }}
+                  >
+                    Şu An Okunuyor
+                  </span>
+                  {etaText && (
+                    <span
+                      className="tabular-nums"
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: 'var(--radius-full)',
+                        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                        color: '#10B981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px'
+                      }}
+                    >
+                      <Clock size={11} color="#10B981" />
+                      <span>{etaText} kaldı</span>
+                    </span>
+                  )}
+                </div>
+
+                <h3
+                  onClick={() => onOpenBookDetail && onOpenBookDetail(activeBook)}
+                  style={{
+                    fontSize: '16px',
+                    fontWeight: 800,
+                    margin: '4px 0 0',
+                    color: 'var(--text-main)',
+                    lineHeight: '1.25',
+                    cursor: onOpenBookDetail ? 'pointer' : 'default',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden'
+                  }}
+                  title={activeBook.title}
+                >
+                  {activeBook.title}
+                </h3>
+
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  {activeBook.author}
+                </div>
+
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  {remaining > 0 ? (
+                    <span><strong>{remaining}</strong> sayfa kaldı</span>
+                  ) : (
+                    <span style={{ color: '#10B981', fontWeight: 700 }}>Kitap tamamlanmak üzere! 🎉</span>
+                  )}
+                </div>
+              </div>
             </div>
-          )}
 
-          <div className="budget-bar-track" style={{ height: '6px', marginTop: '8px' }}>
-            <div className="budget-bar-fill" style={{ width: `${profile.targetProgressPercent}%`, backgroundColor: '#10B981' }} />
-          </div>
-        </div>
+            {/* İlerleme Çubuğu & Sayfa Göstergesi */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', fontWeight: 700, marginBottom: '6px' }}>
+                <span className="tabular-nums" style={{ color: 'var(--text-main)' }}>
+                  Sayfa {activeBook.current_page} / {activeBook.total_pages}
+                </span>
+                <span className="tabular-nums" style={{ color: '#6366F1', fontWeight: 800 }}>
+                  %{percent}
+                </span>
+              </div>
 
-        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Kalibre Edilmiş Hız</div>
-          <div style={{ fontSize: '15px', fontWeight: 800, color: '#6366F1', marginTop: '2px' }}>
-            ⚡ {profile.calibrated_avg_wpm} WPM
+              <div style={{ height: '7px', backgroundColor: 'rgba(99, 102, 241, 0.15)', borderRadius: '999px', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${percent}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #6366F1 0%, #8B5CF6 100%)',
+                    borderRadius: '999px',
+                    transition: 'width 0.4s ease'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Hızlı Aksiyon Butonları */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={onOpenSession}
+                style={{
+                  flex: 1,
+                  height: '36px',
+                  padding: '6px 14px',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  background: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Clock size={14} />
+                <span>Okuma Seansı Kaydet</span>
+              </button>
+
+              {onOpenBookDetail && (
+                <button
+                  type="button"
+                  onClick={() => onOpenBookDetail(activeBook)}
+                  style={{
+                    height: '36px',
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    color: 'var(--text-main)',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <span>Detay</span>
+                </button>
+              )}
+            </div>
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            ~{profile.avgMinutesPerPage} dk / sayfa
+        ) : (
+          /* Aktif Kitap Yoksa Gösterilen Zarif Boş Durum */
+          <div
+            style={{
+              background: 'var(--surface-subtle)',
+              border: '1px dashed var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '28px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              gap: '10px'
+            }}
+          >
+            <div
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '12px',
+                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                color: '#6366F1',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '24px'
+              }}
+            >
+              📖
+            </div>
+            <div>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)' }}>
+                Şu An Aktif Okunan Kitap Yok
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', maxWidth: '320px' }}>
+                Aşağıdaki raflarınızdan bir kitabı &quot;Okunuyor&quot; durumuna getirin veya seans kaydederek tempoyu başlatın.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SAĞ: KPI VE HEDEF BENTO KUTULARI (2 Sütunlu Kompakt Izgara) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px' }}>
+          {/* KPI 1: YILLIK OKUMA HEDEFİ */}
+          <div
+            style={{
+              backgroundColor: 'rgba(16, 185, 129, 0.05)',
+              border: '1px solid rgba(16, 185, 129, 0.2)',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: '10px'
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 800, color: '#10B981', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <Trophy size={14} color="#10B981" />
+                  <span>2026 Hedefi</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingTarget(!isEditingTarget)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '2px',
+                    padding: '2px'
+                  }}
+                  title="Yıllık hedefi güncelle"
+                >
+                  <Edit3 size={11} />
+                  <span>{isEditingTarget ? 'Kapat' : 'Değiştir'}</span>
+                </button>
+              </div>
+
+              {isEditingTarget ? (
+                <form onSubmit={handleSaveTarget} style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '8px' }}>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={500}
+                    value={targetInput}
+                    onChange={e => setTargetInput(e.target.value)}
+                    style={{
+                      width: '64px',
+                      padding: '4px 6px',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      border: '1px solid #10B981',
+                      borderRadius: '6px',
+                      background: 'var(--surface)',
+                      color: 'var(--text-main)'
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={savingTarget}
+                    style={{
+                      padding: '5px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: '#10B981',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '3px'
+                    }}
+                  >
+                    <Check size={11} />
+                    <span>{savingTarget ? '...' : 'Kaydet'}</span>
+                  </button>
+                </form>
+              ) : (
+                <div style={{ marginTop: '8px' }}>
+                  <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)', lineHeight: '1' }}>
+                    {profile.completedBooksCount} <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>/ {profile.yearly_target_books}</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Kitap Tamamlandı
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 700, color: '#10B981', marginBottom: '4px' }}>
+                <span>İlerleme</span>
+                <span className="tabular-nums">%{profile.targetProgressPercent}</span>
+              </div>
+              <div style={{ height: '6px', backgroundColor: 'rgba(16, 185, 129, 0.15)', borderRadius: '999px', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${profile.targetProgressPercent}%`,
+                    height: '100%',
+                    backgroundColor: '#10B981',
+                    borderRadius: '999px',
+                    transition: 'width 0.4s ease'
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* KPI 2: OKUMA HIZI & WPM KALİBRASYONU */}
+          <div
+            style={{
+              backgroundColor: 'rgba(99, 102, 241, 0.05)',
+              border: '1px solid rgba(99, 102, 241, 0.2)',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: '10px'
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 800, color: '#6366F1', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <Zap size={14} color="#6366F1" />
+                <span>Okuma Hızı</span>
+              </div>
+
+              <div style={{ marginTop: '8px' }}>
+                <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: '#6366F1', lineHeight: '1' }}>
+                  {profile.calibrated_avg_wpm} <span style={{ fontSize: '12px', fontWeight: 700 }}>WPM</span>
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                  Ortalama Kelime / Dakika
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                padding: '6px 8px',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '11px'
+              }}
+            >
+              <span style={{ color: 'var(--text-muted)' }}>Sayfa Başı:</span>
+              <span className="tabular-nums" style={{ fontWeight: 800, color: '#6366F1' }}>
+                ~{profile.avgMinutesPerPage} dk
+              </span>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* Şu An Okunan Kitap Odağı & Akıllı Bitiş Süresi (ETA) */}
-      {activeBook ? (
-        <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-            <div 
-              style={{ cursor: onOpenBookDetail ? 'pointer' : 'default', flex: 1, display: 'flex', gap: '12px', alignItems: 'center' }}
-              onClick={() => onOpenBookDetail && onOpenBookDetail(activeBook)}
-            >
-              {activeBook.cover_url ? (
-                <img
-                  src={activeBook.cover_url}
-                  alt={activeBook.title}
-                  style={{ width: '42px', height: '58px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-                  onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                />
-              ) : (
-                <div style={{
-                  width: '42px', height: '58px', borderRadius: '6px',
-                  background: 'linear-gradient(135deg, #6366F1, #8B5CF6)', color: 'white',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px',
-                  flexShrink: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-                }}>
-                  📖
-                </div>
-              )}
-
-              <div>
-                <span style={{ fontSize: '10px', background: '#EEF2FF', color: '#6366F1', fontWeight: 700, padding: '2px 6px', borderRadius: '4px' }}>
-                  ŞU AN OKUNUYOR
-                </span>
-                <div style={{ fontSize: '15px', fontWeight: 800, marginTop: '4px', color: 'var(--text-main)' }}>{activeBook.title}</div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{activeBook.author}</div>
-              </div>
-            </div>
-
-            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              {etaText && (
-                <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 800, color: '#6366F1' }}>
-                  ⏳ {etaText}
-                </div>
-              )}
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                {remaining} Sayfa Kaldı
-              </div>
-            </div>
-          </div>
-
-          {/* Sayfa İlerleme Çubuğu */}
-          <div 
-            style={{ cursor: onOpenBookDetail ? 'pointer' : 'default' }}
-            onClick={() => onOpenBookDetail && onOpenBookDetail(activeBook)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
-              <span>Sayfa {activeBook.current_page} / {activeBook.total_pages}</span>
-              <span className="tabular-nums">%{percent}</span>
-            </div>
-            <div className="budget-bar-track" style={{ height: '8px' }}>
-              <div className="budget-bar-fill" style={{ width: `${percent}%`, backgroundColor: '#6366F1' }} />
-            </div>
-          </div>
-
-          {/* Hızlı Seans Kaydet Butonu */}
-          <button 
-            className="btn-secondary" 
-            onClick={onOpenSession}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px', padding: '8px' }}
-          >
-            <span>⏱️</span>
-            <span>Okuma Seansı Kaydet (+Sayfa / Kalibre Et)</span>
-          </button>
-        </div>
-      ) : (
-        <div style={{ border: '1px border-dashed var(--border)', borderRadius: 'var(--radius-md)', padding: '16px', background: 'var(--surface-subtle)', textAlign: 'center' }}>
-          <div style={{ fontSize: '24px', marginBottom: '4px' }}>📖</div>
-          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>Şu an aktif okunan kitap yok.</div>
-        </div>
-      )}
     </div>
   );
 }

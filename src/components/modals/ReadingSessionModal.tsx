@@ -1,6 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import PageCalibrationModal from '@/components/modals/PageCalibrationModal';
+import { Clock, BookOpen, Camera, Zap, Check, X } from 'lucide-react';
 
 interface Book {
   id: string;
@@ -126,7 +128,7 @@ export default function ReadingSessionModal({
       } else {
         alert(json.error || 'Seans kaydedilemedi.');
       }
-    } catch (err) {
+    } catch {
       alert('İşlem başarısız.');
     } finally {
       setIsSubmitting(false);
@@ -134,15 +136,58 @@ export default function ReadingSessionModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="bottom-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}>
-        <div className="sheet-handle"></div>
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000 }}>
+      <div 
+        className="bottom-sheet" 
+        onClick={e => e.stopPropagation()} 
+        style={{ maxWidth: '540px', maxHeight: '92vh', overflowY: 'auto' }}
+      >
+        <div className="sheet-handle" />
         
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-main)' }}>
-            ⏱️ Okuma Seansı Kaydet
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                color: '#6366F1',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Clock size={16} color="#6366F1" />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+                Okuma Seansı Kaydet
+              </h3>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Okunan sayfayı güncelleyin ve WPM hızınızı kalibre edin
+              </div>
+            </div>
           </div>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✕</button>
+
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              width: '30px',
+              height: '30px',
+              background: 'var(--surface-subtle)',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: 'var(--text-muted)'
+            }}
+          >
+            <X size={15} />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -152,7 +197,18 @@ export default function ReadingSessionModal({
             <select 
               value={selectedBookId}
               onChange={e => handleBookChange(e.target.value)}
-              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: '13px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '10px 12px',
+                fontSize: '13px',
+                fontWeight: 700,
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                marginTop: '4px',
+                background: 'var(--surface-subtle)',
+                color: 'var(--text-main)'
+              }}
             >
               {books.map(b => (
                 <option key={b.id} value={b.id}>
@@ -163,12 +219,23 @@ export default function ReadingSessionModal({
           </div>
 
           {/* Giriş Modu Seçimi: Okunan Sayfa Sayısı vs Sayfa Aralığı */}
-          <div style={{ background: 'var(--surface-subtle)', padding: '4px', borderRadius: 'var(--radius-md)', display: 'flex', gap: '4px' }}>
+          <div style={{ background: 'var(--surface-subtle)', padding: '4px', borderRadius: 'var(--radius-md)', display: 'flex', gap: '4px', border: '1px solid var(--border)' }}>
             <button
               type="button"
               className={`choice-pill ${inputMode === 'count' ? 'selected' : ''}`}
               onClick={() => setInputMode('count')}
-              style={{ flex: 1, padding: '6px', fontSize: '11px', fontWeight: 700 }}
+              style={{
+                flex: 1,
+                padding: '8px',
+                fontSize: '12px',
+                fontWeight: 700,
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: inputMode === 'count' ? 'var(--surface)' : 'transparent',
+                color: inputMode === 'count' ? '#6366F1' : 'var(--text-muted)',
+                boxShadow: inputMode === 'count' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none'
+              }}
             >
               📄 Kaç Sayfa Okudum?
             </button>
@@ -176,7 +243,18 @@ export default function ReadingSessionModal({
               type="button"
               className={`choice-pill ${inputMode === 'range' ? 'selected' : ''}`}
               onClick={() => setInputMode('range')}
-              style={{ flex: 1, padding: '6px', fontSize: '11px', fontWeight: 700 }}
+              style={{
+                flex: 1,
+                padding: '8px',
+                fontSize: '12px',
+                fontWeight: 700,
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: inputMode === 'range' ? 'var(--surface)' : 'transparent',
+                color: inputMode === 'range' ? '#6366F1' : 'var(--text-muted)',
+                boxShadow: inputMode === 'range' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none'
+              }}
             >
               📑 Sayfa Numaraları (Aralık)
             </button>
@@ -189,12 +267,24 @@ export default function ReadingSessionModal({
                 <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>OKUNAN SAYFA SAYISI *</label>
                 <input 
                   type="number"
+                  inputMode="numeric"
                   min="1"
                   placeholder="Ör. 18"
                   value={pagesReadInput}
                   onChange={e => handlePagesReadInput(e.target.value)}
                   required
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: '16px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '10px 12px',
+                    fontSize: '18px',
+                    fontWeight: 900,
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    marginTop: '4px',
+                    background: 'var(--surface-subtle)',
+                    color: '#6366F1'
+                  }}
                 />
               </div>
 
@@ -206,10 +296,13 @@ export default function ReadingSessionModal({
                     type="button"
                     onClick={() => handlePagesReadInput(String(p))}
                     style={{
-                      padding: '5px 10px', fontSize: '11px', fontWeight: 800, borderRadius: '6px',
-                      border: pagesReadInput === String(p) ? '1px solid var(--indigo)' : '1px solid var(--border)',
-                      background: pagesReadInput === String(p) ? 'var(--indigo-bg)' : 'var(--surface-subtle)',
-                      color: pagesReadInput === String(p) ? 'var(--indigo)' : 'var(--text-main)',
+                      padding: '6px 10px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      borderRadius: '6px',
+                      border: pagesReadInput === String(p) ? '1px solid #6366F1' : '1px solid var(--border)',
+                      background: pagesReadInput === String(p) ? 'rgba(99, 102, 241, 0.12)' : 'var(--surface-subtle)',
+                      color: pagesReadInput === String(p) ? '#6366F1' : 'var(--text-main)',
                       cursor: 'pointer'
                     }}
                   >
@@ -229,18 +322,42 @@ export default function ReadingSessionModal({
                 <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>BAŞLANGIÇ SAYFASI *</label>
                 <input 
                   type="number"
+                  inputMode="numeric"
                   value={startPage}
                   onChange={e => handleStartPageInput(e.target.value)}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '10px 12px',
+                    fontSize: '15px',
+                    fontWeight: 700,
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    marginTop: '4px',
+                    background: 'var(--surface-subtle)',
+                    color: 'var(--text-main)'
+                  }}
                 />
               </div>
               <div>
                 <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>BİTİŞ SAYFASI *</label>
                 <input 
                   type="number"
+                  inputMode="numeric"
                   value={endPage}
                   onChange={e => handleEndPageInput(e.target.value)}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: '14px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '10px 12px',
+                    fontSize: '15px',
+                    fontWeight: 800,
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    marginTop: '4px',
+                    background: 'var(--surface-subtle)',
+                    color: '#6366F1'
+                  }}
                 />
               </div>
             </div>
@@ -252,13 +369,25 @@ export default function ReadingSessionModal({
               <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>HARCANAN SÜRE (DAKİKA) *</label>
               <input 
                 type="number"
+                inputMode="decimal"
                 step="0.5"
                 min="0.5"
                 placeholder="Ör. 25"
                 value={durationMinutes}
                 onChange={e => setDurationMinutes(e.target.value)}
                 required
-                style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: '16px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '10px 12px',
+                  fontSize: '16px',
+                  fontWeight: 800,
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  marginTop: '4px',
+                  background: 'var(--surface-subtle)',
+                  color: 'var(--text-main)'
+                }}
               />
             </div>
 
@@ -270,10 +399,13 @@ export default function ReadingSessionModal({
                   type="button"
                   onClick={() => setDurationMinutes(String(m))}
                   style={{
-                    padding: '5px 10px', fontSize: '11px', fontWeight: 800, borderRadius: '6px',
-                    border: durationMinutes === String(m) ? '1px solid var(--indigo)' : '1px solid var(--border)',
-                    background: durationMinutes === String(m) ? 'var(--indigo-bg)' : 'var(--surface-subtle)',
-                    color: durationMinutes === String(m) ? 'var(--indigo)' : 'var(--text-main)',
+                    padding: '6px 10px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    borderRadius: '6px',
+                    border: durationMinutes === String(m) ? '1px solid #6366F1' : '1px solid var(--border)',
+                    background: durationMinutes === String(m) ? 'rgba(99, 102, 241, 0.12)' : 'var(--surface-subtle)',
+                    color: durationMinutes === String(m) ? '#6366F1' : 'var(--text-main)',
                     cursor: 'pointer'
                   }}
                 >
@@ -284,29 +416,49 @@ export default function ReadingSessionModal({
           </div>
 
           {/* Anlık Seans Hızı & Süre İstatistiği Önizlemesi */}
-          <div style={{ background: 'var(--indigo-bg)', border: '1px solid var(--indigo)', padding: '12px 14px', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div
+            style={{
+              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.08) 100%)',
+              border: '1px solid rgba(99, 102, 241, 0.3)',
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}
+          >
             <div>
-              <div style={{ fontSize: '10px', color: 'var(--indigo)', fontWeight: 800 }}>BU SEANS HESAPLANAN PERFORMANS</div>
+              <div style={{ fontSize: '10px', color: '#6366F1', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                BU SEANS HESAPLANAN PERFORMANS
+              </div>
               <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px' }}>
                 📖 {pagesRead} Sayfa • ⏱️ {durMin} Dk
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '15px', fontWeight: 900, color: 'var(--indigo)' }}>⚡ ~{estimatedWpm} WPM</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>({minutesPerPage} dk / sayfa)</div>
+              <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 900, color: '#6366F1' }}>
+                ⚡ ~{estimatedWpm} WPM
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                ({minutesPerPage} dk / sayfa)
+              </div>
             </div>
           </div>
 
           {/* Sayfa Yoğunluğu & Kalibre Et Butonu */}
-          <div style={{
-            background: 'var(--surface-subtle)',
-            border: '1px solid var(--border)',
-            padding: '8px 12px',
-            borderRadius: 'var(--radius-md)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
+          <div
+            style={{
+              background: 'var(--surface-subtle)',
+              border: '1px solid var(--border)',
+              padding: '8px 12px',
+              borderRadius: 'var(--radius-md)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '6px'
+            }}
+          >
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
               Sayfa Yoğunluğu: <strong style={{ color: 'var(--text-main)' }}>{wordsPerPage} kelime/sayfa</strong>
             </div>
@@ -316,7 +468,7 @@ export default function ReadingSessionModal({
               style={{
                 background: 'none',
                 border: 'none',
-                color: 'var(--indigo)',
+                color: '#6366F1',
                 fontSize: '11px',
                 fontWeight: 800,
                 cursor: 'pointer',
@@ -326,13 +478,29 @@ export default function ReadingSessionModal({
                 padding: '2px 4px'
               }}
             >
-              <span>📸</span>
+              <Camera size={13} color="#6366F1" />
               <span>Sayfayı Tara & Kalibre Et</span>
             </button>
           </div>
 
-          <button type="submit" className="btn-primary" disabled={isSubmitting} style={{ padding: '12px', fontSize: '14px', fontWeight: 800 }}>
-            {isSubmitting ? 'Seans Kaydediliyor...' : '✅ Seansı Kaydet & Sayfayı İlerlet'}
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={isSubmitting}
+            style={{
+              height: '42px',
+              padding: '10px',
+              fontSize: '13px',
+              fontWeight: 800,
+              background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+              borderRadius: '8px',
+              border: 'none',
+              color: '#fff',
+              cursor: 'pointer'
+            }}
+          >
+            {isSubmitting ? 'Seans Kaydediliyor...' : '✓ Seansı Kaydet & Sayfayı İlerlet'}
           </button>
         </form>
       </div>

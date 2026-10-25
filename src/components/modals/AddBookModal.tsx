@@ -482,30 +482,45 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
             </button>
           </div>
 
-          {/* Kapak Önizleme Paneli */}
+          {/* Kapak & Künye Önizleme Paneli */}
           {coverUrl && (
             <div style={{
-              margin: '16px 24px 0 24px', padding: '12px 16px', background: 'var(--surface-subtle)',
-              border: '1px solid var(--border)', borderRadius: '16px',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+              margin: '16px 24px 0 24px', padding: '14px 16px', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(139, 92, 246, 0.04) 100%)',
+              border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '16px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
                 <img
                   src={coverUrl}
-                  alt="Kapak Önizleme"
-                  style={{ width: '48px', height: '64px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }}
+                  alt={title || "Kapak Önizleme"}
+                  style={{ width: '48px', height: '68px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)', boxShadow: '0 4px 10px rgba(0,0,0,0.15)', flexShrink: 0 }}
                 />
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>🖼️ Kitap Kapağı Eklendi</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Görsel kitap kartlarında gösterilecektir</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#6366F1', color: '#fff' }}>
+                      KÜNYE BULUNDU
+                    </span>
+                    {totalPages && (
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        {totalPages} sayfa
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {title || 'Kitap Adı'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {author ? `${author}` : ''} {publisher ? `• ${publisher}` : ''}
+                  </div>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setCoverUrl('')}
                 style={{
-                  background: 'var(--rose-bg)', border: '1px solid var(--rose)', color: 'var(--rose)',
-                  padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer'
+                  background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--rose)',
+                  padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer',
+                  flexShrink: 0
                 }}
               >
                 Kapağı Kaldır
@@ -572,54 +587,56 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
               </div>
             )}
 
-            {/* ⚠️ Mükerrer Kitap Tespit Paneli */}
+            {/* ⚠️ Mükerrer Kitap Tespit Paneli (409 Koruma Kalkanı) */}
             {existingBook && (
               <div style={{
-                background: 'rgba(245, 158, 11, 0.12)',
-                border: '1px solid #F59E0B',
+                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.1) 100%)',
+                border: '1.5px solid #F59E0B',
                 borderRadius: '16px',
                 padding: '16px 18px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '12px'
+                gap: '14px',
+                boxShadow: '0 4px 14px rgba(245, 158, 11, 0.15)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                  <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                     <div style={{
-                      width: '36px', height: '36px', borderRadius: '10px', background: '#F59E0B',
+                      width: '40px', height: '40px', borderRadius: '10px', background: '#F59E0B',
                       color: '#000000', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '18px', fontWeight: 800, flexShrink: 0
+                      fontSize: '20px', fontWeight: 800, flexShrink: 0
                     }}>
                       ⚠️
                     </div>
                     <div>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#F59E0B' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#D97706' }}>
                         Bu Kitap Zaten Kütüphanenizde Kayıtlı!
                       </div>
-                      <div style={{ fontSize: '13px', color: 'var(--text-main)', marginTop: '4px', fontWeight: 600 }}>
+                      <div style={{ fontSize: '14px', color: 'var(--text-main)', marginTop: '2px', fontWeight: 700 }}>
                         {existingBook.title}
                       </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                         {existingBook.author} {existingBook.publisher ? `• ${existingBook.publisher}` : ''}
                       </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-main)', marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                        <span>
+                      <div style={{ fontSize: '11px', color: 'var(--text-main)', marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                        <span style={{ backgroundColor: 'var(--surface)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border)' }}>
                           📌 <strong>Durum:</strong>{' '}
                           {existingBook.status === 'completed'
                             ? '✅ Okundu'
                             : existingBook.status === 'reading'
-                            ? `📖 Okunuyor (${existingBook.current_page} / ${existingBook.total_pages} sayfa)`
+                            ? `📖 Okunuyor (${existingBook.current_page}/${existingBook.total_pages} sayfa)`
                             : '📌 İstek Listesinde'}
                         </span>
-                        <span>
-                          🗄️ <strong>Raf:</strong> {existingBook.shelf_location || 'Salon Kitaplığı'}
+                        <span style={{ backgroundColor: 'var(--surface)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                          📍 <strong>Konum:</strong> {existingBook.shelf_location || 'Salon Kitaplığı'}
                         </span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px', paddingTop: '10px', borderTop: '1px solid rgba(245, 158, 11, 0.25)' }}>
+                {/* Çift Eylem Seçenekleri */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px', paddingTop: '10px', borderTop: '1px solid rgba(245, 158, 11, 0.3)' }}>
                   {onOpenBookDetail && (
                     <button
                       type="button"
@@ -633,17 +650,19 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                         background: '#F59E0B',
                         color: '#000000',
                         border: 'none',
-                        padding: '8px 16px',
+                        padding: '10px 18px',
                         borderRadius: '10px',
                         fontSize: '13px',
-                        fontWeight: 700,
+                        fontWeight: 800,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '6px'
+                        gap: '6px',
+                        boxShadow: '0 2px 8px rgba(245, 158, 11, 0.4)'
                       }}
                     >
-                      📖 Mevcut Kitabı Aç / Güncelle
+                      <span>📖</span>
+                      <span>Mevcut Kitabı Aç & Güncelle</span>
                     </button>
                   )}
 
@@ -651,14 +670,15 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    fontSize: '13px',
+                    fontSize: '12px',
                     color: 'var(--text-main)',
                     cursor: 'pointer',
                     userSelect: 'none',
-                    padding: '6px 12px',
+                    padding: '8px 12px',
                     borderRadius: '8px',
-                    background: allowDuplicate ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
-                    border: allowDuplicate ? '1px solid #F59E0B' : '1px dashed rgba(245, 158, 11, 0.4)'
+                    background: allowDuplicate ? 'rgba(245, 158, 11, 0.25)' : 'var(--surface)',
+                    border: allowDuplicate ? '1.5px solid #F59E0B' : '1px solid var(--border)',
+                    transition: 'all 0.15s ease'
                   }}>
                     <input
                       type="checkbox"
@@ -666,7 +686,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                       onChange={(e) => setAllowDuplicate(e.target.checked)}
                       style={{ cursor: 'pointer', accentColor: '#F59E0B', width: '16px', height: '16px' }}
                     />
-                    <span style={{ fontWeight: allowDuplicate ? 700 : 500 }}>
+                    <span style={{ fontWeight: allowDuplicate ? 800 : 600 }}>
                       Yine de 2. kopya olarak kütüphaneme ekle
                     </span>
                   </label>
@@ -806,6 +826,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Toplam Sayfa *</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={totalPages}
                     onChange={e => setTotalPages(e.target.value)}
                     style={{
@@ -820,6 +841,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Okunan Sayfa</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={currentPage}
                     onChange={e => setCurrentPage(e.target.value)}
                     style={{
@@ -902,6 +924,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <input
                         type="number"
+                        inputMode="numeric"
                         min="50"
                         max="1000"
                         value={wordsPerPage}

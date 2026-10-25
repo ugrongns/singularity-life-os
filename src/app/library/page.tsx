@@ -1,4 +1,5 @@
 'use client';
+
 import { useState, useEffect } from 'react';
 import SharedLayout from '@/components/layout/SharedLayout';
 import LibraryHeroCard from '@/components/library/LibraryHeroCard';
@@ -6,7 +7,6 @@ import BookShelfList from '@/components/library/BookShelfList';
 import QuotesDrawer from '@/components/library/QuotesDrawer';
 import ReadingSessionModal from '@/components/modals/ReadingSessionModal';
 import AddBookModal from '@/components/modals/AddBookModal';
-
 import BookDetailModal from '@/components/modals/BookDetailModal';
 
 export default function LibraryPage() {
@@ -20,14 +20,28 @@ export default function LibraryPage() {
   const [selectedBookDetail, setSelectedBookDetail] = useState<any>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const showToast = (msg: string) => { setToastMsg(msg); setTimeout(() => setToastMsg(null), 3000); };
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3000);
+  };
 
   const fetchData = async () => {
-    const [libRes, notifRes] = await Promise.all([fetch('/api/library'), fetch('/api/notifications')]);
-    const [libJ, notifJ] = await Promise.all([libRes.json(), notifRes.json()]);
-    if (libJ.success) setData(libJ.data);
-    if (notifJ.success) setNotifData(notifJ.data);
-    setLoading(false);
+    try {
+      const [libRes, notifRes] = await Promise.all([
+        fetch('/api/library'),
+        fetch('/api/notifications')
+      ]);
+      const [libJ, notifJ] = await Promise.all([
+        libRes.json(),
+        notifRes.json()
+      ]);
+      if (libJ.success) setData(libJ.data);
+      if (notifJ.success) setNotifData(notifJ.data);
+    } catch (err) {
+      console.error('Kütüphane veri yükleme hatası:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -40,10 +54,17 @@ export default function LibraryPage() {
     return () => window.removeEventListener('singularity-refresh', handleRefresh);
   }, []);
 
-  const handleUpdate = (msg?: string) => { fetchData(); if (msg) showToast(msg); };
+  const handleUpdate = (msg?: string) => {
+    fetchData();
+    if (msg) showToast(msg);
+  };
 
   const handleQuickPageUpdate = async (bookId: string, newPage: number) => {
-    const res = await fetch('/api/library', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ book_id: bookId, current_page: newPage }) });
+    const res = await fetch('/api/library', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ book_id: bookId, current_page: newPage })
+    });
     const j = await res.json();
     if (j.success) handleUpdate(j.message);
   };
@@ -53,49 +74,77 @@ export default function LibraryPage() {
     setIsSessionOpen(true);
   };
 
-  if (loading) return <SharedLayout notifications={notifData}><div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Yükleniyor...</div></SharedLayout>;
+  if (loading) {
+    return (
+      <SharedLayout notifications={notifData}>
+        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
+          Yükleniyor...
+        </div>
+      </SharedLayout>
+    );
+  }
 
   return (
     <SharedLayout notifications={notifData}>
       {toastMsg && (
-        <div className="toast-glass">
+        <div
+          style={{
+            position: 'fixed',
+            top: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'var(--text-main)',
+            color: 'white',
+            padding: '10px 20px',
+            borderRadius: 'var(--radius-full)',
+            fontSize: '13px',
+            zIndex: 1100,
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)'
+          }}
+        >
           {toastMsg}
         </div>
       )}
 
+      {/* Üst Başlık */}
       <div style={{ padding: '0 16px 8px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>📚 Kütüphane</h1>
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Kitaplık, okuma hızı, alıntı ve ikinci beyin</p>
+        <h1 style={{ fontSize: '22px', fontWeight: 900, margin: 0, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
+          📚 Kütüphane & Okuma Analitiği
+        </h1>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 12px' }}>
+          Literal.club, Readwise ve Apple Books estetiğinde rafine okuma ve ikinci beyin merkezi
+        </p>
       </div>
 
-      <div className="dashboard-grid">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <LibraryHeroCard
-            profile={data?.profile || { yearly_target_books: 24, completedBooksCount: 0, targetProgressPercent: 0, calibrated_avg_wpm: 220, avgMinutesPerPage: '1.4' }}
-            activeBook={data?.activeReadingBook}
-            onOpenSession={() => handleOpenSessionForBook(data?.activeReadingBook?.id)}
-            onOpenQuotes={() => setIsQuotesOpen(true)}
-            onOpenBookDetail={(b) => setSelectedBookDetail(b)}
-            onUpdate={handleUpdate}
-          />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <BookShelfList
-            books={data?.books || []}
-            onQuickPageUpdate={handleQuickPageUpdate}
-            onOpenAddBookModal={() => setIsAddBookOpen(true)}
-            onOpenSessionForBook={(bId) => handleOpenSessionForBook(bId)}
-            onUpdate={handleUpdate}
-          />
-        </div>
+      {/* Ana Gövde: Üstte Geniş Hero/KPI Bento, Altta 4-6 Sütunlu Kitaplık Vitrini */}
+      <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <LibraryHeroCard
+          profile={data?.profile || { yearly_target_books: 24, completedBooksCount: 0, targetProgressPercent: 0, calibrated_avg_wpm: 220, avgMinutesPerPage: '1.4' }}
+          activeBook={data?.activeReadingBook}
+          onOpenSession={() => handleOpenSessionForBook(data?.activeReadingBook?.id)}
+          onOpenQuotes={() => setIsQuotesOpen(true)}
+          onOpenBookDetail={(b) => setSelectedBookDetail(b)}
+          onUpdate={handleUpdate}
+        />
+
+        <BookShelfList
+          books={data?.books || []}
+          onQuickPageUpdate={handleQuickPageUpdate}
+          onOpenAddBookModal={() => setIsAddBookOpen(true)}
+          onOpenSessionForBook={(bId) => handleOpenSessionForBook(bId)}
+          onUpdate={handleUpdate}
+        />
       </div>
 
+      {/* Kitap Ekleme Modalı */}
       <AddBookModal
         isOpen={isAddBookOpen}
         onClose={() => setIsAddBookOpen(false)}
         onSuccess={(msg) => handleUpdate(msg)}
         onOpenBookDetail={(b) => setSelectedBookDetail(b)}
       />
+
+      {/* Okuma Seansı Modalı */}
       <ReadingSessionModal
         isOpen={isSessionOpen}
         onClose={() => {
@@ -106,8 +155,16 @@ export default function LibraryPage() {
         preselectedBookId={sessionBookId}
         onSuccess={(msg) => handleUpdate(msg)}
       />
-      <QuotesDrawer isOpen={isQuotesOpen} onClose={() => setIsQuotesOpen(false)} books={data?.books || []} onQuoteAdded={() => handleUpdate('📖 Alıntı eklendi!')} />
-      
+
+      {/* Alıntılar & İkinci Beyin Side Drawer'ı (Masaüstü: Sağdan Açılır 480px, Mobil: Bottom-Sheet) */}
+      <QuotesDrawer
+        isOpen={isQuotesOpen}
+        onClose={() => setIsQuotesOpen(false)}
+        books={data?.books || []}
+        onQuoteAdded={() => handleUpdate('📖 Alıntı deftere eklendi!')}
+      />
+
+      {/* Kitap Detay Modalı */}
       {selectedBookDetail && (
         <BookDetailModal
           isOpen={Boolean(selectedBookDetail)}

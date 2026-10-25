@@ -398,6 +398,7 @@ export default function PageCalibrationModal({
 
                 <input
                   type="number"
+                  inputMode="numeric"
                   min={50}
                   max={1000}
                   value={calibratedCount}
