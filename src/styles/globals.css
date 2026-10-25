@@ -417,7 +417,7 @@ body {
   border-color: var(--text-main);
 }
 
-/* Dashboard Grid - Çok Sütunlu Responsive Düzen & 12 Sütunlu Bento Grid */
+/* Dashboard Grid - Çok Sütunlu Responsive Düzen */
 .dashboard-grid {
   display: flex;
   flex-direction: column;
@@ -429,30 +429,15 @@ body {
 @media (min-width: 960px) {
   .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
     gap: 24px;
     align-items: start;
+    width: 100%;
   }
-}
 
-@media (min-width: 1280px) {
-  .dashboard-grid {
-    display: grid;
-    grid-template-columns: repeat(12, 1fr);
-    gap: 24px;
-    align-items: stretch;
-  }
-  .dashboard-grid > .card {
-    grid-column: span 6;
-  }
-  .dashboard-grid > .card.card-full {
-    grid-column: span 12;
-  }
-  .dashboard-grid > .card.card-two-thirds {
-    grid-column: span 8;
-  }
-  .dashboard-grid > .card.card-third {
-    grid-column: span 4;
+  .dashboard-grid > .card-full,
+  .dashboard-grid > .col-full {
+    grid-column: 1 / -1;
   }
 }
 
