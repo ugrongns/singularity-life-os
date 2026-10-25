@@ -90,7 +90,7 @@ async function compressImageIfNeeded(file: File): Promise<File> {
 
 export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuccess }: ReceiptScanModalProps) {
   // Sekmeler: 'qr' (Karekod Fiş), 'camera' (Fotoğraf Çek), 'upload' (Dosya Yükle), 'presets' (Hazır Örnekler)
-  const [activeTab, setActiveTab] = useState<'qr' | 'camera' | 'upload' | 'presets'>('qr');
+  const [activeTab, setActiveTab] = useState<'camera' | 'upload'>('camera');
   const [step, setStep] = useState<'scan' | 'processing' | 'confirm'>('scan');
   const [scanType, setScanType] = useState<'market' | 'fuel' | 'service'>('market');
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
@@ -437,10 +437,8 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
 
   useEffect(() => {
     if (isOpen && step === 'scan') {
-      if (activeTab === 'qr') {
+      if (activeTab === 'camera') {
         startCamera(true);
-      } else if (activeTab === 'camera') {
-        startCamera(false);
       } else {
         stopCamera();
       }
@@ -459,6 +457,31 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
   }, [activeAccounts, selectedWalletId]);
 
   if (!isOpen) return null;
+
+  // Anlık Deklanşör: Kameradan Çek ve Doğrudan AI ile Oku
+  const handleInstantShutter = async () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    if (video.videoWidth === 0 || video.videoHeight === 0) return;
+
+    try {
+      const canvas = canvasRef.current || document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const base64 = canvas.toDataURL('image/jpeg', 0.85);
+
+      stopCamera();
+      setCapturedImages([base64]);
+      await processReceiptImage([base64]);
+    } catch (err: any) {
+      console.error('Instant shutter error:', err);
+      alert('Fotoğraf yakalanırken hata oluştu: ' + (err.message || 'Lütfen tekrar deneyin.'));
+      setStep('scan');
+    }
+  };
 
   // Fotoğraf Çek (Snap Frame)
   const handleCaptureSnapshot = () => {
@@ -619,64 +642,6 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
     setStep('confirm');
   };
 
-  // Hazır Senaryo Yükleme (Simülasyon / Test)
-  const handlePresetSelect = (type: 'migros_qr' | 'shell' | 'bosch') => {
-    setStep('processing');
-    setTimeout(() => {
-      const today = new Date().toISOString().split('T')[0];
-      if (type === 'migros_qr') {
-        setScanType('market');
-        setSelectedInstallments(1);
-        setParsedData({
-          merchant: 'MİGROS (YENİ BATI ANKARA MM MİGROS)',
-          amount: 430.85,
-          date: '2026-10-24',
-          category_id: 'cat-market',
-          category_name: 'Market & Gıda',
-          items: [
-            { name: 'MLIFE KAFESSİZ M BOY TAVUK YUMURTASI 10 LU 53-62 G', price: 104.95, quantity: 1, barcode: '8697581702809' },
-            { name: 'MLIFE KAFESSİZ M BOY TAVUK YUMURTASI 10 LU 53-62 G', price: 104.95, quantity: 1, barcode: '8697581702809' },
-            { name: 'ORKİD PLATINUM GECE EKSTRA PLUS 14 LÜ', price: 219.95, quantity: 1, barcode: '8006530170062' },
-            { name: 'MİGROS PLASTİK POŞET YENİ', price: 1.00, quantity: 1, barcode: '2001111341301' }
-          ],
-          tax_amount: 22.25,
-          reference_number: '063921026770261024',
-          ettn: '36407bb8-3882-4ed7-8afa-54fed93e587f',
-          qr_url: 'https://sites.fitbulut.com/eBelgeGoruntuleyici/ViewDocument.aspx?ID=6220529513&UUID=36407bb8-3882-4ed7-8afa-54fed93e587f#Refid063921026770261024',
-          source_type: 'qr_ebelge'
-        });
-      } else if (type === 'shell') {
-        setScanType('fuel');
-        setSelectedInstallments(1);
-        setParsedData({
-          merchant: 'Shell Petrol A.Ş.',
-          amount: 2250.00,
-          date: today,
-          category_id: 'cat-ulasim',
-          category_name: 'Ulaşım & Akaryakıt',
-          vehicle_km: 65850,
-          fuel_station: 'Shell V-Power Kurşunsuz 95',
-          items: [{ name: 'V-Power Kurşunsuz 95 (50.5 Litre)', price: 2250.00, quantity: 1 }],
-          source_type: 'ai_ocr'
-        });
-      } else if (type === 'bosch') {
-        setScanType('service');
-        setSelectedInstallments(6);
-        setParsedData({
-          merchant: 'Bosch Car Service',
-          amount: 18000.00,
-          date: today,
-          category_id: 'cat-ulasim',
-          category_name: 'Ulaşım & Araç Bakımı',
-          vehicle_km: 75000,
-          parts_changed: 'Motor Yağı, Yağ/Hava/Polen Filtresi, Ön Fren Balatası & Disk Değişimi',
-          items: [{ name: '75.000 KM Periyodik Ağır Bakım Paketi', price: 18000.00, quantity: 1 }],
-          source_type: 'ai_ocr'
-        });
-      }
-      setStep('confirm');
-    }, 600);
-  };
 
   // Kalem Düzenleme / Ekleme / Silme
   const handleItemChange = (index: number, field: string, val: any) => {
@@ -798,39 +763,27 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
         {step === 'scan' && (
           <div>
             {/* Sekme Butonları */}
-            <div style={{ display: 'flex', gap: '4px', background: 'var(--surface-subtle)', padding: '4px', borderRadius: 'var(--radius-md)', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', gap: '6px', background: 'var(--surface-subtle)', padding: '4px', borderRadius: 'var(--radius-md)', marginBottom: '14px' }}>
               <button
-                onClick={() => setActiveTab('qr')}
-                className={`choice-pill ${activeTab === 'qr' ? 'selected' : ''}`}
-                style={{ flex: 1, padding: '8px 4px', fontSize: '12px', fontWeight: 700 }}
-              >
-                📱 Karekod / QR
-              </button>
-              <button
+                type="button"
                 onClick={() => setActiveTab('camera')}
                 className={`choice-pill ${activeTab === 'camera' ? 'selected' : ''}`}
-                style={{ flex: 1, padding: '8px 4px', fontSize: '12px', fontWeight: 600 }}
+                style={{ flex: 1, padding: '10px 8px', fontSize: '13px', fontWeight: 800 }}
               >
-                📷 Fiş Çek
+                📷 Canlı Kamera (Karekod & AI OCR)
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab('upload')}
                 className={`choice-pill ${activeTab === 'upload' ? 'selected' : ''}`}
-                style={{ flex: 1, padding: '8px 4px', fontSize: '12px', fontWeight: 600 }}
+                style={{ flex: 1, padding: '10px 8px', fontSize: '13px', fontWeight: 800 }}
               >
-                📁 Dosya
-              </button>
-              <button
-                onClick={() => setActiveTab('presets')}
-                className={`choice-pill ${activeTab === 'presets' ? 'selected' : ''}`}
-                style={{ flex: 1, padding: '8px 4px', fontSize: '12px', fontWeight: 600 }}
-              >
-                ⚡ Örnekler
+                📁 Galeri / Dosya Yükle
               </button>
             </div>
 
-            {/* TAB 1: CANLI KAREKOD / QR TARAYICI */}
-            {activeTab === 'qr' && (
+            {/* TAB 1: BİRLEŞİK CANLI KAMERA (KAREKOD + AI OCR) */}
+            {activeTab === 'camera' && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                 <div style={{
                   position: 'relative', width: '100%', height: 'clamp(280px, 46vh, 420px)',
@@ -846,15 +799,15 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
                   />
                   {!isCameraActive && (
                     <div style={{ textAlign: 'center', color: '#9CA3AF', padding: '20px' }}>
-                      <div style={{ fontSize: '36px', marginBottom: '8px' }}>📱</div>
-                      <div style={{ fontSize: '13px' }}>{cameraError || 'Karekod kamerası başlatılıyor...'}</div>
+                      <div style={{ fontSize: '36px', marginBottom: '8px' }}>📷</div>
+                      <div style={{ fontSize: '13px' }}>{cameraError || 'Kamera başlatılıyor...'}</div>
                     </div>
                   )}
 
-                  {/* QR Odaklama Vizörü ve Lazer Tarama Çizgisi */}
+                  {/* Odaklama Vizörü ve Lazer Çizgisi */}
                   {isCameraActive && (
                     <div style={{
-                      position: 'absolute', width: '220px', height: '220px',
+                      position: 'absolute', width: '240px', height: '240px',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       pointerEvents: 'none'
                     }}>
@@ -864,7 +817,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
                       <div style={{ position: 'absolute', bottom: 0, left: 0, width: '28px', height: '28px', borderBottom: '4px solid #10B981', borderLeft: '4px solid #10B981', borderBottomLeftRadius: '8px' }} />
                       <div style={{ position: 'absolute', bottom: 0, right: 0, width: '28px', height: '28px', borderBottom: '4px solid #10B981', borderRight: '4px solid #10B981', borderBottomRightRadius: '8px' }} />
 
-                      {/* Lazer Tarama Efekti */}
+                      {/* Lazer Çizgisi */}
                       <div style={{
                         position: 'absolute', top: '15%', left: '10px', right: '10px', height: '2px',
                         background: 'linear-gradient(90deg, transparent, #10B981, #34D399, transparent)',
@@ -872,8 +825,8 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
                         animation: 'scanLaser 2s ease-in-out infinite alternate'
                       }} />
 
-                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.85)', background: 'rgba(0,0,0,0.6)', padding: '3px 8px', borderRadius: '4px', textAlign: 'center', marginTop: '160px' }}>
-                        Karekodu buraya tutun
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.85)', background: 'rgba(0,0,0,0.6)', padding: '3px 8px', borderRadius: '4px', textAlign: 'center', marginTop: '180px' }}>
+                        Fişi veya Karekodu Hizalayın
                       </div>
                     </div>
                   )}
@@ -897,7 +850,9 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
                   )}
                 </div>
 
-                {/* Bilgi Çubuğu */}
+                <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+                {/* Bilgi ve Durum Çubuğu */}
                 <div style={{
                   width: '100%', padding: '8px 12px', background: 'var(--emerald-bg)',
                   border: '1px solid var(--emerald)', borderRadius: 'var(--radius-md)',
@@ -907,48 +862,64 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
                   <span style={{ fontWeight: 600 }}>{qrScanningStatus}</span>
                 </div>
 
-                {/* Hızlı Tavsiye ve Rehberlik Rozetleri */}
-                <div style={{
-                  display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap',
-                  fontSize: '11px', color: 'var(--text-muted)', marginTop: '-4px'
-                }}>
-                  <span style={{ background: 'var(--surface)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)' }}>
-                    📏 15-20 cm mesafe
-                  </span>
-                  <span style={{ background: 'var(--surface)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)' }}>
-                    ✨ Parlamayı önleyin
-                  </span>
-                  <span style={{ background: 'var(--surface)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)' }}>
-                    📁 veya Dosya yükleyin
-                  </span>
+                {/* Ana Aksiyon Butonları: Anlık Deklanşör + Galeri */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                  <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                    <button
+                      type="button"
+                      onClick={handleInstantShutter}
+                      disabled={!isCameraActive}
+                      style={{
+                        flex: 2,
+                        padding: '14px 18px',
+                        fontSize: '14px',
+                        fontWeight: 800,
+                        background: 'linear-gradient(135deg, #10B981, #059669)',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: 'var(--radius-md)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        cursor: isCameraActive ? 'pointer' : 'not-allowed',
+                        boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)'
+                      }}
+                    >
+                      <span style={{ fontSize: '20px' }}>📸</span>
+                      <span>Fotoğraf Çek & AI ile Oku</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{
+                        flex: 1,
+                        padding: '14px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        background: 'var(--surface-subtle)',
+                        color: 'var(--text-main)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span>📁</span>
+                      <span>Galeri</span>
+                    </button>
+                  </div>
+
+                  <div style={{ textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
+                    ✨ Karekod varsa otomatik çözümlenir; klasik fişlerde yeşil butona basarak AI ile okutabilirsiniz.
+                  </div>
                 </div>
 
-                {/* Karekodsuz Klasik Fiş için Hızlı Geçiş Butonu */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('camera')}
-                  style={{
-                    width: '100%',
-                    padding: '9px 14px',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    background: 'var(--surface-subtle)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    color: 'var(--text-main)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    cursor: 'pointer',
-                    marginTop: '2px'
-                  }}
-                >
-                  <span>📷</span>
-                  <span>Fişte Karekod Yoksa: Fotoğraf Çekip AI ile Çözümle</span>
-                </button>
-
-                {/* Manuel Link Yapıştırma Aç/Kapa */}
+                {/* Manuel Karekod / Fatura Linki Girişi */}
                 <div style={{ width: '100%', textAlign: 'center', marginTop: '2px' }}>
                   <button
                     onClick={() => setShowManualQrInput(!showManualQrInput)}
@@ -985,78 +956,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
               </div>
             )}
 
-            {/* TAB 2: FİŞ FOTOĞRAFI ÇEKME */}
-            {activeTab === 'camera' && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                <div style={{
-                  position: 'relative', width: '100%', height: 'clamp(280px, 46vh, 420px)',
-                  background: '#111827', borderRadius: 'var(--radius-lg)',
-                  overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}>
-                  <video
-                    ref={videoRef}
-                    playsInline
-                    muted
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: isCameraActive ? 'block' : 'none' }}
-                  />
-                  {!isCameraActive && (
-                    <div style={{ textAlign: 'center', color: '#9CA3AF', padding: '20px' }}>
-                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>📷</div>
-                      <div style={{ fontSize: '13px' }}>{cameraError || 'Kamera başlatılıyor...'}</div>
-                    </div>
-                  )}
-
-                  {/* Fiş Çerçeve Kılavuzu */}
-                  <div style={{
-                    position: 'absolute', inset: '24px',
-                    border: '2px dashed rgba(255,255,255,0.6)',
-                    borderRadius: '12px', pointerEvents: 'none',
-                    display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-                    padding: '8px'
-                  }}>
-                    <span style={{ fontSize: '11px', color: 'white', background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: '4px' }}>
-                      Fişi çerçevenin içine hizalayın
-                    </span>
-                  </div>
-                </div>
-
-                <canvas ref={canvasRef} style={{ display: 'none' }} />
-
-                <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
-                  <button
-                    className="btn-subtle"
-                    onClick={handleCaptureSnapshot}
-                    disabled={!isCameraActive}
-                    style={{ flex: 1, padding: '14px', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: '1px solid var(--border)' }}
-                  >
-                    <span>📸</span>
-                    <span>Fotoğraf Çek ({capturedImages.length > 0 ? `+${capturedImages.length}` : 'Ekle'})</span>
-                  </button>
-                  {capturedImages.length > 0 && (
-                    <button
-                      className="btn-primary"
-                      onClick={handleProcessAll}
-                      style={{ flex: 1, padding: '14px', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                    >
-                      <span>🚀</span>
-                      <span>Tümünü Çözümle</span>
-                    </button>
-                  )}
-                </div>
-
-                {capturedImages.length > 0 && (
-                  <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', width: '100%', paddingBottom: '8px' }}>
-                    {capturedImages.map((img, idx) => (
-                      <div key={idx} style={{ minWidth: '60px', height: '80px', borderRadius: '8px', overflow: 'hidden', border: '2px solid var(--primary)' }}>
-                        <img src={img} alt={`Parça ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* TAB 3: DOSYA / GALERİ YÜKLE */}
+            {/* TAB 2: DOSYA / GALERİ YÜKLE */}
             {activeTab === 'upload' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'center' }}>
                 <input
@@ -1089,77 +989,6 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
                 >
                   <span>📁</span>
                   <span>Galeriden veya Dosyalardan Seç</span>
-                </button>
-              </div>
-            )}
-
-            {/* TAB 4: HAZIR ÖRNEK FİŞLER */}
-            {activeTab === 'presets' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                  Farklı senaryoları denemek için aşağıdaki hazır test fişlerinden birini seçebilirsiniz:
-                </div>
-
-                <button
-                  onClick={() => handlePresetSelect('migros_qr')}
-                  className="btn-subtle"
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '12px 14px', background: 'var(--surface)', border: '1px solid var(--emerald)',
-                    borderRadius: 'var(--radius-md)', textAlign: 'left', cursor: 'pointer'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '24px' }}>📱</span>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-main)' }}>Migros e-Arşiv QR Fişi</span>
-                        <span style={{ fontSize: '9px', background: 'var(--emerald-bg)', color: 'var(--emerald)', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>KAREKODLU</span>
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        4 Kalem: MLIFE Yumurta x2, Orkid Gece, Poşet (Ref: 063921026770261024)
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)' }}>430,85 ₺</div>
-                </button>
-
-                <button
-                  onClick={() => handlePresetSelect('shell')}
-                  className="btn-subtle"
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '12px 14px', background: 'var(--surface)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)', textAlign: 'left', cursor: 'pointer'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '24px' }}>⛽</span>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-main)' }}>Shell V-Power Akaryakıt</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>50.5 Litre Benzin • Araç Sayacı (65.850 KM)</div>
-                    </div>
-                  </div>
-                  <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)' }}>2.250,00 ₺</div>
-                </button>
-
-                <button
-                  onClick={() => handlePresetSelect('bosch')}
-                  className="btn-subtle"
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '12px 14px', background: 'var(--surface)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)', textAlign: 'left', cursor: 'pointer'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '24px' }}>🔧</span>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-main)' }}>Bosch Car Service Faturası</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Ağır Bakım & Balata • 6 Taksit • 75.000 KM Servis Kaydı</div>
-                    </div>
-                  </div>
-                  <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)' }}>18.000,00 ₺</div>
                 </button>
               </div>
             )}
