@@ -236,8 +236,19 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
 
   const formatMoney = (val: number, curr = 'TRY') => {
     const symbol = curr === 'USD' ? '$' : curr === 'EUR' ? '€' : curr === 'GOLD' ? 'gr' : '₺';
-    return `${val.toLocaleString('tr-TR')} ${symbol}`;
+    return `${(Number(val) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`;
   };
+
+  // Toplam Varlık, Borç ve Net Likidite Hesabı
+  const totalAssets = accounts
+    .filter(a => a.type !== 'credit_card' && a.type !== 'loan')
+    .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+
+  const totalDebts = accounts
+    .filter(a => a.type === 'credit_card' || a.type === 'loan')
+    .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+
+  const netLiquidity = totalAssets - totalDebts;
 
   return (
     <div className="card">
@@ -245,6 +256,56 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
         <div className="card-title">
           <span>🏦</span>
           <span>Varlık & Borç Hesapları</span>
+        </div>
+      </div>
+
+      {/* 📊 Finansal Özet KPI Çubuğu */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+        gap: '10px',
+        margin: '12px 0 16px 0'
+      }}>
+        <div style={{
+          background: 'rgba(16, 185, 129, 0.08)',
+          border: '1px solid rgba(16, 185, 129, 0.25)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 12px'
+        }}>
+          <div style={{ fontSize: '10px', color: '#047857', fontWeight: 700, textTransform: 'uppercase' }}>
+            🟢 Toplam Varlık
+          </div>
+          <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: '#065F46', marginTop: '3px' }}>
+            {formatMoney(totalAssets)}
+          </div>
+        </div>
+
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.08)',
+          border: '1px solid rgba(239, 68, 68, 0.25)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 12px'
+        }}>
+          <div style={{ fontSize: '10px', color: '#B91C1C', fontWeight: 700, textTransform: 'uppercase' }}>
+            🔴 Toplam Borç
+          </div>
+          <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: '#991B1B', marginTop: '3px' }}>
+            {formatMoney(totalDebts)}
+          </div>
+        </div>
+
+        <div style={{
+          background: netLiquidity >= 0 ? 'rgba(59, 130, 246, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+          border: netLiquidity >= 0 ? '1px solid rgba(59, 130, 246, 0.25)' : '1px solid rgba(239, 68, 68, 0.25)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 12px'
+        }}>
+          <div style={{ fontSize: '10px', color: netLiquidity >= 0 ? '#1D4ED8' : '#B91C1C', fontWeight: 700, textTransform: 'uppercase' }}>
+            🔵 Net Likidite
+          </div>
+          <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: netLiquidity >= 0 ? '#1E40AF' : '#991B1B', marginTop: '3px' }}>
+            {formatMoney(netLiquidity)}
+          </div>
         </div>
       </div>
 
@@ -277,6 +338,7 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
               style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 background: 'var(--surface-subtle)', border: '1px solid var(--border)',
+                borderLeft: isCreditCard || isLoan ? '4px solid #EF4444' : '4px solid #10B981',
                 borderRadius: 'var(--radius-md)', padding: '12px 14px'
               }}
             >
@@ -328,9 +390,29 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
 
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
                     {isCreditCard && (
-                      <span>
-                        Limit: {formatMoney(acc.credit_limit || 0, acc.currency)} • Kullanılabilir: <strong>{formatMoney(Math.max(0, (acc.credit_limit || 0) - acc.balance), acc.currency)}</strong>
-                      </span>
+                      <div>
+                        <span>
+                          Limit: {formatMoney(acc.credit_limit || 0, acc.currency)} • Kullanılabilir: <strong>{formatMoney(Math.max(0, (acc.credit_limit || 0) - acc.balance), acc.currency)}</strong>
+                        </span>
+                        {(acc.credit_limit || 0) > 0 && (
+                          <div style={{ marginTop: '5px', maxWidth: '240px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '2px' }}>
+                              <span>Limit Doluluğu</span>
+                              <span style={{ color: (acc.balance / acc.credit_limit!) >= 0.75 ? '#DC2626' : 'var(--text-main)' }}>
+                                %{Math.round((acc.balance / acc.credit_limit!) * 100)}
+                              </span>
+                            </div>
+                            <div style={{ height: '4px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
+                              <div style={{
+                                height: '100%',
+                                width: `${Math.min(100, Math.max(0, (acc.balance / acc.credit_limit!) * 100))}%`,
+                                background: (acc.balance / acc.credit_limit!) >= 0.75 ? '#EF4444' : (acc.balance / acc.credit_limit!) >= 0.5 ? '#F59E0B' : '#10B981',
+                                borderRadius: '2px'
+                              }} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     )}
                     {isLoan && (
                       <span>
@@ -361,7 +443,7 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
                       color: isCreditCard || isLoan ? '#DC2626' : '#10B981'
                     }}
                   >
-                    {isCreditCard || isLoan ? `-${formatMoney(acc.balance, acc.currency)}` : formatMoney(acc.balance, acc.currency)}
+                    {formatMoney(acc.balance, acc.currency)}
                   </div>
                 </div>
 
@@ -409,14 +491,34 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
                     <>
                       <button
                         onClick={() => openEditModal(acc)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', opacity: 0.6 }}
+                        style={{
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          padding: '4px 7px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
                         title="Hesabı Düzenle"
                       >
                         ✏️
                       </button>
                       <button
                         onClick={() => handleDelete(acc.id, acc.name)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', opacity: 0.6 }}
+                        style={{
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          padding: '4px 7px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
                         title="Hesabı Sil"
                       >
                         🗑️
