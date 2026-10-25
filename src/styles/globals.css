@@ -1406,3 +1406,61 @@ body {
     display: none !important;
   }
 }
+
+/* ===== Kütüphane & Okuma Analitiği Responsive Grid Sınıfları ===== */
+.library-hero-bento {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+@media (min-width: 900px) {
+  .library-hero-bento {
+    display: grid;
+    grid-template-columns: 1.25fr 1fr;
+    gap: 16px;
+    align-items: stretch;
+  }
+}
+
+.library-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.library-book-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+@media (min-width: 640px) {
+  .library-book-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .library-book-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 18px;
+  }
+}
+
+@media (max-width: 640px) {
+  .card {
+    padding: 16px !important;
+  }
+}

@@ -303,14 +303,7 @@ export default function BookShelfList({
         </div>
       ) : viewMode === 'grid' ? (
         /* ------------------ A. IZGARA GÖRÜNÜMÜ (LITERAL.CLUB & APPLE BOOKS VİTRİNİ) ------------------ */
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-            gap: '14px',
-            alignItems: 'start'
-          }}
-        >
+        <div className="library-book-grid">
           {currentList.map(book => {
             const percent = book.total_pages > 0
               ? Math.min(100, Math.round((book.current_page / book.total_pages) * 100))

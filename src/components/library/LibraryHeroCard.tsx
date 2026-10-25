@@ -140,14 +140,7 @@ export default function LibraryHeroCard({
       </div>
 
       {/* 2. Hero Bento Grid: Sol: "Şu An Okunuyor" Vitrini (1.2fr) | Sağ: Hedef & WPM KPI'ları (1fr) */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: '14px',
-          alignItems: 'stretch'
-        }}
-      >
+      <div className="library-hero-bento">
         {/* SOL: "ŞU AN OKUNUYOR" (NOW READING) VİTRİN KARTI */}
         {activeBook ? (
           <div
@@ -161,7 +154,11 @@ export default function LibraryHeroCard({
               justifyContent: 'space-between',
               gap: '14px',
               position: 'relative',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              width: '100%',
+              maxWidth: '100%',
+              minWidth: 0,
+              boxSizing: 'border-box'
             }}
           >
             {/* Arka plan zarif ışıltı deseni */}
@@ -178,13 +175,13 @@ export default function LibraryHeroCard({
               }}
             />
 
-            <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', width: '100%', minWidth: 0 }}>
               {/* Kitap Kapağı Vitrini */}
               <div
                 onClick={() => onOpenBookDetail && onOpenBookDetail(activeBook)}
                 style={{
-                  width: '84px',
-                  height: '122px',
+                  width: '74px',
+                  height: '108px',
                   borderRadius: '8px',
                   overflow: 'hidden',
                   flexShrink: 0,
@@ -224,7 +221,7 @@ export default function LibraryHeroCard({
 
               {/* Kitap Bilgileri & Rozet */}
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                   <span
                     style={{
                       fontSize: '10px',
@@ -234,7 +231,8 @@ export default function LibraryHeroCard({
                       backgroundColor: 'rgba(99, 102, 241, 0.16)',
                       color: '#6366F1',
                       letterSpacing: '0.04em',
-                      textTransform: 'uppercase'
+                      textTransform: 'uppercase',
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     Şu An Okunuyor
@@ -249,9 +247,10 @@ export default function LibraryHeroCard({
                         borderRadius: 'var(--radius-full)',
                         backgroundColor: 'rgba(16, 185, 129, 0.12)',
                         color: '#10B981',
-                        display: 'flex',
+                        display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '3px'
+                        gap: '3px',
+                        whiteSpace: 'nowrap'
                       }}
                     >
                       <Clock size={11} color="#10B981" />
@@ -263,7 +262,7 @@ export default function LibraryHeroCard({
                 <h3
                   onClick={() => onOpenBookDetail && onOpenBookDetail(activeBook)}
                   style={{
-                    fontSize: '16px',
+                    fontSize: '15px',
                     fontWeight: 800,
                     margin: '4px 0 0',
                     color: 'var(--text-main)',
@@ -272,14 +271,15 @@ export default function LibraryHeroCard({
                     display: '-webkit-box',
                     WebkitLineClamp: 2,
                     WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    wordBreak: 'break-word'
                   }}
                   title={activeBook.title}
                 >
                   {activeBook.title}
                 </h3>
 
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {activeBook.author}
                 </div>
 
@@ -294,7 +294,7 @@ export default function LibraryHeroCard({
             </div>
 
             {/* İlerleme Çubuğu & Sayfa Göstergesi */}
-            <div>
+            <div style={{ width: '100%', minWidth: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', fontWeight: 700, marginBottom: '6px' }}>
                 <span className="tabular-nums" style={{ color: 'var(--text-main)' }}>
                   Sayfa {activeBook.current_page} / {activeBook.total_pages}
@@ -304,7 +304,7 @@ export default function LibraryHeroCard({
                 </span>
               </div>
 
-              <div style={{ height: '7px', backgroundColor: 'rgba(99, 102, 241, 0.15)', borderRadius: '999px', overflow: 'hidden' }}>
+              <div style={{ height: '7px', backgroundColor: 'rgba(99, 102, 241, 0.15)', borderRadius: '999px', overflow: 'hidden', width: '100%' }}>
                 <div
                   style={{
                     width: `${percent}%`,
@@ -318,15 +318,16 @@ export default function LibraryHeroCard({
             </div>
 
             {/* Hızlı Aksiyon Butonları */}
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', minWidth: 0, flexWrap: 'wrap' }}>
               <button
                 type="button"
                 className="btn-primary"
                 onClick={onOpenSession}
                 style={{
-                  flex: 1,
+                  flex: '1 1 auto',
+                  minWidth: '140px',
                   height: '36px',
-                  padding: '6px 14px',
+                  padding: '6px 12px',
                   fontSize: '12px',
                   fontWeight: 800,
                   background: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
@@ -351,6 +352,7 @@ export default function LibraryHeroCard({
                   type="button"
                   onClick={() => onOpenBookDetail(activeBook)}
                   style={{
+                    flex: '0 0 auto',
                     height: '36px',
                     padding: '6px 12px',
                     fontSize: '12px',
@@ -378,13 +380,16 @@ export default function LibraryHeroCard({
               background: 'var(--surface-subtle)',
               border: '1px dashed var(--border)',
               borderRadius: 'var(--radius-lg)',
-              padding: '28px 16px',
+              padding: '24px 16px',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
               textAlign: 'center',
-              gap: '10px'
+              gap: '10px',
+              width: '100%',
+              minWidth: 0,
+              boxSizing: 'border-box'
             }}
           >
             <div
@@ -414,24 +419,26 @@ export default function LibraryHeroCard({
         )}
 
         {/* SAĞ: KPI VE HEDEF BENTO KUTULARI (2 Sütunlu Kompakt Izgara) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px' }}>
+        <div className="library-kpi-grid">
           {/* KPI 1: YILLIK OKUMA HEDEFİ */}
           <div
             style={{
               backgroundColor: 'rgba(16, 185, 129, 0.05)',
               border: '1px solid rgba(16, 185, 129, 0.2)',
               borderRadius: 'var(--radius-md)',
-              padding: '14px',
+              padding: '12px 10px',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
-              gap: '10px'
+              gap: '8px',
+              minWidth: 0,
+              boxSizing: 'border-box'
             }}
           >
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 800, color: '#10B981', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  <Trophy size={14} color="#10B981" />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 800, color: '#10B981', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                  <Trophy size={13} color="#10B981" />
                   <span>2026 Hedefi</span>
                 </div>
                 <button
@@ -441,7 +448,7 @@ export default function LibraryHeroCard({
                     background: 'none',
                     border: 'none',
                     color: 'var(--text-muted)',
-                    fontSize: '11px',
+                    fontSize: '10px',
                     fontWeight: 700,
                     cursor: 'pointer',
                     display: 'flex',
@@ -457,7 +464,7 @@ export default function LibraryHeroCard({
               </div>
 
               {isEditingTarget ? (
-                <form onSubmit={handleSaveTarget} style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '8px' }}>
+                <form onSubmit={handleSaveTarget} style={{ display: 'flex', gap: '4px', alignItems: 'center', marginTop: '6px', flexWrap: 'wrap' }}>
                   <input
                     type="number"
                     inputMode="numeric"
@@ -466,7 +473,7 @@ export default function LibraryHeroCard({
                     value={targetInput}
                     onChange={e => setTargetInput(e.target.value)}
                     style={{
-                      width: '64px',
+                      width: '54px',
                       padding: '4px 6px',
                       fontSize: '13px',
                       fontWeight: 800,
@@ -480,7 +487,7 @@ export default function LibraryHeroCard({
                     type="submit"
                     disabled={savingTarget}
                     style={{
-                      padding: '5px 10px',
+                      padding: '4px 8px',
                       fontSize: '11px',
                       fontWeight: 700,
                       borderRadius: '6px',
@@ -498,11 +505,11 @@ export default function LibraryHeroCard({
                   </button>
                 </form>
               ) : (
-                <div style={{ marginTop: '8px' }}>
-                  <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)', lineHeight: '1' }}>
-                    {profile.completedBooksCount} <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>/ {profile.yearly_target_books}</span>
+                <div style={{ marginTop: '6px' }}>
+                  <div className="tabular-nums" style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-main)', lineHeight: '1.1' }}>
+                    {profile.completedBooksCount} <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>/ {profile.yearly_target_books}</span>
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap' }}>
                     Kitap Tamamlandı
                   </div>
                 </div>
@@ -534,25 +541,27 @@ export default function LibraryHeroCard({
               backgroundColor: 'rgba(99, 102, 241, 0.05)',
               border: '1px solid rgba(99, 102, 241, 0.2)',
               borderRadius: 'var(--radius-md)',
-              padding: '14px',
+              padding: '12px 10px',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
-              gap: '10px'
+              gap: '8px',
+              minWidth: 0,
+              boxSizing: 'border-box'
             }}
           >
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 800, color: '#6366F1', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                <Zap size={14} color="#6366F1" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 800, color: '#6366F1', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                <Zap size={13} color="#6366F1" />
                 <span>Okuma Hızı</span>
               </div>
 
-              <div style={{ marginTop: '8px' }}>
-                <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: '#6366F1', lineHeight: '1' }}>
-                  {profile.calibrated_avg_wpm} <span style={{ fontSize: '12px', fontWeight: 700 }}>WPM</span>
+              <div style={{ marginTop: '6px' }}>
+                <div className="tabular-nums" style={{ fontSize: '18px', fontWeight: 900, color: '#6366F1', lineHeight: '1.1' }}>
+                  {profile.calibrated_avg_wpm} <span style={{ fontSize: '11px', fontWeight: 700 }}>WPM</span>
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                  Ortalama Kelime / Dakika
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                  Ortalama Kelime / Dk
                 </div>
               </div>
             </div>
@@ -560,16 +569,18 @@ export default function LibraryHeroCard({
             <div
               style={{
                 backgroundColor: 'rgba(99, 102, 241, 0.08)',
-                padding: '6px 8px',
+                padding: '5px 7px',
                 borderRadius: '6px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                fontSize: '11px'
+                fontSize: '10px',
+                gap: '4px',
+                flexWrap: 'wrap'
               }}
             >
-              <span style={{ color: 'var(--text-muted)' }}>Sayfa Başı:</span>
-              <span className="tabular-nums" style={{ fontWeight: 800, color: '#6366F1' }}>
+              <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Sayfa Başı:</span>
+              <span className="tabular-nums" style={{ fontWeight: 800, color: '#6366F1', whiteSpace: 'nowrap' }}>
                 ~{profile.avgMinutesPerPage} dk
               </span>
             </div>
