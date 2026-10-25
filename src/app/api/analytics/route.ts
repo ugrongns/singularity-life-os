@@ -240,6 +240,69 @@ export async function GET() {
     // TOPLAM BÜTÜNSEL YAŞAM SKORU
     const totalLifeScore = financeScore + healthScore + wellnessScore + mindScore;
 
+    // Aksiyon Önerileri Hesaplama (En Yüksek Etkili 3 Aksiyon)
+    const actionCandidates = [
+      {
+        pillar: 'finance',
+        score: financeScore,
+        max: 25,
+        gap: 25 - financeScore,
+        title: 'Bütçe & Harcama Disiplini',
+        desc: totalSpentThisMonth > totalBudgetLimit && totalBudgetLimit > 0
+          ? 'Bu ayki harcamaları bütçe limiti altına çekerek disiplin puanını yükseltin.'
+          : 'Harcamalarınızı kategorilere dağıtarak aylık bütçe disiplinini koruyun.',
+        impact: '+8 Puan',
+        scoreGain: 8,
+        link: '/budget'
+      },
+      {
+        pillar: 'health',
+        score: healthScore,
+        max: 25,
+        gap: 25 - healthScore,
+        title: 'Su & Beslenme Kaydı',
+        desc: 'Günlük 2.5L su hedefini tamamlayın ve bugün en az 1 öğün veya oruç kaydı girin.',
+        impact: '+6 Puan',
+        scoreGain: 6,
+        link: '/health'
+      },
+      {
+        pillar: 'wellness',
+        score: wellnessScore,
+        max: 25,
+        gap: 25 - wellnessScore,
+        title: 'Uyku & Takviye Rutini',
+        desc: 'Günlük takviyelerinizi aldım olarak işaretleyin ve 7-8 saatlik uyku seansını kaydedin.',
+        impact: '+5 Puan',
+        scoreGain: 5,
+        link: '/wellness'
+      },
+      {
+        pillar: 'mind',
+        score: mindScore,
+        max: 25,
+        gap: 25 - mindScore,
+        title: 'Okuma Seansı & Alıntı',
+        desc: 'Aktif kitabınızdan 15 dakikalık okuma seansı başlatın veya 1 yeni alıntı kaydedin.',
+        impact: '+7 Puan',
+        scoreGain: 7,
+        link: '/library'
+      }
+    ];
+
+    const topActions = actionCandidates
+      .sort((a, b) => b.gap - a.gap)
+      .slice(0, 3)
+      .map(a => ({
+        title: a.title,
+        desc: a.desc,
+        impact: a.impact,
+        scoreGain: a.scoreGain,
+        pillar: a.pillar,
+        link: a.link,
+        isCompleted: a.gap <= 0
+      }));
+
     // ==========================================
     // 5. 🎯 FIRE (FİNANSAL ÖZGÜRLÜK) ANALİTİĞİ
     // ==========================================
@@ -259,11 +322,23 @@ export async function GET() {
       ? thisMonthIncome
       : (Number(user?.monthly_income) || (totalBudgetLimit > 0 ? totalBudgetLimit * 1.2 : 0));
     const monthlySavingsEst = Math.max(0, effectiveMonthlyIncome - totalSpentThisMonth);
+    const savingsRatePercent = effectiveMonthlyIncome > 0
+      ? Math.max(0, Math.min(100, Math.round((monthlySavingsEst / effectiveMonthlyIncome) * 100)))
+      : 0;
     const remainingToFire = Math.max(0, fireTargetNumber - totalNetWorth);
     const totalAnnualSavings = (monthlySavingsEst * 12) + (totalMonthlyPassiveIncome * 12);
     const yearsToFire = (totalNetWorth > 0 && totalAnnualSavings > 0 && remainingToFire > 0)
       ? Math.max(0.1, Math.round((remainingToFire / totalAnnualSavings) * 10) / 10)
       : 0;
+
+    // Kilometre Taşları (Lean, Regular, Fat FIRE)
+    const leanFireTarget = Math.round(fireTargetNumber * 0.7);
+    const regularFireTarget = fireTargetNumber;
+    const fatFireTarget = Math.round(fireTargetNumber * 1.5);
+
+    const leanFireProgress = leanFireTarget > 0 ? Math.min(100, Math.round((totalNetWorth / leanFireTarget) * 100)) : 0;
+    const regularFireProgress = fireProgressPercent;
+    const fatFireProgress = fatFireTarget > 0 ? Math.min(100, Math.round((totalNetWorth / fatFireTarget) * 100)) : 0;
 
     // ==========================================
     // 6. 📈 KİŞİSEL ENFLASYON ENDEKSİ (Geçen aya göre harcama sepeti değişimi)

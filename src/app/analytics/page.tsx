@@ -24,7 +24,7 @@ export default function AnalyticsPage() {
       if (anaJ.success) setData(anaJ.data);
       if (notifJ.success) setNotifData(notifJ.data);
     } catch (err) {
-      console.error(err);
+      console.error('Analytics page fetch error:', err);
     } finally {
       setLoading(false);
     }
@@ -43,23 +43,51 @@ export default function AnalyticsPage() {
   if (loading) {
     return (
       <SharedLayout notifications={notifData}>
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Yükleniyor...</div>
+        <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: '36px', animation: 'spin 1.2s linear infinite', marginBottom: '12px' }}>📊</div>
+          <div style={{ fontSize: '15px', fontWeight: 700 }}>Yaşam Skoru & FIRE Analitiği Yükleniyor...</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Finans, Biyometri, Wellness ve Zihin eksenleri sentezleniyor
+          </div>
+        </div>
       </SharedLayout>
     );
   }
 
   return (
     <SharedLayout notifications={notifData}>
-      <div style={{ padding: '0 16px 8px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>📊 Analitik & Yaşam Skoru</h1>
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Bütünsel yaşam performansı, FIRE finansal özgürlük ve kişisel enflasyon</p>
+      {/* Sayfa Başlık Alanı */}
+      <div style={{ padding: '0 4px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ fontSize: '22px', fontWeight: 900, margin: 0, letterSpacing: '-0.5px' }}>
+            📊 Yaşam Skoru & FIRE Analitiği
+          </h1>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+            Bütünsel yaşam dengesi, finansal bağımsızlık projeksiyonu ve reel enflasyon endeksi
+          </p>
+        </div>
+
+        <button
+          onClick={fetchData}
+          className="btn-subtle"
+          style={{
+            fontSize: '12px', fontWeight: 700, padding: '8px 12px',
+            borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '6px',
+            border: '1px solid var(--border)'
+          }}
+          title="Verileri Güncelle"
+        >
+          <span>🔄</span>
+          <span className="hidden-mobile">Yenile</span>
+        </button>
       </div>
 
-      <div className="dashboard-grid">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* İki Sütunlu Executive Dashboard Izgarası */}
+      <div className="analytics-executive-grid">
+        <div>
           {data?.holisticScore && <HolisticScoreCard scoreData={data.holisticScore} />}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div>
           {data?.fireMetrics && (
             <FireAnalyticsCard
               fireMetrics={data.fireMetrics}
