@@ -112,7 +112,6 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
     return () => clearInterval(timer);
   }, [restSeconds]);
 
-  // Spor türü değiştikçe varsayılan başlığı ayarla
   const handleSportChange = (type: SportType) => {
     setSportType(type);
     const titles: Record<SportType, string> = {
@@ -127,7 +126,6 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
     setTitle(titles[type] || 'Antrenman');
   };
 
-  // Ekran görüntüsü OCR yükleme işleyicisi
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -233,7 +231,6 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
         ? (sportType === 'swimming' ? `${distVal} m` : `${distVal} km`)
         : null;
 
-      // Süre atomik hesaplaması (salise ve saniye)
       let durSec: number | null = null;
       let durCenti: number | null = null;
       if (durationInput && durationInput.includes(':')) {
@@ -481,6 +478,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                   </label>
                   <input
                     type="number"
+                    inputMode="decimal"
                     step={sportType === 'swimming' ? '1' : '0.01'}
                     value={distanceKm}
                     onChange={e => setDistanceKm(e.target.value)}
@@ -505,6 +503,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                   <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>🔥 Kalori (kcal):</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={calories}
                     onChange={e => setCalories(e.target.value)}
                     placeholder="350"
@@ -519,6 +518,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                   <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>⚡ Ort. Hız (km/sa):</label>
                   <input
                     type="number"
+                    inputMode="decimal"
                     step="0.1"
                     value={avgSpeedKmh}
                     onChange={e => setAvgSpeedKmh(e.target.value)}
@@ -542,6 +542,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                   <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>❤️ Ort. Nabız (BPM):</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={avgHeartRate}
                     onChange={e => setAvgHeartRate(e.target.value)}
                     placeholder="128"
@@ -569,6 +570,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                     <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Toplam Tur:</label>
                     <input
                       type="number"
+                      inputMode="numeric"
                       value={swimTotalLengths}
                       onChange={e => setSwimTotalLengths(e.target.value)}
                       placeholder="17"
@@ -579,6 +581,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                     <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Toplam Kulaç:</label>
                     <input
                       type="number"
+                      inputMode="numeric"
                       value={swimStrokeCount}
                       onChange={e => setSwimStrokeCount(e.target.value)}
                       placeholder="464"
@@ -589,6 +592,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                     <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>SWOLF Skoru:</label>
                     <input
                       type="number"
+                      inputMode="numeric"
                       value={swimAvgSwolf}
                       onChange={e => setSwimAvgSwolf(e.target.value)}
                       placeholder="105"
@@ -606,6 +610,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                       <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>👟 Adım Sayısı:</label>
                       <input
                         type="number"
+                        inputMode="numeric"
                         value={stepCount}
                         onChange={e => setStepCount(e.target.value)}
                         placeholder="6476"
@@ -617,6 +622,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                     <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>🫁 VO2 Max:</label>
                     <input
                       type="number"
+                      inputMode="decimal"
                       step="0.1"
                       value={vo2Max}
                       onChange={e => setVo2Max(e.target.value)}
@@ -628,6 +634,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                     <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>💧 Ter Kaybı (ml):</label>
                     <input
                       type="number"
+                      inputMode="numeric"
                       value={sweatLossMl}
                       onChange={e => setSweatLossMl(e.target.value)}
                       placeholder="244"
@@ -638,6 +645,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                     <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>⛰️ Tırmanış (m):</label>
                     <input
                       type="number"
+                      inputMode="numeric"
                       value={elevationGainM}
                       onChange={e => setElevationGainM(e.target.value)}
                       placeholder="340"
@@ -713,6 +721,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                         <span style={{ fontSize: '12px', fontWeight: 800, textAlign: 'center', color: 'var(--text-muted)' }}>{s.set_number}</span>
                         <input
                           type="number"
+                          inputMode="decimal"
                           step="0.5"
                           value={s.weight_kg}
                           onChange={e => {
@@ -725,6 +734,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
                         />
                         <input
                           type="number"
+                          inputMode="numeric"
                           value={s.reps}
                           onChange={e => {
                             const updated = [...exerciseEntries];
@@ -783,7 +793,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
             <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              placeholder="Örn: Göksu Parkı parkuru rahattı. Rüzgar hafifti, ortalama tempo korundu."
+              placeholder="Örn: Parkur tempolu tamamlandı. Rüzgar hafifti, nabız aralığı korundu."
               rows={2}
               style={{ width: '100%', boxSizing: 'border-box', padding: '8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '8px', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             />

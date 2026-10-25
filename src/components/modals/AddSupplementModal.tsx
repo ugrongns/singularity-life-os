@@ -186,7 +186,7 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
           <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-main)' }}>
             {isEditing ? `✏️ Takviyeyi Düzenle` : `${currentConfig.icon} Yeni Takviye / İlaç Ekle`}
           </div>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✕</button>
+          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -198,7 +198,7 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
               value={name}
               onChange={e => setName(e.target.value)}
               required
-              style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
             />
           </div>
 
@@ -208,7 +208,7 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
               <select
                 value={formType}
                 onChange={e => handleFormTypeChange(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               >
                 {Object.entries(FORM_TYPES).map(([key, config]) => (
                   <option key={key} value={key}>{config.label}</option>
@@ -223,7 +223,7 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
                 placeholder={currentConfig.defaultUnit}
                 value={unit}
                 onChange={e => setUnit(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
               />
             </div>
           </div>
@@ -237,7 +237,7 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
                 value={dose}
                 onChange={e => setDose(e.target.value)}
                 required
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
               />
             </div>
 
@@ -246,7 +246,7 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
               <select
                 value={frequencyType}
                 onChange={e => setFrequencyType(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               >
                 <option value="daily">☀️ Her Gün Düzenli</option>
                 <option value="interval">⏳ Periyodik / Belirli Aralıkla</option>
@@ -262,13 +262,14 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
               <div style={{ display: 'flex', gap: '8px', marginTop: '6px', alignItems: 'center' }}>
                 <input
                   type="number"
+                  inputMode="numeric"
                   min="2"
                   max="365"
                   placeholder="Ör. 2"
                   value={intervalDays}
                   onChange={e => setIntervalDays(e.target.value)}
                   required
-                  style={{ width: '100px', padding: '8px', fontSize: '14px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: '6px', textAlign: 'center', background: 'var(--surface)', color: 'var(--text-main)' }}
+                  style={{ width: '100px', boxSizing: 'border-box', padding: '8px', fontSize: '14px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: '6px', textAlign: 'center', background: 'var(--surface)', color: 'var(--text-main)' }}
                 />
                 <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>
                   günde bir ({intervalDays === '7' ? 'Haftalık' : intervalDays === '30' ? 'Aylık' : `${intervalDays} Günde Bir`})
@@ -283,7 +284,7 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
               <select
                 value={timing}
                 onChange={e => setTiming(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
               >
                 <option value="morning">🌅 Sabah</option>
                 <option value="with_meal">🥗 Yemekle Birlikte</option>
@@ -297,10 +298,11 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
               <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>{currentConfig.totalLabel}</label>
               <input
                 type="number"
+                inputMode="numeric"
                 placeholder="Ör. 60"
                 value={totalPills}
                 onChange={e => setTotalPills(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
               />
             </div>
 
@@ -308,10 +310,11 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
               <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>{currentConfig.remainingLabel}</label>
               <input
                 type="number"
+                inputMode="numeric"
                 placeholder="Ör. 45"
                 value={remainingPills}
                 onChange={e => setRemainingPills(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
               />
             </div>
           </div>
@@ -323,7 +326,7 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
               placeholder="Aç karınla alınacak, bol su ile içilecek..."
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              style={{ width: '100%', padding: '8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
             />
           </div>
 

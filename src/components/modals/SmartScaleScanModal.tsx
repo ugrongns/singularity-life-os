@@ -148,13 +148,12 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
       } else {
         alert(json.error || 'Ekran görüntüsünden veri okunamadı.');
       }
-    } catch (err) {
+    } catch {
       alert('Yapay zeka tarama hatası.');
     } finally {
       setIsScanning(false);
     }
   };
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,12 +200,12 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
       const json = await res.json();
       if (json.success) {
         window.dispatchEvent(new CustomEvent('singularity-refresh'));
-        onSuccess(json.message);
+        onSuccess(json.message || 'Ölçüm başarıyla kaydedildi.');
         onClose();
       } else {
         alert(json.error || 'Kayıt hatası.');
       }
-    } catch (err) {
+    } catch {
       alert('İşlem başarısız.');
     } finally {
       setIsSaving(false);
@@ -215,14 +214,35 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="bottom-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '580px', maxHeight: '92vh', overflowY: 'auto' }}>
+      <div 
+        className="bottom-sheet" 
+        onClick={e => e.stopPropagation()} 
+        style={{ maxWidth: '600px', maxHeight: '92vh', overflowY: 'auto' }}
+      >
         <div className="sheet-handle"></div>
-        <div style={{ fontSize: '18px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>⚖️</span> Akıllı Tartı Ölçümü Ekle
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <div style={{ fontSize: '18px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)' }}>
+            <span>⚖️</span> Akıllı Tartı Ölçümü Ekle
+          </div>
+          <button 
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              fontSize: '18px',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              borderRadius: '6px'
+            }}
+          >
+            ✕
+          </button>
         </div>
 
         {/* AI Tarama Butonu */}
-        <div style={{ background: 'var(--surface-subtle)', padding: '14px', borderRadius: 'var(--radius-md)', textAlign: 'center', marginTop: '10px' }}>
+        <div style={{ background: 'var(--surface-subtle)', padding: '14px', borderRadius: 'var(--radius-md)', textAlign: 'center', marginTop: '4px' }}>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '10px' }}>
             Akıllı tartı uygulamanızın (Xiaomi, Huawei, Anker vb.) ekran görüntüsünü yükleyin; tüm biyo-impeditif metrikler otomatik okunsun.
           </p>
@@ -240,7 +260,17 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
             className="btn-primary" 
             onClick={() => fileInputRef.current?.click()} 
             disabled={isScanning}
-            style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+            style={{ 
+              width: '100%', 
+              padding: '12px', 
+              background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', 
+              fontWeight: 800, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '8px',
+              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)'
+            }}
           >
             <span>📸</span>
             <span>{isScanning ? 'YAPAY ZEKÂ METRİKLERİ OKUYOR...' : 'AKILLI TARTI EKRAN GÖRÜNTÜSÜ TARA (AI)'}</span>
@@ -263,14 +293,29 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
               <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Ölçüm Tarihi:</label>
-              <input type="date" value={measurementDate} onChange={e => setMeasurementDate(e.target.value)} required style={{ width: '100%', padding: '8px', borderRadius: '8px', border: isDuplicate ? '1px solid #F59E0B' : '1px solid var(--border)', marginTop: '2px' }} />
+              <input 
+                type="date" 
+                value={measurementDate} 
+                onChange={e => setMeasurementDate(e.target.value)} 
+                required 
+                style={{ width: '100%', padding: '8px', borderRadius: '8px', border: isDuplicate ? '1px solid #F59E0B' : '1px solid var(--border)', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
               {measurementTime && (
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>⏰ Saat: {measurementTime}</div>
               )}
             </div>
             <div>
               <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Ağırlık (Kg): *</label>
-              <input type="number" step="0.01" value={weightKg} onChange={e => setWeightKg(e.target.value)} placeholder="Örn: 84.65" required style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid var(--border)', fontWeight: 800, color: '#10B981', marginTop: '2px' }} />
+              <input 
+                type="number" 
+                step="0.01" 
+                inputMode="decimal"
+                value={weightKg} 
+                onChange={e => setWeightKg(e.target.value)} 
+                placeholder="Örn: 84.65" 
+                required 
+                style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid var(--border)', fontWeight: 800, color: '#10B981', marginTop: '2px', background: 'var(--surface-subtle)' }} 
+              />
             </div>
           </div>
 
@@ -278,88 +323,255 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
             📊 Vücut Kompozisyonu Metrikleri
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '8px' }}>
             <div>
               <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>BMI:</label>
-              <input type="number" step="0.1" value={bmi} onChange={e => setBmi(e.target.value)} placeholder="27.6" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+              <input 
+                type="number" 
+                step="0.1" 
+                inputMode="decimal"
+                value={bmi} 
+                onChange={e => setBmi(e.target.value)} 
+                placeholder="27.6" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
             </div>
             <div>
-              <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Yağ (%):</label>
-              <input type="number" step="0.1" value={bodyFatPercent} onChange={e => setBodyFatPercent(e.target.value)} placeholder="26.1" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+              <label style={{ fontSize: '10px', color: '#EF4444', fontWeight: 600 }}>Yağ (%):</label>
+              <input 
+                type="number" 
+                step="0.1" 
+                inputMode="decimal"
+                value={bodyFatPercent} 
+                onChange={e => setBodyFatPercent(e.target.value)} 
+                placeholder="26.1" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
             </div>
             <div>
-              <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Vücut Yağ (Kg):</label>
-              <input type="number" step="0.1" value={bodyFatMassKg} onChange={e => setBodyFatMassKg(e.target.value)} placeholder="22.1" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
-            </div>
-
-            <div>
-              <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>İskelet Kası (%):</label>
-              <input type="number" step="0.1" value={skeletalMusclePercent} onChange={e => setSkeletalMusclePercent(e.target.value)} placeholder="38.8" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>İskelet Kası (Kg):</label>
-              <input type="number" step="0.1" value={skeletalMuscleMassKg} onChange={e => setSkeletalMuscleMassKg(e.target.value)} placeholder="32.8" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Kas (%):</label>
-              <input type="number" step="0.1" value={musclePercent} onChange={e => setMusclePercent(e.target.value)} placeholder="70.4" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
-            </div>
-
-            <div>
-              <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Kas Ağırlığı (Kg):</label>
-              <input type="number" step="0.1" value={muscleMassKg} onChange={e => setMuscleMassKg(e.target.value)} placeholder="59.6" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Su (%):</label>
-              <input type="number" step="0.1" value={waterPercent} onChange={e => setWaterPercent(e.target.value)} placeholder="52.9" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Sıvı Ağırlığı (Kg):</label>
-              <input type="number" step="0.1" value={waterMassKg} onChange={e => setWaterMassKg(e.target.value)} placeholder="44.8" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+              <label style={{ fontSize: '10px', color: '#EF4444' }}>Vücut Yağ (Kg):</label>
+              <input 
+                type="number" 
+                step="0.1" 
+                inputMode="decimal"
+                value={bodyFatMassKg} 
+                onChange={e => setBodyFatMassKg(e.target.value)} 
+                placeholder="22.1" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
             </div>
 
             <div>
-              <label style={{ fontSize: '10px', color: '#EF4444', fontWeight: 700 }}>V-Yağ (İç Organ):</label>
-              <input type="number" step="0.1" value={visceralFatRating} onChange={e => setVisceralFatRating(e.target.value)} placeholder="14.5" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+              <label style={{ fontSize: '10px', color: '#3B82F6', fontWeight: 600 }}>İskelet Kası (%):</label>
+              <input 
+                type="number" 
+                step="0.1" 
+                inputMode="decimal"
+                value={skeletalMusclePercent} 
+                onChange={e => setSkeletalMusclePercent(e.target.value)} 
+                placeholder="38.8" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '10px', color: '#3B82F6' }}>İskelet Kası (Kg):</label>
+              <input 
+                type="number" 
+                step="0.1" 
+                inputMode="decimal"
+                value={skeletalMuscleMassKg} 
+                onChange={e => setSkeletalMuscleMassKg(e.target.value)} 
+                placeholder="32.8" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '10px', color: '#8B5CF6', fontWeight: 600 }}>Kas (%):</label>
+              <input 
+                type="number" 
+                step="0.1" 
+                inputMode="decimal"
+                value={musclePercent} 
+                onChange={e => setMusclePercent(e.target.value)} 
+                placeholder="70.4" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '10px', color: '#8B5CF6' }}>Kas Ağırlığı (Kg):</label>
+              <input 
+                type="number" 
+                step="0.1" 
+                inputMode="decimal"
+                value={muscleMassKg} 
+                onChange={e => setMuscleMassKg(e.target.value)} 
+                placeholder="59.6" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '10px', color: '#06B6D4', fontWeight: 600 }}>Su (%):</label>
+              <input 
+                type="number" 
+                step="0.1" 
+                inputMode="decimal"
+                value={waterPercent} 
+                onChange={e => setWaterPercent(e.target.value)} 
+                placeholder="52.9" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '10px', color: '#06B6D4' }}>Sıvı Ağırlığı (Kg):</label>
+              <input 
+                type="number" 
+                step="0.1" 
+                inputMode="decimal"
+                value={waterMassKg} 
+                onChange={e => setWaterMassKg(e.target.value)} 
+                placeholder="44.8" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '10px', color: '#DC2626', fontWeight: 800 }}>V-Yağ (İç Organ):</label>
+              <input 
+                type="number" 
+                step="0.1" 
+                inputMode="decimal"
+                value={visceralFatRating} 
+                onChange={e => setVisceralFatRating(e.target.value)} 
+                placeholder="14.5" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: '#DC2626', fontWeight: 800 }} 
+              />
             </div>
             <div>
               <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Kemik Kütlesi (Kg):</label>
-              <input type="number" step="0.01" value={boneMassKg} onChange={e => setBoneMassKg(e.target.value)} placeholder="2.87" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+              <input 
+                type="number" 
+                step="0.01" 
+                inputMode="decimal"
+                value={boneMassKg} 
+                onChange={e => setBoneMassKg(e.target.value)} 
+                placeholder="2.87" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
             </div>
             <div>
               <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Metabolizma (kcal):</label>
-              <input type="number" step="1" value={bmrCalories} onChange={e => setBmrCalories(e.target.value)} placeholder="1771" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+              <input 
+                type="number" 
+                step="1" 
+                inputMode="numeric"
+                value={bmrCalories} 
+                onChange={e => setBmrCalories(e.target.value)} 
+                placeholder="1771" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
             </div>
 
             <div>
-              <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Protein (%):</label>
-              <input type="number" step="0.1" value={proteinPercent} onChange={e => setProteinPercent(e.target.value)} placeholder="17.5" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+              <label style={{ fontSize: '10px', color: '#10B981', fontWeight: 600 }}>Protein (%):</label>
+              <input 
+                type="number" 
+                step="0.1" 
+                inputMode="decimal"
+                value={proteinPercent} 
+                onChange={e => setProteinPercent(e.target.value)} 
+                placeholder="17.5" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
             </div>
             <div>
-              <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Obezite Derecesi (%):</label>
-              <input type="number" step="0.1" value={obesityDegreePercent} onChange={e => setObesityDegreePercent(e.target.value)} placeholder="27.3" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+              <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Obezite (%):</label>
+              <input 
+                type="number" 
+                step="0.1" 
+                inputMode="decimal"
+                value={obesityDegreePercent} 
+                onChange={e => setObesityDegreePercent(e.target.value)} 
+                placeholder="27.3" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
             </div>
             <div>
               <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Metabolik Yaş:</label>
-              <input type="number" step="1" value={metabolicAge} onChange={e => setMetabolicAge(e.target.value)} placeholder="43" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+              <input 
+                type="number" 
+                step="1" 
+                inputMode="numeric"
+                value={metabolicAge} 
+                onChange={e => setMetabolicAge(e.target.value)} 
+                placeholder="43" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
             </div>
 
             <div>
               <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Yağsız Ağırlık (Kg):</label>
-              <input type="number" step="0.01" value={fatFreeMassKg} onChange={e => setFatFreeMassKg(e.target.value)} placeholder="62.53" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+              <input 
+                type="number" 
+                step="0.01" 
+                inputMode="decimal"
+                value={fatFreeMassKg} 
+                onChange={e => setFatFreeMassKg(e.target.value)} 
+                placeholder="62.53" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
             </div>
             <div>
               <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Gerçek Yaş:</label>
-              <input type="number" value={actualAge} onChange={e => setActualAge(e.target.value)} placeholder="39" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+              <input 
+                type="number" 
+                inputMode="numeric"
+                value={actualAge} 
+                onChange={e => setActualAge(e.target.value)} 
+                placeholder="39" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
             </div>
             <div>
               <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Boy (cm):</label>
-              <input type="number" value={heightCm} onChange={e => setHeightCm(e.target.value)} placeholder="175" style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+              <input 
+                type="number" 
+                inputMode="decimal"
+                value={heightCm} 
+                onChange={e => setHeightCm(e.target.value)} 
+                placeholder="175" 
+                style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
+              />
             </div>
           </div>
 
-          <button type="submit" className="btn-primary" disabled={isSaving} style={{ padding: '12px', marginTop: '6px', fontWeight: 800 }}>
-            {isSaving ? 'Kaydediliyor...' : '💾 Ölçüm Verilerini Kaydet'}
+          <div style={{ marginTop: '4px' }}>
+            <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Notlar:</label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Örn: Sabah aç karnına ölçüldü"
+              rows={2}
+              style={{ width: '100%', padding: '6px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+            />
+          </div>
+
+          <button 
+            type="submit" 
+            className="btn-primary" 
+            disabled={isSaving} 
+            style={{ 
+              padding: '12px', 
+              marginTop: '6px', 
+              fontWeight: 800,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}
+          >
+            <span>💾</span>
+            <span>{isSaving ? 'Kaydediliyor...' : 'Ölçüm Verilerini Kaydet'}</span>
           </button>
         </form>
       </div>

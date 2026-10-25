@@ -1,15 +1,33 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import {
+  Trophy,
+  RefreshCw,
+  Plus,
+  Camera,
+  Activity,
+  Zap,
+  Flame,
+  Timer,
+  Compass,
+  Heart,
+  Waves,
+  Dumbbell,
+  ChevronRight,
+  Trash2,
+  CheckCircle,
+  ExternalLink
+} from 'lucide-react';
 import HomeWorkoutModal from '@/components/modals/HomeWorkoutModal';
 
-interface SetData {
+export interface SetData {
   set_number?: number;
   weight_kg: string | number;
   reps: string | number;
 }
 
-interface ExerciseLog {
+export interface ExerciseLog {
   id: string;
   exercise_name: string;
   category: string;
@@ -19,7 +37,7 @@ interface ExerciseLog {
   total_reps: number;
 }
 
-interface WorkoutSession {
+export interface WorkoutSession {
   id: string;
   title: string;
   sport_type?: string;
@@ -54,14 +72,14 @@ interface WorkoutSession {
   exercises: ExerciseLog[];
 }
 
-const SPORT_ICONS: Record<string, { icon: string; label: string; color: string }> = {
-  cycling: { icon: '🚴', label: 'Bisiklet', color: '#3B82F6' },
-  running: { icon: '🏃', label: 'Koşu', color: '#10B981' },
-  walking: { icon: '🚶', label: 'Yürüyüş', color: '#F59E0B' },
-  swimming: { icon: '🏊', label: 'Yüzme', color: '#06B6D4' },
-  strength: { icon: '🏋️', label: 'Kuvvet', color: '#8B5CF6' },
-  hiit: { icon: '⚡', label: 'Kardiyo', color: '#EC4899' },
-  other: { icon: '🏅', label: 'Antrenman', color: '#6B7280' }
+const SPORT_CONFIGS: Record<string, { icon: string; label: string; color: string; bg: string }> = {
+  cycling: { icon: '🚴', label: 'Bisiklet', color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.12)' },
+  running: { icon: '🏃', label: 'Koşu', color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)' },
+  walking: { icon: '🚶', label: 'Yürüyüş', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)' },
+  swimming: { icon: '🏊', label: 'Yüzme', color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.12)' },
+  strength: { icon: '🏋️', label: 'Kuvvet', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)' },
+  hiit: { icon: '⚡', label: 'Kardiyo', color: '#EC4899', bg: 'rgba(236, 72, 153, 0.12)' },
+  other: { icon: '🏅', label: 'Antrenman', color: '#6B7280', bg: 'rgba(107, 114, 128, 0.12)' }
 };
 
 export default function HomeWorkoutTrackerCard() {
@@ -109,7 +127,6 @@ export default function HomeWorkoutTrackerCard() {
       const res = await fetch('/api/health/workouts/strava/sync', { method: 'POST' });
       const json = await res.json();
       if (json.success) {
-        alert(json.message);
         fetchWorkouts();
       } else {
         if (json.error?.includes('bağlı değil')) {
@@ -120,7 +137,7 @@ export default function HomeWorkoutTrackerCard() {
           alert(json.error || 'Senkronizasyon hatası.');
         }
       }
-    } catch (err: any) {
+    } catch {
       alert('Strava bağlantı hatası.');
     } finally {
       setSyncingStrava(false);
@@ -144,120 +161,219 @@ export default function HomeWorkoutTrackerCard() {
     }
   };
 
-  // Toplam haftalık / genel özetler
+  // Performans Metrikleri
   const totalKm = workouts.reduce((sum, w) => sum + (w.distance_km || 0), 0).toFixed(1);
   const totalCalories = workouts.reduce((sum, w) => sum + (w.calories || 0), 0);
   const totalMinutes = workouts.reduce((sum, w) => sum + (w.duration_minutes || 0), 0);
 
   return (
-    <div className="card">
-      {/* Üst Başlık ve Aksiyon Butonları */}
-      <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-        <div className="card-title">
-          <span>🏅</span>
-          <span>Antrenman & Spor Günlüğü</span>
+    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%' }}>
+      {/* 1. ÜST BAŞLIK VE HIZLI EYLEMLER */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+              color: '#EF4444',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <Trophy className="w-5 h-5 text-red-500" />
+          </div>
+          <div>
+            <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+              Antrenman & Spor Günlüğü
+            </h2>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              Strava, Samsung Health & Çoklu Spor Takibi
+            </div>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+        {/* Strava Rozeti & Yeni Antrenman */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* Strava Bağlantı / Eşitleme Butonu */}
           <button
             type="button"
             className="btn-secondary"
             disabled={syncingStrava}
             onClick={handleStravaSync}
-            style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}
-            title="Strava'dan son antrenmanları otomatik çek"
+            style={{
+              padding: '6px 10px',
+              fontSize: '11px',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+            title="Strava'dan son aktiviteleri otomatik çek"
           >
-            <span>{syncingStrava ? '⏳' : '🔄'}</span>
-            <span>{syncingStrava ? 'Çekiliyor...' : 'Strava Senkronize Et'}</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${syncingStrava ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">
+              {stravaConnected ? 'Strava Eşitle' : 'Strava Bağla'}
+            </span>
+            {stravaConnected && (
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }} />
+            )}
           </button>
 
+          {/* Yeni Antrenman / OCR Butonu */}
           <button
             type="button"
             className="btn-primary"
             onClick={() => setIsModalOpen(true)}
-            style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 800, background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', display: 'flex', alignItems: 'center', gap: '6px' }}
+            style={{
+              padding: '6px 12px',
+              fontSize: '11px',
+              fontWeight: 800,
+              background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
+              boxShadow: '0 2px 8px rgba(239, 68, 68, 0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
           >
-            <span>+</span>
-            <span>YENİ ANTRENMAN / TARA</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>Yeni Seans / OCR</span>
           </button>
         </div>
       </div>
 
-      <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-        Koşu, Bisiklet, Yürüyüş, Yüzme ve Kuvvet antrenmanlarınızı takip edin. Samsung Health ekran görüntülerinizi yükleyerek yapay zeka ile saniyeler içinde kaydedin.
-      </p>
-
-      {/* Performans Özet Şeridi */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '8px', marginBottom: '14px' }}>
-        <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>TOPLAM MESAFE</div>
-          <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--emerald)', marginTop: '2px' }}>{totalKm} km</div>
-        </div>
-        <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>YAKILAN KALORİ</div>
-          <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--rose)', marginTop: '2px' }}>{totalCalories} kcal</div>
-        </div>
-        <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>AKTİF SÜRE</div>
-          <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--indigo)', marginTop: '2px' }}>
-            {Math.floor(totalMinutes / 60)} sa {totalMinutes % 60} dk
+      {/* 2. PERFORMANS KPI ÖZET ŞERİDİ */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+          gap: '8px'
+        }}
+      >
+        <div style={{ backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+          <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)' }}>TOPLAM MESAFE</div>
+          <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 900, color: '#10B981', marginTop: '2px' }}>
+            {totalKm} <span style={{ fontSize: '11px', fontWeight: 600 }}>km</span>
           </div>
         </div>
-        <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>ANTRENMAN</div>
-          <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px' }}>{workouts.length} Seans</div>
+
+        <div style={{ backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+          <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)' }}>YAKILAN ENERJİ</div>
+          <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 900, color: '#EF4444', marginTop: '2px' }}>
+            {totalCalories} <span style={{ fontSize: '11px', fontWeight: 600 }}>kcal</span>
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+          <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)' }}>AKTİF SÜRE</div>
+          <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 900, color: '#6366F1', marginTop: '2px' }}>
+            {Math.floor(totalMinutes / 60)}s {totalMinutes % 60}d
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+          <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)' }}>TOPLAM SEANS</div>
+          <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px' }}>
+            {workouts.length}
+          </div>
         </div>
       </div>
 
-      {/* Antrenmanlar Listesi */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '20px', fontSize: '13px', color: 'var(--text-muted)' }}>
-          Antrenmanlar yükleniyor...
-        </div>
-      ) : workouts.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {workouts.map(wk => {
-            const sportInfo = SPORT_ICONS[wk.sport_type || 'other'] || SPORT_ICONS.other;
+      {/* 3. ANTRENMAN SEANSLARI LİSTESİ */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto' }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '30px', fontSize: '13px', color: 'var(--text-muted)' }}>
+            Antrenman verileri yükleniyor...
+          </div>
+        ) : workouts.length === 0 ? (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '32px 16px',
+              backgroundColor: 'var(--surface-subtle)',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--border)'
+            }}
+          >
+            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🏃</div>
+            <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
+              Kayıtlı Antrenman Bulunmuyor
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '14px' }}>
+              Koşu, bisiklet, yüzme veya kuvvet antrenmanı ekleyin; Strava hesabınızı bağlayın veya Samsung Health ekran görüntüsü tarayın.
+            </div>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => setIsModalOpen(true)}
+              style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 800 }}
+            >
+              + İlk Antrenmanı Kaydet
+            </button>
+          </div>
+        ) : (
+          workouts.map(wk => {
+            const sportInfo = SPORT_CONFIGS[wk.sport_type || 'other'] || SPORT_CONFIGS.other;
+            const isStrength = wk.sport_type === 'strength';
+            const isSwim = wk.sport_type === 'swimming';
+            const isRunOrRide = wk.sport_type === 'running' || wk.sport_type === 'cycling' || wk.sport_type === 'walking';
+
             return (
               <div
                 key={wk.id}
                 style={{
-                  background: 'var(--surface-subtle)',
+                  backgroundColor: 'var(--surface-subtle)',
                   border: '1px solid var(--border)',
                   borderRadius: '12px',
-                  padding: '12px 14px',
+                  padding: '12px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '8px'
                 }}
               >
-                {/* Başlık & Butonlar */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '8px',
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '16px'
-                    }}>
+                {/* Başlık & Kaynak & Aksiyon */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <div
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        backgroundColor: sportInfo.bg,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '16px',
+                        flexShrink: 0
+                      }}
+                    >
                       {sportInfo.icon}
                     </div>
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>{wk.title}</span>
+
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {wk.title}
+                        </span>
                         {wk.source && wk.source !== 'manual' && (
-                          <span style={{ fontSize: '9px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--indigo)' }}>
-                            {wk.source === 'strava' ? 'STRAVA' : wk.source === 'ai_ocr' ? 'AI OCR' : wk.source.toUpperCase()}
+                          <span
+                            style={{
+                              fontSize: '9px',
+                              fontWeight: 800,
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              backgroundColor: wk.source === 'strava' ? 'rgba(252, 76, 2, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                              color: wk.source === 'strava' ? '#FC4C02' : '#6366F1'
+                            }}
+                          >
+                            {wk.source === 'strava' ? 'STRAVA' : 'AI VISION'}
                           </span>
                         )}
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        📅 {wk.date} {wk.start_time ? `• ${wk.start_time}` : ''} • ⏱️ {wk.formatted_duration || `${wk.duration_minutes || 0} Dk`}
+                        📅 {wk.date} {wk.start_time ? `• ${wk.start_time}` : ''} • ⏱️ {wk.formatted_duration || `${wk.duration_minutes || 0} dk`}
                       </div>
                     </div>
                   </div>
@@ -265,150 +381,96 @@ export default function HomeWorkoutTrackerCard() {
                   <button
                     type="button"
                     onClick={() => handleDeleteWorkout(wk.id)}
-                    style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '13px', cursor: 'pointer', padding: '4px' }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
                     title="Sil"
                   >
-                    🗑️
+                    <Trash2 className="w-3.5 h-3.5 hover:text-rose-500" />
                   </button>
                 </div>
 
-                {/* Önemli Metrik Rozetleri */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {/* BRANŞA ÖZEL SPOR METRİKLERİ PANELLERİ */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', fontSize: '11px' }}>
                   {/* Mesafe */}
-                  {(wk.formatted_distance || (wk.distance_km !== undefined && wk.distance_km > 0)) && (
-                    <span style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', color: '#10B981', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
-                      📍 {wk.formatted_distance || (wk.sport_type === 'swimming' ? `${Math.round((wk.distance_km || 0) * 1000)} m` : `${wk.distance_km} km`)}
+                  {wk.distance_km !== undefined && wk.distance_km > 0 && (
+                    <span style={{ backgroundColor: 'var(--surface)', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontWeight: 700 }}>
+                      📍 <strong>{wk.formatted_distance || `${wk.distance_km} km`}</strong>
                     </span>
                   )}
 
                   {/* Kalori */}
                   {wk.calories !== undefined && wk.calories > 0 && (
-                    <span style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#EF4444', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
+                    <span style={{ backgroundColor: 'var(--surface)', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontWeight: 700, color: '#EF4444' }}>
                       🔥 {wk.calories} kcal
                     </span>
                   )}
 
-                  {/* Hız */}
+                  {/* Ortalama Hız */}
                   {wk.avg_speed_kmh !== undefined && wk.avg_speed_kmh > 0 && (
-                    <span style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
-                      ⚡ {wk.avg_speed_kmh} km/sa {wk.max_speed_kmh ? `(Maks ${wk.max_speed_kmh})` : ''}
+                    <span style={{ backgroundColor: 'var(--surface)', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontWeight: 700 }}>
+                      ⚡ Ort: {wk.avg_speed_kmh} km/s
                     </span>
                   )}
 
-                  {/* Pace */}
+                  {/* Pace (Koşu) */}
                   {wk.avg_pace && (
-                    <span style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
-                      ⏱️ {wk.avg_pace}
+                    <span style={{ backgroundColor: 'var(--surface)', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontWeight: 700, color: '#10B981' }}>
+                      ⏱️ Pace: {wk.avg_pace}
                     </span>
                   )}
 
-                  {/* Nabız */}
+                  {/* Kalp Atış Hızı */}
                   {wk.avg_heart_rate !== undefined && wk.avg_heart_rate > 0 && (
-                    <span style={{ background: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.25)', color: '#F43F5E', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
-                      ❤️ {wk.avg_heart_rate} bpm {wk.max_heart_rate ? `(Maks ${wk.max_heart_rate})` : ''}
+                    <span style={{ backgroundColor: 'var(--surface)', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontWeight: 700, color: '#EC4899' }}>
+                      ❤️ {wk.avg_heart_rate} bpm
                     </span>
                   )}
 
-                  {/* VO2 Max */}
-                  {wk.vo2_max !== undefined && wk.vo2_max > 0 && (
-                    <span style={{ background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.25)', color: 'var(--indigo)', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
-                      🫁 VO2: {wk.vo2_max}
+                  {/* Yüzme Havuz & Kulaç */}
+                  {isSwim && wk.swim_stroke_count !== undefined && (
+                    <span style={{ backgroundColor: 'var(--surface)', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontWeight: 700, color: '#06B6D4' }}>
+                      🏊 SWOLF: {wk.swim_avg_swolf || '-'} • {wk.swim_stroke_count} Kulaç
                     </span>
                   )}
 
-                  {/* Adım */}
-                  {wk.step_count !== undefined && wk.step_count > 0 && (
-                    <span style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
-                      👟 {wk.step_count.toLocaleString('tr-TR')} Adım
-                    </span>
-                  )}
-
-                  {/* Ter Kaybı */}
-                  {wk.sweat_loss_ml !== undefined && wk.sweat_loss_ml > 0 && (
-                    <span style={{ background: 'rgba(6, 182, 212, 0.1)', border: '1px solid rgba(6, 182, 212, 0.25)', color: '#06B6D4', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
-                      💧 {wk.sweat_loss_ml} ml Ter
-                    </span>
-                  )}
-
-                  {/* Yüzme: SWOLF & Kulaç */}
-                  {wk.swim_avg_swolf !== undefined && wk.swim_avg_swolf > 0 && (
-                    <span style={{ background: 'rgba(6, 182, 212, 0.1)', border: '1px solid rgba(6, 182, 212, 0.25)', color: '#06B6D4', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
-                      🏊 SWOLF: {wk.swim_avg_swolf} • {wk.swim_stroke_count || 0} Kulaç
-                    </span>
-                  )}
-
-                  {/* Kuvvet: Hacim */}
-                  {wk.sport_type === 'strength' && wk.total_volume_kg > 0 && (
-                    <span style={{ background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.25)', color: '#8B5CF6', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
+                  {/* Kuvvet Antrenmanı Tonajı */}
+                  {isStrength && wk.total_volume_kg > 0 && (
+                    <span style={{ backgroundColor: 'var(--surface)', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontWeight: 700, color: '#8B5CF6' }}>
                       🏋️ Hacim: {wk.total_volume_kg} kg
                     </span>
                   )}
                 </div>
 
-                {/* Kuvvet Egzersizleri ve Setler (Varsa) */}
-                {wk.exercises && wk.exercises.length > 0 && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '6px', marginTop: '4px' }}>
-                    {wk.exercises.map((ex, exIdx) => (
-                      <div
-                        key={exIdx}
-                        style={{
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '8px',
-                          padding: '8px',
-                          fontSize: '11px'
-                        }}
-                      >
-                        <div style={{ fontWeight: 800, color: 'var(--text-main)', marginBottom: '3px' }}>
-                          {ex.exercise_name}
+                {/* Kuvvet Egzersizleri Listesi */}
+                {isStrength && wk.exercises && wk.exercises.length > 0 && (
+                  <div style={{ backgroundColor: 'var(--surface)', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border)', marginTop: '2px' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      Kaldırılan Ağırlıklar ({wk.exercises.length} Egzersiz)
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      {wk.exercises.map((ex, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-main)' }}>
+                          <span>{ex.exercise_name}</span>
+                          <span className="tabular-nums" style={{ color: '#8B5CF6', fontWeight: 700 }}>
+                            {ex.sets?.length || 0} Set • Max {ex.max_weight_kg || 0} kg
+                          </span>
                         </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
-                          {ex.sets && ex.sets.map((s, sIdx) => (
-                            <span
-                              key={sIdx}
-                              style={{
-                                background: 'rgba(16, 185, 129, 0.1)',
-                                color: '#10B981',
-                                padding: '1px 5px',
-                                borderRadius: '4px',
-                                fontSize: '10px',
-                                fontWeight: 700
-                              }}
-                            >
-                              S{sIdx + 1}: {s.weight_kg}kg × {s.reps}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {wk.notes && (
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', background: 'var(--surface)', padding: '6px 8px', borderRadius: '6px' }}>
-                    💬 {wk.notes}
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
             );
-          })}
-        </div>
-      ) : (
-        <div style={{ textAlign: 'center', padding: '24px', background: 'var(--surface-subtle)', borderRadius: '12px', border: '1px dashed var(--border)' }}>
-          <div style={{ fontSize: '32px', marginBottom: '8px' }}>🏅</div>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>Henüz antrenman kaydı yok</div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Koşu, bisiklet, yürüyüş veya yüzme antrenmanınızı ekran görüntüsüyle taramak veya manuel girmek için yukarıdaki yeşil butona tıklayın!
-          </div>
-        </div>
-      )}
+          })
+        )}
+      </div>
 
-      {/* Kayıt ve Tarama Modalı */}
+      {/* ANTRENMAN MODALI */}
       <HomeWorkoutModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={() => {
           fetchWorkouts();
+          setIsModalOpen(false);
         }}
       />
     </div>
