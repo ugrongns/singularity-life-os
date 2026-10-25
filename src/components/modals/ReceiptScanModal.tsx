@@ -28,6 +28,66 @@ interface ReceiptScanModalProps {
   onSuccess: (msg?: string) => void;
 }
 
+async function compressImageIfNeeded(file: File): Promise<File> {
+  if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+    return file;
+  }
+  if (file.size <= 800 * 1024) {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_WIDTH = 1920;
+        const MAX_HEIGHT = 1920;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            height = MAX_HEIGHT;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(file);
+
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (blob && blob.size < file.size) {
+              resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              }));
+            } else {
+              resolve(file);
+            }
+          },
+          'image/jpeg',
+          0.82
+        );
+      };
+      img.onerror = () => resolve(file);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuccess }: ReceiptScanModalProps) {
   // Sekmeler: 'qr' (Karekod Fiş), 'camera' (Fotoğraf Çek), 'upload' (Dosya Yükle), 'presets' (Hazır Örnekler)
   const [activeTab, setActiveTab] = useState<'qr' | 'camera' | 'upload' | 'presets'>('qr');
@@ -99,20 +159,14 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
     qr_url?: string;
     source_type?: 'qr_ebelge' | 'qr_gib_code' | 'ai_ocr';
   }>({
-    merchant: 'MİGROS (YENİ BATI ANKARA MM MİGROS)',
-    amount: 430.85,
+    merchant: '',
+    amount: 0,
     date: new Date().toISOString().split('T')[0],
     category_id: 'cat-market',
     category_name: 'Market & Gıda',
-    items: [
-      { name: 'MLIFE KAFESSİZ M BOY TAVUK YUMURTASI 10 LU 53-62 G', price: 104.95, quantity: 1, barcode: '8697581702809' },
-      { name: 'MLIFE KAFESSİZ M BOY TAVUK YUMURTASI 10 LU 53-62 G', price: 104.95, quantity: 1, barcode: '8697581702809' },
-      { name: 'ORKİD PLATINUM GECE EKSTRA PLUS 14 LÜ', price: 219.95, quantity: 1, barcode: '8006530170062' },
-      { name: 'MİGROS PLASTİK POŞET YENİ', price: 1.00, quantity: 1, barcode: '2001111341301' }
-    ],
-    tax_amount: 22.25,
-    reference_number: '063921026770261024',
-    source_type: 'qr_ebelge'
+    items: [],
+    tax_amount: 0,
+    source_type: 'ai_ocr'
   });
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -453,47 +507,58 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const fileArray = Array.from(files);
-    const base64Promises = fileArray.map(file => {
-      return new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (event) => resolve(event.target?.result as string);
-        reader.readAsDataURL(file);
-      });
-    });
-
-    const base64Images = await Promise.all(base64Promises);
-    setCapturedImages(base64Images);
-
-    // İstemci tarafında görselde QR kod var mı tara
-    let detectedQr: string | undefined;
+    setStep('processing');
     try {
-      const img = new Image();
-      img.src = base64Images[0];
-      await new Promise(r => { img.onload = r; img.onerror = r; });
+      const fileArray = Array.from(files);
+      const compressedFiles = await Promise.all(fileArray.map(f => compressImageIfNeeded(f)));
 
-      if ('BarcodeDetector' in window) {
-        const detector = new (window as any).BarcodeDetector({ formats: ['qr_code', 'data_matrix'] });
-        const barcodes = await detector.detect(img);
-        if (barcodes?.length > 0 && barcodes[0].rawValue) {
-          detectedQr = barcodes[0].rawValue;
+      const base64Promises = compressedFiles.map(file => {
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (event) => resolve(event.target?.result as string);
+          reader.readAsDataURL(file);
+        });
+      });
+
+      const base64Images = await Promise.all(base64Promises);
+      setCapturedImages(base64Images);
+
+      // İstemci tarafında görselde QR kod var mı tara
+      let detectedQr: string | undefined;
+      try {
+        const img = new Image();
+        img.src = base64Images[0];
+        await new Promise(r => { img.onload = r; img.onerror = r; });
+
+        if ('BarcodeDetector' in window) {
+          const detector = new (window as any).BarcodeDetector({ formats: ['qr_code', 'data_matrix'] });
+          const barcodes = await detector.detect(img);
+          if (barcodes?.length > 0 && barcodes[0].rawValue) {
+            detectedQr = barcodes[0].rawValue;
+          }
         }
+
+        if (!detectedQr) {
+          const hints = new Map();
+          hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]);
+          const zxingReader = new BrowserMultiFormatReader(hints);
+          const res = await zxingReader.decodeFromImageElement(img);
+          if (res && res.getText()) {
+            detectedQr = res.getText();
+          }
+        }
+      } catch (qrErr) {
+        // QR bulunamadıysa normal AI Vision ile devam edilir
       }
 
-      if (!detectedQr) {
-        const hints = new Map();
-        hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]);
-        const zxingReader = new BrowserMultiFormatReader(hints);
-        const res = await zxingReader.decodeFromImageElement(img);
-        if (res && res.getText()) {
-          detectedQr = res.getText();
-        }
-      }
-    } catch (qrErr) {
-      // QR bulunamadıysa normal AI Vision ile devam edilir
+      await processReceiptImage(base64Images, compressedFiles, detectedQr);
+    } catch (err: any) {
+      console.error('File upload process error:', err);
+      alert('Dosya yüklenirken bir hata oluştu: ' + (err.message || 'Lütfen tekrar deneyin.'));
+      setStep('scan');
+    } finally {
+      if (e.target) e.target.value = '';
     }
-
-    processReceiptImage(base64Images, fileArray, detectedQr);
   };
 
   // AI Pipeline ile Fişi Çözümle
@@ -503,9 +568,8 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
       const formData = new FormData();
       if (fileObjs && fileObjs.length > 0) {
         fileObjs.forEach(file => formData.append('files', file));
-      } else {
-        base64Array.forEach(b64 => formData.append('base64Images', b64));
       }
+      base64Array.forEach(b64 => formData.append('base64Images', b64));
       if (qrData) {
         formData.append('qr_data', qrData);
       }
@@ -515,14 +579,16 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
         body: formData
       });
       const json = await res.json();
-      if (json.success && json.data) {
+      if (json.success && json.data && (json.data.amount > 0 || json.data.merchant || (json.data.items && json.data.items.length > 0))) {
         applyParsedData(json.data);
       } else {
-        setStep('confirm');
+        alert(json.error || 'Fiş üzerindeki bilgiler okunamadı. Lütfen fişin daha net bir fotoğrafını yükleyin veya manuel giriş yapın.');
+        setStep('scan');
       }
-    } catch (err) {
-      console.warn('AI Receipt parse fallback:', err);
-      setStep('confirm');
+    } catch (err: any) {
+      console.warn('AI Receipt parse error:', err);
+      alert('Fiş çözümlenirken bağlantı hatası oluştu: ' + (err.message || 'Lütfen tekrar deneyin.'));
+      setStep('scan');
     }
   };
 
@@ -856,6 +922,31 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
                     📁 veya Dosya yükleyin
                   </span>
                 </div>
+
+                {/* Karekodsuz Klasik Fiş için Hızlı Geçiş Butonu */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('camera')}
+                  style={{
+                    width: '100%',
+                    padding: '9px 14px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    background: 'var(--surface-subtle)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-main)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    cursor: 'pointer',
+                    marginTop: '2px'
+                  }}
+                >
+                  <span>📷</span>
+                  <span>Fişte Karekod Yoksa: Fotoğraf Çekip AI ile Çözümle</span>
+                </button>
 
                 {/* Manuel Link Yapıştırma Aç/Kapa */}
                 <div style={{ width: '100%', textAlign: 'center', marginTop: '2px' }}>

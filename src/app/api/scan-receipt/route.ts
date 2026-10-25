@@ -26,12 +26,14 @@ export async function POST(req: Request) {
 
       if (files.length > 0) {
         for (const file of files) {
-          if (!(file instanceof File)) continue;
-          const buffer = Buffer.from(await file.arrayBuffer());
+          if (!file || typeof (file as any).arrayBuffer !== 'function') continue;
+          const buffer = Buffer.from(await (file as any).arrayBuffer());
           base64Images.push(buffer.toString('base64'));
-          mimeTypes.push(file.type || 'image/jpeg');
+          mimeTypes.push((file as any).type || 'image/jpeg');
         }
-      } else if (base64Inputs.length > 0) {
+      }
+      
+      if (base64Images.length === 0 && base64Inputs.length > 0) {
         base64Images = base64Inputs;
         mimeTypes = base64Inputs.map(() => 'image/jpeg');
       }
