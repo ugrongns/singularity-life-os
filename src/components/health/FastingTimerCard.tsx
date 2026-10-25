@@ -1,6 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import {
+  Clock,
+  Zap,
+  Shield,
+  Activity,
+  CheckCircle,
+  AlertCircle,
+  Sparkles,
+  Play,
+  Square
+} from 'lucide-react';
 
 interface FastingProps {
   fastingData: {
@@ -12,26 +23,31 @@ interface FastingProps {
     currentPhase?: string;
     phaseColor?: string;
     phaseDescription?: string;
+    startTime?: string;
+    targetEndTime?: string;
   };
   onToggleFasting: (action: 'start' | 'end', protocol?: string) => void;
 }
 
 const FASTING_PROTOCOLS = [
-  { id: '16:8', label: '16:8 Standart', hours: 16, category: 'Günlük' },
-  { id: '14:10', label: '14:10 Başlangıç', hours: 14, category: 'Günlük' },
-  { id: '12:12', label: '12:12 Sirkadiyen', hours: 12, category: 'Günlük' },
-  { id: '18:6', label: '18:6 İleri Düzek', hours: 18, category: 'Günlük' },
-  { id: '20:4', label: '20:4 Savaşçı', hours: 20, category: 'Günlük' },
-  { id: 'OMAD', label: '23:1 OMAD (Tek Öğün)', hours: 23, category: 'Günlük' },
-  { id: '24h', label: '🧬 24 Sa Otofaji', hours: 24, category: 'Derin Otofaji' },
-  { id: '36h', label: '🧬 36 Sa Derin Temizlik', hours: 36, category: 'Derin Otofaji' },
-  { id: '48h', label: '👑 48 Sa Kök Hücre', hours: 48, category: 'Derin Otofaji' },
-  { id: '72h', label: '🛡️ 72 Sa Bağışıklık Sıfırlama', hours: 72, category: 'Derin Otofaji' }
+  { id: '16:8', label: '16:8 Standart', hours: 16, tag: 'Popüler' },
+  { id: '18:6', label: '18:6 İleri Düzey', hours: 18, tag: 'Yağ Yakımı' },
+  { id: '20:4', label: '20:4 Savaşçı', hours: 20, tag: 'Derin' },
+  { id: 'OMAD', label: '23:1 OMAD', hours: 23, tag: 'Tek Öğün' },
+  { id: '24h', label: '24s Otofaji', hours: 24, tag: 'Yenilenme' }
 ];
 
 export default function FastingTimerCard({ fastingData, onToggleFasting }: FastingProps) {
-  const [selectedProtocol, setSelectedProtocol] = useState('16:8');
+  const [selectedProtocol, setSelectedProtocol] = useState(fastingData.protocol || '16:8');
   const [isToggling, setIsToggling] = useState(false);
+
+  // SVG Radial Circle Hesaplaması
+  const radius = 68;
+  const strokeWidth = 10;
+  const normalizedRadius = radius - strokeWidth / 2;
+  const circumference = normalizedRadius * 2 * Math.PI;
+  const progressPercent = Math.min(100, Math.max(0, fastingData.progressPercent || 0));
+  const strokeDashoffset = circumference - (progressPercent / 100) * circumference;
 
   const handleAction = async (action: 'start' | 'end') => {
     setIsToggling(true);
@@ -39,117 +55,318 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
     setIsToggling(false);
   };
 
-  const activeProtoObj = FASTING_PROTOCOLS.find(p => p.id === fastingData.protocol) || FASTING_PROTOCOLS[0];
+  const currentColor = fastingData.phaseColor || '#8B5CF6';
 
   return (
-    <div className="card">
-      <div className="card-title-row">
-        <div className="card-title">
-          <span>⏳</span>
-          <span>Aralıklı Oruç & Otofaji ({fastingData.protocol || '16:8'})</span>
+    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%' }}>
+      {/* 1. Başlık Çubuğu */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(139, 92, 246, 0.12)',
+              color: '#8B5CF6',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <Clock className="w-5 h-5 text-purple-500" />
+          </div>
+          <div>
+            <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+              Aralıklı Oruç & Otofaji Sayacı
+            </h2>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              Zero Fasting & Biyolojik Faz Algoritması
+            </div>
+          </div>
         </div>
-        <span style={{ fontSize: '12px', fontWeight: 700, color: fastingData.isActive ? 'var(--emerald)' : 'var(--text-muted)' }}>
-          {fastingData.isActive ? '● Canlı Devam Ediyor' : '○ Pasif'}
+
+        <span
+          style={{
+            fontSize: '11px',
+            fontWeight: 800,
+            padding: '4px 10px',
+            borderRadius: '999px',
+            backgroundColor: fastingData.isActive ? 'rgba(16, 185, 129, 0.15)' : 'var(--surface-subtle)',
+            color: fastingData.isActive ? '#10B981' : 'var(--text-muted)',
+            border: `1px solid ${fastingData.isActive ? 'rgba(16, 185, 129, 0.3)' : 'var(--border)'}`,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px'
+          }}
+        >
+          <span
+            style={{
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              backgroundColor: fastingData.isActive ? '#10B981' : 'var(--text-muted)',
+              boxShadow: fastingData.isActive ? '0 0 6px #10B981' : 'none'
+            }}
+          />
+          {fastingData.isActive ? `Aktif (${fastingData.protocol || '16:8'})` : 'Pasif'}
         </span>
       </div>
 
       {fastingData.isActive ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {/* Canlı Süre Kartı */}
-          <div style={{ background: 'var(--surface-subtle)', padding: '14px', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        /* AKTİF ORUÇ GÖRÜNÜMÜ */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1, justifyContent: 'space-between' }}>
+          {/* Dairesel SVG Sayaç */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '10px 0',
+              position: 'relative'
+            }}
+          >
+            <div style={{ position: 'relative', width: `${radius * 2}px`, height: `${radius * 2}px` }}>
+              <svg
+                height={radius * 2}
+                width={radius * 2}
+                style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
+              >
+                <defs>
+                  <linearGradient id="fastingRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#8B5CF6" />
+                    <stop offset="100%" stopColor="#EC4899" />
+                  </linearGradient>
+                </defs>
+
+                {/* Arka Plan İzi */}
+                <circle
+                  stroke="var(--border)"
+                  fill="transparent"
+                  strokeWidth={strokeWidth}
+                  r={normalizedRadius}
+                  cx={radius}
+                  cy={radius}
+                />
+
+                {/* Dinamik İlerleme Çemberi */}
+                <circle
+                  stroke="url(#fastingRingGradient)"
+                  fill="transparent"
+                  strokeWidth={strokeWidth}
+                  strokeDasharray={`${circumference} ${circumference}`}
+                  style={{
+                    strokeDashoffset,
+                    transition: 'stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1)'
+                  }}
+                  strokeLinecap="round"
+                  r={normalizedRadius}
+                  cx={radius}
+                  cy={radius}
+                />
+              </svg>
+
+              {/* Daire İçi Sayaç Metni */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textAlign: 'center',
+                  pointerEvents: 'none'
+                }}
+              >
+                <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)' }}>
+                  Geçen Süre
+                </span>
+                <div className="tabular-nums" style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-main)', marginTop: '1px' }}>
+                  {fastingData.elapsedText || '00:00'}
+                </div>
+                <div
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    color: '#8B5CF6',
+                    marginTop: '2px'
+                  }}
+                >
+                  %{progressPercent}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* İki Sütunlu Metrik Kutusu: Geçen vs Hedefe Kalan */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '10px',
+              backgroundColor: 'var(--surface-subtle)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px'
+            }}
+          >
             <div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Geçen Süre</div>
-              <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 800, marginTop: '2px' }}>
+              <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px' }}>
                 {fastingData.elapsedText}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Hedefe Kalan</div>
-              <div className="tabular-nums" style={{ fontSize: '18px', fontWeight: 800, color: fastingData.phaseColor || '#6366F1', marginTop: '2px' }}>
-                {fastingData.remainingText}
+              <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 800, color: '#8B5CF6', marginTop: '2px' }}>
+                {fastingData.remainingText || 'Tamamlandı'}
               </div>
             </div>
           </div>
 
-          {/* İlerleme Çubuğu */}
-          <div className="budget-bar-track" style={{ height: '8px' }}>
-            <div className="budget-bar-fill" style={{ width: `${fastingData.progressPercent}%`, backgroundColor: fastingData.phaseColor || '#6366F1' }} />
-          </div>
-
-          {/* Biyolojik Faz Rozeti */}
-          <div style={{ background: 'var(--surface-subtle)', border: `1px solid ${fastingData.phaseColor || 'var(--border)'}`, padding: '10px 12px', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: fastingData.phaseColor || 'var(--text-main)' }}>
-              {fastingData.currentPhase}
+          {/* Metabolik Faz Kartı */}
+          <div
+            style={{
+              backgroundColor: 'rgba(139, 92, 246, 0.08)',
+              border: '1px solid rgba(139, 92, 246, 0.25)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              <span style={{ fontSize: '13px', fontWeight: 800, color: '#8B5CF6' }}>
+                {fastingData.currentPhase || 'Metabolik Faz Analizi'}
+              </span>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-              {fastingData.phaseDescription}
-            </div>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+              {fastingData.phaseDescription || 'Hücreler glikojen depolarını boşaltıyor ve yağ yakım moduna geçiş yapıyor.'}
+            </p>
           </div>
 
           {/* Orucu Bitir Butonu */}
-          <button 
-            className="btn-secondary" 
+          <button
+            type="button"
             onClick={() => handleAction('end')}
             disabled={isToggling}
-            style={{ padding: '10px', fontSize: '12px', color: 'var(--rose)', fontWeight: 800 }}
+            style={{
+              width: '100%',
+              padding: '11px',
+              fontSize: '12px',
+              fontWeight: 800,
+              backgroundColor: 'rgba(244, 63, 94, 0.1)',
+              color: '#F43F5E',
+              border: '1px solid rgba(244, 63, 94, 0.3)',
+              borderRadius: 'var(--radius-md)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease'
+            }}
           >
-            {isToggling ? 'İşleniyor...' : '🛑 Orucu Tamamla / Yemek Penceresini Aç'}
+            <Square className="w-4 h-4 text-rose-500" />
+            <span>{isToggling ? 'İşleniyor...' : '🛑 Orucu Tamamla & Yeme Penceresini Aç'}</span>
           </button>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Lütfen başlatmak istediğiniz aralıklı oruç veya otofaji protokolünü seçin:
-          </div>
-
-          {/* Protokol Seçim Menüsü */}
+        /* PASİF / PROTOKOL SEÇİMİ GÖRÜNÜMÜ */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1, justifyContent: 'space-between' }}>
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-              Oruç / Otofaji Protokolü:
-            </label>
-            <select
-              value={selectedProtocol}
-              onChange={e => setSelectedProtocol(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                fontWeight: 800,
-                fontSize: '13px',
-                background: 'var(--surface-subtle)',
-                color: 'var(--text-main)',
-                cursor: 'pointer'
-              }}
-            >
-              <optgroup label="☀️ Günlük Aralıklı Oruç">
-                <option value="16:8">16:8 Standart (16 sa Oruç / 8 sa Yemek)</option>
-                <option value="14:10">14:10 Başlangıç (14 sa Oruç / 10 sa Yemek)</option>
-                <option value="12:12">12:12 Sirkadiyen Ritim (12 sa Oruç)</option>
-                <option value="18:6">18:6 İleri Düzek (18 sa Oruç / 6 sa Yemek)</option>
-                <option value="20:4">20:4 Savaşçı Diyeti (20 sa Oruç)</option>
-                <option value="OMAD">23:1 OMAD (Günde Tek Öğün)</option>
-              </optgroup>
-              <optgroup label="🧬 Derin Otofaji & Yenilenme Uyumları">
-                <option value="24h">🧬 24 Saat: Tam Otofaji & Glikojen Sıfırlaması</option>
-                <option value="36h">🧬 36 Saat: Derin Otofaji & Hücresel Temizlik</option>
-                <option value="48h">👑 48 Saat: Kök Hücre & Büyüme Hormonu Zirvesi</option>
-                <option value="72h">🛡️ 72 Saat: Bağışıklık Sistemi Sıfırlaması</option>
-              </optgroup>
-            </select>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+              Hedefinize uygun aralıklı oruç protokolünü seçerek yeni bir seans başlatın:
+            </div>
+
+            {/* Segmented Protokol Hapları */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '8px' }}>
+              {FASTING_PROTOCOLS.map(proto => {
+                const isSelected = selectedProtocol === proto.id;
+                return (
+                  <button
+                    key={proto.id}
+                    type="button"
+                    onClick={() => setSelectedProtocol(proto.id)}
+                    style={{
+                      padding: '10px 8px',
+                      borderRadius: '8px',
+                      border: isSelected ? '1px solid #8B5CF6' : '1px solid var(--border)',
+                      backgroundColor: isSelected ? 'rgba(139, 92, 246, 0.12)' : 'var(--surface-subtle)',
+                      color: isSelected ? '#8B5CF6' : 'var(--text-main)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '3px',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <span style={{ fontSize: '13px', fontWeight: 800 }}>{proto.id}</span>
+                    <span style={{ fontSize: '10px', color: isSelected ? '#8B5CF6' : 'var(--text-muted)' }}>
+                      {proto.tag}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <button 
-            className="btn-primary" 
+          {/* Protokol Açıklama Kartı */}
+          <div
+            style={{
+              backgroundColor: 'var(--surface-subtle)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px'
+            }}
+          >
+            <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Zap className="w-3.5 h-3.5 text-amber-500" />
+              <span>Seçili Protokol: {selectedProtocol}</span>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+              {selectedProtocol === '16:8' && '16 saat oruç, 8 saat yemek penceresi. Yağ yakımı ve kan şekeri optimizasyonu için altın standart.'}
+              {selectedProtocol === '18:6' && '18 saat oruç, 6 saat yemek penceresi. Hızlandırılmış ketozis ve glikojen boşalımı sağlar.'}
+              {selectedProtocol === '20:4' && '20 saat oruç, 4 saat yemek. Savaşçı diyeti; otofaji sürecini erken tetikler.'}
+              {selectedProtocol === 'OMAD' && 'Günde tek öğün (23:1). Yüksek insülin duyarlılığı ve maksimum kalori kontrolü.'}
+              {selectedProtocol === '24h' && '24 saat tam oruç. Kök hücre yenilenmesi ve tam hücresel temizlik (otofaji).'}
+            </div>
+          </div>
+
+          {/* Başlat Butonu */}
+          <button
+            type="button"
+            className="btn-primary"
             onClick={() => handleAction('start')}
             disabled={isToggling}
-            style={{ padding: '12px', fontSize: '13px', fontWeight: 800, background: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}
+            style={{
+              width: '100%',
+              padding: '12px',
+              fontSize: '13px',
+              fontWeight: 800,
+              background: 'linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)',
+              boxShadow: '0 4px 14px rgba(139, 92, 246, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
+            }}
           >
-            {isToggling ? 'Başlatılıyor...' : `🚀 ${selectedProtocol} Orucu Başlat`}
+            <Play className="w-4 h-4 fill-current" />
+            <span>{isToggling ? 'Başlatılıyor...' : `🚀 ${selectedProtocol} Orucu Başlat`}</span>
           </button>
         </div>
       )}
     </div>
   );
 }
-

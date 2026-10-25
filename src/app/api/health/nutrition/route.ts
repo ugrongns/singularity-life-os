@@ -4,13 +4,16 @@ import { nutritionMeals, userHealthProfile, waterIntakeLogs, familyMembers } fro
 import { eq, desc, and, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await initDatabase();
     const user = await getAuthUser();
     const userId = user?.id;
     const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
     const today = new Date().toISOString().split('T')[0];
+
+    const { searchParams } = new URL(req.url);
+    const memberId = searchParams.get('member_id');
 
     let profile = userId
       ? (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1))[0]
@@ -32,7 +35,7 @@ export async function GET() {
       } as any;
     }
 
-    const todayMeals = userId
+    let todayMeals = userId
       ? await db.select()
           .from(nutritionMeals)
           .where(
@@ -46,6 +49,11 @@ export async function GET() {
           )
           .orderBy(desc(nutritionMeals.created_at))
       : [];
+
+    // Eğer belirli bir aile üyesi seçildiyse ona göre filtrele
+    if (memberId) {
+      todayMeals = todayMeals.filter(m => m.member_id === memberId);
+    }
 
     let totalCalories = 0;
     let totalProtein = 0;
@@ -166,25 +174,27 @@ export async function POST(req: Request) {
 
     const mealId = `meal-${Date.now()}`;
 
-    // Aktif aile üyesi kimliğini bul (varsa member_id, yoksa null - FK hatasını önler)
-    let memberId: string | null = null;
-    try {
-      const member = (await db.select().from(familyMembers).where(
-        and(
-          eq(familyMembers.is_active, 1),
-          eq(familyMembers.user_id, user.id)
-        )
-      ))[0] || (familyId ? (await db.select().from(familyMembers).where(
-        and(
-          eq(familyMembers.is_active, 1),
-          eq(familyMembers.family_id, familyId)
-        )
-      ))[0] : null);
-      if (member) {
-        memberId = member.id;
+    // Aktif aile üyesi kimliğini bul (varsa data.member_id, yoksa üyenin kendisi)
+    let memberId: string | null = data.member_id || null;
+    if (!memberId) {
+      try {
+        const member = (await db.select().from(familyMembers).where(
+          and(
+            eq(familyMembers.is_active, 1),
+            eq(familyMembers.user_id, user.id)
+          )
+        ))[0] || (familyId ? (await db.select().from(familyMembers).where(
+          and(
+            eq(familyMembers.is_active, 1),
+            eq(familyMembers.family_id, familyId)
+          )
+        ))[0] : null);
+        if (member) {
+          memberId = member.id;
+        }
+      } catch {
+        memberId = null;
       }
-    } catch {
-      memberId = null;
     }
 
     await db.insert(nutritionMeals).values({
@@ -231,6 +241,38 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('Save Meal Error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    await initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Öğün ID gereklidir.' }, { status: 400 });
+    }
+
+    await db.delete(nutritionMeals).where(
+      and(
+        eq(nutritionMeals.id, id),
+        eq(nutritionMeals.user_id, user.id)
+      )
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: 'Öğün kaydı silindi.'
+    });
+  } catch (error: any) {
+    console.error('Delete Meal Error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

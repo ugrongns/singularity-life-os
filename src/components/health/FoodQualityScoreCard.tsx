@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Trash2, ShieldCheck, AlertTriangle, Leaf, Plus } from 'lucide-react';
-
+import { Trash2, ShieldCheck, AlertTriangle, Leaf, Plus, Sparkles, Tag, ShieldAlert } from 'lucide-react';
 import NutrientProfileModal from '@/components/modals/NutrientProfileModal';
 
 interface FoodScan {
@@ -32,7 +31,6 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
 
   useEffect(() => {
     if (Array.isArray(initialScans)) {
-      // Filter out duplicate unparsed items if any
       setItems(initialScans.filter(s => !s.product_name?.includes('Taranan Barkod (')));
     }
   }, [initialScans]);
@@ -59,14 +57,36 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
   };
 
   return (
-    <div className="card">
-      <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>🏷️</span>
-          <span>Paketli Gıda Analiz Karnesi</span>
+    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '14px', height: '100%' }}>
+      {/* Başlık Çubuğu */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(236, 72, 153, 0.12)',
+              color: '#EC4899',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <Tag className="w-5 h-5 text-pink-500" />
+          </div>
+          <div>
+            <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+              Paketli Gıda Analiz Karnesi
+            </h2>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              E-Kodlu Katkı Maddeleri, Pestisit & Toksik Madde Analizi
+            </div>
+          </div>
         </div>
+
         {items.length > 0 && (
-          <button 
+          <button
             type="button"
             onClick={handleClearJunk}
             style={{ background: 'none', border: 'none', fontSize: '11px', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline' }}
@@ -76,35 +96,58 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
         )}
       </div>
 
-      <div className="card-action-bar" style={{ marginTop: '10px', marginBottom: '14px' }}>
-        <button className="btn-subtle" onClick={onOpenBarcodeScan} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-          <Plus className="w-4 h-4" />
-          <span>Barkod / Etiket Tara</span>
-        </button>
-      </div>
+      {/* Aksiyon Barı */}
+      <button
+        type="button"
+        className="btn-primary"
+        onClick={onOpenBarcodeScan}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+          padding: '9px 14px',
+          fontSize: '12px',
+          fontWeight: 800,
+          background: 'linear-gradient(135deg, #EC4899 0%, #D946EF 100%)',
+          boxShadow: '0 2px 8px rgba(236, 72, 153, 0.25)'
+        }}
+      >
+        <Plus className="w-4 h-4" />
+        <span>📷 Yeni Barkod / Etiket Tara</span>
+      </button>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {/* Taranan Gıda Kartları Listesi */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto' }}>
         {items.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '24px 16px', background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '28px 16px',
+              backgroundColor: 'var(--surface-subtle)',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--border)'
+            }}
+          >
             <div style={{ fontSize: '32px', marginBottom: '8px' }}>🏷️</div>
-            <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)' }}>Henüz Kayıtlı Paketli Gıda Bulunmuyor</div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '14px' }}>
-              Barkod okutarak paketli gıdaların E-kodlu katkı maddelerini ve pestisit risk karnesini analiz edebilirsiniz.
+            <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>
+              Henüz Kayıtlı Paketli Gıda Bulunmuyor
             </div>
-            <button className="btn-primary" onClick={onOpenBarcodeScan} style={{ fontSize: '12px', padding: '8px 16px' }}>
-              + 📷 Barkod / Etiket Tara
-            </button>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', maxWidth: '320px', margin: '4px auto 0', lineHeight: 1.4 }}>
+              Market alışverişlerinde paket arkasındaki barkodu okutarak koruyucu kimyasalları, emülgatörleri ve toksisite skorunu anında görün.
+            </div>
           </div>
         ) : (
           items.map(scan => {
             const isClean = scan.health_score >= 70;
             return (
-              <div 
-                key={scan.id} 
-                style={{ 
-                  background: 'var(--surface-subtle)', 
-                  border: '1px solid var(--border)', 
-                  borderRadius: 'var(--radius-md)', 
+              <div
+                key={scan.id}
+                style={{
+                  backgroundColor: 'var(--surface-subtle)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
                   padding: '12px',
                   display: 'flex',
                   flexDirection: 'column',
@@ -114,20 +157,23 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingRight: '28px' }}>
                   <div>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)' }}>{scan.product_name}</div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>
+                      {scan.product_name}
+                    </div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
                       {scan.brand || 'Genel'} {scan.barcode ? `• Barkod: ${scan.barcode}` : ''}
                     </div>
                   </div>
 
-                  <span 
-                    style={{ 
-                      background: isClean ? 'var(--emerald-bg)' : 'var(--rose-bg)', 
-                      color: isClean ? 'var(--emerald)' : 'var(--rose)',
-                      fontSize: '12px',
+                  <span
+                    style={{
+                      backgroundColor: isClean ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)',
+                      color: isClean ? '#10B981' : '#F43F5E',
+                      border: `1px solid ${isClean ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
+                      fontSize: '11px',
                       fontWeight: 800,
                       padding: '3px 8px',
-                      borderRadius: 'var(--radius-full)',
+                      borderRadius: '999px',
                       whiteSpace: 'nowrap'
                     }}
                   >
@@ -135,11 +181,11 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
                   </span>
                 </div>
 
-                {/* Trash Delete Button */}
+                {/* Silme Butonu */}
                 <button
                   type="button"
-                  onClick={(e) => handleDeleteItem(scan.id, e)}
-                  title="Listeden ve Veritabanından Sil"
+                  onClick={e => handleDeleteItem(scan.id, e)}
+                  title="Listeden Sil"
                   style={{
                     position: 'absolute',
                     top: '12px',
@@ -148,28 +194,34 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
                     border: 'none',
                     color: 'var(--text-muted)',
                     cursor: 'pointer',
-                    padding: '4px',
-                    borderRadius: '4px',
-                    transition: 'color 0.2s'
+                    padding: '4px'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = '#EF4444'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-4 h-4 hover:text-rose-500" />
                 </button>
 
                 {/* Katkı Maddeleri Analizi */}
                 {scan.additives_detected && (
-                  <div style={{ fontSize: '12px', color: isClean ? 'var(--emerald)' : 'var(--rose)', lineHeight: 1.4, background: isClean ? 'var(--emerald-bg)' : 'var(--rose-bg)', border: `1px solid ${isClean ? 'rgba(16,185,129,0.3)' : 'rgba(244,63,94,0.3)'}`, padding: '8px 10px', borderRadius: '6px' }}>
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      color: isClean ? '#10B981' : '#F43F5E',
+                      lineHeight: 1.4,
+                      backgroundColor: isClean ? 'rgba(16, 185, 129, 0.08)' : 'rgba(244, 63, 94, 0.08)',
+                      border: `1px solid ${isClean ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.25)'}`,
+                      padding: '6px 10px',
+                      borderRadius: '6px'
+                    }}
+                  >
                     ⚠️ <strong>İçerik Analizi:</strong> {scan.additives_detected}
                   </div>
                 )}
 
-                {/* Pestisit & Öneri */}
+                {/* Pestisit Bilgisi */}
                 {scan.pesticide_risk_summary && (
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <Leaf className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    <span><strong>Pestisit Riski:</strong> {scan.pesticide_risk_summary}</span>
+                    <span><strong>Pestisit:</strong> {scan.pesticide_risk_summary}</span>
                   </div>
                 )}
 
@@ -182,9 +234,9 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
                     setIsNutrientModalOpen(true);
                   }}
                   style={{
-                    marginTop: '4px',
+                    marginTop: '2px',
                     padding: '6px 10px',
-                    background: 'var(--bg-main)',
+                    backgroundColor: 'var(--surface)',
                     border: '1px solid var(--border)',
                     borderRadius: '6px',
                     color: '#10B981',
@@ -197,8 +249,8 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
                     gap: '4px'
                   }}
                 >
-                  <span>🔬</span>
-                  <span>360° Vitamin & Mineral Karnesini Gör ➔</span>
+                  <Sparkles className="w-3 h-3 text-emerald-500" />
+                  <span>360° Vitamin & Mineral Laboratuvarı ➔</span>
                 </button>
               </div>
             );

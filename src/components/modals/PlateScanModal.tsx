@@ -1,5 +1,17 @@
 'use client';
-import { useState, useRef } from 'react';
+
+import React, { useState, useRef } from 'react';
+import {
+  Camera,
+  Image as ImageIcon,
+  Zap,
+  Check,
+  X,
+  Sliders,
+  Sparkles,
+  ArrowLeft,
+  Flame
+} from 'lucide-react';
 
 interface PlateScanModalProps {
   isOpen: boolean;
@@ -25,7 +37,8 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
   } | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -36,12 +49,10 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
     setErrorMsg(null);
     setStep('scanning');
 
-    // Show preview
     const objectUrl = URL.createObjectURL(file);
     setPreviewUrl(objectUrl);
 
     try {
-      // Yüksek çözünürlüklü mobil kamera fotoğraflarını optimize et (Max 1600px, 0.85 kalite)
       const base64 = await compressImage(file);
       const mimeType = 'image/jpeg';
 
@@ -67,7 +78,7 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
       const json = await res.json();
       if (json.success && json.data) {
         if (json.data.confidence <= 0.15 && json.data.base_calories === 0 && !json.data.name) {
-          throw new Error('Görseldeki tabak analiz edilemedi veya yapay zeka servisine ulaşılamadı. Lütfen fotoğrafı tekrar çekip deneyin.');
+          throw new Error('Görseldeki tabak analiz edilemedi. Lütfen fotoğrafı daha net ve aydınlık bir ortamda çekip tekrar deneyin.');
         }
         setParsedPlate(json.data);
         setMultiplier(1.0);
@@ -116,7 +127,7 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
         body: JSON.stringify({
           action: 'add_meal',
           name: parsedPlate.name,
-          meal_type: parsedPlate.meal_type,
+          meal_type: parsedPlate.meal_type || 'lunch',
           base_calories: Math.round(parsedPlate.base_calories * multiplier),
           base_protein: Math.round(parsedPlate.base_protein * multiplier),
           base_carbs: Math.round(parsedPlate.base_carbs * multiplier),
@@ -154,164 +165,507 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
-      <div className="bottom-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
-        <div className="sheet-handle"></div>
+      <div
+        className="bottom-sheet"
+        onClick={e => e.stopPropagation()}
+        style={{
+          maxWidth: '520px',
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: 0,
+          overflow: 'hidden'
+        }}
+      >
+        <div className="sheet-handle" style={{ margin: '8px auto 4px' }} />
 
-        {step === 'upload' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'center' }}>
-            <div style={{ fontSize: '18px', fontWeight: 700 }}>📸 Yemek Tabağını Tara</div>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              Yemek tabağınızın fotoğrafını çekin; yapay zeka porsiyonu, kaloriyi ve makroları otomatik hesaplayacaktır.
-            </p>
-
-            {errorMsg && (
-              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--radius-md)', padding: '10px 12px', fontSize: '13px', color: '#DC2626' }}>
-                ⚠️ {errorMsg}
+        {/* Modal Üst Barı */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 16px 12px',
+            borderBottom: '1px solid var(--border)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '6px',
+                backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                color: '#6366F1',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Camera className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '14px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+                {step === 'confirm' ? 'Tabak Analizi & Porsiyon' : 'Yemek Tabağını Tara'}
+              </h3>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                AI Vision Biyometrik Porsiyonlama
               </div>
-            )}
-
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              ref={fileInputRef}
-              style={{ display: 'none' }}
-              onChange={handleFileChange}
-            />
-
-            <button className="btn-primary" onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <span>📷</span>
-              <span>Kamerayı Aç & Tabağı Çek</span>
-            </button>
-
-            {/* Galeriden fotoğraf seç */}
-            <input
-              type="file"
-              accept="image/*"
-              id="gallery-input"
-              style={{ display: 'none' }}
-              onChange={handleFileChange}
-            />
-            <button className="btn-secondary" onClick={() => (document.getElementById('gallery-input') as HTMLInputElement)?.click()}>
-              🖼️ Galeriden Seç
-            </button>
-
-            <button className="btn-secondary" onClick={handleDemoScan}>
-              ⚡ Demo Mod (AI Simülasyonu)
-            </button>
+            </div>
           </div>
-        )}
 
-        {step === 'scanning' && (
-          <div style={{ textAlign: 'center', padding: '32px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-            {previewUrl && (
-              <img src={previewUrl} alt="Tabak önizleme" style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: 'var(--radius-md)', opacity: 0.7 }} />
-            )}
-            <div style={{ fontSize: '32px', animation: 'spin 1s linear infinite' }}>🧠</div>
-            <div style={{ fontSize: '16px', fontWeight: 600 }}>Yapay Zeka Tabağı Analiz Ediyor...</div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Besin öğeleri, gramajlar ve makrolar ayrıştırılıyor</div>
-          </div>
-        )}
+          <button
+            type="button"
+            onClick={handleClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '6px'
+            }}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-        {step === 'confirm' && parsedPlate && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '16px', fontWeight: 700 }}>🍽️ Tabak Analizi (Onay & Porsiyon)</div>
-              {confidencePct && (
-                <span style={{ fontSize: '11px', background: 'var(--emerald-bg)', color: 'var(--emerald)', padding: '3px 8px', borderRadius: 'var(--radius-full)', fontWeight: 600 }}>
-                  AI %{confidencePct} Güven
-                </span>
+        {/* Modal Gövdesi */}
+        <div style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
+          {/* 1. ADIM: YÜKLEME / KAMERA AÇILIŞI */}
+          {step === 'upload' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'center' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 6px' }}>
+                Yemek tabağınızın fotoğrafını çekin; yapay zeka porsiyonu, gramajı ve makroları otomatik hesaplasın.
+              </p>
+
+              {errorMsg && (
+                <div
+                  style={{
+                    backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '10px 12px',
+                    fontSize: '12px',
+                    color: '#F43F5E',
+                    textAlign: 'left'
+                  }}
+                >
+                  ⚠️ {errorMsg}
+                </div>
               )}
+
+              {/* Kamera Girişi */}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                ref={cameraInputRef}
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+              />
+
+              {/* Galeri Girişi */}
+              <input
+                type="file"
+                accept="image/*"
+                ref={galleryInputRef}
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+              />
+
+              {/* Mobil Tek Elle Başparmak Alanı Butonları */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => cameraInputRef.current?.click()}
+                  style={{
+                    padding: '14px',
+                    fontSize: '14px',
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    background: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
+                    boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                    borderRadius: '10px'
+                  }}
+                >
+                  <Camera className="w-5 h-5" />
+                  <span>Kamerayı Aç & Tabağı Çek</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => galleryInputRef.current?.click()}
+                  style={{
+                    padding: '12px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    borderRadius: '10px'
+                  }}
+                >
+                  <ImageIcon className="w-4 h-4 text-slate-400" />
+                  <span>Fotoğraf Galerisinden Seç</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-subtle"
+                  onClick={handleDemoScan}
+                  style={{
+                    padding: '10px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    color: 'var(--text-muted)'
+                  }}
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-500" />
+                  <span>⚡ Demo Mod (AI Örnek Tabak Simülasyonu)</span>
+                </button>
+              </div>
             </div>
+          )}
 
-            {/* Önizleme fotoğrafı */}
-            {previewUrl && (
-              <img src={previewUrl} alt="Taranan tabak" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: 'var(--radius-md)' }} />
-            )}
-
-            {/* Yemek Başlığı & Kalori */}
-            <div style={{ background: 'var(--surface-subtle)', padding: '12px', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <input
-                  type="text"
-                  value={parsedPlate.name}
-                  onChange={e => setParsedPlate({ ...parsedPlate, name: e.target.value })}
-                  style={{ fontWeight: 700, fontSize: '15px', border: 'none', background: 'transparent', outline: 'none' }}
-                />
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  {parsedPlate.meal_type === 'breakfast' ? 'Kahvaltı' : parsedPlate.meal_type === 'lunch' ? 'Öğle' : parsedPlate.meal_type === 'dinner' ? 'Akşam' : 'Ara Öğün'}
+          {/* 2. ADIM: AI TARAMA VE ANALİZ DURUMU */}
+          {step === 'scanning' && (
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '24px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '16px'
+              }}
+            >
+              {previewUrl && (
+                <div style={{ position: 'relative', width: '160px', height: '120px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  <img
+                    src={previewUrl}
+                    alt="Tabak önizleme"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      background: 'rgba(99, 102, 241, 0.25)',
+                      backdropFilter: 'blur(1px)'
+                    }}
+                  />
                 </div>
-              </div>
-              <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 800, color: 'var(--emerald)' }}>
-                {currentCalories} <span style={{ fontSize: '12px', fontWeight: 600 }}>kcal</span>
-              </div>
-            </div>
+              )}
 
-            {/* Tespit edilen yiyecekler */}
-            {parsedPlate.items && parsedPlate.items.length > 0 && (
-              <div style={{ background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', padding: '8px 12px 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Tespit Edilen Yiyecekler
-                </div>
-                {parsedPlate.items.map((item, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', borderTop: i > 0 ? '1px solid var(--border-subtle)' : undefined }}>
-                    <span style={{ fontSize: '12px' }}>{item.name}</span>
-                    <span className="tabular-nums" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--emerald)' }}>{item.calories} kcal</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* İnteraktif Porsiyon Ayarlayıcı */}
-            <div style={{ background: '#EFF6FF', border: '1px solid rgba(59, 130, 246, 0.2)', padding: '12px', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#1E40AF' }}>⚖️ Porsiyon Büyüklüğü:</span>
-                <span style={{ fontSize: '13px', fontWeight: 800, color: '#2563EB' }}>{multiplier}x Porsiyon</span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
-                {[0.5, 1.0, 1.5, 2.0].map(m => (
-                  <button
-                    key={m}
-                    type="button"
-                    className={`choice-pill ${multiplier === m ? 'selected' : ''}`}
-                    onClick={() => setMultiplier(m)}
-                    style={{ padding: '6px', fontSize: '12px' }}
-                  >
-                    {m}x {m === 0.5 ? '(Yarım)' : m === 1.0 ? '(Tam)' : m === 1.5 ? '(1.5x)' : '(Çift)'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Dinamik Makro Değerleri */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-              <div style={{ background: 'var(--surface-subtle)', padding: '8px', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Protein</div>
-                <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 700, color: '#3B82F6' }}>{currentProtein}g</div>
-              </div>
-              <div style={{ background: 'var(--surface-subtle)', padding: '8px', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Karb</div>
-                <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 700, color: '#F59E0B' }}>{currentCarbs}g</div>
-              </div>
-              <div style={{ background: 'var(--surface-subtle)', padding: '8px', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Yağ</div>
-                <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 700, color: '#EC4899' }}>{currentFat}g</div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="btn-secondary" onClick={() => setStep('upload')} style={{ flex: '0 0 auto' }}>
-                ← Yeniden Tara
-              </button>
-              <button
-                className="btn-primary"
-                onClick={handleSaveMeal}
-                disabled={isSubmitting}
-                style={{ flex: 1 }}
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                  color: '#6366F1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  animation: 'pulse 1.5s infinite ease-in-out'
+                }}
               >
-                {isSubmitting ? 'Kaydediliyor...' : '✅ Onayla ve Beslenmeye Ekle'}
-              </button>
+                <Sparkles className="w-6 h-6 animate-spin text-indigo-500" />
+              </div>
+
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)' }}>
+                  Yapay Zeka Tabağı Analiz Ediyor...
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Besin öğeleri, gramajlar ve biyometrik makrolar ayrıştırılıyor.
+                </div>
+              </div>
             </div>
+          )}
+
+          {/* 3. ADIM: ONAY & PORSİYON DÜZELTME SLIDER'I */}
+          {step === 'confirm' && parsedPlate && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Fotoğraf ve Başlık Bento Kartı */}
+              <div
+                style={{
+                  backgroundColor: 'var(--surface-subtle)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '12px',
+                  display: 'flex',
+                  gap: '12px',
+                  alignItems: 'center'
+                }}
+              >
+                {previewUrl && (
+                  <img
+                    src={previewUrl}
+                    alt="Taranan tabak"
+                    style={{ width: '70px', height: '70px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }}
+                  />
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <input
+                    type="text"
+                    value={parsedPlate.name}
+                    onChange={e => setParsedPlate({ ...parsedPlate, name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      fontWeight: 800,
+                      fontSize: '15px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--text-main)',
+                      outline: 'none',
+                      padding: 0
+                    }}
+                  />
+
+                  {/* Öğün Türü Seçici */}
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+                    {[
+                      { key: 'breakfast', label: 'Kahvaltı' },
+                      { key: 'lunch', label: 'Öğle' },
+                      { key: 'dinner', label: 'Akşam' },
+                      { key: 'snack', label: 'Ara Öğün' }
+                    ].map(type => (
+                      <button
+                        key={type.key}
+                        type="button"
+                        onClick={() => setParsedPlate({ ...parsedPlate, meal_type: type.key })}
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          backgroundColor: parsedPlate.meal_type === type.key ? 'var(--blue)' : 'var(--surface)',
+                          color: parsedPlate.meal_type === type.key ? '#fff' : 'var(--text-muted)'
+                        }}
+                      >
+                        {type.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: '#10B981' }}>
+                    {currentCalories}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>kcal</div>
+                </div>
+              </div>
+
+              {/* Tespit Edilen Malzemeler */}
+              {parsedPlate.items && parsedPlate.items.length > 0 && (
+                <div
+                  style={{
+                    backgroundColor: 'var(--surface-subtle)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '8px 12px'
+                  }}
+                >
+                  <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    Tespit Edilen Besin Kalemleri
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {parsedPlate.items.map((item, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          fontSize: '11px',
+                          color: 'var(--text-main)'
+                        }}
+                      >
+                        <span>{item.name}</span>
+                        <span className="tabular-nums" style={{ color: 'var(--text-muted)' }}>
+                          {Math.round(item.calories * multiplier)} kcal
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Dinamik Porsiyon Ayarlayıcı (Slider + Haplar) */}
+              <div
+                style={{
+                  backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                  border: '1px solid rgba(99, 102, 241, 0.25)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#6366F1', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>Porsiyon Ayarı</span>
+                  </span>
+                  <span className="tabular-nums" style={{ fontSize: '13px', fontWeight: 900, color: '#6366F1' }}>
+                    {multiplier}x Porsiyon
+                  </span>
+                </div>
+
+                {/* Hızlı Porsiyon Hapları */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                  {[0.5, 1.0, 1.5, 2.0].map(m => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMultiplier(m)}
+                      style={{
+                        padding: '6px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        borderRadius: '6px',
+                        border: multiplier === m ? '1px solid #6366F1' : '1px solid var(--border)',
+                        backgroundColor: multiplier === m ? '#6366F1' : 'var(--surface)',
+                        color: multiplier === m ? '#fff' : 'var(--text-main)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {m}x {m === 0.5 ? '(Yarım)' : m === 1.0 ? '(Tam)' : m === 1.5 ? '(1.5x)' : '(Çift)'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Kaydırılabilir Hassas Slider */}
+                <input
+                  type="range"
+                  min="0.25"
+                  max="3.0"
+                  step="0.1"
+                  value={multiplier}
+                  onChange={e => setMultiplier(parseFloat(e.target.value))}
+                  style={{ width: '100%', accentColor: '#6366F1', cursor: 'pointer', marginTop: '2px' }}
+                />
+              </div>
+
+              {/* Dinamik 3'lü Makro Göstergesi */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                <div
+                  style={{
+                    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                    border: '1px solid rgba(99, 102, 241, 0.2)',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <div style={{ fontSize: '10px', color: '#6366F1', fontWeight: 700 }}>🥩 Protein</div>
+                  <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 900, color: '#6366F1', marginTop: '2px' }}>
+                    {currentProtein}g
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                    border: '1px solid rgba(245, 158, 11, 0.2)',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <div style={{ fontSize: '10px', color: '#F59E0B', fontWeight: 700 }}>🌾 Karbonhidrat</div>
+                  <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 900, color: '#F59E0B', marginTop: '2px' }}>
+                    {currentCarbs}g
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.2)',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <div style={{ fontSize: '10px', color: '#10B981', fontWeight: 700 }}>🥑 Sağlıklı Yağ</div>
+                  <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 900, color: '#10B981', marginTop: '2px' }}>
+                    {currentFat}g
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Modal Alt Aksiyon Çubuğu (Thumb-Friendly Sticky Footer) */}
+        {step === 'confirm' && (
+          <div
+            style={{
+              padding: '12px 16px',
+              borderTop: '1px solid var(--border)',
+              backgroundColor: 'var(--surface-subtle)',
+              display: 'flex',
+              gap: '10px'
+            }}
+          >
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setStep('upload')}
+              style={{
+                flex: '0 0 auto',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '10px 14px',
+                fontSize: '12px',
+                fontWeight: 700
+              }}
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Tekrar Çek</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleSaveMeal}
+              disabled={isSubmitting}
+              style={{
+                flex: 1,
+                padding: '12px 16px',
+                fontSize: '13px',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                boxShadow: '0 3px 10px rgba(16, 185, 129, 0.3)'
+              }}
+            >
+              <Check className="w-4 h-4" />
+              <span>{isSubmitting ? 'Kaydediliyor...' : 'Onayla ve Beslenmeye Ekle'}</span>
+            </button>
           </div>
         )}
       </div>
@@ -319,11 +673,11 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
   );
 }
 
-// Utility: File → Sıkıştırılmış optimize base64 string (Max 1600px, 0.85 kalite)
+// Utility: Görsel sıkıştırma
 function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = e => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');

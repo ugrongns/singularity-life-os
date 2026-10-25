@@ -1,7 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import SharedLayout from '@/components/layout/SharedLayout';
-import HealthSubNav from '@/components/layout/HealthSubNav';
+import HealthSubNav, { FamilyMemberItem } from '@/components/layout/HealthSubNav';
 import MacroSummaryCard from '@/components/health/MacroSummaryCard';
 import FastingTimerCard from '@/components/health/FastingTimerCard';
 import FoodQualityScoreCard from '@/components/health/FoodQualityScoreCard';
@@ -19,6 +20,8 @@ export default function HealthPage() {
   const [fastingData, setFastingData] = useState<any>(null);
   const [foodScanData, setFoodScanData] = useState<any[]>([]);
   const [notifData, setNotifData] = useState<any>({ notifications: [], critical: 0, warning: 0 });
+  const [members, setMembers] = useState<FamilyMemberItem[]>([]);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -26,6 +29,7 @@ export default function HealthPage() {
   const [isBarcodeScanOpen, setIsBarcodeScanOpen] = useState(false);
   const [isDietOpen, setIsDietOpen] = useState(false);
   const [isAddMealOpen, setIsAddMealOpen] = useState(false);
+  const [defaultMealType, setDefaultMealType] = useState<string | undefined>(undefined);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
 
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -35,22 +39,25 @@ export default function HealthPage() {
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  const fetchData = async () => {
+  const fetchData = async (memberId: string | null = selectedMemberId) => {
     try {
-      const [nutRes, waterRes, fastRes, scanRes, notifRes] = await Promise.all([
-        fetch('/api/health/nutrition'),
-        fetch('/api/health/water'),
-        fetch('/api/health/fasting'),
+      const memberQuery = memberId ? `?member_id=${memberId}` : '';
+      const [nutRes, waterRes, fastRes, scanRes, notifRes, membersRes] = await Promise.all([
+        fetch(`/api/health/nutrition${memberQuery}`),
+        fetch(`/api/health/water${memberQuery}`),
+        fetch(`/api/health/fasting${memberQuery}`),
         fetch('/api/health/scan-food'),
-        fetch('/api/notifications')
+        fetch('/api/notifications'),
+        fetch('/api/family-members')
       ]);
 
-      const [nutJ, waterJ, fastJ, scanJ, notifJ] = await Promise.all([
+      const [nutJ, waterJ, fastJ, scanJ, notifJ, membersJ] = await Promise.all([
         nutRes.json(),
         waterRes.json(),
         fastRes.json(),
         scanRes.json(),
-        notifRes.json()
+        notifRes.json(),
+        membersRes.json().catch(() => ({ success: false, data: [] }))
       ]);
 
       if (nutJ.success) setNutritionData(nutJ.data);
@@ -58,27 +65,34 @@ export default function HealthPage() {
       if (fastJ.success) setFastingData(fastJ.data);
       if (scanJ.success) setFoodScanData(scanJ.data || []);
       if (notifJ.success) setNotifData(notifJ.data);
+      if (membersJ.success && Array.isArray(membersJ.data)) {
+        setMembers(membersJ.data);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Health data fetch error:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(selectedMemberId);
 
     const handleRefresh = () => {
-      fetchData();
+      fetchData(selectedMemberId);
     };
     window.addEventListener('singularity-refresh', handleRefresh);
     return () => window.removeEventListener('singularity-refresh', handleRefresh);
-  }, []);
+  }, [selectedMemberId]);
 
   const handleUpdate = (msg?: string) => {
-    fetchData();
+    fetchData(selectedMemberId);
     window.dispatchEvent(new CustomEvent('singularity-refresh'));
     if (msg) showToast(msg);
+  };
+
+  const handleSelectMember = (memberId: string | null) => {
+    setSelectedMemberId(memberId);
   };
 
   const handleAddWater = async (amount: number) => {
@@ -86,7 +100,7 @@ export default function HealthPage() {
       const res = await fetch('/api/health/water', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount_ml: amount })
+        body: JSON.stringify({ amount_ml: amount, member_id: selectedMemberId })
       });
       const json = await res.json();
       if (json.success) {
@@ -103,7 +117,7 @@ export default function HealthPage() {
       const res = await fetch('/api/health/fasting', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, protocol })
+        body: JSON.stringify({ action, protocol, member_id: selectedMemberId })
       });
       const json = await res.json();
       if (json.success) {
@@ -115,10 +129,30 @@ export default function HealthPage() {
     }
   };
 
+  const handleDeleteMeal = async (mealId: string) => {
+    if (!confirm('Bu öğün kaydını silmek istediğinize emin misiniz?')) return;
+    try {
+      const res = await fetch(`/api/health/nutrition?id=${mealId}`, {
+        method: 'DELETE'
+      });
+      const json = await res.json();
+      if (json.success) {
+        handleUpdate('🗑️ Öğün kaydı başarıyla silindi.');
+      } else {
+        alert(json.error || 'Öğün silinemedi.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   if (loading) {
     return (
       <SharedLayout notifications={notifData}>
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Yükleniyor...</div>
+        <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: '36px', marginBottom: '12px' }}>🧬</div>
+          <div style={{ fontSize: '15px', fontWeight: 700 }}>Sağlık & Biyometrik Veriler Yükleniyor...</div>
+        </div>
       </SharedLayout>
     );
   }
@@ -131,27 +165,51 @@ export default function HealthPage() {
         </div>
       )}
 
-      <div style={{ padding: '0 16px 8px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>🧬 Sağlık & Beslenme</h1>
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 12px' }}>Makro takibi, aralıklı oruç ve yemek tabağı analizi</p>
-        
-        {/* Modüller Arası Geçiş Sekme Barı */}
-        <HealthSubNav />
+      {/* Sayfa Üst Başlığı & Bilgilendirme */}
+      <div style={{ padding: '0 4px 6px' }}>
+        <h1 style={{ fontSize: '22px', fontWeight: 900, margin: 0, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
+          🧬 Sağlık & Beslenme
+        </h1>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 14px' }}>
+          Apple Health, MacroFactor ve Zero Fasting kalitesinde biyometrik takip panosu
+        </p>
+
+        {/* 1. Yapışkan Segmented Control & Aile Üyesi Seçici */}
+        <HealthSubNav
+          members={members}
+          selectedMemberId={selectedMemberId}
+          onSelectMember={handleSelectMember}
+        />
       </div>
 
-      <div className="dashboard-grid">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Ana Bento Izgarası: Masaüstü 1024px+ Eşit Yükseklik & 2 Sütun Hiyerarşisi */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* ÜST SATIR: Makro & Kalori Panosu (Sol) + Aralıklı Oruç Sayacı (Sağ) - Eşit Yükseklik */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+            gap: '20px',
+            alignItems: 'stretch'
+          }}
+        >
           {nutritionData && (
             <MacroSummaryCard
               summary={nutritionData.summary}
+              meals={nutritionData.meals || []}
               waterData={waterData}
               onOpenPlateScan={() => setIsPlateScanOpen(true)}
               onOpenDietModal={() => setIsDietOpen(true)}
-              onOpenAddMeal={() => setIsAddMealOpen(true)}
+              onOpenAddMeal={(mealType) => {
+                setDefaultMealType(mealType);
+                setIsAddMealOpen(true);
+              }}
               onOpenEditProfile={() => setIsEditProfileOpen(true)}
               onAddWater={handleAddWater}
+              onDeleteMeal={handleDeleteMeal}
             />
           )}
+
           {fastingData && (
             <FastingTimerCard
               fastingData={fastingData}
@@ -159,12 +217,27 @@ export default function HealthPage() {
             />
           )}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+        {/* ALT SATIR: 2 Sütunlu Analitik Paneller (360° Vitamin & Gıda Analiz Karnesi) */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+            gap: '20px',
+            alignItems: 'stretch'
+          }}
+        >
           <NutrientProfileCard />
+
           <FoodQualityScoreCard
             scans={foodScanData}
             onOpenBarcodeScan={() => setIsBarcodeScanOpen(true)}
+            onRefresh={() => fetchData(selectedMemberId)}
           />
+        </div>
+
+        {/* Egzersiz & Antrenman Takip Kartı */}
+        <div>
           <HomeWorkoutTrackerCard />
         </div>
       </div>
@@ -175,21 +248,29 @@ export default function HealthPage() {
         onClose={() => setIsPlateScanOpen(false)}
         onSuccess={(msg) => handleUpdate(msg)}
       />
+
       <BarcodeScanModal
         isOpen={isBarcodeScanOpen}
         onClose={() => setIsBarcodeScanOpen(false)}
         onSuccess={(msg) => handleUpdate(msg)}
       />
+
       <DietPlanModal
         isOpen={isDietOpen}
         onClose={() => setIsDietOpen(false)}
         onSuccess={(msg) => handleUpdate(msg)}
       />
+
       <AddMealModal
         isOpen={isAddMealOpen}
-        onClose={() => setIsAddMealOpen(false)}
+        initialMealType={defaultMealType}
+        onClose={() => {
+          setIsAddMealOpen(false);
+          setDefaultMealType(undefined);
+        }}
         onSuccess={(msg) => handleUpdate(msg)}
       />
+
       <EditHealthProfileModal
         isOpen={isEditProfileOpen}
         profile={nutritionData?.profile || nutritionData?.summary?.targets}

@@ -1,20 +1,27 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface AddMealModalProps {
   isOpen: boolean;
+  initialMealType?: string;
   onClose: () => void;
   onSuccess: (msg: string) => void;
 }
 
-export default function AddMealModal({ isOpen, onClose, onSuccess }: AddMealModalProps) {
+export default function AddMealModal({ isOpen, initialMealType, onClose, onSuccess }: AddMealModalProps) {
   const [name, setName] = useState('');
-  const [mealType, setMealType] = useState('lunch');
+  const [mealType, setMealType] = useState(initialMealType || 'lunch');
   const [calories, setCalories] = useState('450');
   const [proteinG, setProteinG] = useState('35');
   const [carbsG, setCarbsG] = useState('40');
   const [fatG, setFatG] = useState('15');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (initialMealType) {
+      setMealType(initialMealType);
+    }
+  }, [initialMealType]);
 
   if (!isOpen) return null;
 
@@ -40,6 +47,7 @@ export default function AddMealModal({ isOpen, onClose, onSuccess }: AddMealModa
       const json = await res.json();
       if (json.success) {
         onSuccess(json.message || '🥗 Öğün eklendi!');
+        setName('');
         onClose();
       } else {
         alert(json.error || 'İşlem başarısız.');
@@ -60,7 +68,7 @@ export default function AddMealModal({ isOpen, onClose, onSuccess }: AddMealModa
           <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-main)' }}>
             ✍️ Manuel Öğün Ekle
           </div>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✕</button>
+          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -72,7 +80,7 @@ export default function AddMealModal({ isOpen, onClose, onSuccess }: AddMealModa
               value={name}
               onChange={e => setName(e.target.value)}
               required
-              style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+              style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
             />
           </div>
 
@@ -98,7 +106,7 @@ export default function AddMealModal({ isOpen, onClose, onSuccess }: AddMealModa
                 value={calories}
                 onChange={e => setCalories(e.target.value)}
                 required
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
               />
             </div>
 
@@ -109,7 +117,7 @@ export default function AddMealModal({ isOpen, onClose, onSuccess }: AddMealModa
                 value={proteinG}
                 onChange={e => setProteinG(e.target.value)}
                 required
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
               />
             </div>
           </div>
@@ -121,7 +129,7 @@ export default function AddMealModal({ isOpen, onClose, onSuccess }: AddMealModa
                 type="number"
                 value={carbsG}
                 onChange={e => setCarbsG(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
               />
             </div>
 
@@ -131,7 +139,7 @@ export default function AddMealModal({ isOpen, onClose, onSuccess }: AddMealModa
                 type="number"
                 value={fatG}
                 onChange={e => setFatG(e.target.value)}
-                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+                style={{ width: '100%', padding: '9px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
               />
             </div>
           </div>
