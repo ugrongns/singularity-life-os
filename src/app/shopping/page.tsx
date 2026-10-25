@@ -14,7 +14,6 @@ export default function ShoppingPage() {
   // Modals State
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
-
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   const showToast = (msg: string) => {
@@ -70,7 +69,7 @@ export default function ShoppingPage() {
   return (
     <SharedLayout notifications={notifData}>
       {toastMsg && (
-        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--text-main)', color: 'white', padding: '10px 20px', borderRadius: 'var(--radius-full)', fontSize: '13px', zIndex: 999, boxShadow: 'var(--shadow-lg)' }}>
+        <div className="toast-glass">
           {toastMsg}
         </div>
       )}
@@ -78,28 +77,26 @@ export default function ShoppingPage() {
       <div style={{ padding: '0 16px 8px' }}>
         <h1 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>🛒 Akıllı Market Listesi</h1>
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-          Fiş okuyucu AI, hazır alışveriş paketleri, sepet tutarı ve cüzdana harcama aktarma
+          Markette tek elle hızlı sepetleme, reyon gruplandırması, bütçe takibi ve cüzdana aktarım
         </p>
       </div>
 
-      <div className="dashboard-grid">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {data && (
-            <ShoppingListCard
-              items={data.items || []}
-              summary={data.summary || { total: 0, remaining: 0, done: 0, totalEstimated: 0, remainingEstimated: 0, checkedEstimated: 0 }}
-              byCategory={data.byCategory || {}}
-              categoryTotals={data.categoryTotals || {}}
-              onOpenAddItem={(item) => {
-                setEditItem(item || null);
-                setIsAddOpen(true);
-              }}
-              onOpenCheckout={() => setIsCheckoutOpen(true)}
-              onRefresh={fetchData}
-              onToast={showToast}
-            />
-          )}
-        </div>
+      <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {data && (
+          <ShoppingListCard
+            items={data.items || []}
+            summary={data.summary || { total: 0, remaining: 0, done: 0, totalEstimated: 0, remainingEstimated: 0, checkedEstimated: 0 }}
+            byCategory={data.byCategory || {}}
+            categoryTotals={data.categoryTotals || {}}
+            onOpenAddItem={(item) => {
+              setEditItem(item || null);
+              setIsAddOpen(true);
+            }}
+            onOpenCheckout={() => setIsCheckoutOpen(true)}
+            onRefresh={fetchData}
+            onToast={showToast}
+          />
+        )}
       </div>
 
       {/* Add / Edit Shopping Item Modal */}

@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { CreditCard, X, ShoppingCart, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface Wallet {
   id: string;
@@ -7,6 +8,9 @@ interface Wallet {
   type: string;
   balance: number;
   currency: string;
+  owner_name?: string;
+  owner_avatar?: string;
+  is_joint?: boolean;
 }
 
 interface CheckoutToWalletModalProps {
@@ -34,7 +38,7 @@ export default function CheckoutToWalletModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedWalletId) {
-      alert('Lütfen harcama yapılacak bir cüzdan seçin.');
+      alert('Lütfen harcama yapılacak bir cüzdan veya kart seçin.');
       return;
     }
 
@@ -52,7 +56,7 @@ export default function CheckoutToWalletModal({
       const json = await res.json();
       if (json.success) {
         window.dispatchEvent(new CustomEvent('singularity-refresh'));
-        onSuccess(json.message || '💳 Harcama cüzdanınıza işlendi ve ürünler temizlendi!');
+        onSuccess(json.message || '💳 Harcama cüzdanınıza işlendi ve alınan ürünler temizlendi!');
         onClose();
       } else {
         alert(json.error || 'İşlem başarısız.');
@@ -64,37 +68,88 @@ export default function CheckoutToWalletModal({
     }
   };
 
-  const formatTRY = (v: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(v);
+  const formatTRY = (v: number) => 
+    new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(v);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="bottom-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto' }}>
-        <div className="sheet-handle"></div>
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000 }}>
+      <div 
+        className="bottom-sheet" 
+        onClick={e => e.stopPropagation()} 
+        style={{ maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto' }}
+      >
+        <div className="sheet-handle" />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-main)' }}>
-            💳 Alışverişi Cüzdana İşle
+        {/* Modal Başlık Barı */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="icon-badge icon-badge-emerald">
+              <CreditCard size={18} strokeWidth={1.75} />
+            </div>
+            <div>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)' }}>
+                Kasada Öde & Bütçeye Aktar
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Sepetteki ürünleri tek tıkla cüzdandan düşüp arşive aktarın
+              </div>
+            </div>
           </div>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✕</button>
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="modal-close-btn"
+            aria-label="Kapat"
+            style={{ width: '32px', height: '32px', minWidth: '32px', minHeight: '32px' }}
+          >
+            <X size={16} strokeWidth={1.75} />
+          </button>
         </div>
 
-        <div style={{ background: '#F0FDF4', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid #BBF7D0', marginBottom: '14px', textAlign: 'center' }}>
-          <div style={{ fontSize: '11px', color: '#166534', fontWeight: 800, textTransform: 'uppercase' }}>
-            ALINAN {checkedCount} ADET ÜRÜN TOPLAMI
+        {/* Sepet Tutar Özeti Vurgu Kartı */}
+        <div 
+          style={{ 
+            background: 'var(--emerald-bg)', 
+            padding: '14px', 
+            borderRadius: 'var(--radius-md)', 
+            border: '1px solid rgba(16, 185, 129, 0.35)', 
+            marginBottom: '14px', 
+            textAlign: 'center' 
+          }}
+        >
+          <div style={{ fontSize: '11px', color: 'var(--emerald)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            SEPETTEKİ {checkedCount} ADET ÜRÜN TUTARI
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px' }}>
+          <div className="tabular-nums" style={{ fontSize: '26px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px' }}>
             {formatTRY(totalAmount)}
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+            Bu tutar seçtiğiniz cüzdandan harcama olarak düşülecektir.
           </div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {/* Cüzdan / Kart Seçimi */}
           <div>
-            <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>HARCAMA YAPILAN CÜZDAN / KART *</label>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>
+              HARCAMA YAPILAN CÜZDAN VEYA KART *
+            </label>
             <select
               value={selectedWalletId}
               onChange={e => setSelectedWalletId(e.target.value)}
               required
-              style={{ width: '100%', padding: '10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+              style={{ 
+                width: '100%', 
+                padding: '10px 12px', 
+                fontSize: '13px', 
+                fontWeight: 700,
+                border: '1px solid var(--border)', 
+                borderRadius: 'var(--radius-md)', 
+                marginTop: '4px', 
+                background: 'var(--surface-subtle)', 
+                color: 'var(--text-main)',
+                minHeight: '44px'
+              }}
             >
               {wallets.map((w: any) => {
                 const owner = w.owner_name ? ` • ${w.owner_avatar || '👤'} ${w.owner_name}` : (w.is_joint ? ' • 👥 Ortak' : '');
@@ -107,13 +162,32 @@ export default function CheckoutToWalletModal({
             </select>
           </div>
 
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface-subtle)', padding: '8px 10px', borderRadius: '6px' }}>
-            ℹ️ <strong>Not:</strong> Bu işlem alınan tüm ürünlerin toplam tutarını bütçenize harcama olarak işler ve listedeki alınan ürünleri otomatik temizler.
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface-subtle)', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', lineHeight: 1.4 }}>
+            ℹ️ <strong>Otomatik İşlem:</strong> Bu onay sonrasında market harcamanız bütçenize otomatik kayıt edilecek ve sepetteki alınan ürünler listenizden temizlenecektir.
           </div>
 
-          <button type="submit" className="btn-primary" disabled={submitting} style={{ padding: '12px', fontSize: '14px', fontWeight: 800, marginTop: '4px' }}>
-            {submitting ? 'İşleniyor...' : '💳 Harcamayı Cüzdana Aktar ve Bitir'}
-          </button>
+          <div className="modal-sticky-footer" style={{ marginTop: '8px' }}>
+            <button 
+              type="submit" 
+              className="btn-primary" 
+              disabled={submitting} 
+              style={{ 
+                width: '100%', 
+                padding: '13px', 
+                fontSize: '14px', 
+                fontWeight: 900, 
+                minHeight: '46px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                background: '#166534'
+              }}
+            >
+              <CreditCard size={17} />
+              <span>{submitting ? 'İşleniyor...' : `Harcamayı Cüzdana Aktar (${formatTRY(totalAmount)})`}</span>
+            </button>
+          </div>
         </form>
       </div>
     </div>
