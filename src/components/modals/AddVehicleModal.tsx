@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Car, X } from 'lucide-react';
+import { Car, X, ShieldCheck } from 'lucide-react';
+import { TurkishPlateBadge } from '@/components/vehicle/VehicleFleetCard';
 
 interface Props {
   isOpen: boolean;
@@ -75,12 +76,16 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="bottom-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000 }}>
+      <div 
+        className="bottom-sheet" 
+        onClick={e => e.stopPropagation()} 
+        style={{ maxWidth: '480px', maxHeight: '92vh', overflowY: 'auto' }}
+      >
         <div className="sheet-handle" />
 
         {/* Başlık */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div className="icon-badge icon-badge-cyan">
               <Car size={18} strokeWidth={1.75} />
@@ -88,7 +93,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
             <div>
               <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)' }}>Yeni Araç Ekle</div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                KM, yakıt ve bakım takibiniz için araç bilgilerini girin
+                Garajınıza yeni araç ekleyip telemetriyi başlatın
               </div>
             </div>
           </div>
@@ -102,11 +107,25 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
           </button>
         </div>
 
-        {/* Form */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {/* Plaka */}
+        {error && (
+          <div style={{ background: 'var(--rose-bg)', border: '1px solid var(--rose)', color: 'var(--rose)', padding: '10px 12px', borderRadius: 'var(--radius-md)', fontSize: '12px', fontWeight: 700, marginBottom: '12px' }}>
+            {error}
+          </div>
+        )}
+
+        {/* Form Alanı */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {/* Canlı TR Plaka Önizleme */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-subtle)', padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>
+              PLAKA ÖNİZLEME:
+            </div>
+            <TurkishPlateBadge plate={form.plate.trim() ? form.plate.toUpperCase() : '34 ABC 123'} />
+          </div>
+
+          {/* Plaka Girişi */}
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+            <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
               PLAKA *
             </label>
             <input
@@ -117,8 +136,9 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
               maxLength={11}
               style={{
                 width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border)', background: 'var(--surface-subtle)',
-                color: 'var(--text-main)', fontSize: '15px', fontWeight: 800, letterSpacing: '1px'
+                border: '1px solid var(--border)', background: 'var(--surface)',
+                color: 'var(--text-main)', fontSize: '15px', fontWeight: 900, letterSpacing: '1px',
+                minHeight: '44px'
               }}
             />
           </div>
@@ -126,7 +146,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
           {/* Marka + Model */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                 MARKA *
               </label>
               <input
@@ -138,7 +158,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
                 style={{
                   width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
                   border: '1px solid var(--border)', background: 'var(--surface-subtle)',
-                  color: 'var(--text-main)', fontSize: '14px'
+                  color: 'var(--text-main)', fontSize: '13px', minHeight: '44px'
                 }}
               />
               <datalist id="makes-list">
@@ -146,7 +166,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
               </datalist>
             </div>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                 MODEL *
               </label>
               <input
@@ -157,7 +177,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
                 style={{
                   width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
                   border: '1px solid var(--border)', background: 'var(--surface-subtle)',
-                  color: 'var(--text-main)', fontSize: '14px'
+                  color: 'var(--text-main)', fontSize: '13px', minHeight: '44px'
                 }}
               />
             </div>
@@ -166,11 +186,12 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
           {/* Yıl + Güncel KM */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                 MODEL YILI *
               </label>
               <input
                 type="number"
+                inputMode="numeric"
                 placeholder="2022"
                 value={form.year}
                 min="1980" max={new Date().getFullYear() + 1}
@@ -179,16 +200,17 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
                 style={{
                   width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
                   border: '1px solid var(--border)', background: 'var(--surface-subtle)',
-                  color: 'var(--text-main)', fontSize: '14px'
+                  color: 'var(--text-main)', fontSize: '13px', minHeight: '44px'
                 }}
               />
             </div>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                 GÜNCEL KM
               </label>
               <input
                 type="number"
+                inputMode="numeric"
                 placeholder="45000"
                 value={form.current_km}
                 className="tabular-nums"
@@ -196,7 +218,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
                 style={{
                   width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
                   border: '1px solid var(--border)', background: 'var(--surface-subtle)',
-                  color: 'var(--text-main)', fontSize: '14px'
+                  color: 'var(--text-main)', fontSize: '13px', minHeight: '44px'
                 }}
               />
             </div>
@@ -204,7 +226,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
 
           {/* Yakıt Türü */}
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+            <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
               YAKIT TÜRÜ
             </label>
             <select
@@ -213,7 +235,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
               style={{
                 width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
                 border: '1px solid var(--border)', background: 'var(--surface-subtle)',
-                color: 'var(--text-main)', fontSize: '14px'
+                color: 'var(--text-main)', fontSize: '13px', minHeight: '44px'
               }}
             >
               {FUEL_TYPES.map(ft => (
@@ -222,10 +244,10 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
             </select>
           </div>
 
-          {/* Muayene & Sigorta Tarihleri (Opsiyonel) */}
+          {/* Muayene & Sigorta Tarihleri */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                 MUAYENE GEÇERLİLİK
               </label>
               <input
@@ -233,14 +255,14 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
                 value={form.muayene_date}
                 onChange={e => handleChange('muayene_date', e.target.value)}
                 style={{
-                  width: '100%', padding: '9px 10px', borderRadius: 'var(--radius-md)',
+                  width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
                   border: '1px solid var(--border)', background: 'var(--surface-subtle)',
-                  color: 'var(--text-main)', fontSize: '13px'
+                  color: 'var(--text-main)', fontSize: '13px', minHeight: '44px'
                 }}
               />
             </div>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                 SİGORTA BİTİŞ
               </label>
               <input
@@ -248,41 +270,35 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
                 value={form.sigorta_date}
                 onChange={e => handleChange('sigorta_date', e.target.value)}
                 style={{
-                  width: '100%', padding: '9px 10px', borderRadius: 'var(--radius-md)',
+                  width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
                   border: '1px solid var(--border)', background: 'var(--surface-subtle)',
-                  color: 'var(--text-main)', fontSize: '13px'
+                  color: 'var(--text-main)', fontSize: '13px', minHeight: '44px'
                 }}
               />
             </div>
           </div>
 
-          {/* Hata Mesajı */}
-          {error && (
-            <div style={{ background: 'var(--rose-bg)', border: '1px solid var(--rose)', borderRadius: 'var(--radius-md)', padding: '10px 12px', fontSize: '13px', color: 'var(--rose)', fontWeight: 600 }}>
-              ⚠️ {error}
-            </div>
-          )}
-
-          {/* Sabit Alt Butonlar */}
-          <div className="modal-sticky-footer" style={{ display: 'flex', gap: '10px' }}>
+          {/* Kaydet Butonu */}
+          <div className="modal-sticky-footer" style={{ marginTop: '6px' }}>
             <button
-              onClick={onClose}
-              className="btn-subtle"
-              style={{ flex: 1, padding: '12px', fontSize: '13px', fontWeight: 600, minHeight: '44px' }}
-            >
-              İptal
-            </button>
-            <button
+              type="button"
               onClick={handleSubmit}
               disabled={loading}
               className="btn-primary"
               style={{
-                flex: 2, padding: '12px', fontSize: '13px', fontWeight: 700,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                margin: 0, minHeight: '44px'
+                width: '100%',
+                padding: '13px',
+                fontSize: '14px',
+                fontWeight: 800,
+                minHeight: '46px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
               }}
             >
-              {loading ? 'Ekleniyor...' : 'Garajıma Ekle'}
+              <Car size={17} />
+              <span>{loading ? 'Ekleniyor...' : 'Aracı Garaja Ekle'}</span>
             </button>
           </div>
         </div>

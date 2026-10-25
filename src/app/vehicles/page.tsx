@@ -104,7 +104,7 @@ export default function VehiclesPage() {
         </p>
       </div>
 
-      <div className="dashboard-grid">
+      <div className="dashboard-grid" style={{ alignItems: 'start' }}>
         {/* Sol Kolon: Araç Filosu */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <VehicleFleetCard
@@ -135,6 +135,7 @@ export default function VehiclesPage() {
       {/* Modallar */}
       <MaintenanceHistoryModal
         isOpen={isMaintHistOpen}
+        vehicle={vehicleData?.vehicle}
         onClose={() => setIsMaintHistOpen(false)}
       />
 

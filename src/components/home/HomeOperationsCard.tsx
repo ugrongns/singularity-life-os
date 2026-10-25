@@ -91,7 +91,7 @@ export default function HomeOperationsCard({
         justifyContent: 'space-between',
         gap: '16px',
         height: '100%',
-        minHeight: '320px'
+        minHeight: '340px'
       }}
     >
       {/* Üst Başlık Barı */}
@@ -104,7 +104,7 @@ export default function HomeOperationsCard({
             <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--text-muted)' }}>
               Demirbaş & Tesisat
             </div>
-            <h2 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
               Ev Operasyonları & Garanti
             </h2>
           </div>
@@ -120,7 +120,7 @@ export default function HomeOperationsCard({
             borderRadius: 'var(--radius-full)',
             padding: '6px 12px',
             fontSize: '11px',
-            fontWeight: 700
+            fontWeight: 800
           }}
           onClick={onOpenAddModal}
         >
@@ -129,7 +129,7 @@ export default function HomeOperationsCard({
         </button>
       </div>
 
-      {/* Sekmeler */}
+      {/* Sekmeler (Segmented Control) */}
       <div
         style={{
           display: 'flex',
@@ -145,7 +145,7 @@ export default function HomeOperationsCard({
           onClick={() => setActiveTab('maintenance')}
           style={{
             flex: 1,
-            padding: '6px 10px',
+            padding: '7px 10px',
             fontSize: '11px',
             fontWeight: 800,
             borderRadius: 'var(--radius-sm)',
@@ -169,7 +169,7 @@ export default function HomeOperationsCard({
           onClick={() => setActiveTab('appliances')}
           style={{
             flex: 1,
-            padding: '6px 10px',
+            padding: '7px 10px',
             fontSize: '11px',
             fontWeight: 800,
             borderRadius: 'var(--radius-sm)',
@@ -193,9 +193,10 @@ export default function HomeOperationsCard({
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {activeTab === 'maintenance' ? (
           maintenanceRecords.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)', fontSize: '12px' }}>
-              <div style={{ fontSize: '24px', marginBottom: '8px' }}>🚰</div>
-              Kayıtlı ev bakım veya filtre periyodu bulunmuyor.
+            <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)', fontSize: '12px', background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}>🚰</div>
+              <div style={{ fontWeight: 800, color: 'var(--text-main)', marginBottom: '4px' }}>Kayıtlı Ev Bakım Periyodu Yok</div>
+              Su arıtma filtresi, kombi bakımı veya havalandırma periyodunuzu ekleyin.
             </div>
           ) : (
             maintenanceRecords.map((rec) => {
@@ -206,7 +207,7 @@ export default function HomeOperationsCard({
                 <div
                   key={rec.id}
                   style={{
-                    padding: '12px',
+                    padding: '12px 14px',
                     borderRadius: 'var(--radius-md)',
                     background: 'var(--surface-subtle)',
                     border: `1px solid ${isUrgent ? 'rgba(244, 63, 94, 0.4)' : isWarning ? 'rgba(245, 158, 11, 0.4)' : 'var(--border)'}`,
@@ -215,7 +216,7 @@ export default function HomeOperationsCard({
                     gap: '8px'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                     <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                       <Wrench size={14} className="text-muted" />
                       <span>{rec.title}</span>
@@ -275,16 +276,17 @@ export default function HomeOperationsCard({
           )
         ) : (
           appliances.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)', fontSize: '12px' }}>
-              <div style={{ fontSize: '24px', marginBottom: '8px' }}>📺</div>
-              Kayıtlı beyaz eşya veya garanti belgesi bulunmuyor.
+            <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)', fontSize: '12px', background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}>📺</div>
+              <div style={{ fontWeight: 800, color: 'var(--text-main)', marginBottom: '4px' }}>Kayıtlı Beyaz Eşya veya Garanti Yok</div>
+              Cihaz garantilerinizi ve faturalarınızı buraya kaydederek takip edebilirsiniz.
             </div>
           ) : (
             appliances.map((app) => (
               <div
                 key={app.id}
                 style={{
-                  padding: '12px',
+                  padding: '12px 14px',
                   borderRadius: 'var(--radius-md)',
                   background: 'var(--surface-subtle)',
                   border: '1px solid var(--border)',
