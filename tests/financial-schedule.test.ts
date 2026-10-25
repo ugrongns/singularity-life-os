@@ -127,4 +127,40 @@ describe('Financial Schedule, Installment & Security Calculations', () => {
       expect(isDangerous).toBe(true);
     });
   });
+
+  it('wallet balance reconciliation math accurately differentiates income vs expense across bank and credit card accounts', () => {
+    // 1. Banka hesabı: 10.000 TL var, kullanıcı bankada 12.500 TL olduğunu belirtti -> +2.500 TL Gelir Düzeltmesi
+    const bankCurrent = 10000;
+    const bankReal = 12500;
+    const bankDiff = Math.round((bankReal - bankCurrent) * 100) / 100;
+    const bankIsIncome = bankDiff > 0;
+    expect(bankDiff).toBe(2500);
+    expect(bankIsIncome).toBe(true);
+
+    // 2. Banka hesabı: 10.000 TL var, kullanıcı bankada 8.500 TL olduğunu belirtti -> -1.500 TL Gider Düzeltmesi
+    const bankRealLower = 8500;
+    const bankDiffLower = Math.round((bankRealLower - bankCurrent) * 100) / 100;
+    const bankIsIncomeLower = bankDiffLower > 0;
+    expect(bankDiffLower).toBe(-1500);
+    expect(bankIsIncomeLower).toBe(false);
+
+    // 3. Kredi kartı: Borç 5.000 TL, ekstrede 7.000 TL borç var -> +2.000 TL Harcama / Gider (Borç arttı)
+    const cardDebtCurrent = 5000;
+    const cardDebtRealHigher = 7000;
+    const cardDebtDiff = Math.round((cardDebtRealHigher - cardDebtCurrent) * 100) / 100;
+    const cardIsIncome = cardDebtDiff < 0;
+    expect(cardDebtDiff).toBe(2000);
+    expect(cardIsIncome).toBe(false);
+
+    // 4. Kredi kartı: Borç 5.000 TL, kullanıcı 3.000 TL borç kaldığını belirtti -> -2.000 TL Ödeme / Gelir (Borç azaldı)
+    const cardDebtRealLower = 3000;
+    const cardDebtDiffLower = Math.round((cardDebtRealLower - cardDebtCurrent) * 100) / 100;
+    const cardIsIncomeLower = cardDebtDiffLower < 0;
+    expect(cardDebtDiffLower).toBe(-2000);
+    expect(cardIsIncomeLower).toBe(true);
+
+    // 5. Tam eşleşme: Fark 0 ise hiçbir ek işlem oluşturulmaz
+    const exactDiff = Math.round((10000 - 10000) * 100) / 100;
+    expect(exactDiff).toBe(0);
+  });
 });

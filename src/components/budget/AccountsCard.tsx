@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import TimeDepositCloseModal from '@/components/modals/TimeDepositCloseModal';
+import ReconcileModal from '@/components/modals/ReconcileModal';
 
 interface Account {
   id: string;
@@ -78,6 +79,15 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
   // Vadeli Kapatma Modalı
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
   const [selectedCloseAccountId, setSelectedCloseAccountId] = useState('');
+
+  // Bakiye Mutabakatı Modalı
+  const [reconcileAcc, setReconcileAcc] = useState<Account | null>(null);
+  const [isReconcileModalOpen, setIsReconcileModalOpen] = useState(false);
+
+  const openReconcileModal = (acc: Account) => {
+    setReconcileAcc(acc);
+    setIsReconcileModalOpen(true);
+  };
 
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -372,6 +382,27 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
                       style={{ background: '#D1FAE5', border: '1px solid #10B981', color: '#065F46', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
                     >
                       Kapat 💵
+                    </button>
+                  )}
+                  {!isLoan && !isTimeDeposit && (acc as any).can_edit !== false && (
+                    <button
+                      onClick={() => openReconcileModal(acc)}
+                      title="Bakiye Mutabakatı Yap (Banka / Cüzdan ile Eşitle)"
+                      style={{
+                        background: 'rgba(99, 102, 241, 0.08)',
+                        border: '1px solid rgba(99, 102, 241, 0.25)',
+                        color: '#4F46E5',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      ⚖️ Mutabakat
                     </button>
                   )}
                   {(acc as any).can_edit !== false && (
@@ -833,6 +864,16 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
         </div>
       )}
       {/* Vadeli Mevduat Kapatma Modalı */}
+      {/* Bakiye Mutabakat Modalı */}
+      <ReconcileModal
+        isOpen={isReconcileModalOpen}
+        account={reconcileAcc}
+        onClose={() => setIsReconcileModalOpen(false)}
+        onSuccess={(msg) => {
+          if (onUpdate) onUpdate(msg);
+        }}
+      />
+
       <TimeDepositCloseModal
         isOpen={isCloseModalOpen}
         onClose={() => setIsCloseModalOpen(false)}
