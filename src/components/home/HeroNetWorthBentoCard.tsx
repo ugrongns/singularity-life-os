@@ -21,7 +21,7 @@ interface HeroNetWorthBentoCardProps {
   monthlySummary?: {
     totalIncome: number;
     totalExpense: number;
-    budgetScore?: number;
+    budgetScore?: number | { score: number; grade: string; breakdown?: any };
     maxAllowedCap?: number;
     totalBudgetLimit?: number;
   } | null;
@@ -85,7 +85,10 @@ export default function HeroNetWorthBentoCard({
   const income = monthlySummary?.totalIncome ?? 0;
   const expense = monthlySummary?.totalExpense ?? 0;
   const netCashFlow = income - expense;
-  const budgetScore = monthlySummary?.budgetScore ?? 85;
+  const rawBudgetScore = monthlySummary?.budgetScore;
+  const scoreValue = typeof rawBudgetScore === 'object' && rawBudgetScore !== null
+    ? (rawBudgetScore.score ?? 85)
+    : (typeof rawBudgetScore === 'number' ? rawBudgetScore : 85);
 
   // Günlük Harcama Limiti (Ayın kalan günlerine göre)
   const now = new Date();
@@ -299,14 +302,14 @@ export default function HeroNetWorthBentoCard({
             style={{
               fontSize: '14px',
               fontWeight: 800,
-              color: budgetScore >= 75 ? 'var(--emerald)' : budgetScore >= 50 ? 'var(--amber)' : 'var(--rose)',
+              color: scoreValue >= 75 ? 'var(--emerald)' : scoreValue >= 50 ? 'var(--amber)' : 'var(--rose)',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '4px'
             }}
           >
             <ShieldCheck size={14} />
-            <span>%{budgetScore} {budgetScore >= 75 ? 'Mükemmel' : 'Dengeli'}</span>
+            <span>%{scoreValue} {scoreValue >= 75 ? 'Mükemmel' : scoreValue >= 50 ? 'Dengeli' : 'Geliştirilmeli'}</span>
           </div>
         </div>
 
