@@ -2,18 +2,13 @@
 import { useState, useEffect } from 'react';
 import SharedLayout from '@/components/layout/SharedLayout';
 import RecentTxCard from '@/components/budget/RecentTxCard';
-import VehicleFleetCard from '@/components/vehicle/VehicleFleetCard';
 import LibraryHeroCard from '@/components/library/LibraryHeroCard';
 import FastingTimerCard from '@/components/health/FastingTimerCard';
 import WellnessCard from '@/components/health/WellnessCard';
 import ShoppingListCard from '@/components/shopping/ShoppingListCard';
 import LandingPage from '@/components/landing/LandingPage';
 // Sayfa-özel Modaller (SharedLayout'ta olmayan modaller)
-import MaintenanceHistoryModal from '@/components/vehicle/MaintenanceHistoryModal';
 import ReadingSessionModal from '@/components/modals/ReadingSessionModal';
-import AddFuelLogModal from '@/components/modals/AddFuelLogModal';
-import AddVehicleServiceModal from '@/components/modals/AddVehicleServiceModal';
-import AddVehicleModal from '@/components/modals/AddVehicleModal';
 
 import TimeContextualFeed from '@/components/home/TimeContextualFeed';
 import QuickIngestHub from '@/components/home/QuickIngestHub';
@@ -34,11 +29,7 @@ export default function HomePage() {
   const [fetchError,   setFetchError]   = useState<string | null>(null);
 
   // Modaller
-  const [isMaintHistOpen,   setIsMaintHistOpen]   = useState(false);
   const [isSessionOpen,     setIsSessionOpen]     = useState(false);
-  const [isFuelOpen,        setIsFuelOpen]        = useState(false);
-  const [isServiceOpen,     setIsServiceOpen]     = useState(false);
-  const [isAddVehicleOpen,  setIsAddVehicleOpen]  = useState(false);
   const [isReceiptScanOpen, setIsReceiptScanOpen] = useState(false);
   const [isFoodScanOpen,    setIsFoodScanOpen]    = useState(false);
   const [isVoiceOpen,       setIsVoiceOpen]       = useState(false);
@@ -199,16 +190,6 @@ export default function HomePage() {
     />
   );
 
-  const vehicleCard = (
-    <VehicleFleetCard
-      data={vehicleData || { vehicles: [], maintenanceRecords: [] }}
-      onOpenHistory={() => setIsMaintHistOpen(true)}
-      onOpenFuelModal={() => setIsFuelOpen(true)}
-      onOpenServiceModal={() => setIsServiceOpen(true)}
-      onRefresh={handleUpdate}
-      onAddVehicle={() => setIsAddVehicleOpen(true)}
-    />
-  );
 
   return (
     <SharedLayout notifications={notifData}>
@@ -224,7 +205,6 @@ export default function HomePage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
             {recentTxCard}
             {shoppingCard}
-            {vehicleCard}
           </div>
         }
         eveningWidgets={
@@ -238,7 +218,6 @@ export default function HomePage() {
         morningSecondary={
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
             {recentTxCard}
-            {vehicleCard}
             {shoppingCard}
           </div>
         }
@@ -253,7 +232,6 @@ export default function HomePage() {
         /* Akşam primary'de finans+kütüphane+wellness var -> secondary'de araç+alışveriş */
         eveningSecondary={
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
-            {vehicleCard}
             {shoppingCard}
             {fastingCard}
           </div>
@@ -271,27 +249,10 @@ export default function HomePage() {
       />
 
       {/* Modaller */}
-      <MaintenanceHistoryModal isOpen={isMaintHistOpen} onClose={() => setIsMaintHistOpen(false)} />
       <ReadingSessionModal
         isOpen={isSessionOpen} onClose={() => setIsSessionOpen(false)}
         books={libraryData?.books || []}
         onSuccess={() => handleUpdate()}
-      />
-      <AddFuelLogModal
-        isOpen={isFuelOpen}
-        onClose={() => setIsFuelOpen(false)}
-        vehicleId={vehicleData?.vehicle?.id || ''}
-        currentKm={vehicleData?.vehicle?.current_km || 0}
-        wallets={budgetData?.accounts || []}
-        onSuccess={() => { setIsFuelOpen(false); handleUpdate(); }}
-      />
-      <AddVehicleServiceModal
-        isOpen={isServiceOpen}
-        onClose={() => setIsServiceOpen(false)}
-        vehicleId={vehicleData?.vehicle?.id || ''}
-        currentKm={vehicleData?.vehicle?.current_km || 0}
-        wallets={budgetData?.accounts || []}
-        onSuccess={() => { setIsServiceOpen(false); handleUpdate(); }}
       />
       <ReceiptScanModal
         isOpen={isReceiptScanOpen}
@@ -308,11 +269,6 @@ export default function HomePage() {
         isOpen={isVoiceOpen}
         onClose={() => setIsVoiceOpen(false)}
         onSuccess={() => { setIsVoiceOpen(false); handleUpdate(); }}
-      />
-      <AddVehicleModal
-        isOpen={isAddVehicleOpen}
-        onClose={() => setIsAddVehicleOpen(false)}
-        onSuccess={() => { setIsAddVehicleOpen(false); handleUpdate(); }}
       />
     </SharedLayout>
   );
