@@ -708,9 +708,51 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                 </div>
               </div>
 
-              {/* Bilgilendirme Notu */}
-              <div style={{ fontSize: '11px', background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '8px 10px', color: 'var(--text-muted)' }}>
-                💡 <strong>Döngü Başlangıcı:</strong> Fatura takvimi tanımlandığı tarihten sonraki ilk denk gelen tarihten itibaren başlar. Geçmişe dönük ödenmemiş borç kaydı oluşturulmaz.
+              {/* CARİ DÖNEM ÖDEME DURUMU (KULLANICI KONTROLÜ) */}
+              <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px', marginTop: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>
+                    🗓️ BU DÖNEMİN ({currentPeriodLabel.toUpperCase()}) FATURASI ÖDENDİ Mİ?
+                  </label>
+                  {isPaidCurrentPeriod && (
+                    <span style={{ fontSize: '10px', background: '#D1FAE5', color: '#065F46', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                      ✓ Bu Ay Ödendi
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className={`choice-pill ${!isPaidCurrentPeriod ? 'selected' : ''}`}
+                    onClick={() => setIsPaidCurrentPeriod(false)}
+                    style={{
+                      padding: '10px 8px', fontSize: '12px', fontWeight: 700,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                    }}
+                  >
+                    <span>🔴</span>
+                    <span>Hayır, Borçlu (Bekliyor)</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`choice-pill ${isPaidCurrentPeriod ? 'selected' : ''}`}
+                    onClick={() => setIsPaidCurrentPeriod(true)}
+                    style={{
+                      padding: '10px 8px', fontSize: '12px', fontWeight: 700,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                    }}
+                  >
+                    <span>🟢</span>
+                    <span>Evet, Bu Ay Ödendi</span>
+                  </button>
+                </div>
+
+                <div style={{ fontSize: '11px', color: isPaidCurrentPeriod ? '#059669' : 'var(--text-muted)', marginTop: '8px', lineHeight: '1.4' }}>
+                  {isPaidCurrentPeriod
+                    ? '✓ Bu dönemin faturası ödenmiş sayılacak, bekleyen borçlara eklenmeyecek ve takvim bir sonraki aydan itibaren başlayacaktır.'
+                    : '⏳ Fatura bu ay henüz ödenmemiş olarak işaretlenir; bekleyen faturalar ve yaklaşan ödemeler listesine dahil edilir.'}
+                </div>
               </div>
 
               {/* Tutar */}
