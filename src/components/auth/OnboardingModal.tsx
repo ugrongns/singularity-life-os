@@ -210,7 +210,7 @@ export default function OnboardingModal({ isOpen, onSuccess }: Props) {
                       type="button"
                       onClick={() => setAvatarEmoji(emo)}
                       style={{
-                        width: '36px', height: '36px', borderRadius: '10px', fontSize: '18px',
+                        minWidth: '44px', minHeight: '44px', borderRadius: '12px', fontSize: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                         border: avatarEmoji === emo ? '2px solid var(--emerald)' : '1px solid var(--border)',
                         background: avatarEmoji === emo ? 'var(--emerald-bg)' : 'var(--surface)',
                         cursor: 'pointer'
@@ -263,6 +263,8 @@ export default function OnboardingModal({ isOpen, onSuccess }: Props) {
                     type="password"
                     maxLength={6}
                     value={quickPin}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     onChange={e => setQuickPin(e.target.value.replace(/\D/g, ''))}
                     placeholder="••••••"
                     style={{
@@ -368,7 +370,7 @@ export default function OnboardingModal({ isOpen, onSuccess }: Props) {
               type="button"
               onClick={() => setStep(prev => prev - 1)}
               className="btn-subtle"
-              style={{ padding: '10px 18px', fontSize: '13px', fontWeight: 600, border: '1px solid var(--border)' }}
+              style={{ padding: '12px 20px', minHeight: '44px', fontSize: '13px', fontWeight: 600, border: '1px solid var(--border)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
             >
               ← Geri
             </button>
@@ -398,7 +400,7 @@ export default function OnboardingModal({ isOpen, onSuccess }: Props) {
               onClick={handleSubmit}
               disabled={loading}
               className="btn-primary"
-              style={{ padding: '10px 24px', fontSize: '13px', fontWeight: 800, background: 'var(--emerald)' }}
+              style={{ padding: '12px 26px', minHeight: '44px', fontSize: '13px', fontWeight: 800, background: 'var(--emerald)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
             >
               {loading ? 'Kuruluyor...' : '🚀 Kurulumu Tamamla & Başla'}
             </button>

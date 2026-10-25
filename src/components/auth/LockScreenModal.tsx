@@ -11,14 +11,28 @@ interface Props {
   onSuccess: (user: any) => void;
 }
 
+const NUMPAD_BUTTONS = [
+  { num: '1', letters: '' },
+  { num: '2', letters: 'A B C' },
+  { num: '3', letters: 'D E F' },
+  { num: '4', letters: 'G H I' },
+  { num: '5', letters: 'J K L' },
+  { num: '6', letters: 'M N O' },
+  { num: '7', letters: 'P Q R S' },
+  { num: '8', letters: 'T U V' },
+  { num: '9', letters: 'W X Y Z' },
+  { num: 'C', letters: 'SİL' },
+  { num: '0', letters: '+' },
+  { num: '⌫', letters: 'GERİ' }
+];
+
 export default function LockScreenModal({ isOpen, user, onSuccess }: Props) {
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isShaking, setIsShaking] = useState(false);
   const [usePasswordMode, setUsePasswordMode] = useState(false);
   const [password, setPassword] = useState('');
-
-  if (!isOpen) return null;
 
   const handleDigit = (digit: string) => {
     if (pin.length < 6) {
@@ -41,6 +55,32 @@ export default function LockScreenModal({ isOpen, user, onSuccess }: Props) {
     setErrorMsg(null);
   };
 
+  // Masaüstü Fiziksel Klavye Dinleyicisi
+  useEffect(() => {
+    if (!isOpen || usePasswordMode) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Form inputları odaklıysa klavye dinleyicisini ezme
+      if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        handleDigit(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleBackspace();
+      } else if (e.key === 'Escape' || e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        handleClear();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, usePasswordMode, pin]);
+
+  if (!isOpen) return null;
+
   const verifyPinDirect = async (pinToTest: string) => {
     setLoading(true);
     setErrorMsg(null);
@@ -54,12 +94,20 @@ export default function LockScreenModal({ isOpen, user, onSuccess }: Props) {
       if (json.success) {
         onSuccess(json.data.user);
       } else {
+        setIsShaking(true);
         setErrorMsg('❌ Hatalı PIN kodu.');
-        setPin('');
+        setTimeout(() => {
+          setIsShaking(false);
+          setPin('');
+        }, 550);
       }
     } catch (err: any) {
+      setIsShaking(true);
       setErrorMsg('Bağlantı hatası.');
-      setPin('');
+      setTimeout(() => {
+        setIsShaking(false);
+        setPin('');
+      }, 550);
     } finally {
       setLoading(false);
     }
@@ -92,44 +140,51 @@ export default function LockScreenModal({ isOpen, user, onSuccess }: Props) {
   return (
     <div className="modal-overlay" style={{
       zIndex: 10000,
-      background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.98))',
-      backdropFilter: 'blur(16px)',
+      background: 'radial-gradient(ellipse at center, rgba(15, 23, 42, 0.90) 0%, rgba(2, 6, 23, 0.96) 100%)',
+      backdropFilter: 'blur(20px)',
+      WebkitBackdropFilter: 'blur(20px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
     }}>
-      <div style={{
-        background: 'rgba(255, 255, 255, 0.05)',
-        border: '1px solid rgba(255, 255, 255, 0.12)',
-        borderRadius: '28px',
-        padding: '32px 28px',
-        maxWidth: '380px',
-        width: '100%',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-        textAlign: 'center',
-        color: 'white'
-      }}>
-        
+      <div
+        className={isShaking ? 'pin-shake' : ''}
+        style={{
+          background: 'rgba(255, 255, 255, 0.05)',
+          border: '1px solid rgba(255, 255, 255, 0.14)',
+          borderRadius: '32px',
+          padding: '36px 28px',
+          maxWidth: '380px',
+          width: '100%',
+          boxShadow: '0 30px 60px -12px rgba(0, 0, 0, 0.65)',
+          textAlign: 'center',
+          color: 'white',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)'
+        }}
+      >
         {/* Kullanıcı Avatarı & Başlık */}
         <div style={{
-          width: '72px', height: '72px', borderRadius: '50%',
+          width: '76px', height: '76px', borderRadius: '50%',
           background: 'linear-gradient(135deg, #10B981, #059669)',
-          margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '34px', boxShadow: '0 0 24px rgba(16, 185, 129, 0.35)'
+          margin: '0 auto 14px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '36px', boxShadow: '0 0 28px rgba(16, 185, 129, 0.45)',
+          border: '2px solid rgba(255, 255, 255, 0.2)'
         }}>
           {user?.avatar_emoji || '👤'}
         </div>
 
-        <h2 style={{ fontSize: '19px', fontWeight: 800, margin: '0 0 4px', letterSpacing: '-0.3px' }}>
+        <h2 style={{ fontSize: '20px', fontWeight: 900, margin: '0 0 4px', letterSpacing: '-0.4px' }}>
           {user?.full_name || 'Singularity Life OS'}
         </h2>
-        <div style={{ fontSize: '12px', color: '#94A3B8', marginBottom: '20px' }}>
-          🔒 Kilitli • 6 Haneli PIN Girin
+        <div style={{ fontSize: '12px', color: '#94A3B8', marginBottom: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+          <span>🔒</span>
+          <span>Güvenli Kilit • 6 Haneli PIN Girin</span>
         </div>
 
         {errorMsg && (
           <div style={{
-            background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.4)',
-            color: '#FCA5A5', padding: '8px 12px', borderRadius: '10px', fontSize: '12px',
-            fontWeight: 700, marginBottom: '16px'
+            background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.45)',
+            color: '#FCA5A5', padding: '9px 12px', borderRadius: '12px', fontSize: '12px',
+            fontWeight: 800, marginBottom: '18px'
           }}>
             {errorMsg}
           </div>
@@ -138,91 +193,112 @@ export default function LockScreenModal({ isOpen, user, onSuccess }: Props) {
         {!usePasswordMode ? (
           <div>
             {/* PIN Noktaları (6 Hane) */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '24px' }}>
+            <div style={{
+              display: 'flex', justifyContent: 'center', gap: '14px', marginBottom: '26px'
+            }}>
               {[0, 1, 2, 3, 4, 5].map(idx => {
                 const filled = pin.length > idx;
+                const dotColor = isShaking ? '#EF4444' : '#10B981';
+                const borderColor = isShaking ? '#F87171' : '#34D399';
                 return (
                   <div
                     key={idx}
                     style={{
-                      width: '14px', height: '14px', borderRadius: '50%',
-                      background: filled ? '#10B981' : 'rgba(255,255,255,0.15)',
-                      border: filled ? '2px solid #34D399' : '1px solid rgba(255,255,255,0.2)',
-                      boxShadow: filled ? '0 0 12px rgba(16, 185, 129, 0.8)' : 'none',
-                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                      width: '16px', height: '16px', borderRadius: '50%',
+                      background: filled ? dotColor : 'rgba(255,255,255,0.12)',
+                      border: filled ? `2px solid ${borderColor}` : '1.5px solid rgba(255,255,255,0.22)',
+                      boxShadow: filled ? `0 0 14px ${dotColor}90` : 'none',
+                      transform: filled ? 'scale(1.1)' : 'scale(1)',
+                      transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)'
                     }}
                   />
                 );
               })}
             </div>
 
-            {/* Tuş Takımı (3x4 Grid) */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', maxWidth: '270px', margin: '0 auto 20px' }}>
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(btn => (
+            {/* iOS Tarzı Yuvarlak Numpad Tuş Takımı (3x4 Grid) */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '14px', maxWidth: '270px', margin: '0 auto 22px',
+              justifyItems: 'center'
+            }}>
+              {NUMPAD_BUTTONS.map(btn => (
                 <button
-                  key={btn}
+                  key={btn.num}
                   type="button"
+                  className="ios-numpad-btn"
                   onClick={() => {
-                    if (btn === '⌫') handleBackspace();
-                    else if (btn === 'C') handleClear();
-                    else handleDigit(btn);
+                    if (btn.num === '⌫') handleBackspace();
+                    else if (btn.num === 'C') handleClear();
+                    else handleDigit(btn.num);
                   }}
                   disabled={loading}
-                  style={{
-                    height: '56px', borderRadius: '16px', fontSize: '20px', fontWeight: 700,
-                    background: btn === 'C' || btn === '⌫' ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.1)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'all 0.15s ease', userSelect: 'none'
-                  }}
-                  onMouseDown={e => e.currentTarget.style.transform = 'scale(0.92)'}
-                  onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
-                  onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                 >
-                  {btn}
+                  <span style={{ lineHeight: 1 }}>{btn.num}</span>
+                  {btn.letters && (
+                    <span style={{ fontSize: '8px', fontWeight: 800, color: 'rgba(255,255,255,0.5)', marginTop: '2px', letterSpacing: '0.8px' }}>
+                      {btn.letters}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setUsePasswordMode(true)}
-              style={{ background: 'none', border: 'none', color: '#94A3B8', fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }}
-            >
-              🔑 Master Parola ile Aç
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: '280px', margin: '0 auto' }}>
+              <button
+                type="button"
+                onClick={() => setUsePasswordMode(true)}
+                style={{
+                  background: 'none', border: 'none', color: '#94A3B8', fontSize: '12px',
+                  textDecoration: 'underline', cursor: 'pointer', padding: '6px'
+                }}
+              >
+                🔑 Master Parola ile Aç
+              </button>
+
+              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)' }}>
+                Fiziksel Klavye: 0-9
+              </span>
+            </div>
           </div>
         ) : (
-          <form onSubmit={handlePasswordLogin} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <form onSubmit={handlePasswordLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <input
               type="password"
               placeholder="Master Parolanız"
               value={password}
               onChange={e => setPassword(e.target.value)}
+              autoFocus
               style={{
-                width: '100%', padding: '12px 14px', fontSize: '14px',
-                borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)',
-                background: 'rgba(255,255,255,0.08)', color: 'white'
+                width: '100%', padding: '14px', fontSize: '15px',
+                borderRadius: '14px', border: '1px solid rgba(255,255,255,0.22)',
+                background: 'rgba(255,255,255,0.08)', color: 'white', outline: 'none'
               }}
             />
             <button
               type="submit"
               disabled={loading}
               className="btn-primary"
-              style={{ padding: '12px', fontSize: '13px', fontWeight: 800, background: '#10B981' }}
+              style={{
+                padding: '14px', fontSize: '14px', fontWeight: 800,
+                background: 'linear-gradient(135deg, #10B981, #059669)',
+                border: 'none', borderRadius: '14px', color: 'white', cursor: 'pointer'
+              }}
             >
               {loading ? 'Doğrulanıyor...' : 'Kilidi Aç'}
             </button>
             <button
               type="button"
               onClick={() => setUsePasswordMode(false)}
-              style={{ background: 'none', border: 'none', color: '#94A3B8', fontSize: '12px', cursor: 'pointer', marginTop: '4px' }}
+              style={{
+                background: 'none', border: 'none', color: '#94A3B8', fontSize: '12px',
+                cursor: 'pointer', marginTop: '6px', textDecoration: 'underline'
+              }}
             >
               ← PIN Ekranına Dön
             </button>
           </form>
         )}
-
       </div>
     </div>
   );
