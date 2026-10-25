@@ -136,10 +136,11 @@ export default function MacroSummaryCard({
               color: '#6366F1',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              flexShrink: 0
             }}
           >
-            <Flame className="w-5 h-5 text-indigo-500" />
+            <Flame size={18} color="#6366F1" />
           </div>
           <div>
             <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
@@ -197,10 +198,14 @@ export default function MacroSummaryCard({
             justifyContent: 'center',
             gap: '6px',
             background: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
-            boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)'
+            boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+            borderRadius: '8px',
+            border: 'none',
+            color: '#ffffff',
+            cursor: 'pointer'
           }}
         >
-          <Camera className="w-3.5 h-3.5" />
+          <Camera size={14} />
           <span>Tabak Tara (AI)</span>
         </button>
 
@@ -216,10 +221,11 @@ export default function MacroSummaryCard({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '6px'
+              gap: '6px',
+              borderRadius: '8px'
             }}
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus size={14} />
             <span>Manuel Öğün</span>
           </button>
         )}
@@ -236,10 +242,11 @@ export default function MacroSummaryCard({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '6px'
+              gap: '6px',
+              borderRadius: '8px'
             }}
           >
-            <FileText className="w-3.5 h-3.5 text-indigo-400" />
+            <FileText size={14} color="#6366F1" />
             <span>Diyet Planı</span>
           </button>
         )}
@@ -553,7 +560,7 @@ export default function MacroSummaryCard({
                       </div>
                     )}
                   </div>
-                  {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                  {isOpen ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
                 </div>
               </div>
 

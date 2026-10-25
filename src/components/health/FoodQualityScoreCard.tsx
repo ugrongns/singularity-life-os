@@ -70,10 +70,11 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
               color: '#EC4899',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              flexShrink: 0
             }}
           >
-            <Tag className="w-5 h-5 text-pink-500" />
+            <Tag size={18} color="#EC4899" />
           </div>
           <div>
             <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
@@ -107,14 +108,18 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
           alignItems: 'center',
           justifyContent: 'center',
           gap: '6px',
-          padding: '9px 14px',
+          padding: '10px 14px',
           fontSize: '12px',
           fontWeight: 800,
           background: 'linear-gradient(135deg, #EC4899 0%, #D946EF 100%)',
-          boxShadow: '0 2px 8px rgba(236, 72, 153, 0.25)'
+          boxShadow: '0 2px 8px rgba(236, 72, 153, 0.25)',
+          borderRadius: '8px',
+          border: 'none',
+          color: '#ffffff',
+          cursor: 'pointer'
         }}
       >
-        <Plus className="w-4 h-4" />
+        <Plus size={14} />
         <span>📷 Yeni Barkod / Etiket Tara</span>
       </button>
 

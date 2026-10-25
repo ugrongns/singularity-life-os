@@ -77,9 +77,9 @@ export default function HeroNetWorthBentoCard({
   }
 
   // Varlık / Borç Oranı
-  const totalVolume = Math.max(cashAssetsTRY + debtsTRY, 1);
-  const assetRatio = Math.round((cashAssetsTRY / totalVolume) * 100);
-  const debtRatio = 100 - assetRatio;
+  const totalVolume = cashAssetsTRY + debtsTRY;
+  const assetRatio = totalVolume > 0 ? Math.round((cashAssetsTRY / totalVolume) * 100) : 0;
+  const debtRatio = totalVolume > 0 ? 100 - assetRatio : 0;
 
   // KPI Hesaplamaları
   const income = monthlySummary?.totalIncome ?? 0;
@@ -162,24 +162,27 @@ export default function HeroNetWorthBentoCard({
 
           <Link
             href="/budget"
-            className="header-action-btn"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '4px',
-              padding: '6px 12px',
+              height: '28px',
+              padding: '0 10px',
               borderRadius: 'var(--radius-full)',
               background: 'var(--surface-subtle)',
               border: '1px solid var(--border)',
               color: 'var(--text-main)',
               fontSize: '11px',
               fontWeight: 700,
-              textDecoration: 'none'
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+              boxSizing: 'border-box',
+              flexShrink: 0
             }}
             title="Bütçe & Varlık Detayları"
           >
             <span>Detay</span>
-            <ArrowUpRight size={14} strokeWidth={2} />
+            <ArrowUpRight size={13} strokeWidth={2} />
           </Link>
         </div>
       </div>
@@ -220,41 +223,45 @@ export default function HeroNetWorthBentoCard({
               width: '100%',
               height: '8px',
               borderRadius: 'var(--radius-full)',
-              background: 'rgba(244, 63, 94, 0.25)',
+              background: totalVolume > 0 ? 'rgba(244, 63, 94, 0.25)' : 'var(--border)',
               overflow: 'hidden',
               display: 'flex'
             }}
           >
-            <div
-              style={{
-                width: `${assetRatio}%`,
-                height: '100%',
-                background: 'linear-gradient(90deg, #10B981, #059669)',
-                transition: 'width 0.4s ease'
-              }}
-            />
-            <div
-              style={{
-                width: `${debtRatio}%`,
-                height: '100%',
-                background: 'linear-gradient(90deg, #F43F5E, #E11D48)',
-                transition: 'width 0.4s ease'
-              }}
-            />
+            {totalVolume > 0 ? (
+              <>
+                <div
+                  style={{
+                    width: `${assetRatio}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #10B981, #059669)',
+                    transition: 'width 0.4s ease'
+                  }}
+                />
+                <div
+                  style={{
+                    width: `${debtRatio}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #F43F5E, #E11D48)',
+                    transition: 'width 0.4s ease'
+                  }}
+                />
+              </>
+            ) : (
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  background: 'var(--surface-subtle)'
+                }}
+              />
+            )}
           </div>
         </div>
       </div>
 
       {/* Alt Bölüm: 3 Mini Hızlı FinTech KPI'ı */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-          gap: '10px',
-          paddingTop: '14px',
-          borderTop: '1px solid var(--border)'
-        }}
-      >
+      <div className="networth-kpi-grid">
         {/* KPI 1: Aylık Net Nakit Akışı */}
         <div
           style={{
@@ -315,6 +322,7 @@ export default function HeroNetWorthBentoCard({
 
         {/* KPI 3: Kalan Günlük Rehber Bütçe */}
         <div
+          className="networth-kpi-highlight"
           style={{
             padding: '10px 12px',
             background: 'var(--surface-subtle)',

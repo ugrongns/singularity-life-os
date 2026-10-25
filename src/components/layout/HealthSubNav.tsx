@@ -36,10 +36,10 @@ export default function HealthSubNav({
         zIndex: 25,
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        backgroundColor: 'rgba(var(--bg-main-rgb, 15, 23, 42), 0.78)',
+        backgroundColor: 'var(--glass-surface)',
         borderBottom: '1px solid var(--border)',
         margin: '0 -16px 18px',
-        padding: '10px 16px',
+        padding: '8px 16px',
         transition: 'all 0.2s ease-in-out'
       }}
     >
@@ -47,12 +47,14 @@ export default function HealthSubNav({
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '12px',
+          justifyContent: 'flex-start',
+          gap: '8px',
           overflowX: 'auto',
           WebkitOverflowScrolling: 'touch',
           scrollbarWidth: 'none',
-          msOverflowStyle: 'none'
+          msOverflowStyle: 'none',
+          width: '100%',
+          boxSizing: 'border-box'
         }}
         className="no-scrollbar"
       >
@@ -62,8 +64,8 @@ export default function HealthSubNav({
             display: 'inline-flex',
             alignItems: 'center',
             backgroundColor: 'var(--surface-subtle)',
-            padding: '3px',
-            borderRadius: '10px',
+            padding: '2px',
+            borderRadius: '9px',
             border: '1px solid var(--border)',
             flexShrink: 0
           }}
@@ -73,9 +75,9 @@ export default function HealthSubNav({
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '6px 14px',
-              fontSize: '12px',
+              gap: '5px',
+              padding: '5px 10px',
+              fontSize: '11px',
               fontWeight: 800,
               borderRadius: '7px',
               textDecoration: 'none',
@@ -87,7 +89,7 @@ export default function HealthSubNav({
               whiteSpace: 'nowrap'
             }}
           >
-            <Activity className="w-3.5 h-3.5" />
+            <Activity size={14} />
             <span>Beslenme & Oruç</span>
           </Link>
 
@@ -96,9 +98,9 @@ export default function HealthSubNav({
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '6px 14px',
-              fontSize: '12px',
+              gap: '5px',
+              padding: '5px 10px',
+              fontSize: '11px',
               fontWeight: 800,
               borderRadius: '7px',
               textDecoration: 'none',
@@ -110,7 +112,7 @@ export default function HealthSubNav({
               whiteSpace: 'nowrap'
             }}
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <Sparkles size={14} />
             <span>Yaşam & Takviye</span>
           </Link>
         </div>
@@ -130,8 +132,8 @@ export default function HealthSubNav({
                 display: 'inline-flex',
                 alignItems: 'center',
                 backgroundColor: 'var(--surface-subtle)',
-                padding: '3px',
-                borderRadius: '10px',
+                padding: '2px',
+                borderRadius: '9px',
                 border: '1px solid var(--border)'
               }}
             >
@@ -142,8 +144,8 @@ export default function HealthSubNav({
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '5px',
-                  padding: '5px 10px',
+                  gap: '4px',
+                  padding: '4px 8px',
                   fontSize: '11px',
                   fontWeight: 700,
                   borderRadius: '6px',
@@ -159,7 +161,7 @@ export default function HealthSubNav({
                   whiteSpace: 'nowrap'
                 }}
               >
-                <Users className="w-3.5 h-3.5" />
+                <Users size={13} />
                 <span>Tümü</span>
               </button>
 
@@ -174,8 +176,8 @@ export default function HealthSubNav({
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '5px',
-                      padding: '5px 10px',
+                      gap: '4px',
+                      padding: '4px 8px',
                       fontSize: '11px',
                       fontWeight: 700,
                       borderRadius: '6px',
@@ -206,10 +208,10 @@ export default function HealthSubNav({
                         fontWeight: 900
                       }}
                     >
-                      {member.name ? member.name.charAt(0).toUpperCase() : <User className="w-2.5 h-2.5" />}
+                      {member.name ? member.name.charAt(0).toUpperCase() : <User size={9} />}
                     </div>
                     <span>{member.name?.split(' ')[0] || 'Üye'}</span>
-                    {isSelected && <Check className="w-3 h-3 text-indigo-500" />}
+                    {isSelected && <Check size={12} color="#6366F1" />}
                   </button>
                 );
               })}

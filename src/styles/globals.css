@@ -1464,3 +1464,82 @@ body {
     padding: 16px !important;
   }
 }
+
+/* ===== Finans Net Servet Responsive KPI Sınıfları ===== */
+.networth-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.networth-kpi-highlight {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 640px) {
+  .networth-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .networth-kpi-highlight {
+    grid-column: span 1;
+  }
+}
+
+/* ===== Spor / Antrenman Header Aksiyonları ===== */
+.workout-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.workout-header-actions > button {
+  flex: 1 1 0;
+  width: auto;
+}
+
+@media (min-width: 640px) {
+  .workout-header-actions {
+    width: auto;
+  }
+  .workout-header-actions > button {
+    flex: none;
+  }
+}
+
+/* ===== Sağlık & Wellness Bento Responsive Düzenleri ===== */
+.wellness-top-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .wellness-top-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: stretch;
+  }
+}
+
+.health-bento-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .health-bento-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: stretch;
+  }
+}

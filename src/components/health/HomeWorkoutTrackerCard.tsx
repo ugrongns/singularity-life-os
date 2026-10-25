@@ -169,8 +169,8 @@ export default function HomeWorkoutTrackerCard() {
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%' }}>
       {/* 1. ÜST BAŞLIK VE HIZLI EYLEMLER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
           <div
             style={{
               width: '32px',
@@ -180,35 +180,37 @@ export default function HomeWorkoutTrackerCard() {
               color: '#EF4444',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              flexShrink: 0
             }}
           >
             <Trophy size={18} color="#EF4444" />
           </div>
-          <div>
-            <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Antrenman & Spor Günlüğü
             </h2>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Strava, Samsung Health & Çoklu Spor Takibi
             </div>
           </div>
         </div>
 
         {/* Strava Rozeti & Yeni Antrenman */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div className="workout-header-actions">
           {/* Strava Bağlantı / Eşitleme Butonu */}
           <button
             type="button"
             disabled={syncingStrava}
             onClick={handleStravaSync}
             style={{
-              height: '34px',
-              padding: '6px 12px',
-              fontSize: '11px',
+              height: '36px',
+              padding: '0 12px',
+              fontSize: '12px',
               fontWeight: 700,
               display: 'inline-flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '6px',
               backgroundColor: 'var(--surface-subtle)',
               border: '1px solid var(--border)',
@@ -220,8 +222,8 @@ export default function HomeWorkoutTrackerCard() {
             }}
             title="Strava'dan son aktiviteleri otomatik çek"
           >
-            <RefreshCw size={13} className={syncingStrava ? 'animate-spin' : ''} />
-            <span className="hidden sm:inline">
+            <RefreshCw size={14} className={syncingStrava ? 'animate-spin' : ''} />
+            <span>
               {stravaConnected ? 'Strava Eşitle' : 'Strava Bağla'}
             </span>
             {stravaConnected && (
@@ -235,18 +237,22 @@ export default function HomeWorkoutTrackerCard() {
             className="btn-primary"
             onClick={() => setIsModalOpen(true)}
             style={{
-              height: '34px',
-              padding: '6px 14px',
-              fontSize: '11px',
+              height: '36px',
+              padding: '0 14px',
+              fontSize: '12px',
               fontWeight: 800,
               background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
               boxShadow: '0 2px 8px rgba(239, 68, 68, 0.25)',
               display: 'inline-flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '6px',
               borderRadius: '8px',
+              border: 'none',
+              color: '#ffffff',
               whiteSpace: 'nowrap',
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
+              cursor: 'pointer'
             }}
           >
             <Plus size={14} />

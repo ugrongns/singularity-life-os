@@ -503,8 +503,8 @@ export default function WellnessCard({
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%' }}>
       {/* 1. ÜST BAŞLIK VE HIZLI EYLEMLER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
           <div
             style={{
               width: '32px',
@@ -514,16 +514,17 @@ export default function WellnessCard({
               color: '#10B981',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              flexShrink: 0
             }}
           >
             <Pill size={18} color="#10B981" />
           </div>
-          <div>
-            <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Günlük Rutin & Biyometrik Takip
             </h2>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Whoop & Oura Standardında Biyolojik İyileşme
             </div>
           </div>
@@ -599,7 +600,7 @@ export default function WellnessCard({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
           gap: '10px'
         }}
       >

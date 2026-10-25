@@ -185,14 +185,7 @@ export default function HealthPage() {
       {/* Ana Bento Izgarası: Masaüstü 1024px+ Eşit Yükseklik & 2 Sütun Hiyerarşisi */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {/* ÜST SATIR: Makro & Kalori Panosu (Sol) + Aralıklı Oruç Sayacı (Sağ) - Eşit Yükseklik */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-            gap: '20px',
-            alignItems: 'stretch'
-          }}
-        >
+        <div className="health-bento-grid">
           {nutritionData && (
             <MacroSummaryCard
               summary={nutritionData.summary}
@@ -219,14 +212,7 @@ export default function HealthPage() {
         </div>
 
         {/* ALT SATIR: 2 Sütunlu Analitik Paneller (360° Vitamin & Gıda Analiz Karnesi) */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-            gap: '20px',
-            alignItems: 'stretch'
-          }}
-        >
+        <div className="health-bento-grid">
           <NutrientProfileCard />
 
           <FoodQualityScoreCard

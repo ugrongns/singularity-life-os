@@ -40,7 +40,7 @@ export default function NutrientProfileCard() {
                 justifyContent: 'center'
               }}
             >
-              <Microscope className="w-5 h-5 text-teal-400" />
+              <Microscope size={18} color="#14B8A6" />
             </div>
             <div>
               <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
@@ -89,7 +89,7 @@ export default function NutrientProfileCard() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Search className="w-4 h-4 text-teal-500" />
+            <Search size={14} color="#0D9488" />
             <span>Herhangi bir gıda aratın (Örn: Ceviz, Somon, Zerdeçal...)</span>
           </div>
           <span
@@ -144,7 +144,7 @@ export default function NutrientProfileCard() {
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+                <ChevronRight size={14} color="var(--text-muted)" style={{ flexShrink: 0, marginLeft: '4px' }} />
               </button>
             ))}
           </div>

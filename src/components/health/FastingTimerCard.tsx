@@ -71,10 +71,11 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
               color: '#8B5CF6',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              flexShrink: 0
             }}
           >
-            <Clock className="w-5 h-5 text-purple-500" />
+            <Clock size={18} color="#8B5CF6" />
           </div>
           <div>
             <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
@@ -241,7 +242,7 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sparkles className="w-4 h-4 text-purple-400" />
+              <Sparkles size={14} color="#8B5CF6" />
               <span style={{ fontSize: '13px', fontWeight: 800, color: '#8B5CF6' }}>
                 {fastingData.currentPhase || 'Metabolik Faz Analizi'}
               </span>
@@ -273,7 +274,7 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
               transition: 'all 0.15s ease'
             }}
           >
-            <Square className="w-4 h-4 text-rose-500" />
+            <Square size={14} color="#F43F5E" />
             <span>{isToggling ? 'İşleniyor...' : '🛑 Orucu Tamamla & Yeme Penceresini Aç'}</span>
           </button>
         </div>
@@ -285,31 +286,37 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
               Hedefinize uygun aralıklı oruç protokolünü seçerek yeni bir seans başlatın:
             </div>
 
-            {/* Segmented Protokol Hapları */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '8px' }}>
-              {FASTING_PROTOCOLS.map(proto => {
+            {/* Segmented Protokol Izgarası */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
+              {FASTING_PROTOCOLS.map((proto, idx) => {
                 const isSelected = selectedProtocol === proto.id;
+                const isLast = idx === FASTING_PROTOCOLS.length - 1;
+
                 return (
                   <button
                     key={proto.id}
                     type="button"
                     onClick={() => setSelectedProtocol(proto.id)}
                     style={{
-                      padding: '10px 8px',
+                      gridColumn: isLast ? '1 / -1' : 'auto',
+                      padding: isLast ? '10px 14px' : '10px 8px',
                       borderRadius: '8px',
                       border: isSelected ? '1px solid #8B5CF6' : '1px solid var(--border)',
                       backgroundColor: isSelected ? 'rgba(139, 92, 246, 0.12)' : 'var(--surface-subtle)',
                       color: isSelected ? '#8B5CF6' : 'var(--text-main)',
                       cursor: 'pointer',
                       display: 'flex',
-                      flexDirection: 'column',
+                      flexDirection: isLast ? 'row' : 'column',
+                      justifyContent: isLast ? 'space-between' : 'center',
                       alignItems: 'center',
                       gap: '3px',
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    <span style={{ fontSize: '13px', fontWeight: 800 }}>{proto.id}</span>
-                    <span style={{ fontSize: '10px', color: isSelected ? '#8B5CF6' : 'var(--text-muted)' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800 }}>
+                      {isLast ? `${proto.id} (24 Saat Tam Oruç)` : proto.id}
+                    </span>
+                    <span style={{ fontSize: '10px', color: isSelected ? '#8B5CF6' : 'var(--text-muted)', fontWeight: isLast ? 700 : 500 }}>
                       {proto.tag}
                     </span>
                   </button>
@@ -331,7 +338,7 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
             }}
           >
             <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Zap className="w-3.5 h-3.5 text-amber-500" />
+              <Zap size={14} color="#F59E0B" />
               <span>Seçili Protokol: {selectedProtocol}</span>
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
@@ -351,6 +358,7 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
             disabled={isToggling}
             style={{
               width: '100%',
+              minHeight: '44px',
               padding: '12px',
               fontSize: '13px',
               fontWeight: 800,
@@ -359,11 +367,15 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '6px'
+              gap: '8px',
+              borderRadius: '8px',
+              border: 'none',
+              color: '#ffffff',
+              cursor: 'pointer'
             }}
           >
-            <Play className="w-4 h-4 fill-current" />
-            <span>{isToggling ? 'Başlatılıyor...' : `🚀 ${selectedProtocol} Orucu Başlat`}</span>
+            <Play size={15} fill="#ffffff" />
+            <span>{isToggling ? 'Başlatılıyor...' : `${selectedProtocol} Orucu Başlat`}</span>
           </button>
         </div>
       )}

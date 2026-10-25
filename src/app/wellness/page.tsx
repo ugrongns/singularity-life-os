@@ -125,14 +125,7 @@ export default function WellnessPage() {
       {/* Ana Bento Izgarası */}
       <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {/* ÜST SATIR (1024px+ Masaüstü 2 Sütun Eşit Yükseklik): Sol: Wellness & Takviye Rutini, Sağ: Antrenman Performans Panosu */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-            gap: '20px',
-            alignItems: 'stretch'
-          }}
-        >
+        <div className="wellness-top-grid">
           {/* Sol Sütun: Günlük Wellness & Takviye Rutini */}
           <WellnessCard
             supplements={data?.supplements || { morning: [], evening: [], with_meal: [], total: 0, taken: 0, all: [] }}
