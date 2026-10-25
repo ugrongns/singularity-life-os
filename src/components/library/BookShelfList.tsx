@@ -79,15 +79,11 @@ export default function BookShelfList({ books, onQuickPageUpdate, onOpenAddBookM
       </div>
 
       {/* Sekmeler (Tab Pills) */}
-      <div style={{
-        display: 'flex',
-        overflowX: 'auto',
+      <div className="pill-scroll-bar" style={{
         gap: '6px',
         background: 'var(--surface-subtle)',
         padding: '4px',
-        borderRadius: 'var(--radius-md)',
-        scrollbarWidth: 'none',
-        msOverflowStyle: 'none'
+        borderRadius: 'var(--radius-md)'
       }}>
         <button 
           className={`choice-pill ${activeTab === 'reading' ? 'selected' : ''}`}

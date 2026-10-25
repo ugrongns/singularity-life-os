@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Car, X } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -24,6 +25,17 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ESC tuşuyla kapatma
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -55,7 +67,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
       } else {
         setError(j.error || 'Araç eklenemedi.');
       }
-    } catch (e) {
+    } catch {
       setError('Bağlantı hatası oluştu.');
     } finally {
       setLoading(false);
@@ -63,42 +75,50 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
   };
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px'
-    }}>
-      <div style={{
-        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)',
-        padding: '28px', width: '100%', maxWidth: '460px', boxShadow: 'var(--shadow-xl)'
-      }}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="bottom-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+        <div className="sheet-handle" />
+
         {/* Başlık */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <div>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)' }}>🚗 Yeni Araç Ekle</div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-              KM, yakıt ve bakım takibiniz için araç bilgilerini girin
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="icon-badge icon-badge-cyan">
+              <Car size={18} strokeWidth={1.75} />
+            </div>
+            <div>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)' }}>Yeni Araç Ekle</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                KM, yakıt ve bakım takibiniz için araç bilgilerini girin
+              </div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}>✕</button>
+          <button
+            onClick={onClose}
+            className="modal-close-btn"
+            aria-label="Kapat"
+            style={{ width: '32px', height: '32px', minWidth: '32px', minHeight: '32px' }}
+          >
+            <X size={16} strokeWidth={1.75} />
+          </button>
         </div>
 
         {/* Form */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-
           {/* Plaka */}
           <div>
-            <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>PLAKA *</label>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+              PLAKA *
+            </label>
             <input
               type="text"
               placeholder="34 ABC 123"
               value={form.plate}
               onChange={e => handleChange('plate', e.target.value.toUpperCase())}
-              maxLength={9}
+              maxLength={11}
               style={{
                 width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
-                border: '1.5px solid var(--border)', background: 'var(--surface-subtle)',
-                color: 'var(--text-main)', fontSize: '15px', fontWeight: 700, letterSpacing: '2px',
-                outline: 'none', boxSizing: 'border-box'
+                border: '1px solid var(--border)', background: 'var(--surface-subtle)',
+                color: 'var(--text-main)', fontSize: '15px', fontWeight: 800, letterSpacing: '1px'
               }}
             />
           </div>
@@ -106,7 +126,9 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
           {/* Marka + Model */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>MARKA *</label>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+                MARKA *
+              </label>
               <input
                 type="text"
                 list="makes-list"
@@ -115,8 +137,8 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
                 onChange={e => handleChange('make', e.target.value)}
                 style={{
                   width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
-                  border: '1.5px solid var(--border)', background: 'var(--surface-subtle)',
-                  color: 'var(--text-main)', fontSize: '14px', outline: 'none', boxSizing: 'border-box'
+                  border: '1px solid var(--border)', background: 'var(--surface-subtle)',
+                  color: 'var(--text-main)', fontSize: '14px'
                 }}
               />
               <datalist id="makes-list">
@@ -124,7 +146,9 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
               </datalist>
             </div>
             <div>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>MODEL *</label>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+                MODEL *
+              </label>
               <input
                 type="text"
                 placeholder="Corolla"
@@ -132,8 +156,8 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
                 onChange={e => handleChange('model', e.target.value)}
                 style={{
                   width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
-                  border: '1.5px solid var(--border)', background: 'var(--surface-subtle)',
-                  color: 'var(--text-main)', fontSize: '14px', outline: 'none', boxSizing: 'border-box'
+                  border: '1px solid var(--border)', background: 'var(--surface-subtle)',
+                  color: 'var(--text-main)', fontSize: '14px'
                 }}
               />
             </div>
@@ -142,71 +166,67 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
           {/* Yıl + Güncel KM */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>MODEL YILI *</label>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+                MODEL YILI *
+              </label>
               <input
                 type="number"
                 placeholder="2022"
                 value={form.year}
                 min="1980" max={new Date().getFullYear() + 1}
+                className="tabular-nums"
                 onChange={e => handleChange('year', e.target.value)}
                 style={{
                   width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
-                  border: '1.5px solid var(--border)', background: 'var(--surface-subtle)',
-                  color: 'var(--text-main)', fontSize: '14px', outline: 'none', boxSizing: 'border-box'
+                  border: '1px solid var(--border)', background: 'var(--surface-subtle)',
+                  color: 'var(--text-main)', fontSize: '14px'
                 }}
               />
             </div>
             <div>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>GÜNCEL KM</label>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+                GÜNCEL KM
+              </label>
               <input
                 type="number"
                 placeholder="45000"
                 value={form.current_km}
+                className="tabular-nums"
                 onChange={e => handleChange('current_km', e.target.value)}
                 style={{
                   width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
-                  border: '1.5px solid var(--border)', background: 'var(--surface-subtle)',
-                  color: 'var(--text-main)', fontSize: '14px', outline: 'none', boxSizing: 'border-box'
+                  border: '1px solid var(--border)', background: 'var(--surface-subtle)',
+                  color: 'var(--text-main)', fontSize: '14px'
                 }}
               />
             </div>
           </div>
 
-          {/* Yakıt Türü + Renk */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '10px' }}>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>YAKIT TÜRÜ</label>
-              <select
-                value={form.fuel_type}
-                onChange={e => handleChange('fuel_type', e.target.value)}
-                style={{
-                  width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
-                  border: '1.5px solid var(--border)', background: 'var(--surface-subtle)',
-                  color: 'var(--text-main)', fontSize: '14px', outline: 'none'
-                }}
-              >
-                {FUEL_TYPES.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>RENK</label>
-              <input
-                type="color"
-                value={form.color}
-                onChange={e => handleChange('color', e.target.value)}
-                style={{
-                  height: '42px', width: '56px', padding: '4px', borderRadius: 'var(--radius-md)',
-                  border: '1.5px solid var(--border)', background: 'var(--surface-subtle)', cursor: 'pointer'
-                }}
-              />
-            </div>
+          {/* Yakıt Türü */}
+          <div>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+              YAKIT TÜRÜ
+            </label>
+            <select
+              value={form.fuel_type}
+              onChange={e => handleChange('fuel_type', e.target.value)}
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)', background: 'var(--surface-subtle)',
+                color: 'var(--text-main)', fontSize: '14px'
+              }}
+            >
+              {FUEL_TYPES.map(ft => (
+                <option key={ft} value={ft}>{ft}</option>
+              ))}
+            </select>
           </div>
 
           {/* Muayene & Sigorta Tarihleri (Opsiyonel) */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                🔍 MUAYENE GEÇERLİLİK
+              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+                MUAYENE GEÇERLİLİK
               </label>
               <input
                 type="date"
@@ -214,14 +234,14 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
                 onChange={e => handleChange('muayene_date', e.target.value)}
                 style={{
                   width: '100%', padding: '9px 10px', borderRadius: 'var(--radius-md)',
-                  border: '1.5px solid var(--border)', background: 'var(--surface-subtle)',
-                  color: 'var(--text-main)', fontSize: '12px', outline: 'none', boxSizing: 'border-box'
+                  border: '1px solid var(--border)', background: 'var(--surface-subtle)',
+                  color: 'var(--text-main)', fontSize: '13px'
                 }}
               />
             </div>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                📄 SİGORTA BİTİŞ
+              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
+                SİGORTA BİTİŞ
               </label>
               <input
                 type="date"
@@ -229,42 +249,40 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }: Props) {
                 onChange={e => handleChange('sigorta_date', e.target.value)}
                 style={{
                   width: '100%', padding: '9px 10px', borderRadius: 'var(--radius-md)',
-                  border: '1.5px solid var(--border)', background: 'var(--surface-subtle)',
-                  color: 'var(--text-main)', fontSize: '12px', outline: 'none', boxSizing: 'border-box'
+                  border: '1px solid var(--border)', background: 'var(--surface-subtle)',
+                  color: 'var(--text-main)', fontSize: '13px'
                 }}
               />
             </div>
           </div>
 
-          {/* Hata */}
+          {/* Hata Mesajı */}
           {error && (
             <div style={{ background: 'var(--rose-bg)', border: '1px solid var(--rose)', borderRadius: 'var(--radius-md)', padding: '10px 12px', fontSize: '13px', color: 'var(--rose)', fontWeight: 600 }}>
               ⚠️ {error}
             </div>
           )}
 
-          {/* Butonlar */}
-          <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+          {/* Sabit Alt Butonlar */}
+          <div className="modal-sticky-footer" style={{ display: 'flex', gap: '10px' }}>
             <button
               onClick={onClose}
-              style={{
-                flex: 1, padding: '12px', borderRadius: 'var(--radius-md)',
-                border: '1.5px solid var(--border)', background: 'var(--surface-subtle)',
-                color: 'var(--text-main)', fontSize: '14px', fontWeight: 600, cursor: 'pointer'
-              }}
+              className="btn-subtle"
+              style={{ flex: 1, padding: '12px', fontSize: '13px', fontWeight: 600, minHeight: '44px' }}
             >
               İptal
             </button>
             <button
               onClick={handleSubmit}
               disabled={loading}
+              className="btn-primary"
               style={{
-                flex: 2, padding: '12px', borderRadius: 'var(--radius-md)',
-                border: 'none', background: loading ? 'var(--border)' : 'var(--blue)',
-                color: 'white', fontSize: '14px', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer'
+                flex: 2, padding: '12px', fontSize: '13px', fontWeight: 700,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                margin: 0, minHeight: '44px'
               }}
             >
-              {loading ? '⏳ Ekleniyor...' : '🚗 Garajıma Ekle'}
+              {loading ? 'Ekleniyor...' : 'Garajıma Ekle'}
             </button>
           </div>
         </div>

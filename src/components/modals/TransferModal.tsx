@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { ArrowLeftRight, CreditCard, X, AlertTriangle } from 'lucide-react';
 
 interface Account {
   id: string;
@@ -51,6 +52,17 @@ export default function TransferModal({
     }
   }, [isOpen, defaultToAccountId, accounts]);
 
+  // ESC tuşuyla kapatma
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const formatMoney = (val: number, cur: string = 'TRY') => {
@@ -75,7 +87,6 @@ export default function TransferModal({
     Number(amount) > selectedFrom.balance
   );
 
-  // Borç Doldurma: Nakit yetersizse çıkış hesabındaki maksimum bakiyeyi doldur, yetiyorsa kart borcunun tamamını doldur
   const handleFillDebt = () => {
     if (selectedTo && selectedFrom) {
       const maxPossible = Math.min(selectedTo.balance, selectedFrom.balance);
@@ -126,7 +137,7 @@ export default function TransferModal({
       } else {
         setErrorMsg(json.error || 'İşlem başarısız.');
       }
-    } catch (err: any) {
+    } catch {
       setErrorMsg('Sunucu hatası.');
     } finally {
       setSaving(false);
@@ -134,61 +145,62 @@ export default function TransferModal({
   };
 
   return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px'
-    }}>
-      <div style={{
-        background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-xl)', padding: '24px', maxWidth: '460px', width: '100%',
-        boxShadow: 'var(--shadow-xl)'
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>🔄</span>
-              <span>{isCardPayment ? '💳 Kart Borcu Ödeme' : 'Transfer & Borç Ödeme'}</span>
-            </h2>
-            <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
-              Hesaplar arası para aktarımı veya kredi kartı borç ödemesi
-            </p>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="bottom-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+        <div className="sheet-handle" />
+
+        {/* Modal Başlık */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className={`icon-badge ${isCardPayment ? 'icon-badge-indigo' : 'icon-badge-emerald'}`}>
+              {isCardPayment ? <CreditCard size={18} strokeWidth={1.75} /> : <ArrowLeftRight size={18} strokeWidth={1.75} />}
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-main)' }}>
+                {isCardPayment ? 'Kart Borcu Ödeme' : 'Transfer & Para Aktarımı'}
+              </h2>
+              <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
+                Hesaplar arası bakiye transferi veya kredi kartı borç kapatma
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)' }}
+            className="modal-close-btn"
+            aria-label="Kapat"
+            style={{ width: '32px', height: '32px', minWidth: '32px', minHeight: '32px' }}
           >
-            ✕
+            <X size={16} strokeWidth={1.75} />
           </button>
         </div>
 
         {errorMsg && (
-          <div style={{ background: '#FEF2F2', border: '1px solid #EF4444', color: '#991B1B', padding: '10px 12px', borderRadius: 'var(--radius-md)', fontSize: '12px', fontWeight: 600, marginBottom: '16px' }}>
+          <div style={{ background: '#FEF2F2', border: '1px solid #EF4444', color: '#991B1B', padding: '10px 12px', borderRadius: 'var(--radius-md)', fontSize: '12px', fontWeight: 600, marginBottom: '12px' }}>
             {errorMsg}
           </div>
         )}
 
         {isInsufficientBalance && selectedFrom && (
-          <div style={{ background: '#FEF2F2', border: '1px solid #EF4444', color: '#991B1B', padding: '10px 12px', borderRadius: 'var(--radius-md)', fontSize: '12px', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>⚠️</span>
-            <span>Yetersiz Bakiye! {selectedFrom.name} hesabında en fazla <strong>{formatMoney(selectedFrom.balance)}</strong> nakit var.</span>
+          <div style={{ background: '#FEF2F2', border: '1px solid #EF4444', color: '#991B1B', padding: '10px 12px', borderRadius: 'var(--radius-md)', fontSize: '12px', fontWeight: 700, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertTriangle size={16} strokeWidth={1.75} />
+            <span>Yetersiz Bakiye! {selectedFrom.name} hesabında en fazla <strong className="tabular-nums">{formatMoney(selectedFrom.balance)}</strong> nakit var.</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {/* Çıkış Hesabı */}
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              📤 PARANIN ÇIKACAĞI HESAP *
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+              Paranın Çıkacağı Hesap *
             </label>
             <select
               value={fromAccountId}
               onChange={e => setFromAccountId(e.target.value)}
-              style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', fontWeight: 600 }}
+              style={{ width: '100%', padding: '10px 12px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface-subtle)', fontWeight: 600 }}
             >
               {accounts.filter(a => a.type !== 'credit_card').map(acc => (
                 <option key={acc.id} value={acc.id}>
-                  🏦 {acc.name} — Bakiye: {formatMoney(acc.balance, acc.currency)}
+                  {acc.name} — Bakiye: {formatMoney(acc.balance, acc.currency)}
                 </option>
               ))}
             </select>
@@ -196,113 +208,109 @@ export default function TransferModal({
 
           {/* Hedef Hesap */}
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              📥 HEDEF HESAP / KREDİ KARTI *
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+              Paranın Gireceği Hesap (Hedef) *
             </label>
             <select
               value={toAccountId}
               onChange={e => setToAccountId(e.target.value)}
-              style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', fontWeight: 600 }}
+              style={{ width: '100%', padding: '10px 12px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface-subtle)', fontWeight: 600 }}
             >
               {accounts.map(acc => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.type === 'credit_card' ? '💳' : '🏦'} {acc.name} {acc.type === 'credit_card' ? `— Borç: ${formatMoney(acc.balance)}` : `— Bakiye: ${formatMoney(acc.balance, acc.currency)}`}
+                <option key={acc.id} value={acc.id} disabled={acc.id === fromAccountId}>
+                  {acc.type === 'credit_card' ? '💳 ' : '🏦 '}
+                  {acc.name} {acc.type === 'credit_card' ? `(Güncel Borç: ${formatMoney(acc.balance, acc.currency)})` : `(Bakiye: ${formatMoney(acc.balance, acc.currency)})`}
+                  {acc.id === fromAccountId ? ' [Çıkış Hesabıyla Aynı]' : ''}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Kart Ödeme Vurgu Rozeti ve Borç Doldurma Butonları */}
-          {isCardPayment && selectedTo && selectedFrom && (
-            <div style={{
-              background: '#EEF2FF', border: '1px solid #C7D2FE', padding: '12px',
-              borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '8px'
-            }}>
+          {/* Kart Borcu Ödeme İpuçları & Hızlı Doldurma Butonları */}
+          {isCardPayment && selectedTo && selectedTo.balance > 0 && (
+            <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#4F46E5' }}>{selectedTo.name} Borç Ödemesi</div>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#312E81', marginTop: '2px' }}>
-                    Güncel Borç: {formatMoney(selectedTo.balance)}
-                  </div>
-                </div>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>
-                  Kullanılabilir Nakit: <strong>{formatMoney(selectedFrom.balance)}</strong>
-                </div>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  Kartın Güncel Toplam Borcu:
+                </span>
+                <span className="tabular-nums" style={{ fontSize: '14px', fontWeight: 800, color: '#DC2626' }}>
+                  {formatMoney(selectedTo.balance, selectedTo.currency)}
+                </span>
               </div>
 
-              {selectedTo.balance > 0 && (
-                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                  <button
-                    type="button"
-                    onClick={handleFillDebt}
-                    style={{
-                      flex: 1, background: '#4F46E5', color: 'white', border: 'none',
-                      borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: '11px', fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    ⚡ {selectedFrom.balance < selectedTo.balance ? `Tüm Nakdi Doldur (${formatMoney(selectedFrom.balance)})` : `Borcu Doldur (${formatMoney(selectedTo.balance)})`}
-                  </button>
-
-                  {selectedFrom.balance < selectedTo.balance && (
-                    <button
-                      type="button"
-                      onClick={handleFillFullDebt}
-                      style={{
-                        background: 'var(--surface)', color: 'var(--indigo)', border: '1px solid var(--indigo)',
-                        borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: '11px', fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      💳 Tam Borç
-                    </button>
-                  )}
-                </div>
-              )}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                <button
+                  type="button"
+                  onClick={handleFillDebt}
+                  className="btn-subtle"
+                  style={{ flex: 1, padding: '6px 10px', fontSize: '11px', fontWeight: 700 }}
+                >
+                  Maks. Ödenebilir ({selectedFrom ? formatMoney(Math.min(selectedTo.balance, selectedFrom.balance)) : '0 ₺'})
+                </button>
+                <button
+                  type="button"
+                  onClick={handleFillFullDebt}
+                  className="btn-subtle"
+                  style={{ flex: 1, padding: '6px 10px', fontSize: '11px', fontWeight: 700, color: '#DC2626' }}
+                >
+                  Tamamını Kapat ({formatMoney(selectedTo.balance)})
+                </button>
+              </div>
             </div>
           )}
 
           {/* Tutar */}
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              TRANSFER TUTARI (₺) *
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                Aktarılacak Tutar (TL) *
+              </label>
+              {selectedFrom && (
+                <span className="tabular-nums" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  Kullanılabilir Nakit: <strong>{formatMoney(selectedFrom.balance, selectedFrom.currency)}</strong>
+                </span>
+              )}
+            </div>
             <input
               type="number"
               required
               min={1}
-              placeholder="0"
+              step="0.01"
+              placeholder="0.00"
               value={amount}
               onChange={e => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
+              className="tabular-nums"
               style={{
                 width: '100%', padding: '12px', fontSize: '18px', fontWeight: 900,
                 border: isInsufficientBalance ? '2px solid #EF4444' : '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)', marginTop: '4px',
-                color: isInsufficientBalance ? '#DC2626' : 'var(--text-main)'
+                borderRadius: 'var(--radius-md)',
+                color: isInsufficientBalance ? '#DC2626' : 'var(--text-main)',
+                background: 'var(--surface-subtle)'
               }}
             />
           </div>
 
           {/* Not */}
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              AÇIKLAMA / NOT (OPSİYONEL)
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+              Açıklama / Not (Opsiyonel)
             </label>
             <input
               type="text"
               placeholder="Örn: Garanti kart ekstresi son ödeme"
               value={note}
               onChange={e => setNote(e.target.value)}
-              style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }}
+              style={{ width: '100%', padding: '10px 12px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface-subtle)' }}
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+          {/* Sabit Alt Butonlar (Sticky Footer) */}
+          <div className="modal-sticky-footer" style={{ display: 'flex', gap: '10px' }}>
             <button
               type="button"
               onClick={onClose}
               className="btn-subtle"
-              style={{ flex: 1, padding: '10px', fontSize: '13px', fontWeight: 600 }}
+              style={{ flex: 1, padding: '12px', fontSize: '13px', fontWeight: 600, minHeight: '44px' }}
             >
               İptal
             </button>
@@ -311,9 +319,11 @@ export default function TransferModal({
               disabled={saving || isInsufficientBalance}
               className="btn-primary"
               style={{
-                flex: 2, padding: '10px', fontSize: '13px', fontWeight: 800,
+                flex: 2, padding: '12px', fontSize: '13px', fontWeight: 800,
                 opacity: isInsufficientBalance ? 0.5 : 1,
-                cursor: isInsufficientBalance ? 'not-allowed' : 'pointer'
+                cursor: isInsufficientBalance ? 'not-allowed' : 'pointer',
+                margin: 0,
+                minHeight: '44px'
               }}
             >
               {saving ? 'İşleniyor...' : isCardPayment ? '💳 Ödemeyi Tamamla' : '🔄 Transfer Et'}

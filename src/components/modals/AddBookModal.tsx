@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import LiveBarcodeScannerModal from './LiveBarcodeScannerModal';
 import PageCalibrationModal from './PageCalibrationModal';
 import { BOOK_CATEGORIES, sortCategoriesInTurkish } from '@/lib/book-categories';
@@ -47,6 +47,17 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
+
+  // ESC tuşuyla kapatma
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -344,21 +355,15 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
 
   return (
     <>
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
-      }}>
-        <div style={{
-          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '24px',
-          maxWidth: '680px', width: '100%', maxHeight: '90vh', overflowY: 'auto',
-          color: 'var(--text-main)', boxShadow: 'var(--shadow-lg)'
-        }}>
+      <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000 }}>
+        <div className="bottom-sheet modal-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: '680px' }}>
+          <div className="sheet-handle" />
+
           {/* Header */}
           <div style={{
-            padding: '20px 24px', borderBottom: '1px solid var(--border)',
+            padding: '16px 20px', borderBottom: '1px solid var(--border)',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            background: 'var(--surface-subtle)', borderTopLeftRadius: '24px', borderTopRightRadius: '24px'
+            background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{

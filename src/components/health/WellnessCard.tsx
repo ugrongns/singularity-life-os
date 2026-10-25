@@ -454,7 +454,7 @@ export default function WellnessCard({
       )}
 
       {/* Sekmeler */}
-      <div style={{ display: 'flex', gap: '4px', background: 'var(--surface-subtle)', padding: '4px', borderRadius: 'var(--radius-md)', marginBottom: '14px', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <div className="pill-scroll-bar" style={{ gap: '4px', background: 'var(--surface-subtle)', padding: '4px', borderRadius: 'var(--radius-md)', marginBottom: '14px' }}>
         <button className={`choice-pill ${tab === 'supplements' ? 'selected' : ''}`} onClick={() => setTab('supplements')} style={{ flex: '0 0 auto', padding: '7px 8px', fontSize: '11px', fontWeight: 800, whiteSpace: 'nowrap' }}>
           💊 Takviyeler ({takenDaily}/{totalDaily})
         </button>
