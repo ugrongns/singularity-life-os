@@ -83,6 +83,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
   const [autoPayWalletId, setAutoPayWalletId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [notes, setNotes] = useState('');
+  const [isPaidCurrentPeriod, setIsPaidCurrentPeriod] = useState(false);
 
   // Ödeme Onay Modalı
   const [payModalBill, setPayModalBill] = useState<RecurringBill | null>(null);
@@ -92,6 +93,8 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
 
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const currentPeriodLabel = new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric' }).format(new Date());
 
   const formatTRY = (val: number) =>
     new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(val);

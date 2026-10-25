@@ -113,13 +113,17 @@ export async function POST(req: Request) {
       name, type = 'utility', billing_day, due_day,
       period = 'monthly', due_month, amount = 0,
       amount_type = 'fixed',
-      is_auto_pay = 0, auto_pay_wallet_id, category_id, notes
+      is_auto_pay = 0, auto_pay_wallet_id, category_id, notes,
+      is_paid_current_period = false
     } = body;
 
     if (!name?.trim() || !due_day) {
       return NextResponse.json({ success: false, error: 'Fatura/Abonelik adı ve son ödeme günü zorunludur.' }, { status: 400 });
     }
 
+    const today = new Date();
+    const todayISO = localYYYYMMDD(today);
+    const currentMonth = localYYYYMM(today);
     const now = new Date().toISOString();
     const newId = `bill-${Date.now()}`;
     const familyId = user.family_id || `fam-${user.id}`;
@@ -137,6 +141,8 @@ export async function POST(req: Request) {
       is_auto_pay: is_auto_pay ? 1 : 0,
       auto_pay_wallet_id: auto_pay_wallet_id || null,
       category_id: category_id || null,
+      last_paid_month: is_paid_current_period ? currentMonth : null,
+      last_paid_date: is_paid_current_period ? todayISO : null,
       notes: notes?.trim() || null,
       status: 'active',
       user_id: user.id,
@@ -147,7 +153,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `✅ ${name.trim()} (${amount_type === 'variable' ? 'Tahmini' : 'Sabit'}) fatura/abonelik takvimine eklendi!`,
+      message: `✅ ${name.trim()} (${amount_type === 'variable' ? 'Tahmini' : 'Sabit'}) ${is_paid_current_period ? 'bu ay ödendi olarak' : ''} takvime eklendi!`,
       data: { id: newId }
     });
   } catch (error: any) {
@@ -166,32 +172,43 @@ export async function PUT(req: Request) {
     const {
       id, name, type, billing_day, due_day,
       period, due_month, amount, amount_type,
-      is_auto_pay, auto_pay_wallet_id, category_id, notes, status
+      is_auto_pay, auto_pay_wallet_id, category_id, notes, status,
+      is_paid_current_period
     } = body;
 
     if (!id || !name?.trim() || !due_day) {
       return NextResponse.json({ success: false, error: 'ID, ad ve son ödeme günü zorunludur.' }, { status: 400 });
     }
 
+    const today = new Date();
+    const todayISO = localYYYYMMDD(today);
+    const currentMonth = localYYYYMM(today);
     const now = new Date().toISOString();
 
+    const updateFields: any = {
+      name: name.trim(),
+      type: type || 'utility',
+      billing_day: billing_day ? Number(billing_day) : null,
+      due_day: Number(due_day),
+      period: period || 'monthly',
+      due_month: due_month ? Number(due_month) : null,
+      amount: Number(amount) || 0,
+      amount_type: amount_type === 'variable' ? 'variable' : 'fixed',
+      is_auto_pay: is_auto_pay ? 1 : 0,
+      auto_pay_wallet_id: auto_pay_wallet_id || null,
+      category_id: category_id || null,
+      notes: notes !== undefined ? (notes?.trim() || null) : undefined,
+      status: status || 'active',
+      updated_at: now
+    };
+
+    if (is_paid_current_period !== undefined) {
+      updateFields.last_paid_month = is_paid_current_period ? currentMonth : null;
+      updateFields.last_paid_date = is_paid_current_period ? todayISO : null;
+    }
+
     await db.update(recurringBills)
-      .set({
-        name: name.trim(),
-        type: type || 'utility',
-        billing_day: billing_day ? Number(billing_day) : null,
-        due_day: Number(due_day),
-        period: period || 'monthly',
-        due_month: due_month ? Number(due_month) : null,
-        amount: Number(amount) || 0,
-        amount_type: amount_type === 'variable' ? 'variable' : 'fixed',
-        is_auto_pay: is_auto_pay ? 1 : 0,
-        auto_pay_wallet_id: auto_pay_wallet_id || null,
-        category_id: category_id || null,
-        notes: notes !== undefined ? (notes?.trim() || null) : undefined,
-        status: status || 'active',
-        updated_at: now
-      })
+      .set(updateFields)
       .where(eq(recurringBills.id, id));
 
     return NextResponse.json({

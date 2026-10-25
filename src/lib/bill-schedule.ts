@@ -81,8 +81,19 @@ export function calculateBillSchedule(bill: any, today: Date) {
         nextDueDate = candDueDate;
       }
     } else {
-      nextDueDate = candDueDate;
-      isOverdue = false;
+      // Vade günü bugün veya bu ay içinde gelecekteki bir gün
+      const isPaidForThisMonth = bill.last_paid_month === currentMonthStr;
+      if (isPaidForThisMonth) {
+        // Bu ayki vade zaten ödendiği için bir sonraki ayın ilk vadesine ayarlanır
+        isOverdue = false;
+        const nextMonth = currMonth + 1;
+        const nextYear = nextMonth > 11 ? currYear + 1 : currYear;
+        const nextMonthNorm = nextMonth % 12;
+        nextDueDate = new Date(nextYear, nextMonthNorm, Math.min(dueDay, daysInMonth(nextYear, nextMonthNorm)));
+      } else {
+        nextDueDate = candDueDate;
+        isOverdue = false;
+      }
     }
   }
 

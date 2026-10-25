@@ -163,4 +163,34 @@ describe('Financial Schedule, Installment & Security Calculations', () => {
     const exactDiff = Math.round((10000 - 10000) * 100) / 100;
     expect(exactDiff).toBe(0);
   });
+  it('recurring bill initial payment status: defining bill as already paid marks it as paid this month and defers first due date to next period', () => {
+    const today = new Date(2026, 9, 25); // 25 Oct 2026
+
+    // Case 1: Fatura cari dönemde ödenmemiş olarak tanımlanmış (Borçlu)
+    const unpaidBill = {
+      name: 'Turkcell Fatura',
+      due_day: 28,
+      period: 'monthly',
+      amount: 450,
+      last_paid_month: null
+    };
+    const unpaidSchedule = calculateBillSchedule(unpaidBill, today);
+    expect(unpaidSchedule.is_paid_this_month).toBe(false);
+    expect(unpaidSchedule.next_due_date).toBe('2026-10-28');
+
+    // Case 2: Fatura tanımlanırken "Bu ay ödendi" seçilmiş (last_paid_month set)
+    const paidBill = {
+      name: 'Turkcell Fatura',
+      due_day: 28,
+      period: 'monthly',
+      amount: 450,
+      last_paid_month: '2026-10',
+      last_paid_date: '2026-10-25'
+    };
+    const paidSchedule = calculateBillSchedule(paidBill, today);
+    expect(paidSchedule.is_paid_this_month).toBe(true);
+    // İlk ödeme tarihi otomatik olarak Kasım 2026'ya ötelenmelidir
+    expect(paidSchedule.next_due_date).toBe('2026-11-28');
+  });
+
 });
