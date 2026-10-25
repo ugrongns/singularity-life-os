@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { Home, Wrench, ShieldCheck, Trash2, FileText, PhoneCall, Plus, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 interface HomeMaintenanceRecord {
   id: string;
@@ -36,8 +37,8 @@ interface Props {
 }
 
 export default function HomeOperationsCard({
-  maintenanceRecords,
-  appliances,
+  maintenanceRecords = [],
+  appliances = [],
   onOpenAddModal,
   onRefresh,
   onToast
@@ -71,67 +72,135 @@ export default function HomeOperationsCard({
         body: JSON.stringify({ action: 'delete_appliance', id })
       });
       const json = await res.json();
-      if (onToast) onToast(json.message || 'Cihaz kaydı silindi.');
-      onRefresh();
-      window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      if (json.success) {
+        if (onToast) onToast(json.message || 'Cihaz kaydı silindi.');
+        onRefresh();
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      }
     } catch {
       if (onToast) onToast('❌ Silme hatası.');
     }
   };
 
   return (
-    <div className="card">
-      <div className="card-title-row">
-        <div className="card-title">
-          <span>🏠</span>
-          <span>Ev Operasyonları & Garanti Takibi</span>
+    <div
+      className="card"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        gap: '16px',
+        height: '100%',
+        minHeight: '320px'
+      }}
+    >
+      {/* Üst Başlık Barı */}
+      <div className="card-header-block" style={{ marginBottom: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="icon-badge icon-badge-blue">
+            <Home size={18} strokeWidth={1.75} />
+          </div>
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--text-muted)' }}>
+              Demirbaş & Tesisat
+            </div>
+            <h2 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+              Ev Operasyonları & Garanti
+            </h2>
+          </div>
         </div>
-      </div>
 
-      <div className="card-action-bar">
-        <button className="btn-primary" style={{ borderRadius: 'var(--radius-full)', padding: '6px 14px', fontSize: '12px' }} onClick={onOpenAddModal}>
-          + Ev Kaydı Ekle
+        <button
+          type="button"
+          className="btn-primary"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            borderRadius: 'var(--radius-full)',
+            padding: '6px 12px',
+            fontSize: '11px',
+            fontWeight: 700
+          }}
+          onClick={onOpenAddModal}
+        >
+          <Plus size={14} />
+          <span>Ev Kaydı Ekle</span>
         </button>
       </div>
 
       {/* Sekmeler */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: '6px',
+          background: 'var(--surface-subtle)',
+          padding: '4px',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border)'
+        }}
+      >
         <button
           type="button"
           onClick={() => setActiveTab('maintenance')}
           style={{
-            padding: '6px 12px', fontSize: '12px', fontWeight: 800, borderRadius: '6px', cursor: 'pointer',
-            border: activeTab === 'maintenance' ? '1px solid #4F46E5' : '1px solid transparent',
-            background: activeTab === 'maintenance' ? '#EEF2FF' : 'transparent',
-            color: activeTab === 'maintenance' ? '#4F46E5' : 'var(--text-muted)'
+            flex: 1,
+            padding: '6px 10px',
+            fontSize: '11px',
+            fontWeight: 800,
+            borderRadius: 'var(--radius-sm)',
+            border: 'none',
+            cursor: 'pointer',
+            background: activeTab === 'maintenance' ? 'var(--blue)' : 'transparent',
+            color: activeTab === 'maintenance' ? '#FFFFFF' : 'var(--text-muted)',
+            transition: 'all 0.15s ease',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px'
           }}
         >
-          💧 Periyodik Ev Bakımları ({maintenanceRecords.length})
+          <Wrench size={13} strokeWidth={2} />
+          <span>Periyodik Bakımlar ({maintenanceRecords.length})</span>
         </button>
+
         <button
           type="button"
           onClick={() => setActiveTab('appliances')}
           style={{
-            padding: '6px 12px', fontSize: '12px', fontWeight: 800, borderRadius: '6px', cursor: 'pointer',
-            border: activeTab === 'appliances' ? '1px solid #4F46E5' : '1px solid transparent',
-            background: activeTab === 'appliances' ? '#EEF2FF' : 'transparent',
-            color: activeTab === 'appliances' ? '#4F46E5' : 'var(--text-muted)'
+            flex: 1,
+            padding: '6px 10px',
+            fontSize: '11px',
+            fontWeight: 800,
+            borderRadius: 'var(--radius-sm)',
+            border: 'none',
+            cursor: 'pointer',
+            background: activeTab === 'appliances' ? 'var(--blue)' : 'transparent',
+            color: activeTab === 'appliances' ? '#FFFFFF' : 'var(--text-muted)',
+            transition: 'all 0.15s ease',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px'
           }}
         >
-          📺 Garanti & Demirbaşlar ({appliances.length})
+          <ShieldCheck size={13} strokeWidth={2} />
+          <span>Garanti & Demirbaş ({appliances.length})</span>
         </button>
       </div>
 
-      {activeTab === 'maintenance' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {maintenanceRecords.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '12px' }}>
-              Henüz ev bakım kaydı bulunmuyor.
+      {/* İçerik Listesi */}
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {activeTab === 'maintenance' ? (
+          maintenanceRecords.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)', fontSize: '12px' }}>
+              <div style={{ fontSize: '24px', marginBottom: '8px' }}>🚰</div>
+              Kayıtlı ev bakım veya filtre periyodu bulunmuyor.
             </div>
           ) : (
-            maintenanceRecords.map(rec => {
-              const isUrgent = rec.status === 'urgent';
-              const isWarning = rec.status === 'warning';
+            maintenanceRecords.map((rec) => {
+              const isUrgent = rec.status === 'urgent' || rec.days_left <= 0;
+              const isWarning = rec.status === 'warning' || (rec.days_left > 0 && rec.days_left <= 15);
 
               return (
                 <div
@@ -139,62 +208,79 @@ export default function HomeOperationsCard({
                   style={{
                     padding: '12px',
                     borderRadius: 'var(--radius-md)',
-                    background: isUrgent ? '#FEF2F2' : isWarning ? '#FFFBEB' : 'var(--surface-subtle)',
-                    border: `1px solid ${isUrgent ? '#FCA5A5' : isWarning ? '#FDE68A' : 'var(--border)'}`,
+                    background: 'var(--surface-subtle)',
+                    border: `1px solid ${isUrgent ? 'rgba(244, 63, 94, 0.4)' : isWarning ? 'rgba(245, 158, 11, 0.4)' : 'var(--border)'}`,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '8px'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>
-                      {rec.title}
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <Wrench size={14} className="text-muted" />
+                      <span>{rec.title}</span>
                     </div>
-                    <span style={{
-                      fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '4px',
-                      background: isUrgent ? '#DC2626' : isWarning ? '#D97706' : '#059669', color: 'white'
-                    }}>
-                      {isUrgent ? '⚠️ BAKIM ZAMANI GELDİ!' : isWarning ? '⚡ YAKLAŞTI' : '✓ DURUM İYİ'}
+
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: 'var(--radius-full)',
+                        background: isUrgent ? 'var(--rose-bg)' : isWarning ? 'var(--amber-bg)' : 'var(--emerald-bg)',
+                        color: isUrgent ? 'var(--rose)' : isWarning ? 'var(--amber)' : 'var(--emerald)',
+                        border: `1px solid ${isUrgent ? 'rgba(244, 63, 94, 0.3)' : isWarning ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
+                      }}
+                    >
+                      {isUrgent ? '⚠️ BAKIM ZAMANI' : isWarning ? '⏳ YAKLAŞTI' : '✓ DURUM İYİ'}
                     </span>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    <div>
-                      <span>Son Bakım: <strong>{rec.last_serviced_date}</strong></span>
-                      <span style={{ margin: '0 6px' }}>•</span>
-                      <span>Gelecek: <strong>{rec.next_due_date}</strong></span>
-                    </div>
-                    <div style={{ fontWeight: 800, color: isUrgent ? '#DC2626' : isWarning ? '#D97706' : '#059669' }}>
-                      {rec.days_left <= 0 ? 'Bugün Bakım Günü!' : `${rec.days_left} Gün Kaldı`}
-                    </div>
+                    <span>Son: {rec.last_serviced_date} • Gelecek: {rec.next_due_date}</span>
+                    <span className="tabular-nums" style={{ fontWeight: 800, color: isUrgent ? 'var(--rose)' : isWarning ? 'var(--amber)' : 'var(--emerald)' }}>
+                      {rec.days_left <= 0 ? 'Bugün Vadesi!' : `${rec.days_left} Gün Kaldı`}
+                    </span>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '6px', borderTop: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
-                      Tahmini Tutar: ₺{rec.cost_estimate} ({rec.interval_months} Ayda Bir)
+                    <span className="tabular-nums" style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      Tahmini: {rec.cost_estimate ? `${Number(rec.cost_estimate).toLocaleString('tr-TR')} ₺` : 'Belirtilmedi'}
                     </span>
+
                     <button
                       type="button"
-                      className="btn-primary"
                       onClick={() => handleResetFilter(rec.id, rec.interval_months)}
-                      style={{ fontSize: '11px', padding: '4px 10px', fontWeight: 800, background: isUrgent ? '#DC2626' : 'var(--text-main)' }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '11px',
+                        padding: '4px 10px',
+                        fontWeight: 800,
+                        borderRadius: 'var(--radius-full)',
+                        background: isUrgent ? 'var(--rose)' : 'var(--surface)',
+                        color: isUrgent ? '#FFFFFF' : 'var(--text-main)',
+                        border: '1px solid var(--border)',
+                        cursor: 'pointer'
+                      }}
                     >
-                      🔄 Bakım Yapıldı (Sıfırla)
+                      <RefreshCw size={12} />
+                      <span>Bakım Yapıldı</span>
                     </button>
                   </div>
                 </div>
               );
             })
-          )}
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {appliances.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '12px' }}>
-              Henüz kayıtlı beyaz eşya veya garanti bulunmuyor.
+          )
+        ) : (
+          appliances.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)', fontSize: '12px' }}>
+              <div style={{ fontSize: '24px', marginBottom: '8px' }}>📺</div>
+              Kayıtlı beyaz eşya veya garanti belgesi bulunmuyor.
             </div>
           ) : (
-            appliances.map(app => (
+            appliances.map((app) => (
               <div
                 key={app.id}
                 style={{
@@ -204,37 +290,56 @@ export default function HomeOperationsCard({
                   border: '1px solid var(--border)',
                   display: 'flex',
                   justifyContent: 'space-between',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  gap: '10px'
                 }}
               >
-                <div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
-                    📺 {app.name} {app.brand && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>({app.brand} {app.model})</span>}
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {app.name} {app.brand && <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>({app.brand})</span>}
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', gap: '8px' }}>
-                    <span>Satın Alma: {app.purchase_date}</span>
-                    <span>•</span>
-                    <span>Garanti: {app.warranty_months} Ay</span>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Satın Alma: {app.purchase_date || '—'} • Garanti: {app.warranty_months || 24} Ay
                   </div>
                   {app.warranty_expiry_date && (
-                    <div style={{ fontSize: '11px', marginTop: '4px', fontWeight: 700, color: app.is_warranty_active ? '#059669' : '#DC2626' }}>
-                      {app.is_warranty_active ? `✓ Garanti Bitiş: ${app.warranty_expiry_date} (${app.days_left_warranty} gün kaldı)` : `❌ Garanti Süresi Doldu (${app.warranty_expiry_date})`}
+                    <div
+                      className="tabular-nums"
+                      style={{
+                        fontSize: '11px',
+                        marginTop: '3px',
+                        fontWeight: 700,
+                        color: app.is_warranty_active ? 'var(--emerald)' : 'var(--rose)'
+                      }}
+                    >
+                      {app.is_warranty_active
+                        ? `✓ Bitiş: ${app.warranty_expiry_date} (${app.days_left_warranty} gün)`
+                        : `❌ Garanti Doldu (${app.warranty_expiry_date})`}
                     </div>
                   )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
                   {app.receipt_url && (
                     <a
                       href={app.receipt_url}
                       target="_blank"
                       rel="noreferrer"
                       style={{
-                        padding: '6px 10px', fontSize: '11px', fontWeight: 800, background: '#ECFDF5',
-                        color: '#059669', border: '1px solid #A7F3D0', borderRadius: '6px', textDecoration: 'none'
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        padding: '5px 8px',
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        background: 'var(--emerald-bg)',
+                        color: 'var(--emerald)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        borderRadius: 'var(--radius-sm)',
+                        textDecoration: 'none'
                       }}
                     >
-                      🧾 Fatura
+                      <FileText size={11} />
+                      <span>Fatura</span>
                     </a>
                   )}
 
@@ -242,26 +347,46 @@ export default function HomeOperationsCard({
                     <a
                       href={`tel:${app.service_phone}`}
                       style={{
-                        padding: '6px 10px', fontSize: '11px', fontWeight: 800, background: '#EEF2FF',
-                        color: '#4F46E5', border: '1px solid #C7D2FE', borderRadius: '6px', textDecoration: 'none'
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        padding: '5px 8px',
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        background: 'var(--blue-bg)',
+                        color: 'var(--blue)',
+                        border: '1px solid rgba(59, 130, 246, 0.3)',
+                        borderRadius: 'var(--radius-sm)',
+                        textDecoration: 'none'
                       }}
                     >
-                      📞 Servis
+                      <PhoneCall size={11} />
+                      <span>Servis</span>
                     </a>
                   )}
+
                   <button
                     type="button"
                     onClick={() => handleDeleteAppliance(app.id)}
-                    style={{ background: 'none', border: 'none', fontSize: '13px', cursor: 'pointer', opacity: 0.6 }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Cihazı Sil"
                   >
-                    🗑️
+                    <Trash2 size={14} />
                   </button>
                 </div>
               </div>
             ))
-          )}
-        </div>
-      )}
+          )
+        )}
+      </div>
     </div>
   );
 }

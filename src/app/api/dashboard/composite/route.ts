@@ -7,12 +7,13 @@ import { GET as getLibrary } from '@/app/api/library/route';
 import { GET as getFasting } from '@/app/api/health/fasting/route';
 import { GET as getWellness } from '@/app/api/wellness/route';
 import { GET as getShopping } from '@/app/api/shopping-list/route';
+import { GET as getHome } from '@/app/api/home-operations/route';
 import { GET as getNotifications } from '@/app/api/notifications/route';
 import { fetchLiveExchangeRates } from '@/lib/market-data';
 
 /**
  * Composite Dashboard Aggregate Endpoint
- * Tek bir HTTP isteği ile ana sayfanın 8 modül verisini ve piyasa kurlarını bellek içi
+ * Tek bir HTTP isteği ile ana sayfanın 9 modül verisini ve piyasa kurlarını bellek içi
  * (in-process) paralel toplayıp döner. Döngüsel HTTP/fetch çağrılarını ve ağ gecikmesini sıfırlar.
  */
 export async function GET(req: Request) {
@@ -36,6 +37,7 @@ export async function GET(req: Request) {
       fastingRes,
       wellnessRes,
       shoppingRes,
+      homeRes,
       notifRes,
       ratesRes
     ] = await Promise.allSettled([
@@ -45,6 +47,7 @@ export async function GET(req: Request) {
       getFasting().then(r => r.json()),
       getWellness().then(r => r.json()),
       getShopping().then(r => r.json()),
+      getHome().then(r => r.json()),
       getNotifications().then(r => r.json()),
       fetchLiveExchangeRates()
     ]);
@@ -75,6 +78,7 @@ export async function GET(req: Request) {
         fasting: getVal(fastingRes),
         wellness: getVal(wellnessRes),
         shopping: getVal(shoppingRes),
+        home: getVal(homeRes),
         notifications: getVal(notifRes) || { notifications: [], critical: 0, warning: 0 },
         market_rates: ratesRes.status === 'fulfilled' ? ratesRes.value : null,
         timestamp: new Date().toISOString()
