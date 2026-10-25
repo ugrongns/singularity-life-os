@@ -7,10 +7,13 @@ export interface ParsedReceipt {
   date: string;
   category_id: string;
   category_name: string;
-  items: Array<{ name: string; price: number; quantity?: number }>;
+  items: Array<{ name: string; price: number; quantity?: number; barcode?: string }>;
   tax_amount?: number;
   confidence: number;
   raw_text?: string;
+  reference_number?: string;
+  qr_url?: string;
+  source_type?: 'qr_ebelge' | 'qr_gib_code' | 'ai_ocr';
 }
 
 /**
@@ -63,7 +66,8 @@ async function callGeminiVision(
  */
 export async function parseReceiptImage(
   base64Input: string | string[],
-  mimeInput: string | string[] = []
+  mimeInput: string | string[] = [],
+  qrData?: string
 ): Promise<ParsedReceipt> {
   const base64Images = Array.isArray(base64Input) ? base64Input : [base64Input];
   const mimeTypes = Array.isArray(mimeInput) ? mimeInput : [mimeInput];
@@ -103,7 +107,7 @@ Buruşukluk, eksik ışık veya kısmi silinme durumunda dahi en mantıklı tahm
   "tax_amount": 308.33
 }
 
-Şimdi gönderilen görseli analiz et ve SADECE yukarıdaki gibi geçerli bir JSON çıktısı üret.`;
+Şimdi gönderilen görseli analiz et ve SADECE yukarıdaki gibi geçerli bir JSON çıktısı üret.${qrData ? `\n\nÖNEMLİ: Bu fişte okunan Karekod / QR verisi şudur: "${qrData}". Görseldeki bilgiler ile bu karekod içeriğini (mağaza, tarih, referans no, tutar vb.) birleştirerek en doğru analizi yap.` : ''}`;
 
       const jsonResult = await callGeminiVision(
         apiKey,
@@ -142,7 +146,10 @@ Buruşukluk, eksik ışık veya kısmi silinme durumunda dahi en mantıklı tahm
             category_name: parsed.category_suggestion || 'Market & Gıda',
             items: parsed.items || [],
             tax_amount: parsed.tax_amount || 0,
-            confidence: 0.95
+            confidence: 0.95,
+            reference_number: parsed.reference_number || undefined,
+            qr_url: qrData?.startsWith('http') ? qrData : undefined,
+            source_type: 'ai_ocr'
           };
         }
       }

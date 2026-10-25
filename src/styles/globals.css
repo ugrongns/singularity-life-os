@@ -996,3 +996,18 @@ body {
 }
 
 
+
+/* Karekod Lazer Tarama Animasyonu */
+@keyframes scanLaser {
+  0% {
+    top: 15%;
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    top: 85%;
+    opacity: 0.85;
+  }
+}
