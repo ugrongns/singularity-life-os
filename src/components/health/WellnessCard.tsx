@@ -378,20 +378,20 @@ export default function WellnessCard({
               <button
                 type="button"
                 onClick={() => onOpenAddSupplement(s)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
                 title="Düzenle"
               >
-                <Edit2 className="w-3.5 h-3.5" />
+                <Edit2 size={13} />
               </button>
             )}
 
             <button
               type="button"
               onClick={() => handleDeleteSupp(s.id)}
-              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
               title="Sil"
             >
-              <Trash2 className="w-3.5 h-3.5 hover:text-rose-500" />
+              <Trash2 size={13} />
             </button>
           </div>
         </div>
@@ -435,20 +435,20 @@ export default function WellnessCard({
                   border: 'none',
                   borderRadius: '8px',
                   cursor: 'pointer',
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
                   gap: '4px',
                   boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
                   transition: 'all 0.15s ease'
                 }}
               >
-                <Check className="w-4 h-4" />
+                <Check size={14} />
                 <span>{taking === s.id ? '...' : 'Alındı'}</span>
               </button>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#10B981', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  <CheckCircle2 size={14} color="#10B981" />
                   <span>
                     Alındı
                     {s.taken_at ? ` (${new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit' }).format(new Date(s.taken_at))})` : ''}
@@ -469,12 +469,12 @@ export default function WellnessCard({
                     borderRadius: '6px',
                     cursor: 'pointer',
                     color: 'var(--text-muted)',
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '3px'
+                    gap: '4px'
                   }}
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  <RotateCcw size={13} />
                   <span>{undoing === s.id ? '...' : 'Geri Al'}</span>
                 </button>
               </div>
@@ -517,7 +517,7 @@ export default function WellnessCard({
               justifyContent: 'center'
             }}
           >
-            <Pill className="w-5 h-5 text-emerald-500" />
+            <Pill size={18} color="#10B981" />
           </div>
           <div>
             <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
@@ -537,26 +537,58 @@ export default function WellnessCard({
               onClick={handleTakeAll}
               disabled={takingAll}
               style={{
+                height: '34px',
                 padding: '6px 12px',
                 fontSize: '11px',
                 fontWeight: 800,
                 backgroundColor: '#10B981',
                 borderRadius: '8px',
-                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)'
+                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                whiteSpace: 'nowrap',
+                boxSizing: 'border-box'
               }}
             >
-              {takingAll ? 'İşleniyor...' : '✓ Kalan Hepsini Al'}
+              <Check size={13} />
+              <span>{takingAll ? 'İşleniyor...' : 'Kalan Hepsini Al'}</span>
             </button>
           )}
 
           {onOpenAddSupplement && (
             <button
               type="button"
-              className="btn-secondary"
               onClick={() => onOpenAddSupplement()}
-              style={{ padding: '6px 10px', fontSize: '11px', fontWeight: 700 }}
+              style={{
+                height: '34px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                color: 'var(--text-main)',
+                backgroundColor: 'var(--surface-subtle)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease',
+                boxSizing: 'border-box',
+                lineHeight: 1
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--surface)';
+                e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--surface-subtle)';
+                e.currentTarget.style.borderColor = 'var(--border)';
+              }}
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus size={14} style={{ color: '#10B981', flexShrink: 0 }} />
               <span>Yeni Takviye</span>
             </button>
           )}
@@ -586,7 +618,7 @@ export default function WellnessCard({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 800, color: '#0284C7' }}>
-              <Droplets className="w-4 h-4 text-sky-500" />
+              <Droplets size={16} color="#0284C7" />
               <span>Su Takibi</span>
             </div>
             <span className="tabular-nums" style={{ fontSize: '11px', fontWeight: 800, color: '#0284C7' }}>
@@ -673,10 +705,10 @@ export default function WellnessCard({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 800, color: '#8B5CF6' }}>
-              <Moon className="w-4 h-4 text-purple-500" />
+              <Moon size={16} color="#8B5CF6" />
               <span>Uyku & Dinlenme</span>
             </div>
-            <Edit2 className="w-3 h-3 text-purple-400" />
+            <Edit2 size={12} color="#A78BFA" />
           </div>
 
           <div>
@@ -711,7 +743,7 @@ export default function WellnessCard({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 800, color: '#10B981' }}>
-              <Smile className="w-4 h-4 text-emerald-500" />
+              <Smile size={16} color="#10B981" />
               <span>Mod & Enerji</span>
             </div>
             <span style={{ fontSize: '10px', fontWeight: 800, color: '#10B981' }}>
@@ -813,9 +845,25 @@ export default function WellnessCard({
                 type="button"
                 className="btn-primary"
                 onClick={() => onOpenAddSupplement()}
-                style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 800 }}
+                style={{
+                  padding: '10px 20px',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                  border: 'none',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
               >
-                + İlk Takviyeyi Ekle
+                <Plus size={16} />
+                <span>İlk Takviyeyi Ekle</span>
               </button>
             )}
           </div>
@@ -825,7 +873,7 @@ export default function WellnessCard({
             {renderTimingSection(
               dailySupps.filter(s => s.timing === 'morning'),
               'Sabah Rutini (Aç / Tok)',
-              <Sun className="w-4 h-4 text-amber-500" />,
+              <Sun size={15} color="#F59E0B" />,
               '#F59E0B'
             )}
 
@@ -833,7 +881,7 @@ export default function WellnessCard({
             {renderTimingSection(
               dailySupps.filter(s => s.timing === 'with_meal' || s.timing === 'lunch'),
               'Öğle & Yemekle Birlikte',
-              <Sunset className="w-4 h-4 text-emerald-500" />,
+              <Sunset size={15} color="#10B981" />,
               '#10B981'
             )}
 
@@ -841,7 +889,7 @@ export default function WellnessCard({
             {renderTimingSection(
               dailySupps.filter(s => s.timing === 'evening' || s.timing === 'night'),
               'Akşam & Yatmadan Önce',
-              <Moon className="w-4 h-4 text-purple-500" />,
+              <Moon size={15} color="#8B5CF6" />,
               '#8B5CF6'
             )}
 
@@ -849,7 +897,7 @@ export default function WellnessCard({
             {intervalSupps.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: '#6366F1', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  <Clock className="w-4 h-4 text-indigo-500" />
+                  <Clock size={15} color="#6366F1" />
                   <span>Periyodik / Aralıklarla Alınanlar ({intervalSupps.length})</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -871,7 +919,7 @@ export default function WellnessCard({
             {asNeededSupps.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: '#EC4899', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  <Shield className="w-4 h-4 text-pink-500" />
+                  <Shield size={15} color="#EC4899" />
                   <span>İhtiyaç Halinde / S.O.S ({asNeededSupps.length})</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

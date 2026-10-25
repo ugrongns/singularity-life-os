@@ -183,7 +183,7 @@ export default function HomeWorkoutTrackerCard() {
               justifyContent: 'center'
             }}
           >
-            <Trophy className="w-5 h-5 text-red-500" />
+            <Trophy size={18} color="#EF4444" />
           </div>
           <div>
             <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
@@ -200,20 +200,27 @@ export default function HomeWorkoutTrackerCard() {
           {/* Strava Bağlantı / Eşitleme Butonu */}
           <button
             type="button"
-            className="btn-secondary"
             disabled={syncingStrava}
             onClick={handleStravaSync}
             style={{
-              padding: '6px 10px',
+              height: '34px',
+              padding: '6px 12px',
               fontSize: '11px',
               fontWeight: 700,
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
-              gap: '4px'
+              gap: '6px',
+              backgroundColor: 'var(--surface-subtle)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              color: 'var(--text-main)',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxSizing: 'border-box'
             }}
             title="Strava'dan son aktiviteleri otomatik çek"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${syncingStrava ? 'animate-spin' : ''}`} />
+            <RefreshCw size={13} className={syncingStrava ? 'animate-spin' : ''} />
             <span className="hidden sm:inline">
               {stravaConnected ? 'Strava Eşitle' : 'Strava Bağla'}
             </span>
@@ -228,17 +235,21 @@ export default function HomeWorkoutTrackerCard() {
             className="btn-primary"
             onClick={() => setIsModalOpen(true)}
             style={{
-              padding: '6px 12px',
+              height: '34px',
+              padding: '6px 14px',
               fontSize: '11px',
               fontWeight: 800,
               background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
               boxShadow: '0 2px 8px rgba(239, 68, 68, 0.25)',
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
-              gap: '4px'
+              gap: '6px',
+              borderRadius: '8px',
+              whiteSpace: 'nowrap',
+              boxSizing: 'border-box'
             }}
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus size={14} />
             <span>Yeni Seans / OCR</span>
           </button>
         </div>
@@ -384,7 +395,7 @@ export default function HomeWorkoutTrackerCard() {
                     style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
                     title="Sil"
                   >
-                    <Trash2 className="w-3.5 h-3.5 hover:text-rose-500" />
+                    <Trash2 size={13} />
                   </button>
                 </div>
 
