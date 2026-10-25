@@ -22,6 +22,72 @@ interface AddVaultItemModalProps {
   onSuccess: (msg: string) => void;
 }
 
+async function compressImageIfNeeded(file: File): Promise<File> {
+  // PDF dosyalarını sıkıştırma
+  if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+    return file;
+  }
+  // 800 KB altı görseller zaten yeterince küçük
+  if (file.size <= 800 * 1024) {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_WIDTH = 1920;
+        const MAX_HEIGHT = 1920;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            height = MAX_HEIGHT;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (blob && blob.size < file.size) {
+              const compressedFile = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              });
+              resolve(compressedFile);
+            } else {
+              resolve(file);
+            }
+          },
+          'image/jpeg',
+          0.82
+        );
+      };
+      img.onerror = () => resolve(file);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: AddVaultItemModalProps) {
   const isEditing = Boolean(item?.id);
   const [title, setTitle] = useState(item?.title || '');
@@ -42,14 +108,15 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
   if (!isOpen) return null;
 
   const handleAIScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
 
     setScanningAI(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
+      const file = await compressImageIfNeeded(rawFile);
+      const formData = new FormData();
+      formData.append('file', file);
+
       const res = await fetch('/api/digital-vault/scan-document', {
         method: 'POST',
         body: formData
@@ -77,14 +144,15 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
 
     setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
+      const file = await compressImageIfNeeded(rawFile);
+      const formData = new FormData();
+      formData.append('file', file);
+
       const res = await fetch('/api/digital-vault/upload', {
         method: 'POST',
         body: formData

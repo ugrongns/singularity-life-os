@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
 import { parseVaultDocumentImage } from '@/lib/ai-vision';
-import fs from 'fs';
-import path from 'path';
 import { getAuthUser } from '@/lib/auth';
 
 export async function POST(req: Request) {
@@ -35,22 +33,8 @@ export async function POST(req: Request) {
         base64Image = buffer.toString('base64');
         mimeType = file.type || 'image/jpeg';
 
-        // Yüklenen resmi güvenli dizine kaydetmeyi dene (private_storage/vault/...)
-        try {
-          const uploadDir = path.join(process.cwd(), 'private_storage', 'vault');
-          if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-          }
-          const ext = path.extname(file.name) || '.jpg';
-          const filename = `vault-scan-${Date.now()}-${Math.random().toString(36).substring(2, 7)}${ext}`;
-          const filePath = path.join(uploadDir, filename);
-          fs.writeFileSync(filePath, buffer);
-
-          documentImageUrl = `/api/digital-vault/file?filename=${filename}`;
-        } catch (fsError) {
-          console.warn('Filesystem read-only (Serverless environment), saving scanned document as Base64 Data URL.');
-          documentImageUrl = `data:${mimeType};base64,${base64Image}`;
-        }
+        // Kalıcı Depolama: Vercel konteyner sıfırlanmalarına karşı Base64 Data URI olarak veritabanına hazırla
+        documentImageUrl = `data:${mimeType};base64,${base64Image}`;
       } else if (base64Input) {
         base64Image = base64Input;
         documentImageUrl = base64Input.startsWith('data:') ? base64Input : `data:${mimeType};base64,${base64Image}`;
@@ -59,6 +43,9 @@ export async function POST(req: Request) {
       const body = await req.json();
       base64Image = body.base64 || '';
       mimeType = body.mimeType || 'image/jpeg';
+      if (base64Image) {
+        documentImageUrl = base64Image.startsWith('data:') ? base64Image : `data:${mimeType};base64,${base64Image}`;
+      }
     }
 
     if (!base64Image) {

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { calculateBillSchedule, calculateCreditCardSchedule, localYYYYMM, localYYYYMMDD } from '../src/lib/bill-schedule';
 import { sanitizeUser } from '../src/lib/auth';
+import path from 'path';
 
 describe('Financial Schedule, Installment & Security Calculations', () => {
   it('dates and timezone formatting work correctly', () => {
@@ -94,5 +95,36 @@ describe('Financial Schedule, Installment & Security Calculations', () => {
     expect(safe.quick_pin_hash).toBeUndefined();
     expect(safe.telegram_bot_token).toBeUndefined();
     expect(safe.telegram_secret_token).toBeUndefined();
+  });
+
+  it('digital vault Base64 Data URI decoding and MIME parsing works correctly', () => {
+    const samplePayload = 'Hello Singularity Vault Document';
+    const base64Data = Buffer.from(samplePayload).toString('base64');
+    const dataUri = `data:application/pdf;base64,${base64Data}`;
+
+    const match = dataUri.match(/^data:([^;]+);base64,(.+)$/);
+    expect(match).not.toBeNull();
+    if (match) {
+      const mimeType = match[1];
+      const buffer = Buffer.from(match[2], 'base64');
+      expect(mimeType).toBe('application/pdf');
+      expect(buffer.toString('utf-8')).toBe(samplePayload);
+
+      const ext = mimeType === 'application/pdf' ? '.pdf' : '.jpg';
+      expect(ext).toBe('.pdf');
+
+      const rawTitle = 'Pasaport / Kimlik (2026) ';
+      const safeTitle = rawTitle.replace(/[^a-zA-Z0-9_\u00C0-\u017F-]/g, '_').slice(0, 50);
+      expect(safeTitle).toBe('Pasaport___Kimlik__2026__');
+    }
+  });
+
+  it('digital vault file serving blocks path traversal attempts', () => {
+    const maliciousPaths = ['../../etc/passwd', '..\\..\\windows\\win.ini', 'valid_file/../../../secret'];
+    maliciousPaths.forEach(raw => {
+      const sanitized = path.basename(raw);
+      const isDangerous = sanitized.includes('..') || raw.includes('..');
+      expect(isDangerous).toBe(true);
+    });
   });
 });

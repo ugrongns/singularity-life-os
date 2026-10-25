@@ -23,18 +23,23 @@ export async function POST(request: Request) {
     const base64Image = buffer.toString('base64');
     const mimeType = file.type || 'image/jpeg';
 
-    // Fatura belgesi görselini `public/uploads/home/` klasörüne kaydet
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'home');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    let publicUrl = '';
+
+    // Yerel ortamda diske yazmayı dene, serverless (Vercel) ortamında Data URI'ye düş
+    try {
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'home');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const fileExt = file.name.substring(file.name.lastIndexOf('.')) || '.jpg';
+      const fileName = `invoice-${Date.now()}${fileExt}`;
+      const filePath = path.join(uploadDir, fileName);
+      fs.writeFileSync(filePath, buffer);
+      publicUrl = `/uploads/home/${fileName}`;
+    } catch {
+      publicUrl = `data:${mimeType};base64,${base64Image}`;
     }
-
-    const fileExt = file.name.substring(file.name.lastIndexOf('.')) || '.jpg';
-    const fileName = `invoice-${Date.now()}${fileExt}`;
-    const filePath = path.join(uploadDir, fileName);
-    fs.writeFileSync(filePath, buffer);
-
-    const publicUrl = `/uploads/home/${fileName}`;
 
     // Gemini Vision OCR ile faturayı analiz et
     const parsedData = await parseApplianceInvoiceImage(base64Image, mimeType);
