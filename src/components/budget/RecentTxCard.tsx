@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { generateCSVContent, downloadCSV, CSVColumn } from '@/lib/export-csv';
 
 interface Transaction {
   id: string;
@@ -49,6 +50,22 @@ export default function RecentTxCard({ transactions, upcomingPayments = [], onUp
     }
   };
 
+  const handleExportCSV = () => {
+    if (!transactions.length) return;
+    const columns: CSVColumn<Transaction>[] = [
+      { header: 'Tarih', accessor: t => t.transaction_date },
+      { header: 'İşletme / Açıklama', accessor: t => t.merchant },
+      { header: 'Tutar', accessor: t => t.amount },
+      { header: 'Para Birimi', accessor: t => t.currency },
+      { header: 'Harcayan', accessor: t => t.member_name || (t.is_mine ? 'Ben' : 'Ortak') },
+      { header: 'Taksit', accessor: t => t.is_installment ? `${t.installment_number}/${t.total_installments}` : 'Tek Çekim' },
+      { header: 'Notlar', accessor: t => t.notes || '' }
+    ];
+    const csv = generateCSVContent(columns, transactions);
+    const dateStr = new Date().toISOString().split('T')[0];
+    downloadCSV(`harcamalar_${dateStr}.csv`, csv);
+  };
+
   const handleDeleteTx = async (txId: string, merchant: string) => {
     if (!confirm(`"${merchant}" harcama kaydını silmek istediğinize emin misiniz? Bakiye hesabınıza iade edilecektir.`)) return;
 
@@ -65,11 +82,27 @@ export default function RecentTxCard({ transactions, upcomingPayments = [], onUp
 
   return (
     <div className="card">
-      <div className="card-title-row">
+      <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="card-title">
           <span>💳</span>
           <span>Harcama & Ödeme Takvimi</span>
         </div>
+        {activeTab === 'recent' && transactions.length > 0 && (
+          <button
+            onClick={handleExportCSV}
+            title="Harcamaları Excel / CSV formatında indir"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '4px',
+              padding: '4px 10px', borderRadius: 'var(--radius-full)',
+              background: 'var(--surface-subtle)', border: '1px solid var(--border)',
+              fontSize: '11px', fontWeight: 700, color: 'var(--text-main)',
+              cursor: 'pointer'
+            }}
+          >
+            <span>📥</span>
+            <span>CSV İndir</span>
+          </button>
+        )}
       </div>
 
       {/* Sekme Seçici */}

@@ -127,6 +127,8 @@ export async function GET(req: Request) {
         const isTransfer = (
           tx.merchant?.startsWith('💳 Kart Ödemesi:') ||
           tx.merchant?.startsWith('🔄 Transfer:') ||
+        tx.merchant?.includes('Vadeli Mevduat Açılışı') ||
+        tx.merchant?.includes('Vadeli Mevduat Dönüşü (Anapara)') ||
           tx.merchant?.toLowerCase().includes('kart borç ödemesi') ||
           tx.notes?.toLowerCase().includes('borç ödemesi') ||
           tx.notes?.toLowerCase().includes('transfer')
@@ -301,6 +303,8 @@ export async function GET(req: Request) {
       const isTransfer = (
         tx.merchant?.startsWith('💳 Kart Ödemesi:') ||
         tx.merchant?.startsWith('🔄 Transfer:') ||
+        tx.merchant?.includes('Vadeli Mevduat Açılışı') ||
+        tx.merchant?.includes('Vadeli Mevduat Dönüşü (Anapara)') ||
         tx.merchant?.toLowerCase().includes('kart borç ödemesi') ||
         tx.notes?.toLowerCase().includes('borç ödemesi') ||
         tx.notes?.toLowerCase().includes('transfer')
@@ -463,16 +467,22 @@ export async function GET(req: Request) {
       const isInvAcc = ['brokerage', 'crypto_exchange', 'crypto_wallet'].includes(acc.type);
       const isCreditCard = acc.type === 'credit_card';
       const isLoan = acc.type === 'loan';
+      const isKmh = acc.type === 'kmh';
+
+      // Döviz kurları ile TL'ye çevrilir
+      const rate = acc.currency === 'USD' ? USD_RATE :
+        acc.currency === 'EUR' ? EUR_RATE :
+        acc.currency === 'GBP' ? GBP_RATE :
+        acc.currency === 'GOLD' ? GOLD_GRAM_RATE : 1.0;
 
       if (isCreditCard || isLoan) {
-        totalDebtsTRY += acc.balance;
+        totalDebtsTRY += (acc.balance * rate);
+      } else if (isKmh && acc.balance < 0) {
+        // KMH eksi bakiye borç olarak sayılır
+        totalDebtsTRY += (Math.abs(acc.balance) * rate);
       } else if (!isInvAcc) {
-        // Banka, nakit, kasa (Döviz kurları ile TL'ye çevrilir)
-        const rate = acc.currency === 'USD' ? USD_RATE :
-          acc.currency === 'EUR' ? EUR_RATE :
-          acc.currency === 'GBP' ? GBP_RATE :
-          acc.currency === 'GOLD' ? GOLD_GRAM_RATE : 1.0;
-        totalCashAssetsTRY += (acc.balance * rate);
+        // Banka, nakit, kasa, artı bakiyeli KMH vb.
+        totalCashAssetsTRY += (Math.max(0, acc.balance) * rate);
       }
     }
 

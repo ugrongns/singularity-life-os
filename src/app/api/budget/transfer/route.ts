@@ -33,15 +33,24 @@ export async function POST(req: Request) {
     }
 
     // OWASP BOLA Yetki Kontrolü: Transfer yapılacak hesaplar kullanıcıya veya ailesine ait olmalıdır
-    const userFamilyId = user.family_id || `fam-${user.id}`;
-    const isFromOwner = fromAcc.user_id === user.id || (fromAcc.family_id && fromAcc.family_id === userFamilyId);
-    const isToOwner = toAcc.user_id === user.id || (toAcc.family_id && toAcc.family_id === userFamilyId);
+    const userFamilyId = user.family_id || (user.id ? `fam-${user.id}` : null);
+    const isFromOwner = fromAcc.user_id === user.id || (userFamilyId && fromAcc.family_id === userFamilyId);
+    const isToOwner = toAcc.user_id === user.id || (userFamilyId && toAcc.family_id === userFamilyId);
     if (!isFromOwner || !isToOwner) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Transfer yapılacak hesaplar sizin veya ailenizin hesabına ait değil.' }, { status: 403 });
     }
 
-    // Yetersiz bakiye kontrolü (Banka/Nakit hesaplar eksiye düşemez)
-    if (fromAcc.type !== 'credit_card' && numAmount > fromAcc.balance) {
+    // Yetersiz bakiye kontrolü (KMH ve Kredi Kartı limit kontrolleriyle)
+    if (fromAcc.type === 'kmh') {
+      const overdraftLimit = fromAcc.overdraft_limit || 0;
+      const availableKMH = fromAcc.balance + overdraftLimit;
+      if (numAmount > availableKMH) {
+        return NextResponse.json({
+          success: false,
+          error: `KMH (Ek Hesap) Limiti Aşıldı! ${fromAcc.name} hesabınızın kullanılabilir toplam limiti ${availableKMH.toLocaleString('tr-TR')} ₺'dir.`
+        }, { status: 400 });
+      }
+    } else if (fromAcc.type !== 'credit_card' && numAmount > fromAcc.balance) {
       return NextResponse.json({
         success: false,
         error: `Yetersiz Bakiye! ${fromAcc.name} hesabınızda sadece ${fromAcc.balance.toLocaleString('tr-TR')} ₺ bakiye bulunmaktadır.`
@@ -52,24 +61,19 @@ export async function POST(req: Request) {
     const txDate = transaction_date || now.split('T')[0];
 
     // 1. Çıkış Hesabı Bakiye Güncellemesi
-    const newFromBalance = fromAcc.type === 'credit_card'
-      ? fromAcc.balance + numAmount // Kredi kartından para çekilirse borcu artar
-      : fromAcc.balance - numAmount; // Banka/Nakit hesabından para çıkarsa bakiye düşer
-
-    await db.update(walletsAccounts)
-      .set({ balance: Math.max(0, newFromBalance), updated_at: now })
-      .where(eq(walletsAccounts.id, from_account_id))
-      ;
+    let newFromBalance: number;
+    if (fromAcc.type === 'credit_card') {
+      newFromBalance = fromAcc.balance + numAmount; // Kredi kartından para çekilirse borcu artar
+    } else if (fromAcc.type === 'kmh') {
+      newFromBalance = fromAcc.balance - numAmount; // KMH eksi bakiyeye düşebilir
+    } else {
+      newFromBalance = Math.max(0, fromAcc.balance - numAmount); // Banka/Nakit hesabından para çıkarsa bakiye düşer
+    }
 
     // 2. Hedef Hesap Bakiye Güncellemesi
     const newToBalance = toAcc.type === 'credit_card'
-      ? toAcc.balance - numAmount // Kredi kartına ödeme yapılırsa borcu düşer!
+      ? Math.max(0, toAcc.balance - numAmount) // Kredi kartına ödeme yapılırsa borcu düşer!
       : toAcc.balance + numAmount; // Banka/Nakit hesabına girerse bakiye artar
-
-    await db.update(walletsAccounts)
-      .set({ balance: Math.max(0, newToBalance), updated_at: now })
-      .where(eq(walletsAccounts.id, to_account_id))
-      ;
 
     // 3. İşlem Kaydı Oluştur
     const isCardPayment = toAcc.type === 'credit_card';
@@ -78,25 +82,43 @@ export async function POST(req: Request) {
       : `🔄 Transfer: ${fromAcc.name} ➔ ${toAcc.name}`;
 
     const txId = `tx-transfer-${Date.now()}`;
-    const familyId = user.family_id || fromAcc.family_id || `fam-${user.id}`;
+    const familyId = user.family_id || fromAcc.family_id || (user.id ? `fam-${user.id}` : null);
 
-    await db.insert(transactions).values({
-      id: txId,
-      wallet_id: from_account_id,
-      user_id: user.id,
-      family_id: familyId,
-      merchant: txMerchant,
-      amount: numAmount,
-      currency: fromAcc.currency || 'TRY',
-      transaction_date: txDate,
-      is_installment: 0,
-      notes: note ? note.trim() : (isCardPayment ? `${toAcc.name} borç ödemesi` : `Hesaplar arası transfer`),
-      is_family_shared: 1,
-      is_verified: 1,
-      created_at: now,
-      updated_at: now,
-      sync_status: 'synced',
-      device_id: 'web-client'
+    // Geri alma (DELETE) işlemi için hedef hesap ID'sini notes içine mühürle: [to_wallet:...]
+    const baseNote = note ? note.trim() : (isCardPayment ? `${toAcc.name} borç ödemesi` : `Hesaplar arası transfer`);
+    const formattedNotes = `${baseNote} [to_wallet:${to_account_id}]`;
+
+    // Atomik Veritabanı İşlemi (db.transaction)
+    await db.transaction(async (tx) => {
+      // 1. Çıkış hesabı bakiyesini güncelle
+      await tx.update(walletsAccounts)
+        .set({ balance: newFromBalance, updated_at: now })
+        .where(eq(walletsAccounts.id, from_account_id));
+
+      // 2. Hedef hesap bakiyesini güncelle
+      await tx.update(walletsAccounts)
+        .set({ balance: newToBalance, updated_at: now })
+        .where(eq(walletsAccounts.id, to_account_id));
+
+      // 3. Transfer hareketini kaydet
+      await tx.insert(transactions).values({
+        id: txId,
+        wallet_id: from_account_id,
+        user_id: user.id,
+        family_id: familyId,
+        merchant: txMerchant,
+        amount: numAmount,
+        currency: fromAcc.currency || 'TRY',
+        transaction_date: txDate,
+        is_installment: 0,
+        notes: formattedNotes,
+        is_family_shared: 1,
+        is_verified: 1,
+        created_at: now,
+        updated_at: now,
+        sync_status: 'synced',
+        device_id: 'web-client'
+      });
     });
 
     // 4. Event Bus Bildirimi

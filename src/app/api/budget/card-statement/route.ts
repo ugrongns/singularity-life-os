@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { walletsAccounts, transactions, categories } from '@/db/schema';
-import { eq, desc , or } from 'drizzle-orm';
+import { eq, desc, or, and, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { calculateCreditCardSchedule } from '@/lib/bill-schedule';
 
@@ -25,23 +25,40 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'Kredi kartı hesabı bulunamadı.' }, { status: 404 });
     }
 
+    // BOLA / IDOR Koruması: Hesabın ailenin yetkili sınırları içinde olduğunu doğrula
+    const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
+    const belongsToFamily = !cardAccount.family_id || (familyId && cardAccount.family_id === familyId);
+    const isOwner = cardAccount.user_id === user.id;
+    const isShared = belongsToFamily && (cardAccount.is_family_shared === 1 || !cardAccount.user_id);
+    const isLeader = belongsToFamily && (user.is_master_account === 1 || user.role === 'admin');
+
+    if (!belongsToFamily || (!isOwner && !isShared && !isLeader)) {
+      return NextResponse.json({ success: false, error: 'Bu kredi kartı hesabına erişim yetkiniz yok.' }, { status: 403 });
+    }
+
     // Bu karta ait tüm işlemleri getir
     const allCardTx = (await db.select()
       .from(transactions)
       .where(eq(transactions.wallet_id, accountId))
       .orderBy(desc(transactions.transaction_date))) as any[];
 
-    // Kategorileri çek
-    const allCategories = await db.select().from(categories);
+    // Kategorileri çek (Sistem geneli veya aileye ait kategoriler)
+    const allCategories = await db.select().from(categories).where(
+      or(
+        sql`${categories.family_id} IS NULL`,
+        familyId ? eq(categories.family_id, familyId) : sql`1=1`
+      )
+    );
     const categoryMap = new Map((allCategories).map((c: any) => [c.id, c.name]));
 
     const today = new Date();
     const todayISO = today.toISOString().split('T')[0];
     const currentMonthStr = todayISO.slice(0, 7);
 
-    // 1. Bu Ayki Tek Çekim Harcamalar (is_installment === 0)
+    // 1. Bu Dönemki Tek Çekim Harcamalar (is_installment === 0)
+    // Sadece cari ekstre ayında yapılan tek çekim işlemleri döndür
     const singleTransactions = (allCardTx)
-      .filter((tx: any) => (!tx.is_installment || tx.is_installment === 0))
+      .filter((tx: any) => (!tx.is_installment || tx.is_installment === 0) && tx.transaction_date.startsWith(currentMonthStr))
       .map((tx: any) => ({
         ...tx,
         category_name: tx.category_id ? categoryMap.get(tx.category_id) || 'Genel' : 'Genel'
@@ -68,7 +85,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // Gerçekleşen taksit sayısını (vadesi bugün veya geçmiş tarihe denk gelen taksitler) hesapla
+    // Gerçekleşen taksit sayısını hesapla ve SADECE henüz bitmemiş veya bu aya ait taksiti olan planları döndür
     const activeInstallments = Array.from(installmentGroupMap.values()).map(inst => {
       const dueCount = (allCardTx).filter((tx: any) => 
         (tx.parent_transaction_id === inst.parent_id || (tx.merchant === inst.merchant && tx.total_installments === inst.total_installments)) &&
@@ -80,16 +97,27 @@ export async function GET(req: Request) {
         ...inst,
         completed_installments: Math.max(1, Math.min(dueCount, inst.total_installments))
       };
+    }).filter(inst => {
+      // Tamamlanmamış taksitler veya bu ay içinde taksit satırı olanlar aktiftir
+      const hasPending = inst.completed_installments < inst.total_installments;
+      const hasThisMonthTx = allCardTx.some((tx: any) => 
+        (tx.parent_transaction_id === inst.parent_id || (tx.merchant === inst.merchant && tx.total_installments === inst.total_installments)) &&
+        tx.is_installment === 1 &&
+        tx.transaction_date.startsWith(currentMonthStr)
+      );
+      return hasPending || hasThisMonthTx;
     });
 
     // Hesaplama Özeti
     // Bu ayki tek çekimler
     const singleTotal = singleTransactions
-      .filter((t: any) => t.transaction_date.startsWith(currentMonthStr))
       .reduce((sum: number, t: any) => sum + t.amount, 0);
 
-    // Bu ayki taksit dilimleri toplamı
-    const monthlyInstallmentTotal = activeInstallments.reduce((sum: number, inst: any) => sum + inst.monthly_amount, 0);
+    // Bu ayki taksit dilimleri toplamı (Sadece cari aya denk gelen taksit satırlarını topla)
+    const thisMonthInstallments = allCardTx.filter((tx: any) => 
+      tx.is_installment === 1 && tx.transaction_date.startsWith(currentMonthStr)
+    );
+    const monthlyInstallmentTotal = thisMonthInstallments.reduce((sum: number, tx: any) => sum + tx.amount, 0);
 
     // Bu ay ödenecek net güncel ekstre borcu (Tek çekim + Bu ayki taksit dilimi)
     const currentStatementDebt = singleTotal + monthlyInstallmentTotal;

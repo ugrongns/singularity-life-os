@@ -44,11 +44,30 @@ export default function TimeDepositCloseModal({
       fetch(`/api/budget/time-deposit?id=${accountId}`)
         .then(res => res.json())
         .then(json => {
-          if (json.success) {
-            setDetails(json.data);
-            setActualInterestEarned(String(json.data.calculatedInterest));
-            // Pre-select funding account if valid
-            const sourceId = json.data.deposited_account_id;
+          if (json.success && json.data) {
+            // API hem iç içe { account, calculations } hem de düzleştirilmiş alanları döndürebilir
+            const acc = json.data.account || json.data;
+            const calc = json.data.calculations || {};
+
+            const normalizedDetails = {
+              id: acc.id || json.data.id,
+              name: acc.name || json.data.name || 'Vadeli Hesap',
+              currency: acc.currency || json.data.currency || 'TRY',
+              principal: calc.principal ?? json.data.principal ?? acc.balance ?? 0,
+              interest_rate: acc.interest_rate ?? json.data.interest_rate ?? calc.rate ?? 0,
+              days: calc.totalDays ?? json.data.days ?? 0,
+              created_at: acc.created_at || json.data.created_at || new Date().toISOString(),
+              maturity_date: acc.maturity_date || json.data.maturity_date || null,
+              calculatedInterest: calc.netInterest ?? json.data.calculatedInterest ?? 0,
+              deposited_account_id: acc.deposited_account_id || json.data.deposited_account_id || null
+            };
+
+            setDetails(normalizedDetails);
+            const initialInterest = Math.round((Number(normalizedDetails.calculatedInterest) || 0) * 100) / 100;
+            setActualInterestEarned(String(initialInterest));
+
+            // Kaynak vadesiz hesabı önceden seç
+            const sourceId = normalizedDetails.deposited_account_id;
             const validSource = accounts.find(a => a.id === sourceId && a.type !== 'credit_card');
             if (validSource) {
               setTargetAccountId(validSource.id);
@@ -108,7 +127,7 @@ export default function TimeDepositCloseModal({
   };
 
   const formatCurrency = (val: number, cur: string = 'TRY') => {
-    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(val);
+    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(val || 0);
   };
 
   return (
@@ -143,7 +162,7 @@ export default function TimeDepositCloseModal({
                 <div>Anapara: <strong style={{ color: 'var(--text-main)' }}>{formatCurrency(details.principal, details.currency)}</strong></div>
                 <div>Faiz Oranı: <strong style={{ color: 'var(--text-main)' }}>%{details.interest_rate} (Yıllık)</strong></div>
                 <div>Vade Süresi: <strong style={{ color: 'var(--text-main)' }}>{details.days} Gün</strong></div>
-                <div>Mevduat Başlangıç: <strong style={{ color: 'var(--text-muted)' }}>{details.created_at.slice(0, 10)}</strong></div>
+                <div>Mevduat Başlangıç: <strong style={{ color: 'var(--text-muted)' }}>{details.created_at?.slice(0, 10) || '-'}</strong></div>
                 {details.maturity_date && (
                   <div style={{ gridColumn: 'span 2' }}>
                     Vade Bitiş Tarihi: <strong style={{ color: '#10B981' }}>{details.maturity_date}</strong>
@@ -154,7 +173,7 @@ export default function TimeDepositCloseModal({
 
             {/* Faiz Geliri Uyarısı / Tahmini */}
             <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#065F46', padding: '10px 12px', borderRadius: 'var(--radius-md)', fontSize: '12px' }}>
-              🤖 Sistem tarafından hesaplanan tahmini brüt faiz getirisi: <strong style={{ fontSize: '13px' }}>{formatCurrency(details.calculatedInterest, details.currency)}</strong>. Banka stopaj kesintisi nedeniyle net yatan faiz farklı olabilir, lütfen gerçek tutarı aşağıda düzeltin.
+              🤖 Sistem tarafından hesaplanan tahmini net faiz getirisi: <strong style={{ fontSize: '13px' }}>{formatCurrency(details.calculatedInterest, details.currency)}</strong>. Banka stopaj kesintisi veya valör farkı nedeniyle hesaba geçen gerçek tutarı aşağıda güncelleyebilirsiniz.
             </div>
 
             {/* Hedef Hesap Seçici */}

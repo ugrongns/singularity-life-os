@@ -42,9 +42,16 @@ interface AccountsCardProps {
   }>;
   onUpdate?: (msg?: string) => void;
   onOpenCardStatement?: (accId: string) => void;
+  marketRates?: {
+    USD_TRY?: number;
+    EUR_TRY?: number;
+    GBP_TRY?: number;
+    GOLD_GRAM_TRY?: number;
+    [key: string]: any;
+  } | null;
 }
 
-export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpenCardStatement }: AccountsCardProps) {
+export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpenCardStatement, marketRates }: AccountsCardProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAcc, setEditingAcc] = useState<Account | null>(null);
   const [name, setName] = useState('');
@@ -227,10 +234,18 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
       if (json.success) {
         if (onUpdate) onUpdate(json.message);
       } else {
-        alert(json.error || 'Silme işlemi başarısız.');
+        if (onUpdate) {
+          onUpdate('❌ ' + (json.error || 'Silme işlemi başarısız.'));
+        } else {
+          setErrorMsg(json.error || 'Silme işlemi başarısız.');
+        }
       }
     } catch (err) {
-      alert('Sunucu hatası.');
+      if (onUpdate) {
+        onUpdate('❌ Sunucu hatası oluştu.');
+      } else {
+        setErrorMsg('Sunucu hatası.');
+      }
     }
   };
 
@@ -239,14 +254,45 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
     return `${(Number(val) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`;
   };
 
-  // Toplam Varlık, Borç ve Net Likidite Hesabı
+  // Döviz Kurları Dönüştürücü
+  const getRate = (curr: string) => {
+    if (!marketRates) {
+      if (curr === 'USD') return 38.5;
+      if (curr === 'EUR') return 41.5;
+      if (curr === 'GBP') return 48.5;
+      if (curr === 'GOLD') return 3200;
+      return 1.0;
+    }
+    if (curr === 'USD') return marketRates.USD_TRY || 38.5;
+    if (curr === 'EUR') return marketRates.EUR_TRY || 41.5;
+    if (curr === 'GBP') return marketRates.GBP_TRY || 48.5;
+    if (curr === 'GOLD') return marketRates.GOLD_GRAM_TRY || 3200;
+    return 1.0;
+  };
+
+  // Toplam Varlık, Borç ve Net Likidite Hesabı (Döviz Kurları ile TL Cinsinden)
   const totalAssets = accounts
     .filter(a => a.type !== 'credit_card' && a.type !== 'loan')
-    .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+    .reduce((sum, a) => {
+      const bal = Number(a.balance) || 0;
+      const rate = getRate(a.currency);
+      // KMH hesabı eksi bakiyedeyse varlık değil borçtur
+      if (a.type === 'kmh' && bal < 0) return sum;
+      return sum + (bal * rate);
+    }, 0);
 
   const totalDebts = accounts
-    .filter(a => a.type === 'credit_card' || a.type === 'loan')
-    .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+    .reduce((sum, a) => {
+      const bal = Number(a.balance) || 0;
+      const rate = getRate(a.currency);
+      if (a.type === 'credit_card' || a.type === 'loan') {
+        return sum + (bal * rate);
+      }
+      if (a.type === 'kmh' && bal < 0) {
+        return sum + (Math.abs(bal) * rate);
+      }
+      return sum;
+    }, 0);
 
   const netLiquidity = totalAssets - totalDebts;
 
@@ -414,11 +460,16 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
                     className="tabular-nums"
                     style={{
                       fontSize: '16px', fontWeight: 900, whiteSpace: 'nowrap',
-                      color: isCreditCard || isLoan ? '#DC2626' : '#10B981'
+                      color: isCreditCard || isLoan ? '#DC2626' : (acc.type === 'kmh' && acc.balance < 0 ? '#DC2626' : '#10B981')
                     }}
                   >
                     {formatMoney(acc.balance, acc.currency)}
                   </div>
+                  {acc.currency !== 'TRY' && (
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      ≈ {formatMoney(acc.balance * getRate(acc.currency), 'TRY')}
+                    </div>
+                  )}
                 </div>
               </div>
 

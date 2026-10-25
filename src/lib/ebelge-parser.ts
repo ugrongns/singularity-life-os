@@ -210,11 +210,79 @@ export function parseEBelgeHtml(html: string, originalUrl: string = ''): EBelgeP
   };
 }
 
+export const TRUSTED_EBELGE_DOMAINS = [
+  'gib.gov.tr',
+  'fitbulut.com',
+  'foriba.com',
+  'sovos.com',
+  'efinans.com.tr',
+  'kolaybi.com',
+  'parasut.com',
+  'uyumsoft.com.tr',
+  'edm.com.tr',
+  'inpos.com.tr',
+  'hugin.com.tr',
+  'veriban.com.tr',
+  'nesbilgi.com.tr',
+  'izibiz.com.tr',
+  'turkcell.com.tr',
+  'vodafone.com.tr',
+  'turktelekom.com.tr',
+  'migros.com.tr',
+  'bim.com.tr',
+  'a101.com.tr',
+  'sokmarket.com.tr',
+  'carrefoursa.com',
+  'trendyol.com',
+  'hepsiburada.com',
+  'amazon.com.tr',
+  'yemeksepeti.com',
+  'getir.com'
+];
+
 /**
- * QR Kod URL'sini güvenli bir şekilde arka planda çeker ve ayrıştırır
+ * SSRF Koruması: Yalnızca güvenli protokoller ve izin verilen e-Belge domainlerini kabul eder
+ */
+export function isSafeEBelgeUrl(urlString: string): boolean {
+  if (!urlString || typeof urlString !== 'string') return false;
+  try {
+    const parsed = new URL(urlString.trim());
+    // 1. Yalnızca HTTPS protokolü izinlidir (Düz HTTP veya iç protokoller engellenir)
+    if (parsed.protocol !== 'https:') return false;
+
+    const hostname = parsed.hostname.toLowerCase();
+
+    // 2. IP adresleri, localhost veya iç ağ / cloud metadata isimleri engellenir
+    if (
+      hostname === 'localhost' ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal') ||
+      /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || // IPv4
+      hostname.includes(':') || // IPv6
+      hostname.startsWith('127.') ||
+      hostname.startsWith('10.') ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('169.254.')
+    ) {
+      return false;
+    }
+
+    // 3. Yalnızca GİB ve bilinen güvenli e-Belge / perakende alan adları
+    const isTrusted = TRUSTED_EBELGE_DOMAINS.some(domain => 
+      hostname === domain || hostname.endsWith(`.${domain}`)
+    );
+
+    return isTrusted;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * QR Kod URL'sini güvenli bir şekilde arka planda çeker ve ayrıştırır (SSRF Korumalı)
  */
 export async function fetchAndParseEBelge(url: string): Promise<EBelgeParseResult | null> {
-  if (!url || typeof url !== 'string' || !url.startsWith('http')) {
+  if (!url || typeof url !== 'string' || !isSafeEBelgeUrl(url)) {
     return null;
   }
 

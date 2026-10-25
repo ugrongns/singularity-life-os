@@ -3,6 +3,7 @@ import { db, initDatabase } from '@/db';
 import { shoppingListItems, walletsAccounts, transactions, categories } from '@/db/schema';
 import { eq, and, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { eventBus, EVENTS } from '@/lib/events';
 
 export async function GET() {
   try {
@@ -65,9 +66,11 @@ export async function POST(request: Request) {
     const { action, ...data } = body;
     const now = new Date().toISOString();
     const today = now.split('T')[0];
-    const familyId = user.family_id || `fam-${user.id}`;
+    const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
 
-    const currentItems = await db.select().from(shoppingListItems).where(eq(shoppingListItems.family_id, familyId));
+    const currentItems = familyId
+      ? await db.select().from(shoppingListItems).where(eq(shoppingListItems.family_id, familyId))
+      : await db.select().from(shoppingListItems).where(eq(shoppingListItems.user_id, user.id));
 
     if (action === 'add') {
       const nameTrimmed = (data.name || '').trim();
@@ -239,7 +242,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'Alınan ürün tutarı 0 TL. Harcama kaydedilemedi.' }, { status: 400 });
       }
 
-      // Cüzdanı al ve yetkisini doğrula (Kredi kartı ise borç artar, nakit/vadesiz ise bakiye düşer)
+      // Cüzdanı al ve yetkisini doğrula
       const wallet = (await db.select().from(walletsAccounts).where(
         and(
           eq(walletsAccounts.id, walletId),
@@ -251,51 +254,86 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'Seçilen hesap bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
       }
 
+      // Limit / bakiye kontrolü (KMH ve Kredi kartı dahil)
+      if (wallet.type === 'credit_card') {
+        const avail = Math.max(0, (wallet.credit_limit || 0) - wallet.balance);
+        if (totalAmount > avail) {
+          return NextResponse.json({ success: false, error: `Kredi Kartı Limiti Aşıldı! ${wallet.name} kartınızda sadece ${avail.toLocaleString('tr-TR')} ₺ kullanılabilir limit var.` }, { status: 400 });
+        }
+      } else if (wallet.type === 'kmh') {
+        const avail = wallet.balance + (wallet.overdraft_limit || 0);
+        if (totalAmount > avail) {
+          return NextResponse.json({ success: false, error: `KMH Limiti Aşıldı! ${wallet.name} hesabınızda toplam ${avail.toLocaleString('tr-TR')} ₺ kullanılabilir limit var.` }, { status: 400 });
+        }
+      } else if (totalAmount > wallet.balance) {
+        return NextResponse.json({ success: false, error: `Yetersiz Bakiye! ${wallet.name} hesabınızda sadece ${wallet.balance.toLocaleString('tr-TR')} ₺ bakiye var.` }, { status: 400 });
+      }
+
       const isCreditCard = wallet.type === 'credit_card';
-      const newBalance = isCreditCard
-        ? (wallet.balance || 0) + totalAmount
-        : (wallet.balance || 0) - totalAmount;
+      let newBalance = wallet.balance;
+      if (isCreditCard) {
+        newBalance = (wallet.balance || 0) + totalAmount;
+      } else if (wallet.type === 'kmh') {
+        newBalance = (wallet.balance || 0) - totalAmount; // KMH eksiye düşebilir
+      } else {
+        newBalance = Math.max(0, (wallet.balance || 0) - totalAmount);
+      }
 
-      await db.update(walletsAccounts).set({
-        balance: newBalance,
-        updated_at: now
-      }).where(eq(walletsAccounts.id, walletId));
-
-      // Kategori eşleştirme (Market veya Gıda & Mutfak)
+      // Kategori eşleştirme (Doğru ID: cat-market / 'Market & Gıda')
       const marketCat = (await db.select().from(categories).where(
         or(
+          eq(categories.id, 'cat-market'),
+          eq(categories.name, 'Market & Gıda'),
           eq(categories.name, 'Market'),
-          eq(categories.name, 'Gıda & Mutfak'),
-          eq(categories.name, 'Mutfak & Gıda')
+          eq(categories.name, 'Gıda & Mutfak')
         )
       ).limit(1))[0];
 
-      // Harcama işlemi kaydet (transactions)
       const txId = `tx-shop-${Date.now()}`;
       const itemNames = (checkedItems).map((i: any) => i.name).join(', ');
-      await db.insert(transactions).values({
-        id: txId,
-        wallet_id: walletId,
-        category_id: marketCat?.id || null,
-        merchant: 'Market Alışverişi',
-        amount: totalAmount,
-        currency: 'TRY',
-        transaction_date: today,
-        notes: `Market Listesi Alışverişi: ${itemNames.substring(0, 100)}...`,
-        is_verified: 1,
-        is_family_shared: 1,
-        sync_status: 'synced',
-        device_id: 'web-client',
-        user_id: user.id,
-        family_id: familyId,
-        created_at: now,
-        updated_at: now
+
+      // Atomik Veritabanı İşlemi (db.transaction)
+      await db.transaction(async (tx) => {
+        // 1. Cüzdan bakiyesini güncelle
+        await tx.update(walletsAccounts).set({
+          balance: newBalance,
+          updated_at: now
+        }).where(eq(walletsAccounts.id, walletId));
+
+        // 2. Harcama işlemi kaydet (transactions)
+        await tx.insert(transactions).values({
+          id: txId,
+          wallet_id: walletId,
+          category_id: marketCat?.id || 'cat-market',
+          merchant: 'Market Alışverişi',
+          amount: totalAmount,
+          currency: wallet.currency || 'TRY',
+          transaction_date: today,
+          notes: `Market Listesi Alışverişi: ${itemNames.substring(0, 100)}...`,
+          is_verified: 1,
+          is_family_shared: 1,
+          sync_status: 'synced',
+          device_id: 'web-client',
+          user_id: user.id,
+          family_id: familyId,
+          created_at: now,
+          updated_at: now
+        });
+
+        // 3. Alınan ürünleri listeden temizle
+        for (const item of checkedItems) {
+          await tx.delete(shoppingListItems).where(eq(shoppingListItems.id, item.id));
+        }
       });
 
-      // Alınan ürünleri listeden temizle
-      for (const item of checkedItems) {
-        await db.delete(shoppingListItems).where(eq(shoppingListItems.id, item.id));
-      }
+      // 4. Event Bus Bildirimi
+      await eventBus.emit(EVENTS.TRANSACTION_CREATED, {
+        transactionId: txId,
+        amount: totalAmount,
+        merchant: 'Market Alışverişi',
+        wallet_id: walletId,
+        category_id: marketCat?.id || 'cat-market'
+      });
 
       return NextResponse.json({
         success: true,

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { personalDebtsReceivables, walletsAccounts, transactions } from '@/db/schema';
-import { eq , or , and } from 'drizzle-orm';
+import { eq, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 import { fetchLiveExchangeRates, MarketRates } from '@/lib/market-data';
@@ -52,11 +52,26 @@ export async function GET() {
     const user = await getAuthUser();
     const userId = user?.id;
 
+    const familyId = user?.family_id || (user?.id ? `fam-${user.id}` : null);
+
     const records = userId
-      ? await db.select().from(personalDebtsReceivables).where(eq(personalDebtsReceivables.user_id, userId))
+      ? await db.select().from(personalDebtsReceivables).where(
+          familyId
+            ? or(eq(personalDebtsReceivables.family_id, familyId), eq(personalDebtsReceivables.user_id, userId))
+            : eq(personalDebtsReceivables.user_id, userId)
+        )
       : [];
+
     const wallets = userId
-      ? await db.select().from(walletsAccounts).where(or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1)))
+      ? await db.select().from(walletsAccounts).where(
+          familyId
+            ? and(
+                eq(walletsAccounts.is_active, 1),
+                eq(walletsAccounts.family_id, familyId),
+                or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 1))
+              )
+            : and(eq(walletsAccounts.is_active, 1), eq(walletsAccounts.user_id, userId))
+        )
       : [];
     const walletMap = new Map((wallets).map((w: any) => [w.id, w.name]));
 
@@ -123,12 +138,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Kişi adı, tür ve tutar zorunludur.' }, { status: 400 });
     }
 
+    const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
+
+    // BOLA Koruması: Bağlı cüzdan seçilmişse ailenin yetkisi altında olduğunu doğrula
+    if (connected_wallet_id) {
+      const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, connected_wallet_id)))[0];
+      if (!wallet) {
+        return NextResponse.json({ success: false, error: 'Bağlı hesap bulunamadı.' }, { status: 404 });
+      }
+      const walletBelongs = !wallet.family_id || (familyId && wallet.family_id === familyId);
+      if (!walletBelongs || (wallet.user_id !== user.id && wallet.is_family_shared !== 1 && user.is_master_account !== 1 && user.role !== 'admin')) {
+        return NextResponse.json({ success: false, error: 'Seçilen bağlı hesaba erişim yetkiniz yok.' }, { status: 403 });
+      }
+    }
+
     const now = new Date().toISOString();
     const nowDate = now.split('T')[0];
     const newId = `debt-${Date.now()}`;
     const rates = await fetchLiveExchangeRates();
     const origTL = calcCurrentTLValue(index_type || 'TRY', Number(index_amount), rates);
-    const familyId = user.family_id || `fam-${user.id}`;
 
     await db.insert(personalDebtsReceivables).values({
       id: newId,
@@ -159,8 +187,7 @@ export async function POST(req: Request) {
 
         await db.update(walletsAccounts)
           .set({ balance: Math.max(0, newBalance), updated_at: now })
-          .where(eq(walletsAccounts.id, connected_wallet_id))
-          ;
+          .where(eq(walletsAccounts.id, connected_wallet_id));
 
         const icon = type === 'debt' ? '🤝 Şahıs Borcu Alındı' : '🤝 Şahsa Borç Verildi';
         await db.insert(transactions).values({
@@ -208,9 +235,17 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ success: false, error: 'ID ve ödeme tutarı zorunludur.' }, { status: 400 });
     }
 
+    const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
+
+    // BOLA Koruması: Kaydın kullanıcıya veya ailesine ait olduğunu doğrula
     const record = (await db.select().from(personalDebtsReceivables).where(eq(personalDebtsReceivables.id, id)))[0];
     if (!record) {
       return NextResponse.json({ success: false, error: 'Kayıt bulunamadı.' }, { status: 404 });
+    }
+
+    const belongsToFamily = !record.family_id || (familyId && record.family_id === familyId);
+    if (!belongsToFamily) {
+      return NextResponse.json({ success: false, error: 'Bu borç/alacak kaydına erişim yetkiniz yok.' }, { status: 403 });
     }
 
     const now = new Date().toISOString();
@@ -229,24 +264,27 @@ export async function PATCH(req: Request) {
 
     await db.update(personalDebtsReceivables)
       .set({ paid_amount: newPaid, status: newStatus, updated_at: now })
-      .where(eq(personalDebtsReceivables.id, id))
-      ;
+      .where(eq(personalDebtsReceivables.id, id));
 
     // Bağlı hesap bakiyesi güncelle
     if (record.connected_wallet_id) {
       const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, record.connected_wallet_id)))[0];
       if (wallet) {
+        // Cüzdanın da aynı aileye ait olduğunu doğrula
+        const walletBelongs = !wallet.family_id || (familyId && wallet.family_id === familyId);
+        if (!walletBelongs || (wallet.user_id !== user.id && wallet.is_family_shared !== 1 && user.is_master_account !== 1 && user.role !== 'admin')) {
+          return NextResponse.json({ success: false, error: 'Bağlı ödeme hesabına erişim yetkiniz yok.' }, { status: 403 });
+        }
+
         const newBalance = record.type === 'debt'
           ? wallet.balance - payAmt   // Borcumu ödedim → para gitti
           : wallet.balance + payAmt;  // Alacağımı tahsil ettim → para geldi
 
         await db.update(walletsAccounts)
           .set({ balance: Math.max(0, newBalance), updated_at: now })
-          .where(eq(walletsAccounts.id, record.connected_wallet_id))
-          ;
+          .where(eq(walletsAccounts.id, record.connected_wallet_id));
 
         const icon = record.type === 'debt' ? '🤝 Şahıs Borcu Ödendi' : '🤝 Şahıs Alacağı Tahsil Edildi';
-        const familyId = user.family_id || record.family_id || `fam-${user.id}`;
         await db.insert(transactions).values({
           id: `tx-pay-${Date.now()}`,
           wallet_id: record.connected_wallet_id,
@@ -284,13 +322,29 @@ export async function DELETE(req: Request) {
   try {
     await initDatabase();
     const user = await getAuthUser();
-    if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
 
     const { searchParams } = new URL(req.url, 'http://localhost');
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ success: false, error: 'ID zorunludur.' }, { status: 400 });
 
-    await db.delete(personalDebtsReceivables).where(user.is_master_account === 1 ? eq(personalDebtsReceivables.id, id) : and(eq(personalDebtsReceivables.id, id), eq(personalDebtsReceivables.user_id, user.id)));
+    const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
+
+    // BOLA Koruması: Kaydın varlığını ve silme yetkisini doğrula
+    const record = (await db.select().from(personalDebtsReceivables).where(eq(personalDebtsReceivables.id, id)))[0];
+    if (!record) {
+      return NextResponse.json({ success: false, error: 'Kayıt bulunamadı.' }, { status: 404 });
+    }
+
+    const belongsToFamily = !record.family_id || (familyId && record.family_id === familyId);
+    const isOwner = record.user_id === user.id;
+    const isLeader = belongsToFamily && (user.is_master_account === 1 || user.role === 'admin');
+
+    if (!belongsToFamily || (!isOwner && !isLeader)) {
+      return NextResponse.json({ success: false, error: 'Bu borç/alacak kaydını silme yetkiniz yok.' }, { status: 403 });
+    }
+
+    await db.delete(personalDebtsReceivables).where(eq(personalDebtsReceivables.id, id));
     return NextResponse.json({ success: true, message: 'Kayıt silindi.' });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { generateCSVContent, downloadCSV, CSVColumn } from '@/lib/export-csv';
 
 interface Props {
   isOpen: boolean;
@@ -26,6 +27,50 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
   }, [isOpen, accountId]);
 
   if (!isOpen || !accountId) return null;
+
+  const handleExportStatementCSV = () => {
+    if (!data) return;
+    const rows: (string | number)[][] = [];
+
+    (data.activeInstallments || []).forEach((inst: any) => {
+      rows.push([
+        inst.first_date || '—',
+        inst.merchant || 'Taksitli Harcama',
+        'Taksitli',
+        `${inst.current_installment_number || 1}/${inst.total_installments}`,
+        inst.monthly_amount || 0,
+        inst.total_amount || 0,
+        inst.remaining_amount || 0
+      ]);
+    });
+
+    (data.singleTransactions || []).forEach((tx: any) => {
+      rows.push([
+        tx.transaction_date || '—',
+        tx.merchant || 'Tek Çekim',
+        'Tek Çekim',
+        '1/1',
+        tx.amount || 0,
+        tx.amount || 0,
+        0
+      ]);
+    });
+
+    const columns: CSVColumn<(string | number)[]>[] = [
+      { header: 'Tarih', accessor: r => r[0] },
+      { header: 'Açıklama / İşletme', accessor: r => r[1] },
+      { header: 'İşlem Türü', accessor: r => r[2] },
+      { header: 'Taksit Durumu', accessor: r => r[3] },
+      { header: 'Bu Ayki Ödeme (TL)', accessor: r => r[4] },
+      { header: 'Toplam Tutar (TL)', accessor: r => r[5] },
+      { header: 'Kalan Borç (TL)', accessor: r => r[6] }
+    ];
+
+    const csv = generateCSVContent(columns, rows);
+    const cardSlug = (data.card?.name || 'kredi_karti').replace(/\s+/g, '_').toLowerCase();
+    const dateStr = new Date().toISOString().split('T')[0];
+    downloadCSV(`ekstre_${cardSlug}_${dateStr}.csv`, csv);
+  };
 
   const formatTRY = (val: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(val);
 
@@ -63,12 +108,30 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
               Anlık harcama geçmişi, taksitler ve hesap kesim özeti
             </p>
           </div>
-          <button
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)' }}
-          >
-            ✕
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {data && (
+              <button
+                onClick={handleExportStatementCSV}
+                title="Ekstre detayını CSV olarak indir"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                  padding: '4px 10px', borderRadius: 'var(--radius-full)',
+                  background: 'var(--surface-subtle)', border: '1px solid var(--border)',
+                  fontSize: '11px', fontWeight: 700, color: 'var(--text-main)',
+                  cursor: 'pointer'
+                }}
+              >
+                <span>📥</span>
+                <span>Ekstre CSV</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)' }}
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {loading ? (

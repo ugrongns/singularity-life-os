@@ -1,7 +1,27 @@
 import { describe, it, expect } from 'vitest';
-import { isEBelgeOrQRUrl, parseGibKarekodText, parseEBelgeHtml } from '../src/lib/ebelge-parser';
+import { isEBelgeOrQRUrl, parseGibKarekodText, parseEBelgeHtml, isSafeEBelgeUrl } from '../src/lib/ebelge-parser';
 
 describe('e-Belge & QR Fiş / Fatura Parser', () => {
+  it('isSafeEBelgeUrl prevents SSRF attacks and blocks non-whitelisted/internal hosts', () => {
+    // Valid HTTPS whitelist hosts
+    expect(isSafeEBelgeUrl('https://ebelge.gib.gov.tr/earsiv/fatura/123')).toBe(true);
+    expect(isSafeEBelgeUrl('https://sites.fitbulut.com/view?id=123')).toBe(true);
+    expect(isSafeEBelgeUrl('https://fatura.migros.com.tr/fis/123')).toBe(true);
+
+    // SSRF vectors: localhost, private IP, AWS metadata, plaintext http
+    expect(isSafeEBelgeUrl('http://169.254.169.254/latest/meta-data/')).toBe(false);
+    expect(isSafeEBelgeUrl('https://169.254.169.254/')).toBe(false);
+    expect(isSafeEBelgeUrl('http://127.0.0.1:3000/api/secret')).toBe(false);
+    expect(isSafeEBelgeUrl('https://127.0.0.1:8080/')).toBe(false);
+    expect(isSafeEBelgeUrl('http://localhost:3000')).toBe(false);
+    expect(isSafeEBelgeUrl('https://localhost/')).toBe(false);
+    expect(isSafeEBelgeUrl('https://192.168.1.1/admin')).toBe(false);
+    expect(isSafeEBelgeUrl('https://10.0.0.1/')).toBe(false);
+    expect(isSafeEBelgeUrl('https://evil-hacker.com/malicious-receipt')).toBe(false);
+    expect(isSafeEBelgeUrl('ftp://ebelge.gib.gov.tr/fatura')).toBe(false);
+    expect(isSafeEBelgeUrl('')).toBe(false);
+  });
+
   it('isEBelgeOrQRUrl correctly detects QR links and GİB codes', () => {
     expect(isEBelgeOrQRUrl('https://sites.fitbulut.com/eBelgeGoruntuleyici/ViewDocument.aspx?ID=6220529513&UUID=36407bb8-3882-4ed7-8afa-54fed93e587f')).toBe(true);
     expect(isEBelgeOrQRUrl('https://ebelge.gib.gov.tr/earsiv/fatura/123')).toBe(true);

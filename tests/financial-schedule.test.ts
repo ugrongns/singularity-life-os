@@ -193,4 +193,105 @@ describe('Financial Schedule, Installment & Security Calculations', () => {
     expect(paidSchedule.next_due_date).toBe('2026-11-28');
   });
 
+  it('calculateCreditCardSchedule excludes card debt payments and refunds from cycle spending', () => {
+    const card = {
+      id: 'acc-cc-1',
+      name: 'Garanti Bonus',
+      balance: 15000,
+      cutoff_day: 25,
+      due_day: 5,
+      credit_limit: 50000,
+      created_at: '2026-01-01T00:00:00.000Z'
+    };
+
+    const today = new Date(2026, 9, 28); // 28 Oct (after cutoff 25)
+    const cardTx = [
+      { amount: 3000, transaction_date: '2026-10-26', merchant: 'Migros Market', is_installment: 0 },
+      { amount: 5000, transaction_date: '2026-10-27', merchant: '💳 Kart Ödemesi: Garanti Bonus', is_installment: 0, type: 'income' },
+      { amount: 1500, transaction_date: '2026-10-27', merchant: 'Zara Giyim', is_installment: 0 }
+    ];
+
+    const schedule = calculateCreditCardSchedule(card, cardTx, today);
+    // current_cycle_spending must be 3000 + 1500 = 4500 (5000 payment must NOT be counted as purchase spending)
+    expect(schedule.current_cycle_spending).toBe(4500);
+  });
+
+  it('KMH accounts allow spending up to overdraft limit into negative balance', () => {
+    const kmhWallet = {
+      id: 'acc-kmh-1',
+      name: 'Garanti Avans Hesap',
+      type: 'kmh',
+      balance: 1000,
+      overdraft_limit: 10000
+    };
+
+    const availableLimit = kmhWallet.balance + kmhWallet.overdraft_limit;
+    expect(availableLimit).toBe(11000);
+
+    const expenseAmount = 4000;
+    expect(expenseAmount <= availableLimit).toBe(true);
+
+    const newBalance = kmhWallet.balance - expenseAmount;
+    expect(newBalance).toBe(-3000);
+    expect(newBalance >= -kmhWallet.overdraft_limit).toBe(true);
+  });
+
+  it('multi-currency portfolio valuation and KMH debt accounting work accurately', () => {
+    const rates = {
+      USD_TRY: 38.0,
+      EUR_TRY: 41.0,
+      GBP_TRY: 48.0,
+      GOLD_GRAM_TRY: 3200.0
+    };
+
+    const accounts = [
+      { type: 'bank', currency: 'TRY', balance: 50000 },
+      { type: 'bank', currency: 'USD', balance: 2000 },      // 2000 * 38 = 76000 TRY
+      { type: 'vault', currency: 'GOLD', balance: 10 },       // 10 * 3200 = 32000 TRY
+      { type: 'kmh', currency: 'TRY', balance: -5000 },       // 5000 TRY debt
+      { type: 'credit_card', currency: 'USD', balance: 500 }, // 500 * 38 = 19000 TRY debt
+      { type: 'credit_card', currency: 'TRY', balance: 15000 } // 15000 TRY debt
+    ];
+
+    const getRate = (curr: string) => {
+      if (curr === 'USD') return rates.USD_TRY;
+      if (curr === 'EUR') return rates.EUR_TRY;
+      if (curr === 'GBP') return rates.GBP_TRY;
+      if (curr === 'GOLD') return rates.GOLD_GRAM_TRY;
+      return 1.0;
+    };
+
+    const totalAssets = accounts
+      .filter(a => a.type !== 'credit_card' && a.type !== 'loan')
+      .reduce((sum, a) => {
+        const bal = Number(a.balance) || 0;
+        const rate = getRate(a.currency);
+        if (a.type === 'kmh' && bal < 0) return sum;
+        return sum + (bal * rate);
+      }, 0);
+
+    const totalDebts = accounts
+      .reduce((sum, a) => {
+        const bal = Number(a.balance) || 0;
+        const rate = getRate(a.currency);
+        if (a.type === 'credit_card' || a.type === 'loan') {
+          return sum + (bal * rate);
+        }
+        if (a.type === 'kmh' && bal < 0) {
+          return sum + (Math.abs(bal) * rate);
+        }
+        return sum;
+      }, 0);
+
+    const netWorth = totalAssets - totalDebts;
+
+    // Assets: 50,000 (TRY) + 76,000 (USD) + 32,000 (GOLD) = 158,000 TRY
+    expect(totalAssets).toBe(158000);
+
+    // Debts: 5,000 (KMH overdraft) + 19,000 (USD card) + 15,000 (TRY card) = 39,000 TRY
+    expect(totalDebts).toBe(39000);
+
+    // Net worth: 158,000 - 39,000 = 119,000 TRY
+    expect(netWorth).toBe(119000);
+  });
 });

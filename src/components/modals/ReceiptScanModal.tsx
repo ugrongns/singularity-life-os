@@ -90,8 +90,10 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
     vehicle_km?: number;
     fuel_station?: string;
     parts_changed?: string;
-    items: Array<{ name: string; price: number; quantity?: number; barcode?: string }>;
+    items: Array<{ name: string; price: number; quantity?: number; barcode?: string; vat_rate?: number }>;
     tax_amount?: number;
+    tax_breakdown?: { vat_1?: number; vat_10?: number; vat_20?: number };
+    confidence?: number;
     reference_number?: string;
     ettn?: string;
     qr_url?: string;
@@ -526,7 +528,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
 
   // Gelen Fiş Verisini State'e Doldur
   const applyParsedData = (d: any) => {
-    const isFuel = d.category_id === 'cat-arac' || d.merchant.toLowerCase().includes('shell') || d.merchant.toLowerCase().includes('opet') || d.merchant.toLowerCase().includes('petrol');
+    const isFuel = d.category_id === 'cat-ulasim' || d.category_id === 'cat-arac' || d.merchant.toLowerCase().includes('shell') || d.merchant.toLowerCase().includes('opet') || d.merchant.toLowerCase().includes('petrol');
     const isService = d.merchant.toLowerCase().includes('service') || d.merchant.toLowerCase().includes('oto') || d.merchant.toLowerCase().includes('tamir');
 
     setScanType(isFuel ? 'fuel' : isService ? 'service' : 'market');
@@ -541,6 +543,8 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
       parts_changed: isService ? 'Periyodik Bakım ve Yağ Değişimi' : undefined,
       items: d.items || [],
       tax_amount: d.tax_amount,
+      tax_breakdown: d.tax_breakdown,
+      confidence: d.confidence,
       reference_number: d.reference_number,
       ettn: d.ettn,
       qr_url: d.qr_url,
@@ -582,7 +586,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
           merchant: 'Shell Petrol A.Ş.',
           amount: 2250.00,
           date: today,
-          category_id: 'cat-arac',
+          category_id: 'cat-ulasim',
           category_name: 'Ulaşım & Akaryakıt',
           vehicle_km: 65850,
           fuel_station: 'Shell V-Power Kurşunsuz 95',
@@ -596,7 +600,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
           merchant: 'Bosch Car Service',
           amount: 18000.00,
           date: today,
-          category_id: 'cat-arac',
+          category_id: 'cat-ulasim',
           category_name: 'Ulaşım & Araç Bakımı',
           vehicle_km: 75000,
           parts_changed: 'Motor Yağı, Yağ/Hava/Polen Filtresi, Ön Fren Balatası & Disk Değişimi',
@@ -1158,15 +1162,46 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
             {/* Kalem Kalem Alışveriş Listesi */}
             {parsedData.items && parsedData.items.length > 0 && (
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
                   <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>
                     SEPET KALEMLERİ ({parsedData.items.length})
-                    {parsedData.tax_amount ? ` • KDV: ${parsedData.tax_amount.toFixed(2)} ₺` : ''}
+                    {parsedData.tax_amount ? ` • Toplam KDV: ${parsedData.tax_amount.toFixed(2)} ₺` : ''}
                   </div>
-                  <button onClick={handleAddItem} style={{ fontSize: '11px', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
-                    + Kalem Ekle
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {parsedData.confidence !== undefined && (
+                      <span style={{
+                        fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px',
+                        background: parsedData.confidence >= 0.85 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                        color: parsedData.confidence >= 0.85 ? '#059669' : '#D97706',
+                        border: `1px solid ${parsedData.confidence >= 0.85 ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`
+                      }}>
+                        {parsedData.confidence >= 0.85 ? '✓ Güvenilirlik %95+' : `Doğruluk: %${Math.round(parsedData.confidence * 100)}`}
+                      </span>
+                    )}
+                    <button onClick={handleAddItem} style={{ fontSize: '11px', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                      + Kalem Ekle
+                    </button>
+                  </div>
                 </div>
+                {parsedData.tax_breakdown && (
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px', fontSize: '10px', color: 'var(--text-muted)' }}>
+                    {parsedData.tax_breakdown.vat_1 !== undefined && parsedData.tax_breakdown.vat_1 > 0 && (
+                      <span style={{ background: 'var(--surface-subtle)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                        KDV %1: <b>{parsedData.tax_breakdown.vat_1.toFixed(2)} ₺</b>
+                      </span>
+                    )}
+                    {parsedData.tax_breakdown.vat_10 !== undefined && parsedData.tax_breakdown.vat_10 > 0 && (
+                      <span style={{ background: 'var(--surface-subtle)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                        KDV %10: <b>{parsedData.tax_breakdown.vat_10.toFixed(2)} ₺</b>
+                      </span>
+                    )}
+                    {parsedData.tax_breakdown.vat_20 !== undefined && parsedData.tax_breakdown.vat_20 > 0 && (
+                      <span style={{ background: 'var(--surface-subtle)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                        KDV %20: <b>{parsedData.tax_breakdown.vat_20.toFixed(2)} ₺</b>
+                      </span>
+                    )}
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '160px', overflowY: 'auto' }}>
                   {parsedData.items.map((item, idx) => (
                     <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>

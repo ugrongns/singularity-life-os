@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Geçerli bir gerçek bakiye giriniz.' }, { status: 400 });
     }
 
-    const familyId = user.family_id || `fam-${user.id}`;
+    const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
     const targetBalance = Math.round(Number(real_balance) * 100) / 100;
 
     // Hesabı ve yetkiyi doğrula
@@ -33,8 +33,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesap bulunamadı.' }, { status: 404 });
     }
 
-    const isOwner = account.user_id === user.id || (account.family_id && account.family_id === familyId) || user.is_master_account === 1 || user.role === 'admin' || !account.user_id;
-    if (!isOwner) {
+    const belongsToFamily = !account.family_id || (familyId && account.family_id === familyId);
+    const isOwner = account.user_id === user.id || (belongsToFamily && (user.is_master_account === 1 || user.role === 'admin')) || !account.user_id;
+    if (!belongsToFamily || !isOwner) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu hesap sizin veya ailenizin hesabına ait değil.' }, { status: 403 });
     }
 
@@ -59,11 +60,11 @@ export async function POST(req: Request) {
     const nowISO = now.toISOString();
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     let txCreated = false;
+    let createdTxId: string | null = null;
+    const absAmount = Math.abs(diff);
+    const targetType = isIncome ? 'income' : 'expense';
 
     if (diff !== 0) {
-      const targetType = isIncome ? 'income' : 'expense';
-      const absAmount = Math.abs(diff);
-
       // Mutabakat kategorisini bul veya oluştur
       let cat = (await db.select().from(categories).where(
         and(
@@ -97,37 +98,47 @@ export async function POST(req: Request) {
         }
       }
 
-      // Mutabakat düzeltme işlemini transactions tablosuna ekle
-      const txId = `tx-reconcile-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      // Mutabakat düzeltme işlemini ve hesap güncellemesini tek atomik transaction içinde yap
+      createdTxId = `tx-reconcile-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       const defaultNote = isIncome
         ? `⚖️ Bakiye Mutabakatı: Banka ile eşitleme (+${absAmount.toLocaleString('tr-TR')} ${account.currency} düzeltme geliri)`
         : `⚖️ Bakiye Mutabakatı: Banka ile eşitleme (-${absAmount.toLocaleString('tr-TR')} ${account.currency} düzeltme gideri)`;
 
-      await db.insert(transactions).values({
-        id: txId,
-        wallet_id: account.id,
-        category_id: cat ? cat.id : null,
-        merchant: 'Bakiye Mutabakatı',
-        amount: absAmount,
-        currency: account.currency || 'TRY',
-        transaction_date: dateStr,
-        notes: notes ? `${notes} (${defaultNote})` : defaultNote,
-        is_installment: 0,
-        installment_number: 1,
-        total_installments: 1,
-        is_verified: 1,
-        is_family_shared: account.is_family_shared ?? 1,
-        created_at: nowISO,
-        updated_at: nowISO,
-        sync_status: 'synced',
-        device_id: 'web-client',
-        user_id: user.id,
-        family_id: familyId
+      await db.transaction(async (tx) => {
+        await tx.insert(transactions).values({
+          id: createdTxId!,
+          wallet_id: account.id,
+          category_id: cat ? cat.id : null,
+          merchant: 'Bakiye Mutabakatı',
+          amount: absAmount,
+          currency: account.currency || 'TRY',
+          transaction_date: dateStr,
+          notes: notes ? `${notes} (${defaultNote})` : defaultNote,
+          is_installment: 0,
+          installment_number: 1,
+          total_installments: 1,
+          is_verified: 1,
+          is_family_shared: account.is_family_shared ?? 1,
+          created_at: nowISO,
+          updated_at: nowISO,
+          sync_status: 'synced',
+          device_id: 'web-client',
+          user_id: user.id,
+          family_id: familyId
+        });
+
+        // Hesabın bakiyesini güncelle
+        await tx.update(walletsAccounts)
+          .set({
+            balance: targetBalance,
+            updated_at: nowISO
+          })
+          .where(eq(walletsAccounts.id, account.id));
       });
 
       // Event Bus Bildirimi
       await eventBus.emit(EVENTS.TRANSACTION_CREATED, {
-        transactionId: txId,
+        transactionId: createdTxId,
         amount: absAmount,
         merchant: 'Bakiye Mutabakatı',
         wallet_id: account.id,
@@ -135,15 +146,15 @@ export async function POST(req: Request) {
       });
 
       txCreated = true;
+    } else {
+      // Fark yoksa sadece güncellenme tarihini yenile
+      await db.update(walletsAccounts)
+        .set({
+          balance: targetBalance,
+          updated_at: nowISO
+        })
+        .where(eq(walletsAccounts.id, account.id));
     }
-
-    // Hesabın bakiyesini ve güncellenme tarihini güncelle
-    await db.update(walletsAccounts)
-      .set({
-        balance: targetBalance,
-        updated_at: nowISO
-      })
-      .where(eq(walletsAccounts.id, account.id));
 
     return NextResponse.json({
       success: true,

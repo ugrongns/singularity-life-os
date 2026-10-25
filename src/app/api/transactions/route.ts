@@ -3,7 +3,7 @@ import { getAuthUser } from '@/lib/auth';
 import { db, initDatabase } from '@/db';
 import { transactions, walletsAccounts, categories, familyMembers } from '@/db/schema';
 import { eventBus, EVENTS } from '@/lib/events';
-import { eq , or , and } from 'drizzle-orm';
+import { eq, or, and } from 'drizzle-orm';
 
 // ✅ Timezone-safe & ay sonu taşmasını (setMonth overflow) önleyen taksit tarihi hesaplayıcı
 function addMonthsSafe(baseDate: Date, monthsToAdd: number): string {
@@ -48,14 +48,14 @@ export async function POST(req: Request) {
     }
 
     const numAmount = Number(amount);
-    const familyId = user.family_id || `fam-${user.id}`;
+    const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
     const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)))[0];
     if (!wallet) {
       return NextResponse.json({ success: false, error: 'Seçilen hesap bulunamadı.' }, { status: 404 });
     }
 
     // OWASP BOLA Sahiplik Kontrolü: Cüzdan kullanıcıya veya kullanıcının ailesine ait olmalıdır
-    const isOwner = wallet.user_id === user.id || (wallet.family_id && wallet.family_id === familyId);
+    const isOwner = wallet.user_id === user.id || (familyId && wallet.family_id === familyId);
     if (!isOwner) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu hesap sizin veya ailenizin hesabına ait değil.' }, { status: 403 });
     }
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
     const finalCategoryId = category ? category.id : null;
     const isIncome = (category && category.type === 'income') || body.type === 'income';
 
-    // 2. Kredi Kartı veya Nakit Limit Kontrolü (Sadece Gider / Harcama İşlemlerinde Yapılır)
+    // 2. Kredi Kartı, KMH veya Nakit Limit Kontrolü (Sadece Gider / Harcama İşlemlerinde Yapılır)
     if (!isIncome) {
       if (wallet.type === 'credit_card') {
         const creditLimit = wallet.credit_limit || 0;
@@ -76,6 +76,15 @@ export async function POST(req: Request) {
           return NextResponse.json({
             success: false,
             error: `Kredi Kartı Limiti Aşıldı! ${wallet.name} kartınızın kullanılabilir limiti sadece ${availableLimit.toLocaleString('tr-TR')} ₺'dir. Limit üzerinde işlem yapılamaz.`
+          }, { status: 400 });
+        }
+      } else if (wallet.type === 'kmh') {
+        const overdraftLimit = wallet.overdraft_limit || 0;
+        const availableKMH = wallet.balance + overdraftLimit;
+        if (numAmount > availableKMH) {
+          return NextResponse.json({
+            success: false,
+            error: `KMH (Ek Hesap) Limiti Aşıldı! ${wallet.name} hesabınızın kullanılabilir toplam limiti ${availableKMH.toLocaleString('tr-TR')} ₺'dir.`
           }, { status: 400 });
         }
       } else {
@@ -104,7 +113,7 @@ export async function POST(req: Request) {
       const ownerMember = (await db.select().from(familyMembers).where(and(eq(familyMembers.is_active, 1), eq(familyMembers.user_id, wallet.user_id))))[0];
       memberId = ownerMember?.id || null;
     }
-    if (!memberId) {
+    if (!memberId && familyId) {
       const member = (await db.select().from(familyMembers).where(and(eq(familyMembers.is_active, 1), eq(familyMembers.family_id, familyId))))[0];
       memberId = member?.id || null;
     }
@@ -113,43 +122,44 @@ export async function POST(req: Request) {
     const baseDate = transaction_date ? new Date(transaction_date) : now;
     const validBaseDate = isNaN(baseDate.getTime()) ? now : baseDate;
 
-    for (let i = 0; i < totalInstallments; i++) {
-      const txDateString = addMonthsSafe(validBaseDate, i);
+    // Atomik Veritabanı Yazma İşlemi (db.transaction)
+    await db.transaction(async (tx) => {
+      // 1. Taksitli veya tekil işlem kayıtlarını ekle
+      for (let i = 0; i < totalInstallments; i++) {
+        const txDateString = addMonthsSafe(validBaseDate, i);
+        const txId = i === 0 ? parentTxId : `tx-${Date.now()}-${i + 1}`;
 
-      const txId = i === 0 ? parentTxId : `tx-${Date.now()}-${i + 1}`;
+        await tx.insert(transactions).values({
+          id: txId,
+          wallet_id,
+          category_id: finalCategoryId,
+          member_id: memberId,
+          user_id: userId,
+          family_id: familyId,
+          merchant: merchant || (isIncome ? 'Gelir Girişi' : 'Genel Harcama'),
+          amount: (i === 0 ? Math.round((baseMonthly + remainder) * 100) / 100 : baseMonthly),
+          currency: wallet.currency || 'TRY',
+          transaction_date: txDateString,
+          notes: totalInstallments > 1 
+            ? `${notes || ''} [Taksit ${i + 1}/${totalInstallments}]` 
+            : notes,
+          is_installment: totalInstallments > 1 ? 1 : 0,
+          installment_number: i + 1,
+          total_installments: totalInstallments,
+          parent_transaction_id: parentTxId,
+          receipt_image_url: receipt_image_url || null,
+          is_verified: 1,
+          is_family_shared: is_family_shared ? 1 : 0,
+          created_at: nowISO,
+          updated_at: nowISO,
+          sync_status: 'synced',
+          device_id: 'web-client'
+        });
 
-      await db.insert(transactions).values({
-        id: txId,
-        wallet_id,
-        category_id: finalCategoryId,
-        member_id: memberId,
-        user_id: userId,
-        family_id: familyId,
-        merchant: merchant || (isIncome ? 'Gelir Girişi' : 'Genel Harcama'),
-        amount: (i === 0 ? Math.round((baseMonthly + remainder) * 100) / 100 : baseMonthly),
-        currency: 'TRY',
-        transaction_date: txDateString,
-        notes: totalInstallments > 1 
-          ? `${notes || ''} [Taksit ${i + 1}/${totalInstallments}]` 
-          : notes,
-        is_installment: totalInstallments > 1 ? 1 : 0,
-        installment_number: i + 1,
-        total_installments: totalInstallments,
-        parent_transaction_id: parentTxId,
-        receipt_image_url: receipt_image_url || null,
-        is_verified: 1,
-        is_family_shared: is_family_shared ? 1 : 0,
-        created_at: nowISO,
-        updated_at: nowISO,
-        sync_status: 'synced',
-        device_id: 'mac-local'
-      });
+        createdTxIds.push(txId);
+      }
 
-      createdTxIds.push(txId);
-    }
-
-    // Cüzdan / Kredi Kartı Bakiyesini Güncelle
-    if (wallet) {
+      // 2. Cüzdan / Kart / KMH Bakiyesini Atomik Olarak Güncelle
       let newBalance = wallet.balance;
       if (isIncome) {
         // Gelir: Banka bakiyesini artırır, Kredi Kartı borcunu azaltır
@@ -157,17 +167,20 @@ export async function POST(req: Request) {
           ? Math.max(0, wallet.balance - numAmount)
           : wallet.balance + numAmount;
       } else {
-        // Gider: Banka bakiyesini azaltır, Kredi Kartı borcunu artırır
-        newBalance = wallet.type === 'credit_card'
-          ? wallet.balance + numAmount
-          : wallet.balance - numAmount;
+        // Gider: Banka bakiyesini azaltır, Kredi Kartı borcunu artırır, KMH eksiye düşebilir
+        if (wallet.type === 'credit_card') {
+          newBalance = wallet.balance + numAmount;
+        } else if (wallet.type === 'kmh') {
+          newBalance = wallet.balance - numAmount; // KMH eksiye düşebilir
+        } else {
+          newBalance = Math.max(0, wallet.balance - numAmount);
+        }
       }
 
-      await db.update(walletsAccounts)
+      await tx.update(walletsAccounts)
         .set({ balance: newBalance, updated_at: nowISO })
-        .where(eq(walletsAccounts.id, wallet_id))
-        ;
-    }
+        .where(eq(walletsAccounts.id, wallet_id));
+    });
 
     // Event Bus üzerinden çapraz modüllere haber ver
     await eventBus.emit(EVENTS.TRANSACTION_CREATED, {
@@ -210,14 +223,14 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Harcama kaydı bulunamadı.' }, { status: 404 });
     }
 
-    const userFamilyId = user.family_id || `fam-${user.id}`;
+    const userFamilyId = user.family_id || (user.id ? `fam-${user.id}` : null);
     // OWASP BOLA: İşlem kullanıcının ailesine ait mi?
     const isFamilyMatch = tx.family_id ? tx.family_id === userFamilyId : tx.user_id === user.id;
     if (!isFamilyMatch) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu işlem ailenize ait değil.' }, { status: 403 });
     }
 
-    const canDelete = tx.user_id === user.id || user.is_master_account === 1;
+    const canDelete = tx.user_id === user.id || user.is_master_account === 1 || user.role === 'admin';
     if (!canDelete) {
       return NextResponse.json({ 
         success: false, 
@@ -246,35 +259,62 @@ export async function DELETE(req: Request) {
       isIncome = true;
     }
 
-    // Bakiye İadesi
-    if (tx.wallet_id) {
-      const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, tx.wallet_id)))[0];
-      if (wallet) {
-        let newBalance = wallet.balance;
-        if (isIncome) {
-          // Gelir siliniyor: Normal banka bakiyesi AZALIR, Kredi kartı borcu ARTAR
-          newBalance = wallet.type === 'credit_card'
-            ? wallet.balance + totalRevertAmount
-            : Math.max(0, wallet.balance - totalRevertAmount);
-        } else {
-          // Gider siliniyor: Normal banka bakiyesi ARTAR, Kredi kartı borcu AZALIR
-          newBalance = wallet.type === 'credit_card'
-            ? Math.max(0, wallet.balance - totalRevertAmount)
-            : wallet.balance + totalRevertAmount;
+    // Transfer veya Kart Ödemesi ise hedef hesabı tespit et
+    let targetWalletId: string | null = null;
+    const toMatch = tx.notes?.match(/\[to_wallet:([^\]]+)\]/);
+    if (toMatch && toMatch[1]) {
+      targetWalletId = toMatch[1];
+    }
+
+    const nowISO = new Date().toISOString();
+
+    // Atomik Veritabanı İade & Silme İşlemi (db.transaction)
+    await db.transaction(async (dbtx) => {
+      // 1. Kaynak Cüzdan Bakiyesini İade Et
+      if (tx.wallet_id) {
+        const wallet = (await dbtx.select().from(walletsAccounts).where(eq(walletsAccounts.id, tx.wallet_id)))[0];
+        if (wallet) {
+          let newBalance = wallet.balance;
+          if (isIncome) {
+            // Gelir siliniyor: Normal banka bakiyesi AZALIR, Kredi kartı borcu ARTAR
+            newBalance = wallet.type === 'credit_card'
+              ? wallet.balance + totalRevertAmount
+              : Math.max(0, wallet.balance - totalRevertAmount);
+          } else {
+            // Gider siliniyor: Normal banka bakiyesi ARTAR, Kredi kartı borcu AZALIR
+            newBalance = wallet.type === 'credit_card'
+              ? Math.max(0, wallet.balance - totalRevertAmount)
+              : wallet.balance + totalRevertAmount;
+          }
+
+          await dbtx.update(walletsAccounts)
+            .set({ balance: newBalance, updated_at: nowISO })
+            .where(eq(walletsAccounts.id, tx.wallet_id));
         }
-
-        await db.update(walletsAccounts)
-          .set({ balance: newBalance, updated_at: new Date().toISOString() })
-          .where(eq(walletsAccounts.id, tx.wallet_id));
       }
-    }
 
-    // Taksitli ise tüm kardeş taksitleri sil, değilse sadece bu kaydı sil
-    if (tx.is_installment === 1 && tx.parent_transaction_id) {
-      await db.delete(transactions).where(eq(transactions.parent_transaction_id, tx.parent_transaction_id));
-    } else {
-      await db.delete(transactions).where(eq(transactions.id, id));
-    }
+      // 2. Transfer ise Hedef Hesabın Bakiyesini de Geri Al
+      if (targetWalletId) {
+        const targetWallet = (await dbtx.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetWalletId)))[0];
+        if (targetWallet) {
+          // Transfer silindiğinde: Hedef hesap para almıştı, şimdi o parayı geri düşüyoruz
+          const newTargetBalance = targetWallet.type === 'credit_card'
+            ? targetWallet.balance + totalRevertAmount // Kart ödemesi iptal -> kart borcu geri artar
+            : Math.max(0, targetWallet.balance - totalRevertAmount); // Banka bakiyesi geri düşer
+
+          await dbtx.update(walletsAccounts)
+            .set({ balance: newTargetBalance, updated_at: nowISO })
+            .where(eq(walletsAccounts.id, targetWalletId));
+        }
+      }
+
+      // 3. Taksitli ise tüm kardeş taksitleri sil, değilse sadece bu kaydı sil
+      if (tx.is_installment === 1 && tx.parent_transaction_id) {
+        await dbtx.delete(transactions).where(eq(transactions.parent_transaction_id, tx.parent_transaction_id));
+      } else {
+        await dbtx.delete(transactions).where(eq(transactions.id, id));
+      }
+    });
 
     return NextResponse.json({ 
       success: true, 

@@ -155,6 +155,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
     setAutoPayWalletId(b.auto_pay_wallet_id || accounts[0]?.id || '');
     setCategoryId(b.category_id || '');
     setNotes(b.notes || '');
+    setIsPaidCurrentPeriod(Boolean(b.is_paid_this_month));
     setErrorMsg(null);
     setIsModalOpen(true);
   };
@@ -182,7 +183,8 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
       is_auto_pay: isAutoPay ? 1 : 0,
       auto_pay_wallet_id: isAutoPay && autoPayWalletId ? autoPayWalletId : null,
       category_id: categoryId || null,
-      notes: notes.trim() || null
+      notes: notes.trim() || null,
+      is_paid_current_period: isPaidCurrentPeriod
     };
 
     try {

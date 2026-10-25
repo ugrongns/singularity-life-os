@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { walletsAccounts, transactions } from '@/db/schema';
-import { eq, or } from 'drizzle-orm';
+import { eq, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 export async function GET(req: Request) {
@@ -22,6 +22,17 @@ export async function GET(req: Request) {
     const account = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, id)))[0];
     if (!account || account.type !== 'time_deposit') {
       return NextResponse.json({ success: false, error: 'Vadeli mevduat hesabı bulunamadı.' }, { status: 404 });
+    }
+
+    // BOLA / IDOR Koruması: Hesabın kullanıcıya veya ailesine ait olduğunu doğrula
+    const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
+    const belongsToFamily = !account.family_id || (familyId && account.family_id === familyId);
+    const isOwner = account.user_id === user.id;
+    const isShared = belongsToFamily && (account.is_family_shared === 1 || !account.user_id);
+    const isLeader = belongsToFamily && (user.is_master_account === 1 || user.role === 'admin');
+
+    if (!belongsToFamily || (!isOwner && !isShared && !isLeader)) {
+      return NextResponse.json({ success: false, error: 'Bu hesaba erişim yetkiniz yok.' }, { status: 403 });
     }
 
     // Faiz hesaplama
@@ -61,7 +72,18 @@ export async function GET(req: Request) {
           accruedNet,
           maturityAmount: principal + netInterest,
           isMatured: now >= maturityDate
-        }
+        },
+        // Modal uyumluluğu için düzleştirilmiş (flattened) alanlar
+        id: account.id,
+        name: account.name,
+        principal,
+        currency: account.currency || 'TRY',
+        interest_rate: account.interest_rate || 0,
+        days: totalDays,
+        created_at: account.created_at,
+        maturity_date: account.maturity_date,
+        calculatedInterest: Math.round(netInterest * 100) / 100,
+        deposited_account_id: account.deposited_account_id
       }
     });
   } catch (error: any) {
@@ -84,14 +106,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesap ID ve Hedef Hesap ID zorunludur.' }, { status: 400 });
     }
 
+    const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
+
     const depositAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)))[0];
     if (!depositAcc || depositAcc.type !== 'time_deposit') {
       return NextResponse.json({ success: false, error: 'Vadeli mevduat hesabı bulunamadı.' }, { status: 404 });
     }
 
+    // BOLA: Vadeli hesabın bu aileye/kullanıcıya ait olduğunu doğrula
+    const depositBelongs = !depositAcc.family_id || (familyId && depositAcc.family_id === familyId);
+    if (!depositBelongs || (depositAcc.user_id !== user.id && user.is_master_account !== 1 && user.role !== 'admin')) {
+      return NextResponse.json({ success: false, error: 'Bu vadeli hesabı kapatma yetkiniz yok.' }, { status: 403 });
+    }
+
     const targetAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetAccountId)))[0];
     if (!targetAcc) {
       return NextResponse.json({ success: false, error: 'Hedef vadesiz hesap bulunamadı.' }, { status: 404 });
+    }
+
+    // BOLA: Hedef hesabın aynı aileye/kullanıcıya ait olduğunu doğrula
+    const targetBelongs = !targetAcc.family_id || (familyId && targetAcc.family_id === familyId);
+    if (!targetBelongs || (targetAcc.user_id !== user.id && targetAcc.is_family_shared !== 1 && user.is_master_account !== 1 && user.role !== 'admin')) {
+      return NextResponse.json({ success: false, error: 'Hedef hesaba aktarım yetkiniz yok.' }, { status: 403 });
     }
 
     const principal = depositAcc.balance || 0;
@@ -107,8 +143,7 @@ export async function POST(req: Request) {
         balance: targetAcc.balance + totalReturn,
         updated_at: nowISO
       })
-      .where(eq(walletsAccounts.id, targetAccountId))
-      ;
+      .where(eq(walletsAccounts.id, targetAccountId));
 
     // 2. Vadeli hesabı sıfırla ve deaktif et
     await db.update(walletsAccounts)
@@ -117,13 +152,14 @@ export async function POST(req: Request) {
         is_active: 0,
         updated_at: nowISO
       })
-      .where(eq(walletsAccounts.id, accountId))
-      ;
+      .where(eq(walletsAccounts.id, accountId));
 
     // 3. Anapara dönüşü işlemini kaydet
     await db.insert(transactions).values({
       id: `tx-deposit-return-${Date.now()}`,
       wallet_id: targetAccountId,
+      user_id: user.id,
+      family_id: familyId,
       merchant: `🏛️ Vadeli Mevduat Dönüşü (Anapara)`,
       amount: principal,
       currency: depositAcc.currency,
@@ -137,7 +173,7 @@ export async function POST(req: Request) {
       created_at: nowISO,
       updated_at: nowISO,
       sync_status: 'synced',
-      device_id: 'mac-local'
+      device_id: 'web-client'
     });
 
     // 4. Faiz geliri işlemini kaydet
@@ -145,6 +181,8 @@ export async function POST(req: Request) {
       await db.insert(transactions).values({
         id: `tx-deposit-interest-${Date.now()}`,
         wallet_id: targetAccountId,
+        user_id: user.id,
+        family_id: familyId,
         merchant: `💵 Vadeli Mevduat Faiz Geliri`,
         amount: interest,
         currency: depositAcc.currency,
@@ -158,7 +196,7 @@ export async function POST(req: Request) {
         created_at: nowISO,
         updated_at: nowISO,
         sync_status: 'synced',
-        device_id: 'mac-local'
+        device_id: 'web-client'
       });
     }
 

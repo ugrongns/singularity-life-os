@@ -7,8 +7,13 @@ export interface ParsedReceipt {
   date: string;
   category_id: string;
   category_name: string;
-  items: Array<{ name: string; price: number; quantity?: number; barcode?: string }>;
+  items: Array<{ name: string; price: number; quantity?: number; barcode?: string; vat_rate?: number }>;
   tax_amount?: number;
+  tax_breakdown?: {
+    vat_1?: number;
+    vat_10?: number;
+    vat_20?: number;
+  };
   confidence: number;
   raw_text?: string;
   reference_number?: string;
@@ -88,10 +93,17 @@ Buruşukluk, eksik ışık veya kısmi silinme durumunda dahi en mantıklı tahm
   "date": "2026-08-20",
   "category_suggestion": "Market & Gıda",
   "items": [
-    {"name": "Süt 1L", "price": 38.50, "quantity": 2},
-    {"name": "Ekmek", "price": 15.00, "quantity": 1}
+    {"name": "Süt 1L", "price": 38.50, "quantity": 2, "vat_rate": 1},
+    {"name": "Ekmek", "price": 15.00, "quantity": 1, "vat_rate": 1},
+    {"name": "Deterjan 2kg", "price": 180.00, "quantity": 1, "vat_rate": 20}
   ],
-  "tax_amount": 35.0
+  "tax_amount": 35.0,
+  "tax_breakdown": {
+    "vat_1": 0.92,
+    "vat_10": 0.0,
+    "vat_20": 30.0
+  },
+  "confidence": 0.95
 }
 
 Örnek 2 (Akaryakıt / İstasyon):
@@ -102,9 +114,15 @@ Buruşukluk, eksik ışık veya kısmi silinme durumunda dahi en mantıklı tahm
   "date": "2026-08-21",
   "category_suggestion": "Ulaşım & Akaryakıt",
   "items": [
-    {"name": "V-Power Kurşunsuz 95 (41.5 Litre)", "price": 1850.00, "quantity": 1}
+    {"name": "V-Power Kurşunsuz 95 (41.5 Litre)", "price": 1850.00, "quantity": 1, "vat_rate": 20}
   ],
-  "tax_amount": 308.33
+  "tax_amount": 308.33,
+  "tax_breakdown": {
+    "vat_1": 0.0,
+    "vat_10": 0.0,
+    "vat_20": 308.33
+  },
+  "confidence": 0.98
 }
 
 Şimdi gönderilen görseli analiz et ve SADECE yukarıdaki gibi geçerli bir JSON çıktısı üret.${qrData ? `\n\nÖNEMLİ: Bu fişte okunan Karekod / QR verisi şudur: "${qrData}". Görseldeki bilgiler ile bu karekod içeriğini (mağaza, tarih, referans no, tutar vb.) birleştirerek en doğru analizi yap.` : ''}`;
@@ -144,9 +162,10 @@ Buruşukluk, eksik ışık veya kısmi silinme durumunda dahi en mantıklı tahm
             date: parsed.date || new Date().toISOString().split('T')[0],
             category_id: mapCategoryToId(parsed.category_suggestion),
             category_name: parsed.category_suggestion || 'Market & Gıda',
-            items: parsed.items || [],
-            tax_amount: parsed.tax_amount || 0,
-            confidence: 0.95,
+            items: Array.isArray(parsed.items) ? parsed.items : [],
+            tax_amount: Number(parsed.tax_amount) || 0,
+            tax_breakdown: parsed.tax_breakdown || undefined,
+            confidence: Number(parsed.confidence) || 0.95,
             reference_number: parsed.reference_number || undefined,
             qr_url: qrData?.startsWith('http') ? qrData : undefined,
             source_type: 'ai_ocr'
@@ -267,11 +286,14 @@ export async function parseVaultDocumentImage(
 
 function mapCategoryToId(categoryName: string = ''): string {
   const lower = categoryName.toLowerCase();
-  if (lower.includes('akaryakıt') || lower.includes('benzin') || lower.includes('ulaşım')) return 'cat-arac';
-  if (lower.includes('fatura') || lower.includes('internet') || lower.includes('elektrik')) return 'cat-fatura';
-  if (lower.includes('kira') || lower.includes('konut')) return 'cat-kira';
-  if (lower.includes('restoran') || lower.includes('cafe') || lower.includes('yemek')) return 'cat-sosyal';
-  return 'cat-market';
+  if (lower.includes('akaryakıt') || lower.includes('benzin') || lower.includes('ulaşım') || lower.includes('otopark') || lower.includes('hgs') || lower.includes('yakıt') || lower.includes('taksi') || lower.includes('otobüs')) return 'cat-ulasim';
+  if (lower.includes('fatura') || lower.includes('internet') || lower.includes('elektrik') || lower.includes('su') || lower.includes('doğalgaz') || lower.includes('aidat') || lower.includes('gsm') || lower.includes('telefon') || lower.includes('abonelik')) return 'cat-fatura';
+  if (lower.includes('kira') || lower.includes('konut') || lower.includes('apartman') || lower.includes('ev ')) return 'cat-kira';
+  if (lower.includes('restoran') || lower.includes('cafe') || lower.includes('kafe') || lower.includes('yemek') || lower.includes('eğlence') || lower.includes('sinema') || lower.includes('konser') || lower.includes('tatil') || lower.includes('otel') || lower.includes('bar')) return 'cat-eeglence';
+  if (lower.includes('sağlık') || lower.includes('eczane') || lower.includes('ilaç') || lower.includes('hastane') || lower.includes('doktor') || lower.includes('klinik') || lower.includes('optik') || lower.includes('kozmetik')) return 'cat-saglik';
+  if (lower.includes('maaş') || lower.includes('gelir') || lower.includes('prim') || lower.includes('ikramiye') || lower.includes('faiz')) return 'cat-maas';
+  if (lower.includes('market') || lower.includes('gıda') || lower.includes('bakkal') || lower.includes('şarküteri') || lower.includes('manav') || lower.includes('kasap') || lower.includes('süpermarket')) return 'cat-market';
+  return 'cat-diger';
 }
 
 export interface ParsedApplianceInvoice {

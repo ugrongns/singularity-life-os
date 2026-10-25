@@ -832,6 +832,16 @@ async function _runInit(): Promise<void> {
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS map_polyline TEXT;
     `;
 
+    const createIndexesSQL = `
+      CREATE INDEX IF NOT EXISTS idx_transactions_family_date ON transactions (family_id, transaction_date DESC);
+      CREATE INDEX IF NOT EXISTS idx_transactions_wallet_date ON transactions (wallet_id, transaction_date DESC);
+      CREATE INDEX IF NOT EXISTS idx_transactions_category_id ON transactions (category_id);
+      CREATE INDEX IF NOT EXISTS idx_transactions_parent_id ON transactions (parent_transaction_id);
+      CREATE INDEX IF NOT EXISTS idx_wallets_family_id ON wallets_accounts (family_id);
+      CREATE INDEX IF NOT EXISTS idx_recurring_bills_family_id ON recurring_bills (family_id);
+      CREATE INDEX IF NOT EXISTS idx_personal_debts_family_id ON personal_debts_receivables (family_id);
+    `;
+
     const enableRlsSQL = `
       DO $$ 
       DECLARE 
@@ -847,6 +857,7 @@ async function _runInit(): Promise<void> {
     await pgClient.unsafe(createTablesSQL);
     await pgClient.unsafe(alterMissingColumnsSQL);
     await pgClient.unsafe(seedCategoriesSQL);
+    await pgClient.unsafe(createIndexesSQL);
     
     await pgClient.unsafe(enableRlsSQL);
   } catch (err) {

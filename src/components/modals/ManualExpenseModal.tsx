@@ -7,6 +7,7 @@ interface Account {
   type: string;
   balance: number;
   credit_limit?: number;
+  overdraft_limit?: number;
 }
 
 interface Category {
@@ -80,6 +81,12 @@ export default function ManualExpenseModal({ isOpen, onClose, accounts, categori
       const avail = Math.max(0, (selectedWallet.credit_limit || 0) - selectedWallet.balance);
       if (numAmount > avail) {
         limitError = `⚠️ Kredi Kartı Limiti Aşıldı! ${selectedWallet.name} kullanılabilir limiti: ${avail.toLocaleString('tr-TR')} ₺`;
+      }
+    } else if (selectedWallet.type === 'kmh') {
+      const overdraftLimit = selectedWallet.overdraft_limit || 0;
+      const avail = selectedWallet.balance + overdraftLimit;
+      if (numAmount > avail) {
+        limitError = `⚠️ KMH (Ek Hesap) Limiti Aşıldı! ${selectedWallet.name} kullanılabilir toplam limiti: ${avail.toLocaleString('tr-TR')} ₺`;
       }
     } else {
       if (numAmount > selectedWallet.balance) {
@@ -219,11 +226,13 @@ export default function ManualExpenseModal({ isOpen, onClose, accounts, categori
                 {activeAccounts.map((acc: any) => {
                   const avail = acc.type === 'credit_card'
                     ? Math.max(0, (acc.credit_limit || 0) - acc.balance)
+                    : acc.type === 'kmh'
+                    ? acc.balance + (acc.overdraft_limit || 0)
                     : acc.balance;
                   const owner = acc.owner_name ? ` • ${acc.owner_avatar || '👤'} ${acc.owner_name}` : (acc.is_joint ? ' • 👥 Ortak' : '');
                   return (
                     <option key={acc.id} value={acc.id}>
-                      {acc.type === 'credit_card' ? '💳' : '🏦'} {acc.name}{owner} {txType === 'expense' ? `(Kalan: ${avail.toLocaleString('tr-TR')} ₺)` : `(Bakiye: ${acc.balance.toLocaleString('tr-TR')} ₺)`}
+                      {acc.type === 'credit_card' ? '💳' : acc.type === 'kmh' ? '⚡' : '🏦'} {acc.name}{owner} {txType === 'expense' ? `(Kalan: ${avail.toLocaleString('tr-TR')} ₺)` : `(Bakiye: ${acc.balance.toLocaleString('tr-TR')} ₺)`}
                     </option>
                   );
                 })}

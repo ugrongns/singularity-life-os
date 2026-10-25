@@ -179,6 +179,9 @@ export function calculateCreditCardSchedule(
     amount: number;
     transaction_date: string;
     is_installment?: number | null;
+    type?: string | null;
+    merchant?: string | null;
+    notes?: string | null;
   }> = [],
   today: Date = new Date()
 ): CreditCardScheduleResult {
@@ -291,9 +294,16 @@ export function calculateCreditCardSchedule(
   let futureInstallments = 0;
 
   for (const tx of cardTransactions) {
+    // Ödeme, virman ve gelir işlemlerini dönem içi harcama sayma
+    const isPaymentOrIncome = 
+      tx.type === 'income' || 
+      tx.merchant?.includes('Kart Ödemesi') || 
+      tx.merchant?.includes('Mutabakat') ||
+      tx.merchant?.includes('Transfer');
+
     if (tx.is_installment === 1 && tx.transaction_date > todayISO) {
       futureInstallments += tx.amount;
-    } else if (tx.transaction_date >= cycleStartISO) {
+    } else if (tx.transaction_date >= cycleStartISO && !isPaymentOrIncome) {
       currentCycleSpending += tx.amount;
     }
   }

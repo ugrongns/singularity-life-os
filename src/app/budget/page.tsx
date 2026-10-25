@@ -246,59 +246,62 @@ export default function BudgetPage() {
         });
 
         return (
-          <div className="dashboard-grid">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <BudgetRiskCard
-                accounts={filteredAccounts}
-                onUpdate={handleUpdate}
-              />
-              <AccountsCard
-                accounts={filteredAccounts}
-                familyMembers={data?.monthlySummary?.familyMembers || []}
-                onUpdate={handleUpdate}
-                onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
-              />
-              <RecentTxCard
-                transactions={filteredRecentTx}
-                upcomingPayments={data?.upcomingPayments || []}
-                onUpdate={handleUpdate}
-                onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
-              />
+          <>
+            <div className="dashboard-grid">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <BudgetRiskCard
+                  accounts={filteredAccounts}
+                  onUpdate={handleUpdate}
+                />
+                <AccountsCard
+                  accounts={filteredAccounts}
+                  familyMembers={data?.monthlySummary?.familyMembers || []}
+                  onUpdate={handleUpdate}
+                  onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
+                  marketRates={data?.marketRates}
+                />
+                <RecentTxCard
+                  transactions={filteredRecentTx}
+                  upcomingPayments={data?.upcomingPayments || []}
+                  onUpdate={handleUpdate}
+                  onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <BudgetLimitsCard
+                  categories={data?.categories || []}
+                  monthlySummary={data?.monthlySummary || { totalIncome: 0, totalExpenses: 0, netCashFlow: 0, categories: [] }}
+                  onUpdate={handleUpdate}
+                  onMonthChange={handleMonthChange}
+                  onOpenCategoryDetail={(catId, catName) => setCategoryDetail({ catId, catName })}
+                />
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <BudgetLimitsCard
-                categories={data?.categories || []}
-                monthlySummary={data?.monthlySummary || { totalIncome: 0, totalExpenses: 0, netCashFlow: 0, categories: [] }}
-                onUpdate={handleUpdate}
-                onMonthChange={handleMonthChange}
-                onOpenCategoryDetail={(catId, catName) => setCategoryDetail({ catId, catName })}
-              />
-            </div>
-          </div>
+
+            {/* 6 Aylık Bütçe & Taksit Projeksiyon Kartı */}
+            <FutureForecastCard
+              forecast={data?.monthlySummary?.futureForecast || []}
+              selectedMonth={selectedMonth}
+              onSelectMonth={handleMonthChange}
+            />
+
+            {/* Periyodik Fatura & Abonelik Takvimi */}
+            <RecurringBillsCard
+              accounts={filteredAccounts}
+              categories={data?.categories || []}
+              onToast={showToast}
+              onUpdate={handleUpdate}
+            />
+
+            {/* Kişisel Borç & Alacak Takibi */}
+            <PersonalDebtsCard
+              accounts={filteredAccounts}
+              onToast={showToast}
+              marketRates={data?.marketRates}
+            />
+          </>
         );
       })()}
-
-      {/* 6 Aylık Bütçe & Taksit Projeksiyon Kartı */}
-      <FutureForecastCard
-        forecast={data?.monthlySummary?.futureForecast || []}
-        selectedMonth={selectedMonth}
-        onSelectMonth={handleMonthChange}
-      />
-
-      {/* Periyodik Fatura & Abonelik Takvimi */}
-      <RecurringBillsCard
-        accounts={data?.accounts || []}
-        categories={data?.categories || []}
-        onToast={showToast}
-        onUpdate={handleUpdate}
-      />
-
-      {/* Kişisel Borç & Alacak Takibi */}
-      <PersonalDebtsCard
-        accounts={data?.accounts || []}
-        onToast={showToast}
-        marketRates={data?.marketRates}
-      />
 
       <ReceiptScanModal
         isOpen={isScanOpen}

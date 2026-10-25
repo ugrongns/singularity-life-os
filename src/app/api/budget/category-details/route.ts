@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { categories, transactions, walletsAccounts } from '@/db/schema';
-import { eq, desc, sql , or } from 'drizzle-orm';
+import { eq, desc, sql, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 export async function GET(req: Request) {
@@ -20,23 +20,47 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'Kategori ID zorunludur.' }, { status: 400 });
     }
 
+    const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
     const currentMonthStr = monthParam || new Date().toISOString().slice(0, 7);
 
-    // Kategori Detayı
+    // Kategori Detayı - Kullanıcının ailesine ait veya sistem/ortak kategori olmalı
     const category = (await db.select().from(categories).where(eq(categories.id, categoryId)))[0];
     if (!category) {
       return NextResponse.json({ success: false, error: 'Kategori bulunamadı.' }, { status: 404 });
     }
 
-    // Hesap isimlerini haritalamak için cüzdanları al
-    const wallets = await db.select().from(walletsAccounts);
+    if (category.family_id && familyId && category.family_id !== familyId) {
+      return NextResponse.json({ success: false, error: 'Bu kategoriye erişim yetkiniz yok.' }, { status: 403 });
+    }
+
+    // Hesap isimlerini haritalamak için yalnızca ailenin cüzdanlarını al (BOLA Koruması)
+    const wallets = familyId
+      ? await db.select().from(walletsAccounts).where(
+          and(
+            eq(walletsAccounts.family_id, familyId),
+            or(eq(walletsAccounts.user_id, user.id), eq(walletsAccounts.is_family_shared, 1), sql`${walletsAccounts.user_id} IS NULL`)
+          )
+        )
+      : await db.select().from(walletsAccounts).where(eq(walletsAccounts.user_id, user.id));
+
     const walletMap = new Map((wallets).map((w: any) => [w.id, w.name]));
 
-    // Bu kategoriye ve seçili aya ait tüm işlemler
+    // Bu kategoriye, seçili aya ve yalnızca bu aileye/kullanıcıya ait işlemler (BOLA Koruması)
+    const familyTxFilter = familyId
+      ? and(
+          eq(transactions.family_id, familyId),
+          or(eq(transactions.user_id, user.id), eq(transactions.is_family_shared, 1))
+        )
+      : eq(transactions.user_id, user.id);
+
     const txList = await db.select()
       .from(transactions)
       .where(
-        sql`${transactions.category_id} = ${categoryId} AND substr(${transactions.transaction_date}, 1, 7) = ${currentMonthStr}`
+        and(
+          eq(transactions.category_id, categoryId),
+          sql`substr(${transactions.transaction_date}, 1, 7) = ${currentMonthStr}`,
+          familyTxFilter
+        )
       )
       .orderBy(desc(transactions.transaction_date), desc(transactions.created_at));
 

@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     }
 
     // Sabit / Tahmini Aylık Gelir Toplamı (Maaş / Gelir kategorisi varsa o, yoksa makul başlangıç tavanı)
-    const effectiveIncome = Math.max(calculatedIncome, 100000);
+    const effectiveIncome = calculatedIncome > 0 ? calculatedIncome : 100000;
     const maxAllowedCap = effectiveIncome + totalCreditCardLimits;
 
     const proposedTotalLimit = currentTotalLimitExceptTarget + targetLimit;
