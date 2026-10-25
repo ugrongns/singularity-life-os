@@ -331,139 +331,175 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
             isTimeDeposit ? '⏳' :
             acc.type === 'cash' ? '💵' :
             acc.type === 'vault' ? '🥇' : '🏦';
+
+          const creditLimit = acc.credit_limit || 0;
+          const availableLimit = Math.max(0, creditLimit - acc.balance);
+          const utilizationRate = creditLimit > 0 ? Math.round((acc.balance / creditLimit) * 100) : 0;
           
           return (
             <div
               key={acc.id}
               style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                display: 'flex', flexDirection: 'column', gap: '8px',
                 background: 'var(--surface-subtle)', border: '1px solid var(--border)',
                 borderLeft: isCreditCard || isLoan ? '4px solid #EF4444' : '4px solid #10B981',
                 borderRadius: 'var(--radius-md)', padding: '12px 14px'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '20px' }}>{icon}</span>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    <span>{acc.name}</span>
-                    {(acc as any).owner_name && (
-                      <span style={{
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        padding: '1px 6px',
-                        borderRadius: '4px',
-                        background: (acc as any).is_joint 
-                          ? 'rgba(16, 185, 129, 0.12)' 
-                          : ((acc as any).is_mine ? 'rgba(59, 130, 246, 0.12)' : 'rgba(236, 72, 153, 0.12)'),
-                        color: (acc as any).is_joint 
-                          ? '#059669' 
-                          : ((acc as any).is_mine ? '#2563EB' : '#DB2777'),
-                        border: `1px solid ${(acc as any).is_joint 
-                          ? 'rgba(16, 185, 129, 0.2)' 
-                          : ((acc as any).is_mine ? 'rgba(59, 130, 246, 0.2)' : 'rgba(236, 72, 153, 0.2)')}`
-                      }}>
-                        {(acc as any).owner_avatar} {(acc as any).owner_name}
+              {/* 1. KATMAN: HESAP BİLGİSİ, SAHİPLİK ROZETİ VE BÜYÜK BAKİYE */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                {/* Sol: İkon + İsim + Rozetler */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                  <span style={{ fontSize: '22px', flexShrink: 0 }}>{icon}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
+                        {acc.name}
                       </span>
-                    )}
-                    {isCreditCard && (
-                      <span style={{ fontSize: '10px', background: '#FEE2E2', color: '#991B1B', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                        Kredi Kartı
-                      </span>
-                    )}
-                    {isLoan && (
-                      <span style={{ fontSize: '10px', background: '#FEF3C7', color: '#92400E', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                        🏛️ Tüketici Kredisi
-                      </span>
-                    )}
-                    {isTimeDeposit && (
-                      <span style={{ fontSize: '10px', background: '#D1FAE5', color: '#065F46', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                        ⏳ Vadeli Mevduat
-                      </span>
-                    )}
-                    {isMatured && (
-                      <span style={{ fontSize: '10px', background: '#FEE2E2', color: '#B91C1C', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
-                        ⚠️ Vade Sonu Geldi!
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    {isCreditCard && (
-                      <div>
-                        <span>
-                          Limit: {formatMoney(acc.credit_limit || 0, acc.currency)} • Kullanılabilir: <strong>{formatMoney(Math.max(0, (acc.credit_limit || 0) - acc.balance), acc.currency)}</strong>
+                      {(acc as any).owner_name && (
+                        <span style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          background: (acc as any).is_joint 
+                            ? 'rgba(16, 185, 129, 0.12)' 
+                            : ((acc as any).is_mine ? 'rgba(59, 130, 246, 0.12)' : 'rgba(236, 72, 153, 0.12)'),
+                          color: (acc as any).is_joint 
+                            ? '#059669' 
+                            : ((acc as any).is_mine ? '#2563EB' : '#DB2777'),
+                          border: `1px solid ${(acc as any).is_joint 
+                            ? 'rgba(16, 185, 129, 0.2)' 
+                            : ((acc as any).is_mine ? 'rgba(59, 130, 246, 0.2)' : 'rgba(236, 72, 153, 0.2)')}`
+                        }}>
+                          {(acc as any).owner_avatar} {(acc as any).owner_name}
                         </span>
-                        {(acc.credit_limit || 0) > 0 && (
-                          <div style={{ marginTop: '5px', maxWidth: '240px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '2px' }}>
-                              <span>Limit Doluluğu</span>
-                              <span style={{ color: (acc.balance / acc.credit_limit!) >= 0.75 ? '#DC2626' : 'var(--text-main)' }}>
-                                %{Math.round((acc.balance / acc.credit_limit!) * 100)}
-                              </span>
-                            </div>
-                            <div style={{ height: '4px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
-                              <div style={{
-                                height: '100%',
-                                width: `${Math.min(100, Math.max(0, (acc.balance / acc.credit_limit!) * 100))}%`,
-                                background: (acc.balance / acc.credit_limit!) >= 0.75 ? '#EF4444' : (acc.balance / acc.credit_limit!) >= 0.5 ? '#F59E0B' : '#10B981',
-                                borderRadius: '2px'
-                              }} />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {isLoan && (
-                      <span>
-                        Çekilen: {formatMoney(acc.loan_original_amount || 0)} • Taksit: <strong>{formatMoney(acc.monthly_installment_amount || 0)} / ay</strong> • İlk Taksit: <strong>{acc.first_installment_date || 'Belirtilmedi'}</strong>
-                      </span>
-                    )}
-                    {isTimeDeposit && (
-                      <span>
-                        Faiz Oranı: <strong>%{acc.interest_rate}</strong> • Vade Tarihi: <strong>{acc.maturity_date || 'Belirtilmedi'}</strong>
-                      </span>
-                    )}
+                      )}
+                      {isCreditCard && !acc.name.toLowerCase().includes('kredi kart') && (
+                        <span style={{ fontSize: '10px', background: '#FEE2E2', color: '#991B1B', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          Kredi Kartı
+                        </span>
+                      )}
+                      {isLoan && (
+                        <span style={{ fontSize: '10px', background: '#FEF3C7', color: '#92400E', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          🏛️ Tüketici Kredisi
+                        </span>
+                      )}
+                      {isTimeDeposit && (
+                        <span style={{ fontSize: '10px', background: '#D1FAE5', color: '#065F46', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          ⏳ Vadeli Mevduat
+                        </span>
+                      )}
+                      {isMatured && (
+                        <span style={{ fontSize: '10px', background: '#FEE2E2', color: '#B91C1C', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                          ⚠️ Vade Sonu Geldi!
+                        </span>
+                      )}
+                    </div>
+
                     {!isCreditCard && !isLoan && !isTimeDeposit && (
-                      <span>Vadesiz Mevduat & Nakit Bakiye</span>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        Vadesiz Mevduat & Nakit Bakiye
+                      </div>
                     )}
                   </div>
                 </div>
-              </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ textAlign: 'right' }}>
+                {/* Sağ: Tutar (Asla kırılmaz: whiteSpace: nowrap) */}
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>
                     {isCreditCard || isLoan ? 'Kalan Borç' : 'Bakiye'}
                   </div>
                   <div
                     className="tabular-nums"
                     style={{
-                      fontSize: '15px', fontWeight: 900,
+                      fontSize: '16px', fontWeight: 900, whiteSpace: 'nowrap',
                       color: isCreditCard || isLoan ? '#DC2626' : '#10B981'
                     }}
                   >
                     {formatMoney(acc.balance, acc.currency)}
                   </div>
                 </div>
+              </div>
 
-                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              {/* 2. KATMAN: KREDİ KARTI LİMİT DOLULUK ÇUBUĞU / DETAYLAR */}
+              {isCreditCard && (
+                <div style={{
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: '8px', padding: '8px 10px', marginTop: '2px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '5px', flexWrap: 'wrap', gap: '4px' }}>
+                    <span>Limit: <strong style={{ color: 'var(--text-main)' }}>{formatMoney(creditLimit, acc.currency)}</strong></span>
+                    <span>Kullanılabilir: <strong style={{ color: '#10B981' }}>{formatMoney(availableLimit, acc.currency)}</strong></span>
+                    {creditLimit > 0 && (
+                      <span style={{
+                        fontWeight: 700,
+                        color: utilizationRate >= 75 ? '#DC2626' : utilizationRate >= 50 ? '#D97706' : 'var(--text-muted)'
+                      }}>
+                        %{utilizationRate} Dolu
+                      </span>
+                    )}
+                  </div>
+
+                  {creditLimit > 0 && (
+                    <div style={{ height: '5px', background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${Math.min(100, Math.max(0, utilizationRate))}%`,
+                        background: utilizationRate >= 75 ? '#EF4444' : utilizationRate >= 50 ? '#F59E0B' : '#10B981',
+                        borderRadius: '3px',
+                        transition: 'width 0.3s ease'
+                      }} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {isLoan && (
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface)', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                  Çekilen: {formatMoney(acc.loan_original_amount || 0)} • Taksit: <strong>{formatMoney(acc.monthly_installment_amount || 0)} / ay</strong> • İlk Taksit: <strong>{acc.first_installment_date || 'Belirtilmedi'}</strong>
+                </div>
+              )}
+
+              {isTimeDeposit && (
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface)', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                  Faiz Oranı: <strong>%{acc.interest_rate}</strong> • Vade Tarihi: <strong>{acc.maturity_date || 'Belirtilmedi'}</strong>
+                </div>
+              )}
+
+              {/* 3. KATMAN: AKSİYON BUTONLARI (FOOTER ÇUBUĞU) */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                borderTop: '1px solid var(--border)', paddingTop: '8px', marginTop: '2px', gap: '8px', flexWrap: 'wrap'
+              }}>
+                {/* Sol Butonlar: Ekstre, Kapat, Mutabakat */}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                   {isCreditCard && onOpenCardStatement && (
                     <button
                       onClick={() => onOpenCardStatement(acc.id)}
                       title="Ekstre Detaylarını Gör"
-                      style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', color: '#4F46E5', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                      style={{
+                        background: '#EEF2FF', border: '1px solid #C7D2FE', color: '#4F46E5',
+                        padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
+                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px'
+                      }}
                     >
-                      Ekstre 📄
+                      <span>📄</span>
+                      <span>Ekstre</span>
                     </button>
                   )}
                   {isTimeDeposit && (
                     <button
                       onClick={() => { setSelectedCloseAccountId(acc.id); setIsCloseModalOpen(true); }}
                       title="Vadeyi Kapat ve Parayı Aktar"
-                      style={{ background: '#D1FAE5', border: '1px solid #10B981', color: '#065F46', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                      style={{
+                        background: '#D1FAE5', border: '1px solid #10B981', color: '#065F46',
+                        padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
+                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px'
+                      }}
                     >
-                      Kapat 💵
+                      <span>💵</span>
+                      <span>Kapat</span>
                     </button>
                   )}
                   {!isLoan && !isTimeDeposit && (acc as any).can_edit !== false && (
@@ -474,7 +510,7 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
                         background: 'rgba(99, 102, 241, 0.08)',
                         border: '1px solid rgba(99, 102, 241, 0.25)',
                         color: '#4F46E5',
-                        padding: '4px 8px',
+                        padding: '4px 10px',
                         borderRadius: '6px',
                         fontSize: '11px',
                         fontWeight: 700,
@@ -484,48 +520,51 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
                         gap: '4px'
                       }}
                     >
-                      ⚖️ Mutabakat
+                      <span>⚖️</span>
+                      <span>Mutabakat</span>
                     </button>
                   )}
-                  {(acc as any).can_edit !== false && (
-                    <>
-                      <button
-                        onClick={() => openEditModal(acc)}
-                        style={{
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '6px',
-                          padding: '4px 7px',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        title="Hesabı Düzenle"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => handleDelete(acc.id, acc.name)}
-                        style={{
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '6px',
-                          padding: '4px 7px',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        title="Hesabı Sil"
-                      >
-                        🗑️
-                      </button>
-                    </>
-                  )}
                 </div>
+
+                {/* Sağ Butonlar: Düzenle ✏️ ve Sil 🗑️ */}
+                {(acc as any).can_edit !== false && (
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <button
+                      onClick={() => openEditModal(acc)}
+                      style={{
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        padding: '4px 8px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title="Hesabı Düzenle"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => handleDelete(acc.id, acc.name)}
+                      style={{
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        padding: '4px 8px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title="Hesabı Sil"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           );
