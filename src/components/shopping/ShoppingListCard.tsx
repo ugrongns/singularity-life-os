@@ -87,7 +87,7 @@ function parseQuickItem(input: string) {
     }
   }
 
-  // Akıllı kategori çıkarımı
+  // Akıllı reyon çıkarımı
   const nameLower = name.toLowerCase();
   const MANAV_WORDS = ['domates', 'salatalık', 'biber', 'patates', 'soğan', 'marul', 'havuç', 'elma', 'muz', 'portakal', 'mandalina', 'limon', 'çilek', 'üzüm', 'maydanoz', 'ıspanak', 'avokado'];
   const FIRIN_WORDS = ['ekmek', 'simit', 'poğaça', 'börek', 'pide', 'lavaş', 'baget'];
@@ -304,35 +304,28 @@ export default function ShoppingListCard({
   const checkedEstimated = summary.checkedEstimated || (summary.totalEstimated - summary.remainingEstimated);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* 2 Sütunlu Masaüstü / Tek Sütunlu Mobil Bento Konteyner */}
-      <div 
-        style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
-          gap: '16px',
-          alignItems: 'start'
-        }}
-      >
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+      {/* 2 Sütunlu Masaüstü / Tek Sütunlu Mobil Split Izgara */}
+      <div className="shopping-split-grid">
         {/* SOL SÜTUN: ALINACAKLAR & REYONLAR */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0 }}>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
           {/* Üst Kart Başlık Barı */}
-          <div className="card-header-block" style={{ marginBottom: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div className="icon-badge icon-badge-emerald">
+          <div className="card-header-block" style={{ marginBottom: 0, gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+              <div className="icon-badge icon-badge-emerald" style={{ flexShrink: 0 }}>
                 <ShoppingCart size={18} strokeWidth={1.75} />
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--text-muted)' }}>
                   Alışveriş & Kiler
                 </div>
-                <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   Akıllı Market Listesi
                 </h2>
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <label 
                 className="btn-subtle" 
                 style={{ 
@@ -343,7 +336,8 @@ export default function ShoppingListCard({
                   fontSize: '11px',
                   padding: '6px 12px',
                   borderRadius: 'var(--radius-full)',
-                  fontWeight: 800
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap'
                 }}
               >
                 <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleScanReceipt} disabled={scanningAI} />
@@ -353,7 +347,7 @@ export default function ShoppingListCard({
 
               {onOpenAddItem && (
                 <button 
-                  className="btn-primary" 
+                  type="button"
                   onClick={() => onOpenAddItem()}
                   style={{
                     display: 'inline-flex',
@@ -362,7 +356,12 @@ export default function ShoppingListCard({
                     fontSize: '11px',
                     padding: '6px 12px',
                     borderRadius: 'var(--radius-full)',
-                    fontWeight: 800
+                    fontWeight: 800,
+                    background: 'var(--blue)',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   <Plus size={14} />
@@ -382,14 +381,17 @@ export default function ShoppingListCard({
               background: 'var(--surface-subtle)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
-              padding: '4px 6px 4px 12px'
+              padding: '4px 6px 4px 12px',
+              width: '100%',
+              minWidth: 0,
+              boxSizing: 'border-box'
             }}
           >
-            <span style={{ color: 'var(--emerald)', fontSize: '16px', fontWeight: 800 }}>＋</span>
+            <span style={{ color: 'var(--emerald)', fontSize: '16px', fontWeight: 800, flexShrink: 0 }}>＋</span>
             <input
               ref={quickInputRef}
               type="text"
-              placeholder="Hızlı ürün ekle... (Örn: Süt 2L, Domates 1kg, Ekmek) [Enter]"
+              placeholder="Hızlı ürün ekle... (Örn: Süt 2L, Domates 1kg) [Enter]"
               value={quickInput}
               onChange={e => setQuickInput(e.target.value)}
               style={{
@@ -401,19 +403,25 @@ export default function ShoppingListCard({
                 fontSize: '13px',
                 fontWeight: 600,
                 outline: 'none',
-                padding: '6px 0'
+                padding: '6px 0',
+                width: '100%'
               }}
             />
             <button
               type="submit"
               disabled={addingQuick || !quickInput.trim()}
-              className="btn-primary"
               style={{
-                fontSize: '11px',
-                padding: '6px 12px',
+                fontSize: '12px',
+                padding: '7px 14px',
                 borderRadius: 'var(--radius-sm)',
                 fontWeight: 800,
-                flexShrink: 0
+                flexShrink: 0,
+                background: 'var(--blue)',
+                color: '#FFFFFF',
+                border: 'none',
+                cursor: 'pointer',
+                margin: 0,
+                width: 'auto'
               }}
             >
               {addingQuick ? '...' : 'Ekle'}
@@ -421,7 +429,7 @@ export default function ShoppingListCard({
           </form>
 
           {/* Hazır Paket Hapları & Filtreler */}
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', width: '100%', minWidth: 0 }}>
             <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)' }}>⚡ Paketler:</span>
             
             <button
@@ -520,7 +528,7 @@ export default function ShoppingListCard({
           </div>
 
           {/* Arama & Kategori Filtreleme Çubuğu */}
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', minWidth: 0 }}>
             <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
               <input
                 type="text"
@@ -529,15 +537,16 @@ export default function ShoppingListCard({
                 onChange={e => setSearchQuery(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '8px 12px 8px 32px',
+                  padding: '8px 12px 8px 30px',
                   fontSize: '12px',
                   background: 'var(--surface)',
                   color: 'var(--text-main)',
                   border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)'
+                  borderRadius: 'var(--radius-md)',
+                  boxSizing: 'border-box'
                 }}
               />
-              <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             </div>
 
             <select
@@ -566,7 +575,7 @@ export default function ShoppingListCard({
           </div>
 
           {/* Reyon Bazlı Alınacaklar Listesi */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '4px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '4px', width: '100%', minWidth: 0 }}>
             {Object.keys(uncheckedByAisle).length === 0 ? (
               <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎉</div>
@@ -579,7 +588,7 @@ export default function ShoppingListCard({
                 const aisleTotal = aisleItems.reduce((sum, item) => sum + (item.estimated_price || 0), 0);
 
                 return (
-                  <div key={aisle} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div key={aisle} style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', minWidth: 0 }}>
                     {/* Reyon Başlığı */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 4px' }}>
                       <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -596,8 +605,8 @@ export default function ShoppingListCard({
                       )}
                     </div>
 
-                    {/* Reyondaki Ürünler (Satırın tamamı tıklanabilir & 44x44px onay hedefi) */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {/* Reyondaki Ürünler (Genişletilmiş ürün başlık alanı + kompakt aksiyonlar) */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', minWidth: 0 }}>
                       {aisleItems.map(item => (
                         <div
                           key={item.id}
@@ -606,22 +615,26 @@ export default function ShoppingListCard({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            padding: '6px 10px',
+                            padding: '8px 10px',
                             background: 'var(--surface)',
                             border: '1px solid var(--border)',
                             borderRadius: 'var(--radius-md)',
                             cursor: 'pointer',
                             userSelect: 'none',
                             transition: 'all 0.15s ease',
-                            boxShadow: 'var(--shadow-sm)'
+                            boxShadow: 'var(--shadow-sm)',
+                            gap: '8px',
+                            width: '100%',
+                            minWidth: 0,
+                            boxSizing: 'border-box'
                           }}
                         >
+                          {/* Sol: Onay Butonu & Geniş Ürün Bilgisi */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
-                            {/* 44x44px Minimum Dokunma Alanlı Onay Kutusu */}
                             <div
                               style={{
-                                width: '44px',
-                                height: '44px',
+                                width: '32px',
+                                height: '32px',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -630,8 +643,8 @@ export default function ShoppingListCard({
                             >
                               <div
                                 style={{
-                                  width: '24px',
-                                  height: '24px',
+                                  width: '22px',
+                                  height: '22px',
                                   borderRadius: '50%',
                                   border: '2px solid var(--border)',
                                   background: 'var(--surface)',
@@ -643,22 +656,22 @@ export default function ShoppingListCard({
                               />
                             </div>
 
-                            {/* Ürün Adı & Miktar */}
+                            {/* Ürün Adı & Miktar (Artık 180px+ nefes alanına sahip) */}
                             <div style={{ minWidth: 0, flex: 1 }}>
-                              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {item.name}
                               </div>
-                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', gap: '6px', fontWeight: 600 }}>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px', display: 'flex', gap: '4px', fontWeight: 600 }}>
                                 <span style={{ color: 'var(--text-main)', fontWeight: 700 }}>{item.quantity} {item.unit}</span>
                                 {item.source === 'diet_plan' && <span style={{ color: 'var(--emerald)', fontWeight: 800 }}>• Diyet</span>}
                               </div>
                             </div>
                           </div>
 
-                          {/* Fiyat & Hızlı Eylemler (e.stopPropagation ile satır tıklaması engellenir) */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                          {/* Sağ: Fiyat & Kompakt Eylemler (Maksimum 60px alan kaplar) */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                             {item.estimated_price > 0 && (
-                              <span className="tabular-nums" style={{ fontSize: '13px', fontWeight: 900, color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
+                              <span className="tabular-nums" style={{ fontSize: '13px', fontWeight: 900, color: 'var(--text-main)', whiteSpace: 'nowrap', marginRight: '4px' }}>
                                 {formatTRY(item.estimated_price)}
                               </span>
                             )}
@@ -671,8 +684,8 @@ export default function ShoppingListCard({
                                   onOpenAddItem(item);
                                 }}
                                 style={{
-                                  width: '32px',
-                                  height: '32px',
+                                  width: '28px',
+                                  height: '28px',
                                   background: 'transparent',
                                   border: 'none',
                                   color: 'var(--text-muted)',
@@ -680,11 +693,11 @@ export default function ShoppingListCard({
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
-                                  borderRadius: 'var(--radius-sm)'
+                                  padding: 0
                                 }}
                                 title="Düzenle"
                               >
-                                <Edit3 size={14} />
+                                <Edit3 size={13} />
                               </button>
                             )}
 
@@ -692,8 +705,8 @@ export default function ShoppingListCard({
                               type="button"
                               onClick={(e) => handleDelete(item.id, e)}
                               style={{
-                                width: '32px',
-                                height: '32px',
+                                width: '28px',
+                                height: '28px',
                                 background: 'transparent',
                                 border: 'none',
                                 color: 'var(--text-muted)',
@@ -701,11 +714,11 @@ export default function ShoppingListCard({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                borderRadius: 'var(--radius-sm)'
+                                padding: 0
                               }}
                               title="Sil"
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={13} />
                             </button>
                           </div>
                         </div>
@@ -718,10 +731,10 @@ export default function ShoppingListCard({
           </div>
         </div>
 
-        {/* SAĞ SÜTUN: SEPETTEKİLER & BÜTÇE KUMANDA MERKEZİ */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {/* SAĞ SÜTUN: BÜTÇE & SEPETTEKİLER (Masaüstünde Sağ Panel, Mobilde Alt Panel) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
           {/* Bütçe & Sepet İlerleme Kartı */}
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <ShoppingBag size={15} style={{ color: 'var(--emerald)' }} />
@@ -733,7 +746,7 @@ export default function ShoppingListCard({
             </div>
 
             {/* İlerleme Çubuğu */}
-            <div className="budget-bar-track" style={{ height: '8px' }}>
+            <div className="budget-bar-track" style={{ height: '8px', width: '100%' }}>
               <div 
                 className="budget-bar-fill" 
                 style={{ 
@@ -744,24 +757,24 @@ export default function ShoppingListCard({
             </div>
 
             {/* 3'lü Tutar Bento Kutuları */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', textAlign: 'center' }}>
-              <div style={{ background: 'var(--surface-subtle)', padding: '8px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800 }}>TOPLAM</div>
-                <div className="tabular-nums" style={{ fontSize: '13px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', textAlign: 'center', width: '100%', minWidth: 0 }}>
+              <div style={{ background: 'var(--surface-subtle)', padding: '8px 4px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', minWidth: 0 }}>
+                <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: 800 }}>TOPLAM</div>
+                <div className="tabular-nums" style={{ fontSize: '12px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {formatTRY(summary.totalEstimated)}
                 </div>
               </div>
 
-              <div style={{ background: 'var(--emerald-bg)', padding: '8px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                <div style={{ fontSize: '10px', color: 'var(--emerald)', fontWeight: 800 }}>SEPETTE</div>
-                <div className="tabular-nums" style={{ fontSize: '13px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px' }}>
+              <div style={{ background: 'var(--emerald-bg)', padding: '8px 4px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16, 185, 129, 0.3)', minWidth: 0 }}>
+                <div style={{ fontSize: '9px', color: 'var(--emerald)', fontWeight: 800 }}>SEPETTE</div>
+                <div className="tabular-nums" style={{ fontSize: '12px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {formatTRY(checkedEstimated)}
                 </div>
               </div>
 
-              <div style={{ background: 'var(--amber-bg)', padding: '8px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-                <div style={{ fontSize: '10px', color: 'var(--amber)', fontWeight: 800 }}>KALAN</div>
-                <div className="tabular-nums" style={{ fontSize: '13px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px' }}>
+              <div style={{ background: 'var(--amber-bg)', padding: '8px 4px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(245, 158, 11, 0.3)', minWidth: 0 }}>
+                <div style={{ fontSize: '9px', color: 'var(--amber)', fontWeight: 800 }}>KALAN</div>
+                <div className="tabular-nums" style={{ fontSize: '12px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {formatTRY(summary.remainingEstimated)}
                 </div>
               </div>
@@ -778,10 +791,9 @@ export default function ShoppingListCard({
               </div>
             )}
 
-            {/* Kasada Öde / Bütçeye Aktar Ana Butonu */}
+            {/* Kasada Öde / Bütçeye Aktar Masaüstü Butonu */}
             <button
               type="button"
-              className="btn-primary"
               disabled={summary.done === 0}
               onClick={() => onOpenCheckout && onOpenCheckout()}
               style={{
@@ -799,7 +811,8 @@ export default function ShoppingListCard({
                 gap: '8px',
                 cursor: summary.done > 0 ? 'pointer' : 'not-allowed',
                 boxShadow: summary.done > 0 ? '0 2px 8px rgba(22, 101, 52, 0.3)' : 'none',
-                minHeight: '44px'
+                minHeight: '44px',
+                margin: 0
               }}
             >
               <CreditCard size={16} />
@@ -812,7 +825,7 @@ export default function ShoppingListCard({
           </div>
 
           {/* Sepettekiler (Alınanlar) Kartı */}
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
             <div 
               onClick={() => setIsCartExpanded(prev => !prev)}
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
@@ -849,7 +862,8 @@ export default function ShoppingListCard({
                         border: '1px solid rgba(16, 185, 129, 0.25)',
                         borderRadius: 'var(--radius-md)',
                         cursor: 'pointer',
-                        transition: 'all 0.15s ease'
+                        transition: 'all 0.15s ease',
+                        gap: '8px'
                       }}
                       title="Sepetten geri çıkarmak için tıklayın"
                     >
@@ -880,7 +894,7 @@ export default function ShoppingListCard({
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                         {item.estimated_price > 0 && (
                           <span className="tabular-nums" style={{ fontSize: '12px', fontWeight: 800, color: 'var(--emerald)' }}>
                             {formatTRY(item.estimated_price)}
@@ -891,8 +905,8 @@ export default function ShoppingListCard({
                           type="button"
                           onClick={(e) => handleDelete(item.id, e)}
                           style={{
-                            width: '28px',
-                            height: '28px',
+                            width: '26px',
+                            height: '26px',
                             background: 'transparent',
                             border: 'none',
                             color: 'var(--text-muted)',
@@ -938,25 +952,23 @@ export default function ShoppingListCard({
         </div>
       </div>
 
-      {/* 📱 MOBİL MARKETTE TEK EL MODU: YAPIŞKAN KASA & SEPET DOCK BAR */}
+      {/* 📱 SADECE MOBİLDE GÖRÜNEN YAPIŞKAN KASA & SEPET DOCK BAR (.shopping-mobile-dock) */}
       {summary.done > 0 && (
         <div
+          className="shopping-mobile-dock"
           style={{
-            position: 'sticky',
-            bottom: '72px',
-            zIndex: 90,
             background: 'var(--surface)',
             border: '1.5px solid var(--emerald)',
             borderRadius: 'var(--radius-lg)',
             padding: '10px 14px',
-            display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             boxShadow: '0 8px 24px rgba(16, 185, 129, 0.25)',
-            gap: '12px'
+            gap: '12px',
+            boxSizing: 'border-box'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
             <div
               style={{
                 width: '36px',
@@ -972,11 +984,11 @@ export default function ShoppingListCard({
             >
               <ShoppingCart size={18} />
             </div>
-            <div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>
+            <div style={{ minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800, whiteSpace: 'nowrap' }}>
                 🛒 {summary.done} ÜRÜN SEPETTE
               </div>
-              <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 900, color: 'var(--text-main)' }}>
+              <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {formatTRY(checkedEstimated)}
               </div>
             </div>
@@ -984,7 +996,6 @@ export default function ShoppingListCard({
 
           <button
             type="button"
-            className="btn-primary"
             onClick={() => onOpenCheckout && onOpenCheckout()}
             style={{
               padding: '10px 16px',
@@ -999,7 +1010,10 @@ export default function ShoppingListCard({
               alignItems: 'center',
               gap: '6px',
               flexShrink: 0,
-              minHeight: '44px'
+              minHeight: '44px',
+              whiteSpace: 'nowrap',
+              margin: 0,
+              width: 'auto'
             }}
           >
             <CreditCard size={15} />

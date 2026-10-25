@@ -1543,3 +1543,39 @@ body {
     align-items: stretch;
   }
 }
+
+
+/* ===== Akıllı Market Responsive Stilleri ===== */
+.shopping-split-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .shopping-split-grid {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+}
+
+.shopping-mobile-dock {
+  display: flex !important;
+  position: fixed !important;
+  bottom: 72px !important;
+  left: 16px !important;
+  right: 16px !important;
+  max-width: 480px !important;
+  margin: 0 auto !important;
+  z-index: 90 !important;
+}
+
+@media (min-width: 1024px) {
+  .shopping-mobile-dock {
+    display: none !important;
+  }
+}
