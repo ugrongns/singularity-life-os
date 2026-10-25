@@ -26,16 +26,21 @@ interface Account {
 interface BudgetRiskCardProps {
   accounts: Account[];
   onUpdate?: () => void;
+  onOpenCardStatement?: (accId: string) => void;
+  onOpenTransfer?: () => void;
 }
 
-export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({ accounts }) => {
+export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({
+  accounts,
+  onOpenCardStatement,
+  onOpenTransfer
+}) => {
   const today = new Date();
   const currentDay = today.getDate();
 
   // 1. Gecikmedeki Kredi Kartları
   const overdueCards = accounts.filter(acc => {
     if (acc.type !== 'credit_card' || acc.balance <= 0) return false;
-    // Backend tarafından hesaplanan gerçek gecikme durumu (cari dönem harcamaları muaf tutulur)
     if (typeof acc.is_overdue === 'boolean') {
       return acc.is_overdue && (acc.overdue_amount || 0) > 0;
     }
@@ -55,7 +60,34 @@ export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({ accounts }) => {
     };
   });
 
-  // 2. Kullanılan KMH (Ek Hesaplar)
+  // 2. Yaklaşan Son Ödemesi Olan Kartlar (Gecikmede olmayan, önümüzdeki 15 gün içinde vadesi gelen borçlu kartlar)
+  const upcomingCards = accounts.filter(acc => {
+    if (acc.type !== 'credit_card' || acc.balance <= 0) return false;
+    // Gecikmede olanları tekrar sayma
+    if (acc.is_overdue) return false;
+    if (!acc.due_day) return false;
+    
+    // Son ödeme gününe kaç gün var hesabı
+    let daysDiff = acc.due_day - currentDay;
+    if (daysDiff < 0) {
+      // Gelecek ayın son ödeme günü
+      const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+      daysDiff = (daysInMonth - currentDay) + acc.due_day;
+    }
+    return daysDiff >= 0 && daysDiff <= 15;
+  }).map(acc => {
+    let daysDiff = (acc.due_day || currentDay) - currentDay;
+    if (daysDiff < 0) {
+      const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+      daysDiff = (daysInMonth - currentDay) + (acc.due_day || 0);
+    }
+    return {
+      ...acc,
+      daysUntilDue: daysDiff
+    };
+  }).sort((a, b) => a.daysUntilDue - b.daysUntilDue);
+
+  // 3. Kullanılan KMH (Ek Hesaplar)
   const usedKmhAccounts = accounts.filter(acc => {
     return acc.type === 'kmh' && acc.balance < 0;
   }).map(acc => {
@@ -70,74 +102,268 @@ export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({ accounts }) => {
     };
   });
 
-  const hasRisks = overdueCards.length > 0 || usedKmhAccounts.length > 0;
+  const totalRisks = overdueCards.length + usedKmhAccounts.length;
+  const hasActionableItems = totalRisks > 0 || upcomingCards.length > 0;
 
   return (
     <div className="card" style={{ marginBottom: '20px' }}>
-      <div className="card-title-row">
+      <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="card-title">
           <span>🚨</span>
-          <span>Faiz & Gecikme Risk Takip Motoru</span>
+          <span>Kredi Kartı Risk & Faiz Takip Motoru</span>
         </div>
         <span style={{
-          fontSize: '11px', fontWeight: 800, padding: '3px 10px', borderRadius: 'var(--radius-full)',
-          background: hasRisks ? '#FEF2F2' : 'var(--emerald-bg)',
-          color: hasRisks ? '#991B1B' : 'var(--emerald)'
+          fontSize: '11px',
+          fontWeight: 800,
+          padding: '3px 10px',
+          borderRadius: 'var(--radius-full)',
+          background: totalRisks > 0 ? '#FEF2F2' : (upcomingCards.length > 0 ? '#FFFBEB' : 'var(--emerald-bg)'),
+          color: totalRisks > 0 ? '#991B1B' : (upcomingCards.length > 0 ? '#92400E' : 'var(--emerald)'),
+          border: `1px solid ${totalRisks > 0 ? 'rgba(239, 68, 68, 0.25)' : (upcomingCards.length > 0 ? 'rgba(245, 158, 11, 0.25)' : 'rgba(16, 185, 129, 0.25)')}`
         }}>
-          {hasRisks ? `● ${overdueCards.length + usedKmhAccounts.length} Riskli İşlem` : '● Tüm Ödemeler Düzenli'}
+          {totalRisks > 0
+            ? `● ${totalRisks} Riskli İşlem`
+            : upcomingCards.length > 0
+            ? `⏳ ${upcomingCards.length} Yaklaşan Ödeme`
+            : '● Tüm Ödemeler Düzenli'}
         </span>
       </div>
 
-      {!hasRisks ? (
+      {!hasActionableItems ? (
         <div style={{
-          background: 'var(--surface-subtle)', border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)', padding: '16px', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)'
+          background: 'var(--surface-subtle)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '16px',
+          textAlign: 'center',
+          fontSize: '13px',
+          color: 'var(--text-muted)'
         }}>
-          ✨ Gecikmede kredi kartı borcu veya faiz işleyen KMH hesabı bulunmuyor. Tüm finansal akışınız güvende!
+          ✨ Gecikmede kart borcu veya faiz işleyen KMH hesabı bulunmuyor. Tüm finansal akışınız güvende!
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {/* Geciken Kartlar */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {/* 1. Geciken Kartlar (Timeline Önceliği 1: Kritik Kırmızı) */}
           {overdueCards.map(card => (
-            <div key={card.id} style={{
-              background: '#FEF2F2', border: '1px solid #FECDD3', borderRadius: 'var(--radius-lg)', padding: '14px 16px',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ fontSize: '24px' }}>💳</div>
+            <div
+              key={card.id}
+              style={{
+                background: '#FEF2F2',
+                border: '1px solid #FECDD3',
+                borderLeft: '4px solid #EF4444',
+                borderRadius: 'var(--radius-lg)',
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '10px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '10px',
+                  background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '18px', flexShrink: 0
+                }}>
+                  💳
+                </div>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: '14px', color: '#991B1B' }}>
-                    {card.name} <span style={{ fontSize: '11px', background: '#FEE2E2', color: '#B91C1C', padding: '2px 8px', borderRadius: '4px', marginLeft: '6px' }}>{card.daysOverdue} Gün Gecikmede!</span>
+                  <div style={{ fontWeight: 800, fontSize: '13px', color: '#991B1B', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span>{card.name}</span>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      background: '#DC2626',
+                      color: '#FFFFFF',
+                      padding: '2px 8px',
+                      borderRadius: 'var(--radius-full)'
+                    }}>
+                      🔴 {card.daysOverdue} Gün Gecikmede!
+                    </span>
                   </div>
                   <div style={{ fontSize: '11px', color: '#7F1D1D', marginTop: '2px' }}>
-                    Son Ödeme Günü: Ayın {card.due_day}. Günü • Gecikme Faizi Oranı: %{card.lateRatePercent}/ay
+                    Son Ödeme: Ayın {card.due_day}. Günü • Gecikme Faizi: %{card.lateRatePercent}/ay
                   </div>
                 </div>
               </div>
 
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '11px', color: '#7F1D1D', fontWeight: 700 }}>Geciken Ekstre Borcu</div>
-                <div style={{ fontSize: '16px', fontWeight: 800, color: '#991B1B' }}>
-                  ₺{card.overdueAmount.toLocaleString('tr-TR')}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '10px', color: '#7F1D1D', fontWeight: 700 }}>Geciken Borç</div>
+                  <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: '#991B1B' }}>
+                    ₺{card.overdueAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#DC2626', fontWeight: 800 }}>
+                    ⚡ +₺{card.estimatedInterest.toLocaleString('tr-TR')} faiz
+                  </div>
                 </div>
-                <div style={{ fontSize: '11px', color: '#DC2626', fontWeight: 800, marginTop: '2px' }}>
-                  ⚡ İşleyen Faiz: ~₺{card.estimatedInterest.toLocaleString('tr-TR')}
-                </div>
+
+                {onOpenTransfer && (
+                  <button
+                    onClick={onOpenTransfer}
+                    title="Borcu Hemen Öde"
+                    style={{
+                      background: '#DC2626',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      padding: '7px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <span>⚡</span>
+                    <span>Hemen Öde</span>
+                  </button>
+                )}
               </div>
             </div>
           ))}
 
-          {/* Kullanılan KMH Hesapları */}
+          {/* 2. Yaklaşan Son Ödemeli Kartlar (Timeline Önceliği 2: Amber / Countdown) */}
+          {upcomingCards.map(card => {
+            const isUrgent = card.daysUntilDue <= 3;
+            const badgeBg = card.daysUntilDue === 0 ? '#DC2626' : isUrgent ? '#F59E0B' : 'rgba(59, 130, 246, 0.12)';
+            const badgeColor = card.daysUntilDue === 0 || isUrgent ? '#FFFFFF' : '#2563EB';
+
+            return (
+              <div
+                key={card.id}
+                style={{
+                  background: isUrgent ? '#FFFBEB' : 'var(--surface-subtle)',
+                  border: `1px solid ${isUrgent ? '#FCD34D' : 'var(--border)'}`,
+                  borderLeft: `4px solid ${isUrgent ? '#F59E0B' : '#3B82F6'}`,
+                  borderRadius: 'var(--radius-lg)',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '10px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '36px', height: '36px', borderRadius: '10px',
+                    background: isUrgent ? '#FEF3C7' : 'var(--surface)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '18px', flexShrink: 0
+                  }}>
+                    💳
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: '13px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span>{card.name}</span>
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        background: badgeBg,
+                        color: badgeColor,
+                        padding: '2px 8px',
+                        borderRadius: 'var(--radius-full)'
+                      }}>
+                        {card.daysUntilDue === 0 ? '🚨 Bugün Son Gün!' : `⏳ ${card.daysUntilDue} Gün Kaldı`}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Son Ödeme Tarihi: Ayın {card.due_day}. Günü
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>Güncel Borç</div>
+                    <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: 'var(--text-main)' }}>
+                      ₺{card.balance.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {onOpenCardStatement && (
+                      <button
+                        onClick={() => onOpenCardStatement(card.id)}
+                        title="Ekstre Detayını İncele"
+                        style={{
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--text-main)',
+                          padding: '6px 10px',
+                          borderRadius: 'var(--radius-md)',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        📄 Ekstre
+                      </button>
+                    )}
+
+                    {onOpenTransfer && (
+                      <button
+                        onClick={onOpenTransfer}
+                        title="Kart Borcunu Öde"
+                        style={{
+                          background: isUrgent ? '#D97706' : 'var(--blue)',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          padding: '6px 12px',
+                          borderRadius: 'var(--radius-md)',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <span>Öde</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* 3. Kullanılan KMH Hesapları */}
           {usedKmhAccounts.map(kmh => (
-            <div key={kmh.id} style={{
-              background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 'var(--radius-lg)', padding: '14px 16px',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ fontSize: '24px' }}>⚡</div>
+            <div
+              key={kmh.id}
+              style={{
+                background: '#EFF6FF',
+                border: '1px solid #BFDBFE',
+                borderLeft: '4px solid #3B82F6',
+                borderRadius: 'var(--radius-lg)',
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '10px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '10px',
+                  background: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '18px', flexShrink: 0
+                }}>
+                  ⚡
+                </div>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: '14px', color: '#1E40AF' }}>
-                    {kmh.name} <span style={{ fontSize: '11px', background: '#DBEAFE', color: '#1E40AF', padding: '2px 8px', borderRadius: '4px', marginLeft: '6px' }}>Hazır Kredi Kullanılıyor</span>
+                  <div style={{ fontWeight: 800, fontSize: '13px', color: '#1E40AF', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span>{kmh.name}</span>
+                    <span style={{ fontSize: '10px', background: '#DBEAFE', color: '#1E40AF', padding: '2px 8px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>
+                      KMH Kullanılıyor
+                    </span>
                   </div>
                   <div style={{ fontSize: '11px', color: '#1E3A8A', marginTop: '2px' }}>
                     KMH Limiti: ₺{(kmh.overdraft_limit || 0).toLocaleString('tr-TR')} • Aylık Faiz: %{kmh.monthlyRatePercent}
@@ -145,14 +371,39 @@ export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({ accounts }) => {
                 </div>
               </div>
 
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '11px', color: '#1E3A8A', fontWeight: 700 }}>Kullanılan KMH Tutarı</div>
-                <div style={{ fontSize: '16px', fontWeight: 800, color: '#1E40AF' }}>
-                  ₺{kmh.usedAmount.toLocaleString('tr-TR')}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '10px', color: '#1E3A8A', fontWeight: 700 }}>Kullanılan Bakiye</div>
+                  <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: '#1E40AF' }}>
+                    ₺{kmh.usedAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#2563EB', fontWeight: 800 }}>
+                    ⏳ Ay Sonu Faiz: ~₺{kmh.estimatedMonthlyInterest.toLocaleString('tr-TR')}
+                  </div>
                 </div>
-                <div style={{ fontSize: '11px', color: '#2563EB', fontWeight: 800, marginTop: '2px' }}>
-                  ⏳ Ay Sonu Tahmini Faiz: ~₺{kmh.estimatedMonthlyInterest.toLocaleString('tr-TR')}
-                </div>
+
+                {onOpenTransfer && (
+                  <button
+                    onClick={onOpenTransfer}
+                    title="KMH Hesabına Para Aktar"
+                    style={{
+                      background: '#2563EB',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      padding: '7px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <span>Kapat</span>
+                  </button>
+                )}
               </div>
             </div>
           ))}

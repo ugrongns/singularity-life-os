@@ -77,6 +77,26 @@ export default function BudgetPage() {
 
   if (loading) return <SharedLayout notifications={notifData}><div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Yükleniyor...</div></SharedLayout>;
 
+  const formatTRY = (val: number) =>
+    new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(val || 0);
+
+  // FX Kuru Dönüştürücü
+  const getRate = (curr: string) => {
+    const rates = data?.marketRates;
+    if (!rates) {
+      if (curr === 'USD') return 38.5;
+      if (curr === 'EUR') return 41.5;
+      if (curr === 'GBP') return 48.5;
+      if (curr === 'GOLD') return 3200;
+      return 1.0;
+    }
+    if (curr === 'USD') return rates.USD_TRY || 38.5;
+    if (curr === 'EUR') return rates.EUR_TRY || 41.5;
+    if (curr === 'GBP') return rates.GBP_TRY || 48.5;
+    if (curr === 'GOLD') return rates.GOLD_GRAM_TRY || 3200;
+    return 1.0;
+  };
+
   return (
     <SharedLayout notifications={notifData}>
       {toastMsg && (
@@ -85,10 +105,10 @@ export default function BudgetPage() {
         </div>
       )}
 
-      {/* Sayfa Başlığı ve İşlem Butonları — NetWorth'ün üstünde */}
+      {/* Sayfa Başlığı ve İşlem Butonları */}
       <div style={{ padding: '0 16px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>💰 Finans & Bütçe</h1>
+          <h1 style={{ fontSize: '20px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>💰 Finans & Bütçe</h1>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Hesaplar, harcamalar, borç ödeme ve bütçe limitleri</p>
         </div>
         
@@ -139,7 +159,7 @@ export default function BudgetPage() {
         </div>
       </div>
 
-      {/* Canlı Piyasa & Döviz Kurları Bandı */}
+      {/* 1. Canlı Piyasa & FX Bandı (Tam Genişlik) */}
       <MarketRatesBar
         rates={data?.marketRates}
         onRefresh={handleRefreshRates}
@@ -230,7 +250,7 @@ export default function BudgetPage() {
         </div>
       )}
 
-      {/* İstemci Tarafı Filtrelenmiş Veriler */}
+      {/* İstemci Tarafı Filtrelenmiş Veriler ve Hesaplamalar */}
       {(() => {
         const filteredAccounts = (data?.accounts || []).filter((acc: any) => {
           if (selectedMember === 'all') return true;
@@ -245,14 +265,141 @@ export default function BudgetPage() {
           return tx.member_id === selectedMember;
         });
 
+        // 4'lü Executive KPI Hesaplamaları
+        const totalAssets = filteredAccounts
+          .filter((a: any) => a.type !== 'credit_card' && a.type !== 'loan')
+          .reduce((sum: number, a: any) => {
+            const bal = Number(a.balance) || 0;
+            const rate = getRate(a.currency);
+            if (a.type === 'kmh' && bal < 0) return sum;
+            return sum + (bal * rate);
+          }, 0);
+
+        const totalDebts = filteredAccounts
+          .reduce((sum: number, a: any) => {
+            const bal = Number(a.balance) || 0;
+            const rate = getRate(a.currency);
+            if (a.type === 'credit_card' || a.type === 'loan') {
+              return sum + (bal * rate);
+            }
+            if (a.type === 'kmh' && bal < 0) {
+              return sum + (Math.abs(bal) * rate);
+            }
+            return sum;
+          }, 0);
+
+        const netWorth = totalAssets - totalDebts;
+        const totalIncome = data?.monthlySummary?.totalIncome || 0;
+        const totalExpense = data?.monthlySummary?.totalExpense || 0;
+        const netCashFlow = totalIncome - totalExpense;
+
         return (
           <>
+            {/* 📊 2. Revolut / Copilot Money Tarzı 4'lü Executive KPI Özet Satırı */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '12px',
+              marginBottom: '20px'
+            }}>
+              {/* 1. Toplam Varlık */}
+              <div style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderTop: '3px solid #10B981',
+                borderRadius: 'var(--radius-xl)',
+                padding: '14px 16px',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                    🟢 Toplam Varlık
+                  </span>
+                  <span style={{ fontSize: '16px' }}>🏦</span>
+                </div>
+                <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: '#065F46', marginTop: '4px' }}>
+                  {formatTRY(totalAssets)}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Vadesiz, Vadeli, Döviz ve Nakit
+                </div>
+              </div>
+
+              {/* 2. Toplam Borç */}
+              <div style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderTop: '3px solid #EF4444',
+                borderRadius: 'var(--radius-xl)',
+                padding: '14px 16px',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                    🔴 Toplam Borç
+                  </span>
+                  <span style={{ fontSize: '16px' }}>💳</span>
+                </div>
+                <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: '#991B1B', marginTop: '4px' }}>
+                  {formatTRY(totalDebts)}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Kredi Kartları, Krediler ve KMH
+                </div>
+              </div>
+
+              {/* 3. Net Değer (Net Worth) */}
+              <div style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderTop: `3px solid ${netWorth >= 0 ? '#3B82F6' : '#EF4444'}`,
+                borderRadius: 'var(--radius-xl)',
+                padding: '14px 16px',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                    🔵 Net Değer
+                  </span>
+                  <span style={{ fontSize: '16px' }}>⚖️</span>
+                </div>
+                <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: netWorth >= 0 ? '#1E40AF' : '#991B1B', marginTop: '4px' }}>
+                  {formatTRY(netWorth)}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Net Varlık - Borç Pozisyonu
+                </div>
+              </div>
+
+              {/* 4. Aylık Net Nakit Akışı */}
+              <div style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderTop: `3px solid ${netCashFlow >= 0 ? '#10B981' : '#F59E0B'}`,
+                borderRadius: 'var(--radius-xl)',
+                padding: '14px 16px',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                    🟣 Aylık Nakit Akışı
+                  </span>
+                  <span style={{ fontSize: '16px' }}>📊</span>
+                </div>
+                <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: netCashFlow >= 0 ? '#059669' : '#D97706', marginTop: '4px' }}>
+                  {netCashFlow >= 0 ? `+${formatTRY(netCashFlow)}` : formatTRY(netCashFlow)}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Bu Ay Gelir ({formatTRY(totalIncome)}) - Gider ({formatTRY(totalExpense)})
+                </div>
+              </div>
+            </div>
+
+            {/* 🖥️ 3. Dengeli 2 Sütunlu Bento Grid Mimarisi */}
             <div className="dashboard-grid">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                <BudgetRiskCard
-                  accounts={filteredAccounts}
-                  onUpdate={handleUpdate}
-                />
+              {/* 👈 SOL SÜTUN: Varlıklar & Bütçe Planlaması */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* 1. Varlık & Borç Hesapları Kartı (Segmented Control & Gradient Barlar) */}
                 <AccountsCard
                   accounts={filteredAccounts}
                   familyMembers={data?.monthlySummary?.familyMembers || []}
@@ -260,14 +407,8 @@ export default function BudgetPage() {
                   onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
                   marketRates={data?.marketRates}
                 />
-                <RecentTxCard
-                  transactions={filteredRecentTx}
-                  upcomingPayments={data?.upcomingPayments || []}
-                  onUpdate={handleUpdate}
-                  onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+                {/* 2. Bütçe Limitleri & 50/30/20 Dağılımı */}
                 <BudgetLimitsCard
                   categories={data?.categories || []}
                   monthlySummary={data?.monthlySummary || { totalIncome: 0, totalExpenses: 0, netCashFlow: 0, categories: [] }}
@@ -275,30 +416,51 @@ export default function BudgetPage() {
                   onMonthChange={handleMonthChange}
                   onOpenCategoryDetail={(catId, catName) => setCategoryDetail({ catId, catName })}
                 />
+
+                {/* 3. 6 Aylık Gelecek Bütçe & Taksit Projeksiyon Kartı */}
+                <FutureForecastCard
+                  forecast={data?.monthlySummary?.futureForecast || []}
+                  selectedMonth={selectedMonth}
+                  onSelectMonth={handleMonthChange}
+                />
+              </div>
+
+              {/* 👉 SAĞ SÜTUN: Risk Motoru, Faturalar & Harcama Akışı */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* 1. Kredi Kartı Risk & Faiz Motoru (Timeline Disiplini & Hızlı Öde) */}
+                <BudgetRiskCard
+                  accounts={filteredAccounts}
+                  onUpdate={handleUpdate}
+                  onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
+                  onOpenTransfer={() => setIsTransferOpen(true)}
+                />
+
+                {/* 2. Periyodik Fatura & Abonelik Takvimi (Geri Sayım Rozetleri & Timeline) */}
+                <RecurringBillsCard
+                  accounts={filteredAccounts}
+                  categories={data?.categories || []}
+                  onToast={showToast}
+                  onUpdate={handleUpdate}
+                />
+
+                {/* 3. Son İşlemler (Mobilde 2 Satırlı Kompakt Kart, Masaüstünde Veri Tablosu + CSV + Arama) */}
+                <RecentTxCard
+                  transactions={filteredRecentTx}
+                  upcomingPayments={data?.upcomingPayments || []}
+                  onUpdate={handleUpdate}
+                  onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
+                />
               </div>
             </div>
 
-            {/* 6 Aylık Bütçe & Taksit Projeksiyon Kartı */}
-            <FutureForecastCard
-              forecast={data?.monthlySummary?.futureForecast || []}
-              selectedMonth={selectedMonth}
-              onSelectMonth={handleMonthChange}
-            />
-
-            {/* Periyodik Fatura & Abonelik Takvimi */}
-            <RecurringBillsCard
-              accounts={filteredAccounts}
-              categories={data?.categories || []}
-              onToast={showToast}
-              onUpdate={handleUpdate}
-            />
-
-            {/* Kişisel Borç & Alacak Takibi */}
-            <PersonalDebtsCard
-              accounts={filteredAccounts}
-              onToast={showToast}
-              marketRates={data?.marketRates}
-            />
+            {/* Kişisel Borç & Alacak Takibi (Sayfa Altı Tam Genişlik) */}
+            <div style={{ marginTop: '20px' }}>
+              <PersonalDebtsCard
+                accounts={filteredAccounts}
+                onToast={showToast}
+                marketRates={data?.marketRates}
+              />
+            </div>
           </>
         );
       })()}

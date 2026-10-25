@@ -283,7 +283,7 @@ export default function LiveBarcodeScannerModal({
 
       {/* Ana Kamera Görünümü & Lazer Çerçevesi */}
       <div style={{
-        position: 'relative', width: '100%', maxWidth: '460px', height: '360px',
+        position: 'relative', width: '100%', maxWidth: '480px', height: 'clamp(280px, 50vh, 440px)',
         borderRadius: '24px', overflow: 'hidden', border: '2px solid rgba(16, 185, 129, 0.4)',
         background: '#090D16', display: 'flex', alignItems: 'center', justifyContent: 'center',
         boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8)'

@@ -91,6 +91,10 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
   const [reconcileAcc, setReconcileAcc] = useState<Account | null>(null);
   const [isReconcileModalOpen, setIsReconcileModalOpen] = useState(false);
 
+  // Segmented Control (Hesap Türü Sekmesi)
+  type AccountTab = 'all' | 'cash_bank' | 'time_deposit' | 'fx_gold' | 'credit_card' | 'kmh_loan';
+  const [selectedTab, setSelectedTab] = useState<AccountTab>('all');
+
   const openReconcileModal = (acc: Account) => {
     setReconcileAcc(acc);
     setIsReconcileModalOpen(true);
@@ -296,76 +300,169 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
 
   const netLiquidity = totalAssets - totalDebts;
 
+  // Segmented Sekme Filtreleme Mantığı
+  const filteredTabAccounts = accounts.filter(acc => {
+    if (selectedTab === 'all') return true;
+    if (selectedTab === 'cash_bank') return (acc.type === 'bank' || acc.type === 'cash') && acc.currency === 'TRY';
+    if (selectedTab === 'time_deposit') return acc.type === 'time_deposit';
+    if (selectedTab === 'fx_gold') return acc.currency !== 'TRY' || acc.type === 'vault';
+    if (selectedTab === 'credit_card') return acc.type === 'credit_card';
+    if (selectedTab === 'kmh_loan') return acc.type === 'kmh' || acc.type === 'loan';
+    return true;
+  });
+
+  const tabCounts = {
+    all: accounts.length,
+    cash_bank: accounts.filter(a => (a.type === 'bank' || a.type === 'cash') && a.currency === 'TRY').length,
+    time_deposit: accounts.filter(a => a.type === 'time_deposit').length,
+    fx_gold: accounts.filter(a => a.currency !== 'TRY' || a.type === 'vault').length,
+    credit_card: accounts.filter(a => a.type === 'credit_card').length,
+    kmh_loan: accounts.filter(a => a.type === 'kmh' || a.type === 'loan').length,
+  };
+
   return (
     <div className="card">
-      <div className="card-title-row">
+      <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
         <div className="card-title">
           <span>🏦</span>
           <span>Varlık & Borç Hesapları</span>
         </div>
-      </div>
-
-      {/* 📊 Finansal Özet KPI Çubuğu */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-        gap: '10px',
-        margin: '12px 0 16px 0'
-      }}>
-        <div style={{
-          background: 'rgba(16, 185, 129, 0.08)',
-          border: '1px solid rgba(16, 185, 129, 0.25)',
-          borderRadius: 'var(--radius-md)',
-          padding: '10px 12px'
-        }}>
-          <div style={{ fontSize: '10px', color: '#047857', fontWeight: 700, textTransform: 'uppercase' }}>
-            🟢 Toplam Varlık
-          </div>
-          <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: '#065F46', marginTop: '3px' }}>
-            {formatMoney(totalAssets)}
-          </div>
-        </div>
-
-        <div style={{
-          background: 'rgba(239, 68, 68, 0.08)',
-          border: '1px solid rgba(239, 68, 68, 0.25)',
-          borderRadius: 'var(--radius-md)',
-          padding: '10px 12px'
-        }}>
-          <div style={{ fontSize: '10px', color: '#B91C1C', fontWeight: 700, textTransform: 'uppercase' }}>
-            🔴 Toplam Borç
-          </div>
-          <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: '#991B1B', marginTop: '3px' }}>
-            {formatMoney(totalDebts)}
-          </div>
-        </div>
-
-        <div style={{
-          background: netLiquidity >= 0 ? 'rgba(59, 130, 246, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-          border: netLiquidity >= 0 ? '1px solid rgba(59, 130, 246, 0.25)' : '1px solid rgba(239, 68, 68, 0.25)',
-          borderRadius: 'var(--radius-md)',
-          padding: '10px 12px'
-        }}>
-          <div style={{ fontSize: '10px', color: netLiquidity >= 0 ? '#1D4ED8' : '#B91C1C', fontWeight: 700, textTransform: 'uppercase' }}>
-            🔵 Net Likidite
-          </div>
-          <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: netLiquidity >= 0 ? '#1E40AF' : '#991B1B', marginTop: '3px' }}>
-            {formatMoney(netLiquidity)}
-          </div>
-        </div>
-      </div>
-
-      <div className="card-action-bar">
         <button
           onClick={openAddModal}
           className="btn-primary"
+          style={{ padding: '6px 14px', fontSize: '12px', height: '34px' }}
         >
           + Yeni Hesap / Kredi Ekle
         </button>
       </div>
 
+      {/* 📊 Finansal Özet KPI Çubuğu (Revolut / Wise Estetiği) */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+        gap: '10px',
+        margin: '12px 0 14px 0'
+      }}>
+        <div style={{
+          background: 'rgba(16, 185, 129, 0.06)',
+          border: '1px solid rgba(16, 185, 129, 0.2)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '10px 12px'
+        }}>
+          <div style={{ fontSize: '10px', color: '#047857', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+            🟢 Toplam Varlık
+          </div>
+          <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 900, color: '#065F46', marginTop: '3px' }}>
+            {formatMoney(totalAssets)}
+          </div>
+        </div>
+
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.06)',
+          border: '1px solid rgba(239, 68, 68, 0.2)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '10px 12px'
+        }}>
+          <div style={{ fontSize: '10px', color: '#B91C1C', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+            🔴 Toplam Borç
+          </div>
+          <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 900, color: '#991B1B', marginTop: '3px' }}>
+            {formatMoney(totalDebts)}
+          </div>
+        </div>
+
+        <div style={{
+          background: netLiquidity >= 0 ? 'rgba(59, 130, 246, 0.06)' : 'rgba(239, 68, 68, 0.06)',
+          border: netLiquidity >= 0 ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '10px 12px'
+        }}>
+          <div style={{ fontSize: '10px', color: netLiquidity >= 0 ? '#1D4ED8' : '#B91C1C', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+            🔵 Net Likidite
+          </div>
+          <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 900, color: netLiquidity >= 0 ? '#1E40AF' : '#991B1B', marginTop: '3px' }}>
+            {formatMoney(netLiquidity)}
+          </div>
+        </div>
+      </div>
+
+      {/* 🎛️ Revolut Tarzı Segmented Control Sekme Çubuğu */}
+      <div style={{
+        display: 'flex',
+        gap: '4px',
+        background: 'var(--surface-subtle)',
+        padding: '4px',
+        borderRadius: 'var(--radius-lg)',
+        border: '1px solid var(--border)',
+        marginBottom: '14px',
+        overflowX: 'auto',
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        WebkitOverflowScrolling: 'touch'
+      }}>
+        {[
+          { key: 'all', label: 'Tümü', icon: '🗂️', count: tabCounts.all },
+          { key: 'cash_bank', label: 'Vadesiz', icon: '🏦', count: tabCounts.cash_bank },
+          { key: 'time_deposit', label: 'Vadeli', icon: '⏳', count: tabCounts.time_deposit },
+          { key: 'fx_gold', label: 'Döviz/Altın', icon: '🥇', count: tabCounts.fx_gold },
+          { key: 'credit_card', label: 'Kredi Kartı', icon: '💳', count: tabCounts.credit_card },
+          { key: 'kmh_loan', label: 'KMH / Kredi', icon: '⚡', count: tabCounts.kmh_loan },
+        ].map(tab => {
+          const isSelected = selectedTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setSelectedTab(tab.key as AccountTab)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-md)',
+                border: 'none',
+                background: isSelected ? 'var(--surface)' : 'transparent',
+                color: isSelected ? 'var(--text-main)' : 'var(--text-muted)',
+                boxShadow: isSelected ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                fontSize: '11px',
+                fontWeight: isSelected ? 800 : 600,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease',
+                flexShrink: 0
+              }}
+            >
+              <span>{tab.icon}</span>
+              <span>{tab.label}</span>
+              <span style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                padding: '1px 5px',
+                borderRadius: 'var(--radius-full)',
+                background: isSelected ? 'var(--indigo-bg)' : 'rgba(0,0,0,0.05)',
+                color: isSelected ? 'var(--indigo)' : 'var(--text-muted)'
+              }}>
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {accounts.map(acc => {
+        {filteredTabAccounts.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '28px 16px',
+            background: 'var(--surface-subtle)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--border)',
+            fontSize: '12px',
+            color: 'var(--text-muted)'
+          }}>
+            Bu sekmede henüz kayıtlı hesap bulunmuyor.
+          </div>
+        ) : filteredTabAccounts.map(acc => {
           const isCreditCard = acc.type === 'credit_card';
           const isLoan = acc.type === 'loan';
           const isTimeDeposit = acc.type === 'time_deposit';
@@ -473,19 +570,22 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
                 </div>
               </div>
 
-              {/* 2. KATMAN: KREDİ KARTI LİMİT DOLULUK ÇUBUĞU / DETAYLAR */}
+              {/* 2. KATMAN: KREDİ KARTI RENK GEÇİŞLİ (EMERALD -> AMBER -> ROSE) LİMİT BARI & DETAYLAR */}
               {isCreditCard && (
                 <div style={{
                   background: 'var(--surface)', border: '1px solid var(--border)',
-                  borderRadius: '8px', padding: '8px 10px', marginTop: '2px'
+                  borderRadius: 'var(--radius-lg)', padding: '10px 12px', marginTop: '2px'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '5px', flexWrap: 'wrap', gap: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' }}>
                     <span>Limit: <strong style={{ color: 'var(--text-main)' }}>{formatMoney(creditLimit, acc.currency)}</strong></span>
-                    <span>Kullanılabilir: <strong style={{ color: '#10B981' }}>{formatMoney(availableLimit, acc.currency)}</strong></span>
+                    <span>Kullanılabilir: <strong style={{ color: '#059669' }}>{formatMoney(availableLimit, acc.currency)}</strong></span>
                     {creditLimit > 0 && (
                       <span style={{
-                        fontWeight: 700,
-                        color: utilizationRate >= 75 ? '#DC2626' : utilizationRate >= 50 ? '#D97706' : 'var(--text-muted)'
+                        fontWeight: 800,
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        background: utilizationRate >= 75 ? 'rgba(239, 68, 68, 0.12)' : utilizationRate >= 50 ? 'rgba(245, 158, 11, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                        color: utilizationRate >= 75 ? '#DC2626' : utilizationRate >= 50 ? '#D97706' : '#059669'
                       }}>
                         %{utilizationRate} Dolu
                       </span>
@@ -493,128 +593,179 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
                   </div>
 
                   {creditLimit > 0 && (
-                    <div style={{ height: '5px', background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '7px',
+                      background: 'var(--surface-subtle)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '9999px',
+                      overflow: 'hidden',
+                      position: 'relative'
+                    }}>
                       <div style={{
                         height: '100%',
                         width: `${Math.min(100, Math.max(0, utilizationRate))}%`,
-                        background: utilizationRate >= 75 ? '#EF4444' : utilizationRate >= 50 ? '#F59E0B' : '#10B981',
-                        borderRadius: '3px',
-                        transition: 'width 0.3s ease'
+                        background: 'linear-gradient(90deg, #10B981 0%, #F59E0B 50%, #EF4444 100%)',
+                        borderRadius: '9999px',
+                        transition: 'width 0.4s ease'
                       }} />
+                    </div>
+                  )}
+
+                  {/* Kesim & Son Ödeme Hatırlatması */}
+                  {(acc.cutoff_day || acc.due_day) && (
+                    <div style={{ display: 'flex', gap: '10px', fontSize: '10px', color: 'var(--text-muted)', marginTop: '6px', flexWrap: 'wrap' }}>
+                      {acc.cutoff_day && <span>✂️ Hesap Kesim: <strong>Ayın {acc.cutoff_day}. Günü</strong></span>}
+                      {acc.due_day && <span>📅 Son Ödeme: <strong>Ayın {acc.due_day}. Günü</strong></span>}
                     </div>
                   )}
                 </div>
               )}
 
               {isLoan && (
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface)', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface)', padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
                   Çekilen: {formatMoney(acc.loan_original_amount || 0)} • Taksit: <strong>{formatMoney(acc.monthly_installment_amount || 0)} / ay</strong> • İlk Taksit: <strong>{acc.first_installment_date || 'Belirtilmedi'}</strong>
                 </div>
               )}
 
               {isTimeDeposit && (
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface)', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)' }}>
-                  Faiz Oranı: <strong>%{acc.interest_rate}</strong> • Vade Tarihi: <strong>{acc.maturity_date || 'Belirtilmedi'}</strong>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface)', padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                  Yıllık Faiz Oranı: <strong>%{acc.interest_rate}</strong> • Vade Tarihi: <strong>{acc.maturity_date || 'Belirtilmedi'}</strong>
                 </div>
               )}
 
-              {/* 3. KATMAN: AKSİYON BUTONLARI (FOOTER ÇUBUĞU) */}
+              {/* 3. KATMAN: MOBİL UYUMLU, TAM GENİŞLİKTE EŞİT BÖLÜNMÜŞ FOOTER AKSİYON BUTONLARI */}
               <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                borderTop: '1px solid var(--border)', paddingTop: '8px', marginTop: '2px', gap: '8px', flexWrap: 'wrap'
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
+                gap: '6px',
+                borderTop: '1px solid var(--border)',
+                paddingTop: '8px',
+                marginTop: '4px',
+                width: '100%'
               }}>
-                {/* Sol Butonlar: Ekstre, Kapat, Mutabakat */}
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  {isCreditCard && onOpenCardStatement && (
-                    <button
-                      onClick={() => onOpenCardStatement(acc.id)}
-                      title="Ekstre Detaylarını Gör"
-                      style={{
-                        background: '#EEF2FF', border: '1px solid #C7D2FE', color: '#4F46E5',
-                        padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
-                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px'
-                      }}
-                    >
-                      <span>📄</span>
-                      <span>Ekstre</span>
-                    </button>
-                  )}
-                  {isTimeDeposit && (
-                    <button
-                      onClick={() => { setSelectedCloseAccountId(acc.id); setIsCloseModalOpen(true); }}
-                      title="Vadeyi Kapat ve Parayı Aktar"
-                      style={{
-                        background: '#D1FAE5', border: '1px solid #10B981', color: '#065F46',
-                        padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
-                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px'
-                      }}
-                    >
-                      <span>💵</span>
-                      <span>Kapat</span>
-                    </button>
-                  )}
-                  {!isLoan && !isTimeDeposit && (acc as any).can_edit !== false && (
-                    <button
-                      onClick={() => openReconcileModal(acc)}
-                      title="Bakiye Mutabakatı Yap (Banka / Cüzdan ile Eşitle)"
-                      style={{
-                        background: 'rgba(99, 102, 241, 0.08)',
-                        border: '1px solid rgba(99, 102, 241, 0.25)',
-                        color: '#4F46E5',
-                        padding: '4px 10px',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}
-                    >
-                      <span>⚖️</span>
-                      <span>Mutabakat</span>
-                    </button>
-                  )}
-                </div>
+                {isCreditCard && onOpenCardStatement && (
+                  <button
+                    onClick={() => onOpenCardStatement(acc.id)}
+                    title="Ekstre Detaylarını Gör"
+                    style={{
+                      background: 'rgba(99, 102, 241, 0.08)',
+                      border: '1px solid rgba(99, 102, 241, 0.25)',
+                      color: '#4F46E5',
+                      padding: '6px 8px',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      minHeight: '36px'
+                    }}
+                  >
+                    <span>📄</span>
+                    <span>Ekstre</span>
+                  </button>
+                )}
 
-                {/* Sağ Butonlar: Düzenle ✏️ ve Sil 🗑️ */}
+                {isTimeDeposit && (
+                  <button
+                    onClick={() => { setSelectedCloseAccountId(acc.id); setIsCloseModalOpen(true); }}
+                    title="Vadeyi Kapat ve Parayı Aktar"
+                    style={{
+                      background: '#D1FAE5',
+                      border: '1px solid #10B981',
+                      color: '#065F46',
+                      padding: '6px 8px',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      minHeight: '36px'
+                    }}
+                  >
+                    <span>💵</span>
+                    <span>Kapat</span>
+                  </button>
+                )}
+
+                {!isLoan && !isTimeDeposit && (acc as any).can_edit !== false && (
+                  <button
+                    onClick={() => openReconcileModal(acc)}
+                    title="Bakiye Mutabakatı Yap (Banka / Cüzdan ile Eşitle)"
+                    style={{
+                      background: 'rgba(16, 185, 129, 0.08)',
+                      border: '1px solid rgba(16, 185, 129, 0.25)',
+                      color: '#059669',
+                      padding: '6px 8px',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      minHeight: '36px'
+                    }}
+                  >
+                    <span>⚖️</span>
+                    <span>Mutabakat</span>
+                  </button>
+                )}
+
                 {(acc as any).can_edit !== false && (
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <>
                     <button
                       onClick={() => openEditModal(acc)}
                       style={{
                         background: 'var(--surface)',
                         border: '1px solid var(--border)',
-                        borderRadius: '6px',
-                        padding: '4px 8px',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '6px 8px',
                         cursor: 'pointer',
-                        fontSize: '12px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: 'var(--text-main)',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        gap: '4px',
+                        minHeight: '36px'
                       }}
                       title="Hesabı Düzenle"
                     >
-                      ✏️
+                      <span>✏️</span>
+                      <span>Düzenle</span>
                     </button>
+
                     <button
                       onClick={() => handleDelete(acc.id, acc.name)}
                       style={{
-                        background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '6px',
-                        padding: '4px 8px',
+                        background: 'rgba(239, 68, 68, 0.06)',
+                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '6px 8px',
                         cursor: 'pointer',
-                        fontSize: '12px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#DC2626',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        gap: '4px',
+                        minHeight: '36px'
                       }}
                       title="Hesabı Sil"
                     >
-                      🗑️
+                      <span>🗑️</span>
+                      <span>Sil</span>
                     </button>
-                  </div>
+                  </>
                 )}
               </div>
             </div>

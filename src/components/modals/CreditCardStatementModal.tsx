@@ -1,6 +1,6 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { CreditCard, X, Download, Calendar } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { CreditCard, X, Download, Calendar, Search } from 'lucide-react';
 import { generateCSVContent, downloadCSV, CSVColumn } from '@/lib/export-csv';
 
 interface Props {
@@ -13,6 +13,7 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'installments' | 'single'>('installments');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (isOpen && accountId) {
@@ -38,8 +39,6 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen || !accountId) return null;
-
   const handleExportStatementCSV = () => {
     if (!data) return;
     const rows: (string | number)[][] = [];
@@ -48,6 +47,7 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
       rows.push([
         inst.first_date || '—',
         inst.merchant || 'Taksitli Harcama',
+        inst.category_name || 'Genel',
         'Taksitli',
         `${inst.current_installment_number || 1}/${inst.total_installments}`,
         inst.monthly_amount || 0,
@@ -60,6 +60,7 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
       rows.push([
         tx.transaction_date || '—',
         tx.merchant || 'Tek Çekim',
+        tx.category_name || 'Genel',
         'Tek Çekim',
         '1/1',
         tx.amount || 0,
@@ -71,10 +72,11 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
     const columns: CSVColumn<(string | number)[]>[] = [
       { header: 'Tarih', accessor: r => r[0] },
       { header: 'Harcama Noktası', accessor: r => r[1] },
-      { header: 'İşlem Tipi', accessor: r => r[2] },
-      { header: 'Taksit Durumu', accessor: r => r[3] },
-      { header: 'Aylık Tutar (TL)', accessor: r => r[4] },
-      { header: 'Toplam Tutar (TL)', accessor: r => r[5] },
+      { header: 'Kategori', accessor: r => r[2] },
+      { header: 'İşlem Tipi', accessor: r => r[3] },
+      { header: 'Taksit Durumu', accessor: r => r[4] },
+      { header: 'Aylık Tutar (TL)', accessor: r => r[5] },
+      { header: 'Toplam Tutar (TL)', accessor: r => r[6] },
       { header: 'Kalan Borç (TL)', accessor: r => r[6] },
     ];
 
@@ -84,7 +86,7 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
   };
 
   const formatTRY = (val: number) => {
-    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(val || 0);
+    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 2 }).format(val || 0);
   };
 
   const formatDate = (dateStr: string) => {
@@ -103,19 +105,42 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
     }
   };
 
+  // Arama filtresi
+  const filteredInstallments = useMemo(() => {
+    const list = data?.activeInstallments || [];
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase().trim();
+    return list.filter((inst: any) =>
+      (inst.merchant && inst.merchant.toLowerCase().includes(q)) ||
+      (inst.category_name && inst.category_name.toLowerCase().includes(q))
+    );
+  }, [data?.activeInstallments, searchQuery]);
+
+  const filteredSingle = useMemo(() => {
+    const list = data?.singleTransactions || [];
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase().trim();
+    return list.filter((tx: any) =>
+      (tx.merchant && tx.merchant.toLowerCase().includes(q)) ||
+      (tx.category_name && tx.category_name.toLowerCase().includes(q))
+    );
+  }, [data?.singleTransactions, searchQuery]);
+
+  if (!isOpen || !accountId) return null;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="bottom-sheet modal-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: '620px' }}>
+      <div className="bottom-sheet modal-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: '820px' }}>
         <div className="sheet-handle" />
-        
+
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div className="icon-badge icon-badge-indigo">
-              <CreditCard size={18} strokeWidth={1.75} />
+            <div className="icon-badge icon-badge-indigo" style={{ width: '38px', height: '38px', borderRadius: '10px' }}>
+              <CreditCard size={20} strokeWidth={1.75} />
             </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-main)' }}>
+              <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--text-main)' }}>
                 {data?.card?.name || 'Kredi Kartı Ekstre Detayı'}
               </h2>
               <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -123,7 +148,29 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
               </p>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+            {/* Arama Inputu */}
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                placeholder="Ara..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{
+                  padding: '5px 10px 5px 26px',
+                  borderRadius: 'var(--radius-full)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface-subtle)',
+                  fontSize: '11px',
+                  width: '120px',
+                  color: 'var(--text-main)',
+                  outline: 'none'
+                }}
+              />
+              <Search size={12} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, pointerEvents: 'none' }} />
+            </div>
+
             {data && (
               <button
                 onClick={handleExportStatementCSV}
@@ -132,13 +179,14 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: '4px',
                   padding: '6px 12px', borderRadius: 'var(--radius-full)',
-                  fontSize: '11px', fontWeight: 700, minHeight: '34px'
+                  fontSize: '11px', fontWeight: 700, minHeight: '32px'
                 }}
               >
                 <Download size={13} strokeWidth={1.75} />
-                <span>Ekstre CSV</span>
+                <span>CSV İndir</span>
               </button>
             )}
+
             <button
               onClick={onClose}
               className="modal-close-btn"
@@ -156,9 +204,9 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {/* Kart Özet Kutuları */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div style={{ background: 'var(--rose-bg)', border: '1px solid rgba(239,68,68,0.3)', padding: '12px 14px', borderRadius: 'var(--radius-md)' }}>
+            {/* Kart Özet KPI Kutuları */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+              <div style={{ background: 'var(--rose-bg)', border: '1px solid rgba(239,68,68,0.3)', padding: '12px 14px', borderRadius: 'var(--radius-lg)' }}>
                 <div style={{ fontSize: '11px', color: 'var(--rose)', fontWeight: 800 }}>📌 BU AY ÖDENECEK GÜNCEL EKSTRE</div>
                 <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: 'var(--rose)', marginTop: '2px' }}>
                   {formatTRY(data?.summary?.currentStatementDebt || 0)}
@@ -168,7 +216,7 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
                 </div>
               </div>
 
-              <div style={{ background: 'var(--emerald-bg)', border: '1px solid rgba(16,185,129,0.3)', padding: '12px 14px', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ background: 'var(--emerald-bg)', border: '1px solid rgba(16,185,129,0.3)', padding: '12px 14px', borderRadius: 'var(--radius-lg)' }}>
                 <div style={{ fontSize: '11px', color: 'var(--emerald)', fontWeight: 800 }}>KALAN KULLANILABİLİR LİMİT</div>
                 <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: 'var(--emerald)', marginTop: '2px' }}>
                   {formatTRY(data?.card?.available_limit || 0)}
@@ -177,116 +225,135 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
                   Toplam Limit: {formatTRY(data?.card?.credit_limit || 0)}
                 </div>
               </div>
+
+              {(data?.summary?.futureInstallmentDebt || 0) > 0 && (
+                <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', padding: '12px 14px', borderRadius: 'var(--radius-lg)' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>⏳ GELECEK AYLARA SARKAN BORÇ</div>
+                  <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px' }}>
+                    {formatTRY(data?.summary?.futureInstallmentDebt || 0)}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                    Önümüzdeki ayların taksit taahhütleri
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Gelecek Aylara Sarkan Borç Bilgisi */}
-            {(data?.summary?.futureInstallmentDebt || 0) > 0 && (
-              <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', padding: '10px 14px', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                  ⏳ Gelecek Aylara Sarkan Taksit Borcu:
-                </div>
-                <div className="tabular-nums" style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>
-                  {formatTRY(data?.summary?.futureInstallmentDebt || 0)}
-                </div>
-              </div>
-            )}
-
             {/* Sekme Değiştirici */}
-            <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>
               <button
                 type="button"
                 onClick={() => setActiveTab('installments')}
                 style={{
-                  background: 'none', border: 'none', padding: '6px 12px', fontSize: '13px', fontWeight: 700,
-                  color: activeTab === 'installments' ? 'var(--emerald)' : 'var(--text-muted)',
-                  borderBottom: activeTab === 'installments' ? '2px solid var(--emerald)' : 'none',
+                  background: 'none', border: 'none', padding: '6px 12px', fontSize: '13px', fontWeight: 800,
+                  color: activeTab === 'installments' ? 'var(--indigo)' : 'var(--text-muted)',
+                  borderBottom: activeTab === 'installments' ? '2px solid var(--indigo)' : 'none',
                   cursor: 'pointer'
                 }}
               >
-                Aktif Taksitler ({data?.activeInstallments?.length || 0})
+                Aktif Taksitler ({filteredInstallments.length})
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('single')}
                 style={{
-                  background: 'none', border: 'none', padding: '6px 12px', fontSize: '13px', fontWeight: 700,
-                  color: activeTab === 'single' ? 'var(--emerald)' : 'var(--text-muted)',
-                  borderBottom: activeTab === 'single' ? '2px solid var(--emerald)' : 'none',
+                  background: 'none', border: 'none', padding: '6px 12px', fontSize: '13px', fontWeight: 800,
+                  color: activeTab === 'single' ? 'var(--indigo)' : 'var(--text-muted)',
+                  borderBottom: activeTab === 'single' ? '2px solid var(--indigo)' : 'none',
                   cursor: 'pointer'
                 }}
               >
-                Bu Dönemki Tek Çekimler ({data?.singleTransactions?.length || 0})
+                Bu Dönemki Tek Çekimler ({filteredSingle.length})
               </button>
             </div>
 
-            {/* Tab İçerikleri */}
+            {/* Tab İçerikleri: Masaüstünde Geniş Veri Tablosu */}
             {activeTab === 'installments' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '360px', overflowY: 'auto' }}>
-                {(!data?.activeInstallments || data.activeInstallments.length === 0) ? (
-                  <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
-                    Bu kartta aktif taksitli harcama bulunmuyor.
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                {filteredInstallments.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                    {searchQuery ? 'Aramanıza uygun taksitli işlem bulunamadı.' : 'Bu kartta aktif taksitli harcama bulunmuyor.'}
                   </div>
                 ) : (
-                  data.activeInstallments.map((inst: any) => (
-                    <div
-                      key={inst.id}
-                      style={{
-                        padding: '12px', background: 'var(--surface-subtle)', border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-main)' }}>{inst.merchant}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Calendar size={11} strokeWidth={1.75} />
-                          <span>İlk Taksit: {formatDate(inst.first_date)} • {inst.category_name}</span>
-                        </div>
-                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--indigo)', marginTop: '4px' }}>
-                          Kalan Taksit: {inst.current_installment_number || 1} / {inst.total_installments}
-                        </div>
-                      </div>
-
-                      <div style={{ textAlign: 'right' }}>
-                        <div className="tabular-nums" style={{ fontWeight: 800, fontSize: '14px', color: 'var(--rose)' }}>
-                          {formatTRY(inst.monthly_amount)} / ay
-                        </div>
-                        <div className="tabular-nums" style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                          Kalan Toplam: {formatTRY(inst.remaining_amount)}
-                        </div>
-                      </div>
-                    </div>
-                  ))
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--surface-subtle)', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                        <th style={{ padding: '8px 10px', fontWeight: 700 }}>İlk Taksit</th>
+                        <th style={{ padding: '8px 10px', fontWeight: 700 }}>Harcama Noktası</th>
+                        <th style={{ padding: '8px 10px', fontWeight: 700 }}>Kategori</th>
+                        <th style={{ padding: '8px 10px', fontWeight: 700 }}>Taksit Durumu</th>
+                        <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'right' }}>Aylık Tutar</th>
+                        <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'right' }}>Kalan Borç</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredInstallments.map((inst: any) => (
+                        <tr key={inst.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td className="tabular-nums" style={{ padding: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                            {formatDate(inst.first_date)}
+                          </td>
+                          <td style={{ padding: '10px', fontWeight: 700, color: 'var(--text-main)' }}>
+                            {inst.merchant}
+                          </td>
+                          <td style={{ padding: '10px', color: 'var(--text-muted)' }}>
+                            <span style={{ background: 'var(--surface-subtle)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: '11px' }}>
+                              {inst.category_name || 'Genel'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px' }}>
+                            <span style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--indigo)', padding: '2px 6px', borderRadius: '4px', fontWeight: 800, fontSize: '11px' }}>
+                              {inst.current_installment_number || 1} / {inst.total_installments}
+                            </span>
+                          </td>
+                          <td className="tabular-nums" style={{ padding: '10px', textAlign: 'right', fontWeight: 800, color: 'var(--rose)' }}>
+                            {formatTRY(inst.monthly_amount)}
+                          </td>
+                          <td className="tabular-nums" style={{ padding: '10px', textAlign: 'right', fontWeight: 800, color: 'var(--text-main)' }}>
+                            {formatTRY(inst.remaining_amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '360px', overflowY: 'auto' }}>
-                {(!data?.singleTransactions || data.singleTransactions.length === 0) ? (
-                  <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
-                    Bu ekstre döneminde tek çekim harcama bulunmuyor.
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                {filteredSingle.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                    {searchQuery ? 'Aramanıza uygun tek çekim işlem bulunamadı.' : 'Bu ekstre döneminde tek çekim harcama bulunmuyor.'}
                   </div>
                 ) : (
-                  data.singleTransactions.map((tx: any) => (
-                    <div
-                      key={tx.id}
-                      style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '10px 12px', background: 'var(--surface-subtle)', border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-md)'
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '13px' }}>{tx.merchant}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Calendar size={11} strokeWidth={1.75} />
-                          <span>{formatDate(tx.transaction_date)} • {tx.category_name}</span>
-                        </div>
-                      </div>
-
-                      <div className="tabular-nums" style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)' }}>
-                        -{formatTRY(tx.amount)}
-                      </div>
-                    </div>
-                  ))
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--surface-subtle)', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                        <th style={{ padding: '8px 10px', fontWeight: 700 }}>Tarih</th>
+                        <th style={{ padding: '8px 10px', fontWeight: 700 }}>Harcama Noktası</th>
+                        <th style={{ padding: '8px 10px', fontWeight: 700 }}>Kategori</th>
+                        <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'right' }}>Tutar</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredSingle.map((tx: any) => (
+                        <tr key={tx.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td className="tabular-nums" style={{ padding: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                            {formatDate(tx.transaction_date)}
+                          </td>
+                          <td style={{ padding: '10px', fontWeight: 700, color: 'var(--text-main)' }}>
+                            {tx.merchant}
+                          </td>
+                          <td style={{ padding: '10px', color: 'var(--text-muted)' }}>
+                            <span style={{ background: 'var(--surface-subtle)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: '11px' }}>
+                              {tx.category_name || 'Genel'}
+                            </span>
+                          </td>
+                          <td className="tabular-nums" style={{ padding: '10px', textAlign: 'right', fontWeight: 800, color: 'var(--text-main)' }}>
+                            -{formatTRY(tx.amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
               </div>
             )}
@@ -296,14 +363,13 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
               <button
                 onClick={onClose}
                 className="btn-primary"
-                style={{ padding: '10px 24px', fontSize: '13px', fontWeight: 700, width: 'auto', minHeight: '44px' }}
+                style={{ padding: '8px 24px', fontSize: '13px', fontWeight: 700, width: 'auto', minHeight: '40px' }}
               >
                 Kapat
               </button>
             </div>
           </div>
         )}
-
       </div>
     </div>
   );

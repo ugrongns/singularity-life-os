@@ -13,6 +13,16 @@ export interface MarketRates {
   GOLD_GRAM_TRY: number;
   GOLD_CEYREK_TRY: number;
   BTC_TRY: number;
+  USD_BUY?: number;
+  USD_SELL?: number;
+  EUR_BUY?: number;
+  EUR_SELL?: number;
+  GBP_BUY?: number;
+  GBP_SELL?: number;
+  GOLD_GRAM_BUY?: number;
+  GOLD_GRAM_SELL?: number;
+  GOLD_CEYREK_BUY?: number;
+  GOLD_CEYREK_SELL?: number;
   USD_CHANGE?: string;
   EUR_CHANGE?: string;
   GBP_CHANGE?: string;
@@ -43,10 +53,15 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
 
   const nowIso = new Date().toISOString();
   let usd = 48.75;
+  let usdBuy = 48.60;
   let eur = 56.00;
+  let eurBuy = 55.80;
   let gbp = 65.20;
+  let gbpBuy = 65.00;
   let goldGram = 6850;
+  let goldGramBuy = 6810;
   let goldCeyrek = 11100;
+  let goldCeyrekBuy = 10950;
   let btcTry = 3900000;
   let usdChange = '+0.00%';
   let eurChange = '+0.00%';
@@ -63,17 +78,24 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
     if (res.ok) {
       const data = await res.json();
       const tUsd = parseTRNumber(data['USD']?.['Satış']);
+      const tUsdBuy = parseTRNumber(data['USD']?.['Alış']);
       const tEur = parseTRNumber(data['EUR']?.['Satış']);
+      const tEurBuy = parseTRNumber(data['EUR']?.['Alış']);
       const tGbp = parseTRNumber(data['GBP']?.['Satış']);
+      const tGbpBuy = parseTRNumber(data['GBP']?.['Alış']);
       const tGold = parseTRNumber(data['gram-altin']?.['Satış']);
+      const tGoldBuy = parseTRNumber(data['gram-altin']?.['Alış']);
       const tCeyrek = parseTRNumber(data['ceyrek-altin']?.['Satış']);
+      const tCeyrekBuy = parseTRNumber(data['ceyrek-altin']?.['Alış']);
 
       if (tUsd > 0 && tEur > 0) {
         usd = tUsd;
+        if (tUsdBuy > 0) usdBuy = tUsdBuy;
         eur = tEur;
-        if (tGbp > 0) gbp = tGbp;
-        if (tGold > 0) goldGram = tGold;
-        if (tCeyrek > 0) goldCeyrek = tCeyrek;
+        if (tEurBuy > 0) eurBuy = tEurBuy;
+        if (tGbp > 0) { gbp = tGbp; if (tGbpBuy > 0) gbpBuy = tGbpBuy; }
+        if (tGold > 0) { goldGram = tGold; if (tGoldBuy > 0) goldGramBuy = tGoldBuy; }
+        if (tCeyrek > 0) { goldCeyrek = tCeyrek; if (tCeyrekBuy > 0) goldCeyrekBuy = tCeyrekBuy; }
         usdChange = data['USD']?.['Değişim'] || usdChange;
         eurChange = data['EUR']?.['Değişim'] || eurChange;
         gbpChange = data['GBP']?.['Değişim'] || gbpChange;
@@ -158,10 +180,20 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
 
   cachedRates = {
     USD_TRY: Math.round(usd * 100) / 100,
+    USD_BUY: Math.round((usdBuy || usd * 0.997) * 100) / 100,
+    USD_SELL: Math.round(usd * 100) / 100,
     EUR_TRY: Math.round(eur * 100) / 100,
+    EUR_BUY: Math.round((eurBuy || eur * 0.997) * 100) / 100,
+    EUR_SELL: Math.round(eur * 100) / 100,
     GBP_TRY: Math.round(gbp * 100) / 100,
+    GBP_BUY: Math.round((gbpBuy || gbp * 0.997) * 100) / 100,
+    GBP_SELL: Math.round(gbp * 100) / 100,
     GOLD_GRAM_TRY: Math.round(goldGram * 100) / 100,
+    GOLD_GRAM_BUY: Math.round((goldGramBuy || goldGram * 0.993) * 100) / 100,
+    GOLD_GRAM_SELL: Math.round(goldGram * 100) / 100,
     GOLD_CEYREK_TRY: Math.round(goldCeyrek),
+    GOLD_CEYREK_BUY: Math.round(goldCeyrekBuy || goldCeyrek * 0.985),
+    GOLD_CEYREK_SELL: Math.round(goldCeyrek),
     BTC_TRY: btcTry,
     USD_CHANGE: usdChange,
     EUR_CHANGE: eurChange,

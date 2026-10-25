@@ -767,7 +767,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
             {activeTab === 'qr' && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                 <div style={{
-                  position: 'relative', width: '100%', height: '300px',
+                  position: 'relative', width: '100%', height: 'clamp(280px, 46vh, 420px)',
                   background: '#0B0F19', borderRadius: 'var(--radius-lg)',
                   overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
                   boxShadow: '0 4px 20px rgba(0,0,0,0.4)'
@@ -898,7 +898,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
             {activeTab === 'camera' && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                 <div style={{
-                  position: 'relative', width: '100%', height: '280px',
+                  position: 'relative', width: '100%', height: 'clamp(280px, 46vh, 420px)',
                   background: '#111827', borderRadius: 'var(--radius-lg)',
                   overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}>

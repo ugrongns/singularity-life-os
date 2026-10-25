@@ -1386,3 +1386,23 @@ body {
     opacity: 0.85;
   }
 }
+
+
+/* Responsive Veri Tablosu & Mobil Liste Gösterim Sınıfları */
+@media (max-width: 767px) {
+  .desktop-only-table {
+    display: none !important;
+  }
+  .mobile-only-list {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .desktop-only-table {
+    display: block !important;
+  }
+  .mobile-only-list {
+    display: none !important;
+  }
+}
