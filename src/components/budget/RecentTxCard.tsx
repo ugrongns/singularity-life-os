@@ -1,6 +1,7 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { generateCSVContent, downloadCSV, CSVColumn } from '@/lib/export-csv';
+import { formatDateSafe } from '@/lib/financial-utils';
 
 interface Transaction {
   id: string;
@@ -49,13 +50,7 @@ export default function RecentTxCard({ transactions, upcomingPayments = [], onUp
     new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 2 }).format(val);
 
   const formatDate = (dateStr: string) => {
-    if (!dateStr) return '—';
-    try {
-      const [y, m, d] = dateStr.split('-');
-      return `${d}.${m}.${y}`;
-    } catch {
-      return dateStr;
-    }
+    return formatDateSafe(dateStr);
   };
 
   // Canlı Arama Filtrelemesi

@@ -28,6 +28,7 @@ export default function BudgetPage() {
   const [isScanOpen, setIsScanOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
+  const [transferDefaultTargetId, setTransferDefaultTargetId] = useState<string | null>(null);
   const [cardStatementAccId, setCardStatementAccId] = useState<string | null>(null);
   const [categoryDetail, setCategoryDetail] = useState<{ catId: string | null; catName?: string }>({ catId: null });
   const [preselectedCatId, setPreselectedCatId] = useState<string | null>(null);
@@ -65,6 +66,11 @@ export default function BudgetPage() {
 
   useEffect(() => {
     fetchData();
+    const handleRefresh = () => {
+      fetchData();
+    };
+    window.addEventListener('singularity-refresh', handleRefresh);
+    return () => window.removeEventListener('singularity-refresh', handleRefresh);
   }, [selectedMonth]);
 
   const handleMonthChange = (mStr: string) => {
@@ -101,7 +107,7 @@ export default function BudgetPage() {
   return (
     <SharedLayout notifications={notifData}>
       {toastMsg && (
-        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--text-main)', color: 'white', padding: '10px 20px', borderRadius: 'var(--radius-full)', fontSize: '13px', fontWeight: 500, boxShadow: 'var(--shadow-lg)', zIndex: 999 }}>
+        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--text-main)', color: 'white', padding: '10px 20px', borderRadius: 'var(--radius-full)', fontSize: '13px', fontWeight: 500, boxShadow: 'var(--shadow-lg)', zIndex: 9999 }}>
           {toastMsg}
         </div>
       )}
@@ -412,7 +418,7 @@ export default function BudgetPage() {
                 {/* 2. Bütçe Limitleri & 50/30/20 Dağılımı */}
                 <BudgetLimitsCard
                   categories={data?.categories || []}
-                  monthlySummary={data?.monthlySummary || { totalIncome: 0, totalExpenses: 0, netCashFlow: 0, categories: [] }}
+                  monthlySummary={data?.monthlySummary || { totalIncome: 0, totalExpense: 0, totalBudgetLimit: 0, monthName: '', netCashFlow: 0, categories: [] }}
                   onUpdate={handleUpdate}
                   onMonthChange={handleMonthChange}
                   onOpenCategoryDetail={(catId, catName) => setCategoryDetail({ catId, catName })}
@@ -433,7 +439,7 @@ export default function BudgetPage() {
                   accounts={filteredAccounts}
                   onUpdate={handleUpdate}
                   onOpenCardStatement={(accId) => setCardStatementAccId(accId)}
-                  onOpenTransfer={() => setIsTransferOpen(true)}
+                  onOpenTransfer={(cardId) => { setTransferDefaultTargetId(cardId || null); setIsTransferOpen(true); }}
                 />
 
                 {/* 2. Periyodik Fatura & Abonelik Takvimi (Geri Sayım Rozetleri & Timeline) */}
@@ -459,6 +465,7 @@ export default function BudgetPage() {
               <PersonalDebtsCard
                 accounts={filteredAccounts}
                 onToast={showToast}
+                onUpdate={handleUpdate}
                 marketRates={data?.marketRates}
               />
             </div>
@@ -504,8 +511,9 @@ export default function BudgetPage() {
 
       <TransferModal
         isOpen={isTransferOpen}
-        onClose={() => setIsTransferOpen(false)}
+        onClose={() => { setIsTransferOpen(false); setTransferDefaultTargetId(null); }}
         accounts={data?.accounts || []}
+        defaultToAccountId={transferDefaultTargetId}
         onSuccess={(msg) => handleUpdate(msg)}
       />
     </SharedLayout>

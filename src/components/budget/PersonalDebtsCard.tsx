@@ -33,10 +33,11 @@ interface PersonalDebtRecord {
 interface PersonalDebtsCardProps {
   accounts: Account[];
   onToast: (msg: string) => void;
+  onUpdate?: () => void;
   marketRates?: MarketRates | null;
 }
 
-export default function PersonalDebtsCard({ accounts, onToast, marketRates }: PersonalDebtsCardProps) {
+export default function PersonalDebtsCard({ accounts, onToast, onUpdate, marketRates }: PersonalDebtsCardProps) {
   const [records, setRecords] = useState<PersonalDebtRecord[]>([]);
   const [summary, setSummary] = useState({ totalDebt: 0, totalReceivable: 0, netPosition: 0 });
   const [loading, setLoading] = useState(true);
@@ -65,9 +66,9 @@ export default function PersonalDebtsCard({ accounts, onToast, marketRates }: Pe
   const [dueDate, setDueDate] = useState('');
   const [connectedWalletId, setConnectedWalletId] = useState('');
 
-  const USD_RATE = liveRates?.USD_TRY || 48.75;
-  const EUR_RATE = liveRates?.EUR_TRY || 56.00;
-  const GOLD_RATE = liveRates?.GOLD_GRAM_TRY || 6850;
+  const USD_RATE = liveRates?.USD_TRY || 38.5;
+  const EUR_RATE = liveRates?.EUR_TRY || 41.5;
+  const GOLD_RATE = liveRates?.GOLD_GRAM_TRY || 3200;
 
   const formatTRY = (v: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(v);
 
@@ -98,8 +99,8 @@ export default function PersonalDebtsCard({ accounts, onToast, marketRates }: Pe
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!personName.trim() || !indexAmount) {
-      setError('Kişi adı ve tutar zorunludur.');
+    if (!personName.trim() || !indexAmount || Number(indexAmount) <= 0) {
+      setError('Kişi adı ve 0\'dan büyük geçerli bir tutar zorunludur.');
       return;
     }
     setSaving(true);
@@ -125,6 +126,7 @@ export default function PersonalDebtsCard({ accounts, onToast, marketRates }: Pe
         setIsAddOpen(false);
         onToast(json.message);
         fetchRecords();
+        if (onUpdate) onUpdate();
         setPersonName('');
         setIndexAmount('');
         setDescription('');
@@ -142,7 +144,10 @@ export default function PersonalDebtsCard({ accounts, onToast, marketRates }: Pe
 
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRecord || !payAmount) return;
+    if (!selectedRecord || !payAmount || Number(payAmount) <= 0) {
+      setError('Lütfen 0\'dan büyük geçerli bir ödeme tutarı girin.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -156,6 +161,7 @@ export default function PersonalDebtsCard({ accounts, onToast, marketRates }: Pe
         setIsPayOpen(false);
         onToast(json.message);
         fetchRecords();
+        if (onUpdate) onUpdate();
         setPayAmount('');
       } else {
         setError(json.error);
@@ -352,7 +358,7 @@ export default function PersonalDebtsCard({ accounts, onToast, marketRates }: Pe
                   <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                     {indexType === 'GOLD' ? 'Gram Miktarı *' : indexType === 'TRY' ? 'Tutar (₺) *' : `Miktar (${indexType}) *`}
                   </label>
-                  <input type="number" required step="0.01" placeholder={indexType === 'GOLD' ? 'Örn: 10' : 'Örn: 15000'} value={indexAmount} onChange={e => setIndexAmount(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }} />
+                  <input type="number" required min="0.01" step="0.01" placeholder={indexType === 'GOLD' ? 'Örn: 10' : 'Örn: 15000'} value={indexAmount} onChange={e => setIndexAmount(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }} />
                 </div>
               </div>
 
@@ -429,7 +435,7 @@ export default function PersonalDebtsCard({ accounts, onToast, marketRates }: Pe
             <form onSubmit={handlePay} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Ödenen / Tahsil Edilen Tutar (₺) *</label>
-                <input type="number" step="0.01" required placeholder="0.00" value={payAmount} onChange={e => setPayAmount(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: '100%', padding: '12px', fontSize: '18px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }} />
+                <input type="number" step="0.01" min="0.01" required placeholder="0.00" value={payAmount} onChange={e => setPayAmount(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: '100%', padding: '12px', fontSize: '18px', fontWeight: 800, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }} />
               </div>
 
               <div style={{ display: 'flex', gap: '6px' }}>

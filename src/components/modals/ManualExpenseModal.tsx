@@ -63,6 +63,12 @@ export default function ManualExpenseModal({ isOpen, onClose, accounts, categori
     setServerError(null);
   }, [activeAccounts, isOpen]);
 
+  useEffect(() => {
+    if (initialCategoryId) {
+      setTxType('expense');
+    }
+  }, [initialCategoryId]);
+
   // Başlangıç veya sekme değiştiğinde kategori seç
   useEffect(() => {
     if (initialCategoryId && filteredCategories.some(c => c.id === initialCategoryId)) {
@@ -71,6 +77,26 @@ export default function ManualExpenseModal({ isOpen, onClose, accounts, categori
       setCategoryId(filteredCategories[0].id);
     }
   }, [txType, isOpen, initialCategoryId]);
+
+  const handleClose = () => {
+    setAmount('');
+    setMerchant('');
+    setTxType('expense');
+    setInstallments('1');
+    setServerError(null);
+    onClose();
+  };
+
+  // ESC tuşuyla kapatma
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        handleClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -100,7 +126,11 @@ export default function ManualExpenseModal({ isOpen, onClose, accounts, categori
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || !walletId) return;
+    const parsedAmount = parseFloat(amount);
+    if (!walletId || isNaN(parsedAmount) || parsedAmount <= 0) {
+      setServerError('Lütfen 0\'dan büyük geçerli bir tutar ve hesap seçin.');
+      return;
+    }
     if (txType === 'expense' && limitError) {
       setServerError(limitError);
       return;
@@ -118,8 +148,8 @@ export default function ManualExpenseModal({ isOpen, onClose, accounts, categori
           wallet_id: walletId,
           category_id: categoryId || undefined,
           merchant: merchant || (txType === 'income' ? 'Gelir Girişi' : 'Harcama'),
-          amount: parseFloat(amount),
-          installments: txType === 'expense' ? parseInt(installments, 10) : 1
+          amount: parsedAmount,
+          installments: (txType === 'expense' && selectedWallet?.type === 'credit_card') ? (parseInt(installments, 10) || 1) : 1
         })
       });
 
@@ -128,7 +158,7 @@ export default function ManualExpenseModal({ isOpen, onClose, accounts, categori
         setAmount('');
         setMerchant('');
         onSuccess(json.message);
-        onClose();
+        handleClose();
       } else {
         setServerError(json.error || 'İşlem kaydedilemedi.');
       }
@@ -140,7 +170,7 @@ export default function ManualExpenseModal({ isOpen, onClose, accounts, categori
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleClose}>
       <div className="bottom-sheet" onClick={e => e.stopPropagation()}>
         <div className="sheet-handle"></div>
 
@@ -189,6 +219,7 @@ export default function ManualExpenseModal({ isOpen, onClose, accounts, categori
             <input 
               type="number" 
               step="0.01" 
+              min="0.01" 
               placeholder="0.00" 
               required
               value={amount}
@@ -279,7 +310,7 @@ export default function ManualExpenseModal({ isOpen, onClose, accounts, categori
           <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
             <button 
               type="button" 
-              onClick={onClose}
+              onClick={handleClose}
               className="btn-subtle" 
               style={{ flex: 1, padding: '12px' }}
             >

@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { calculateHolisticPillarPercentage } from '@/lib/module4-utils';
 
 interface TopAction {
   title: string;
@@ -11,23 +12,62 @@ interface TopAction {
   isCompleted?: boolean;
 }
 
+interface PillarData {
+  score?: number;
+  max?: number;
+  label?: string;
+}
+
 interface Props {
-  scoreData: {
-    total: number;
-    badge: string;
-    breakdown: {
-      finance: { score: number; max: number; label: string };
-      health: { score: number; max: number; label: string };
-      wellness: { score: number; max: number; label: string };
-      mind: { score: number; max: number; label: string };
+  scoreData?: {
+    total?: number;
+    badge?: string;
+    breakdown?: {
+      finance?: PillarData;
+      health?: PillarData;
+      wellness?: PillarData;
+      mind?: PillarData;
     };
     topActions?: TopAction[];
     recommendation?: string;
   };
 }
 
+const defaultBreakdown = {
+  finance: { score: 0, max: 25, label: 'Finansal Disiplin' },
+  health: { score: 0, max: 25, label: 'Biyometri & Beslenme' },
+  wellness: { score: 0, max: 25, label: 'Uyku & Wellness' },
+  mind: { score: 0, max: 25, label: 'Zihin & İkinci Beyin' }
+};
+
 export default function HolisticScoreCard({ scoreData }: Props) {
-  const { total, badge, breakdown, topActions, recommendation } = scoreData;
+  const total = Number.isFinite(scoreData?.total) ? scoreData!.total! : 0;
+  const badge = scoreData?.badge || '🌱 Başlangıç Aşaması';
+  const rawBreakdown = scoreData?.breakdown;
+  const breakdown = {
+    finance: {
+      score: typeof rawBreakdown?.finance?.score === 'number' && Number.isFinite(rawBreakdown.finance.score) ? rawBreakdown.finance.score : defaultBreakdown.finance.score,
+      max: typeof rawBreakdown?.finance?.max === 'number' && Number.isFinite(rawBreakdown.finance.max) ? rawBreakdown.finance.max : defaultBreakdown.finance.max,
+      label: rawBreakdown?.finance?.label || defaultBreakdown.finance.label
+    },
+    health: {
+      score: typeof rawBreakdown?.health?.score === 'number' && Number.isFinite(rawBreakdown.health.score) ? rawBreakdown.health.score : defaultBreakdown.health.score,
+      max: typeof rawBreakdown?.health?.max === 'number' && Number.isFinite(rawBreakdown.health.max) ? rawBreakdown.health.max : defaultBreakdown.health.max,
+      label: rawBreakdown?.health?.label || defaultBreakdown.health.label
+    },
+    wellness: {
+      score: typeof rawBreakdown?.wellness?.score === 'number' && Number.isFinite(rawBreakdown.wellness.score) ? rawBreakdown.wellness.score : defaultBreakdown.wellness.score,
+      max: typeof rawBreakdown?.wellness?.max === 'number' && Number.isFinite(rawBreakdown.wellness.max) ? rawBreakdown.wellness.max : defaultBreakdown.wellness.max,
+      label: rawBreakdown?.wellness?.label || defaultBreakdown.wellness.label
+    },
+    mind: {
+      score: typeof rawBreakdown?.mind?.score === 'number' && Number.isFinite(rawBreakdown.mind.score) ? rawBreakdown.mind.score : defaultBreakdown.mind.score,
+      max: typeof rawBreakdown?.mind?.max === 'number' && Number.isFinite(rawBreakdown.mind.max) ? rawBreakdown.mind.max : defaultBreakdown.mind.max,
+      label: rawBreakdown?.mind?.label || defaultBreakdown.mind.label
+    }
+  };
+  const topActions = scoreData?.topActions;
+  const recommendation = scoreData?.recommendation;
 
   // Skor Renk Paleti & Gradyan Tanımları
   const getScoreTheme = (val: number) => {
@@ -43,7 +83,9 @@ export default function HolisticScoreCard({ scoreData }: Props) {
   // SVG Radial Gauge Geometrisi (r = 72, C ≈ 452.39)
   const radius = 72;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (circumference * Math.min(100, Math.max(0, total))) / 100;
+  const strokeDashoffset = Number.isFinite(total)
+    ? circumference - (circumference * Math.min(100, Math.max(0, total))) / 100
+    : circumference;
 
   // 4 Ana Yaşam Sütunu
   const pillars = [
@@ -54,9 +96,14 @@ export default function HolisticScoreCard({ scoreData }: Props) {
   ];
 
   // En Güçlü ve En Zayıf Sütun Tespiti
-  const sortedPillars = [...pillars].sort((a, b) => (b.score / b.max) - (a.score / a.max));
+  const sortedPillars = [...pillars].sort((a, b) => {
+    const aRatio = a.max > 0 ? a.score / a.max : 0;
+    const bRatio = b.max > 0 ? b.score / b.max : 0;
+    return bRatio - aRatio;
+  });
   const bestPillar = sortedPillars[0];
   const weakestPillar = sortedPillars[sortedPillars.length - 1];
+  const isAllZero = total === 0 || pillars.every(p => p.score === 0);
 
   // En Yüksek Etkili 3 Aksiyon Listesi (API'den gelmezse dinamik fallback)
   const defaultActions: TopAction[] = [
@@ -187,37 +234,54 @@ export default function HolisticScoreCard({ scoreData }: Props) {
             BÜTÜNSEL YAŞAM SENTEZİ
           </div>
 
-          <div style={{
-            background: 'var(--surface)', padding: '10px 12px', borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '18px' }}>{bestPillar.icon}</span>
-              <div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>En Güçlü Sütun</div>
-                <div style={{ fontSize: '12px', fontWeight: 800 }}>{bestPillar.label}</div>
+          {isAllZero ? (
+            <div style={{
+              background: 'var(--surface)', padding: '14px 12px', borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '4px',
+              textAlign: 'center', justifyContent: 'center'
+            }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+                🌱 Henüz veri girişi yapılmadı
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                Harcama, su tüketimi veya okuma seansı kaydederek sütunlarınızı aktive edin.
               </div>
             </div>
-            <span style={{ fontSize: '12px', fontWeight: 900, color: bestPillar.color, fontVariantNumeric: 'tabular-nums' }}>
-              %{Math.round((bestPillar.score / bestPillar.max) * 100)}
-            </span>
-          </div>
+          ) : (
+            <>
+              <div style={{
+                background: 'var(--surface)', padding: '10px 12px', borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '18px' }}>{bestPillar.icon}</span>
+                  <div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>En Güçlü Sütun</div>
+                    <div style={{ fontSize: '12px', fontWeight: 800 }}>{bestPillar.label}</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: '12px', fontWeight: 900, color: bestPillar.color, fontVariantNumeric: 'tabular-nums' }}>
+                  %{calculateHolisticPillarPercentage(bestPillar.score, bestPillar.max)}
+                </span>
+              </div>
 
-          <div style={{
-            background: 'var(--surface)', padding: '10px 12px', borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '18px' }}>{weakestPillar.icon}</span>
-              <div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Öncelikli Gelişim</div>
-                <div style={{ fontSize: '12px', fontWeight: 800 }}>{weakestPillar.label}</div>
+              <div style={{
+                background: 'var(--surface)', padding: '10px 12px', borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '18px' }}>{weakestPillar.icon}</span>
+                  <div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Öncelikli Gelişim</div>
+                    <div style={{ fontSize: '12px', fontWeight: 800 }}>{weakestPillar.label}</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: '12px', fontWeight: 900, color: weakestPillar.color, fontVariantNumeric: 'tabular-nums' }}>
+                  %{calculateHolisticPillarPercentage(weakestPillar.score, weakestPillar.max)}
+                </span>
               </div>
-            </div>
-            <span style={{ fontSize: '12px', fontWeight: 900, color: weakestPillar.color, fontVariantNumeric: 'tabular-nums' }}>
-              %{Math.round((weakestPillar.score / weakestPillar.max) * 100)}
-            </span>
-          </div>
+            </>
+          )}
 
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4', marginTop: '2px' }}>
             ⚡ 4 eksendeki günlük veri girişleri skoru anlık optimize eder.
@@ -237,7 +301,7 @@ export default function HolisticScoreCard({ scoreData }: Props) {
 
         <div className="analytics-pillars-grid">
           {pillars.map(p => {
-            const pct = Math.round((p.score / p.max) * 100);
+            const pct = calculateHolisticPillarPercentage(p.score, p.max);
             const statusLabel = pct >= 100 ? 'Mükemmel' : pct >= 75 ? 'Güçlü' : pct >= 50 ? 'Dengeli' : pct > 0 ? 'Gelişmeli' : 'Kayıt Yok';
             return (
               <div
@@ -258,7 +322,7 @@ export default function HolisticScoreCard({ scoreData }: Props) {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '13px', fontWeight: 900, color: p.color, fontVariantNumeric: 'tabular-nums' }}>
-                      {p.score} <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>/ 25</span>
+                      {p.score ?? 0} <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>/ {p.max ?? 25}</span>
                     </div>
                     <span style={{
                       fontSize: '9px', fontWeight: 800, padding: '1px 6px', borderRadius: '4px',

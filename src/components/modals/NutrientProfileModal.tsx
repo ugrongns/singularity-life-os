@@ -487,7 +487,7 @@ export default function NutrientProfileModal({
             </div>
 
             {/* Tables Section */}
-            {(activeTab === 'all' || activeTab === 'macros') && data.categories.macros && (
+            {(activeTab === 'all' || activeTab === 'macros') && data?.categories?.macros && (
               <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 800, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Flame className="w-4 h-4 text-amber-500" />
@@ -514,7 +514,7 @@ export default function NutrientProfileModal({
               </div>
             )}
 
-            {(activeTab === 'all' || activeTab === 'vitamins') && data.categories.vitamins && (
+            {(activeTab === 'all' || activeTab === 'vitamins') && data?.categories?.vitamins && (
               <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 800, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <HeartPulse className="w-4 h-4 text-rose-500" />
@@ -541,7 +541,7 @@ export default function NutrientProfileModal({
               </div>
             )}
 
-            {(activeTab === 'all' || activeTab === 'minerals') && data.categories.minerals && (
+            {(activeTab === 'all' || activeTab === 'minerals') && data?.categories?.minerals && (
               <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 800, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Activity className="w-4 h-4 text-cyan-500" />
@@ -568,7 +568,7 @@ export default function NutrientProfileModal({
               </div>
             )}
 
-            {(activeTab === 'all' || activeTab === 'special') && data.categories.special_compounds && data.categories.special_compounds.length > 0 && (
+            {(activeTab === 'all' || activeTab === 'special') && data?.categories?.special_compounds && data.categories.special_compounds.length > 0 && (
               <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 800, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px', color: '#8B5CF6' }}>
                   <Sparkles className="w-4 h-4 text-purple-500" />
@@ -583,7 +583,7 @@ export default function NutrientProfileModal({
                     </tr>
                   </thead>
                   <tbody>
-                    {data.categories.special_compounds.map((sc, i) => (
+                    {data.categories.special_compounds?.map((sc, i) => (
                       <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={{ padding: '6px 4px', fontWeight: 600, color: '#8B5CF6' }}>{sc.label}</td>
                         <td style={{ padding: '6px 4px', fontWeight: 600, color: '#10B981' }}>{sc.value}</td>

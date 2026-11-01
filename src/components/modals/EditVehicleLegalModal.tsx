@@ -121,6 +121,7 @@ export default function EditVehicleLegalModal({
 
       const json = await res.json();
       if (json.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         onSuccess(json.message || 'Yasal hatırlatıcılar güncellendi.');
         onClose();
       } else {

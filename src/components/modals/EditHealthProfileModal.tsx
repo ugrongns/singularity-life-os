@@ -100,7 +100,7 @@ export default function EditHealthProfileModal({
 
   // Makro Dağılım Şablonları (Presets)
   const applyPreset = (pRatio: number, cRatio: number, fRatio: number) => {
-    const targetCals = Number(calorieTarget) || 2000;
+    const targetCals = Math.max(0, Number(calorieTarget) || 2000);
     const newP = Math.round((targetCals * pRatio) / 4);
     const newC = Math.round((targetCals * cRatio) / 4);
     const newF = Math.round((targetCals * fRatio) / 9);
@@ -121,11 +121,11 @@ export default function EditHealthProfileModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update_profile',
-          daily_calorie_target: Number(calorieTarget),
-          target_protein_g: Number(proteinTarget),
-          target_carbs_g: Number(carbsTarget),
-          target_fat_g: Number(fatTarget),
-          daily_water_target_ml: Number(waterTarget) || 2500
+          daily_calorie_target: Math.max(0, Number(calorieTarget) || 0),
+          target_protein_g: Math.max(0, Number(proteinTarget) || 0),
+          target_carbs_g: Math.max(0, Number(carbsTarget) || 0),
+          target_fat_g: Math.max(0, Number(fatTarget) || 0),
+          daily_water_target_ml: Math.max(0, Number(waterTarget) || 2500)
         })
       });
 
@@ -214,6 +214,7 @@ export default function EditHealthProfileModal({
             </label>
             <input
               type="number"
+              min={0}
               placeholder="Ör. 2000"
               value={calorieTarget}
               onChange={e => handleCalorieChange(e.target.value)}
@@ -228,6 +229,7 @@ export default function EditHealthProfileModal({
               <label style={{ fontSize: '11px', color: '#3B82F6', fontWeight: 800 }}>PROTEİN (G) *</label>
               <input
                 type="number"
+                min={0}
                 value={proteinTarget}
                 onChange={e => handleProteinChange(e.target.value)}
                 required
@@ -240,6 +242,7 @@ export default function EditHealthProfileModal({
               <label style={{ fontSize: '11px', color: '#F59E0B', fontWeight: 800 }}>KARB (G) *</label>
               <input
                 type="number"
+                min={0}
                 value={carbsTarget}
                 onChange={e => handleCarbsChange(e.target.value)}
                 required
@@ -252,6 +255,7 @@ export default function EditHealthProfileModal({
               <label style={{ fontSize: '11px', color: '#EF4444', fontWeight: 800 }}>YAĞ (G) *</label>
               <input
                 type="number"
+                min={0}
                 value={fatTarget}
                 onChange={e => handleFatChange(e.target.value)}
                 required

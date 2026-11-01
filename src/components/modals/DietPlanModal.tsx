@@ -42,6 +42,7 @@ export default function DietPlanModal({ isOpen, onClose, onSuccess }: DietModalP
   const [selectedOption, setSelectedOption] = useState<DietOption | null>(null);
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAddingToShopping, setIsAddingToShopping] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   // Form & Görünüm Durumları

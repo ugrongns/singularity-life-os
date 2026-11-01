@@ -3,6 +3,7 @@ import { db, initDatabase } from '@/db';
 import { readingSessions, books, userReadingProfile } from '@/db/schema';
 import { eq, desc , or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { clampWpm } from '@/lib/module4-utils';
 
 export async function POST(req: Request) {
   try {
@@ -103,7 +104,8 @@ export async function POST(req: Request) {
       totalPages += pRead;
     }
 
-    const calculatedAvgWpm = totalMinutes > 0 ? Math.round(totalWords / totalMinutes) : 220;
+    const rawAvgWpm = totalMinutes > 0 ? Math.round(totalWords / totalMinutes) : 220;
+    const calculatedAvgWpm = clampWpm(rawAvgWpm);
     const calculatedSecPerPage = totalPages > 0 ? Math.round((totalMinutes * 60) / totalPages) : 120;
 
     const profile = (await db.select().from(userReadingProfile).where(eq(userReadingProfile.user_id, user.id)).limit(1))[0];

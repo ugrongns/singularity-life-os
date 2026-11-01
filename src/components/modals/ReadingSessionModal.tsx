@@ -1,6 +1,6 @@
 'use client';
-
 import React, { useState, useEffect } from 'react';
+import { validateReadingSessionPages } from '@/lib/module3-utils';
 import PageCalibrationModal from '@/components/modals/PageCalibrationModal';
 import { Clock, BookOpen, Camera, Zap, Check, X } from 'lucide-react';
 
@@ -103,12 +103,22 @@ export default function ReadingSessionModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const validation = validateReadingSessionPages(
+      inputMode,
+      startPage,
+      inputMode === 'count' ? pagesReadInput : endPage
+    );
+    if (!validation.valid) {
+      alert(validation.error || 'Geçersiz sayfa aralığı');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const computedStart = parseInt(startPage, 10) || 0;
       const computedEnd = inputMode === 'count'
-        ? computedStart + pagesRead
-        : parseInt(endPage, 10) || (computedStart + pagesRead);
+        ? computedStart + validation.pagesRead
+        : parseInt(endPage, 10);
 
       const res = await fetch('/api/library/sessions', {
         method: 'POST',

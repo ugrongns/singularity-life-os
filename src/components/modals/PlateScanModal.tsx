@@ -19,7 +19,8 @@ interface PlateScanModalProps {
   onSuccess: (msg: string) => void;
 }
 
-export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScanModalProps) {
+export default function PlateScanModal({
+ isOpen, onClose, onSuccess }: PlateScanModalProps) {
   const [step, setStep] = useState<'upload' | 'scanning' | 'confirm'>('upload');
   const [multiplier, setMultiplier] = useState<number>(1.0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -37,6 +38,7 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
   } | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,6 +63,19 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
     };
   }, [previewUrl]);
 
+  useEffect(() => {
+    if (!isOpen && abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -81,10 +96,13 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
       const base64 = await compressImage(file);
       const mimeType = 'image/jpeg';
 
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
       const res = await fetch('/api/health/scan-food', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'plate', base64, mimeType })
+        body: JSON.stringify({ type: 'plate', base64, mimeType }),
+        signal: controller.signal
       });
 
       if (!res.ok) {
@@ -112,6 +130,7 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
         throw new Error(json.error || 'Analiz başarısız');
       }
     } catch (err: any) {
+      if (err.name === 'AbortError') return;
       setErrorMsg(err.message || 'Görsel analiz edilemedi. Tekrar deneyin.');
       setStep('upload');
     }

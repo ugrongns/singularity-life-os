@@ -1,6 +1,6 @@
 'use client';
-
 import React, { useState, useEffect } from 'react';
+import { calculateFastingProgress } from '@/lib/module3-utils';
 import {
   Clock,
   Zap,
@@ -41,12 +41,45 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
   const [selectedProtocol, setSelectedProtocol] = useState(fastingData.protocol || '16:8');
   const [isToggling, setIsToggling] = useState(false);
 
+  const [liveMetrics, setLiveMetrics] = useState(() =>
+    fastingData.isActive && fastingData.startTime
+      ? calculateFastingProgress(fastingData.startTime, fastingData.targetEndTime)
+      : null
+  );
+
+  useEffect(() => {
+    if (!fastingData.isActive || !fastingData.startTime) {
+      setLiveMetrics(null);
+      return;
+    }
+
+    const updateTimer = () => {
+      setLiveMetrics(calculateFastingProgress(fastingData.startTime, fastingData.targetEndTime));
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        updateTimer();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fastingData.isActive, fastingData.startTime, fastingData.targetEndTime]);
+
+
   // SVG Radial Circle Hesaplaması
   const radius = 68;
   const strokeWidth = 10;
   const normalizedRadius = radius - strokeWidth / 2;
   const circumference = normalizedRadius * 2 * Math.PI;
-  const progressPercent = Math.min(100, Math.max(0, fastingData.progressPercent || 0));
+  const progressPercent = Math.min(100, Math.max(0, liveMetrics?.progressPercent ?? fastingData.progressPercent ?? 0));
   const strokeDashoffset = circumference - (progressPercent / 100) * circumference;
 
   const handleAction = async (action: 'start' | 'end') => {
@@ -55,7 +88,7 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
     setIsToggling(false);
   };
 
-  const currentColor = fastingData.phaseColor || '#8B5CF6';
+  const currentColor = liveMetrics?.phaseColor || fastingData.phaseColor || '#8B5CF6';
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%' }}>
@@ -187,7 +220,7 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
                   Geçen Süre
                 </span>
                 <div className="tabular-nums" style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-main)', marginTop: '1px' }}>
-                  {fastingData.elapsedText || '00:00'}
+                  {liveMetrics?.elapsedText || fastingData.elapsedText || '00:00:00'}
                 </div>
                 <div
                   style={{
@@ -218,13 +251,13 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
             <div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Geçen Süre</div>
               <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px' }}>
-                {fastingData.elapsedText}
+                {liveMetrics?.elapsedText || fastingData.elapsedText || '00:00:00'}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Hedefe Kalan</div>
               <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 800, color: '#8B5CF6', marginTop: '2px' }}>
-                {fastingData.remainingText || 'Tamamlandı'}
+                {liveMetrics?.remainingText || fastingData.remainingText || 'Tamamlandı'}
               </div>
             </div>
           </div>

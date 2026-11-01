@@ -90,6 +90,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
   const [payWalletId, setPayWalletId] = useState('');
   const [createTx, setCreateTx] = useState(true);
   const [customPayAmount, setCustomPayAmount] = useState<number | ''>('');
+  const [savingPay, setSavingPay] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -234,7 +235,8 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
   };
 
   const handleConfirmPay = async () => {
-    if (!payModalBill) return;
+    if (!payModalBill || savingPay) return;
+    setSavingPay(true);
     try {
       const res = await fetch('/api/budget/recurring-bills', {
         method: 'PATCH',
@@ -257,6 +259,8 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
       }
     } catch {
       alert('Ödeme kaydedilemedi.');
+    } finally {
+      setSavingPay(false);
     }
   };
 
@@ -931,10 +935,11 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
                 </button>
                 <button
                   type="button"
+                  disabled={savingPay}
                   onClick={handleConfirmPay}
                   style={{ flex: 2, padding: '10px', borderRadius: 'var(--radius-md)', border: 'none', background: 'linear-gradient(135deg, #10B981, #059669)', color: 'white', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}
                 >
-                  ✓ Ödemeyi Onayla & İşle
+                  {savingPay ? 'İşleniyor...' : '✓ Ödemeyi Onayla & İşle'}
                 </button>
               </div>
             </div>

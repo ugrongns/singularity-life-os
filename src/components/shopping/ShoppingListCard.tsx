@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { 
   ShoppingCart, 
   Plus, 
@@ -105,6 +105,7 @@ function parseQuickItem(input: string) {
 }
 
 export default function ShoppingListCard({
+
   items,
   summary,
   categoryTotals,
@@ -113,6 +114,10 @@ export default function ShoppingListCard({
   onRefresh,
   onToast
 }: Props) {
+  const [localItems, setLocalItems] = useState(items);
+  useEffect(() => {
+    setLocalItems(items);
+  }, [items]);
   const [quickInput, setQuickInput] = useState('');
   const [addingQuick, setAddingQuick] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -125,16 +130,26 @@ export default function ShoppingListCard({
   const quickInputRef = useRef<HTMLInputElement>(null);
 
   const handleToggle = async (id: string) => {
+    const previous = [...localItems];
+    setLocalItems(prev =>
+      prev.map(item =>
+        item.id === id ? { ...item, is_checked: item.is_checked ? 0 : 1 } : item
+      )
+    );
     try {
-      await fetch('/api/shopping-list', {
+      const res = await fetch('/api/shopping-list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'toggle', id })
       });
+      const json = await res.json();
+      if (!json.success) {
+        setLocalItems(previous);
+      }
       window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
     } catch {
-      //
+      setLocalItems(previous);
     }
   };
 
@@ -271,7 +286,7 @@ export default function ShoppingListCard({
   const GROCERY_KEYWORDS = ['ekmek', 'peynir', 'zeytin', 'tuvalet', 'deterjan', 'süt', 'makarna', 'un', 'şeker', 'pirinç', 'bulgur', 'bakliyat', 'yağ', 'çay', 'kahve', 'salça', 'yoğurt', 'kaşar', 'tuz', 'sabun', 'şampuan', 'peçete'];
   const PRODUCE_KEYWORDS = ['marul', 'domates', 'salatalık', 'zeytinyağı', 'limon', 'elma', 'muz', 'patates', 'soğan', 'biber', 'havuç', 'yeşillik', 'portakal', 'mandalina', 'maydanoz', 'ıspanak'];
 
-  const filteredItems = items.filter(item => {
+  const filteredItems = localItems.filter(item => {
     const nameLower = item.name.toLowerCase();
     const matchesSearch = nameLower.includes(searchQuery.toLowerCase());
     const matchesCat = categoryFilter === 'all' || item.category === categoryFilter;

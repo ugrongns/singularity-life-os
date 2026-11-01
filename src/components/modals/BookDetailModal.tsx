@@ -158,6 +158,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
       const json = await res.json();
 
       if (json.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         onSuccess(json.message);
         onClose();
       } else {
@@ -208,6 +209,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
       const res = await fetch(`/api/library?id=${book.id}`, { method: 'DELETE' });
       const json = await res.json();
       if (json.success) {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         onSuccess(json.message);
         onClose();
       } else {

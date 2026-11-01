@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { CreditCard, X, Download, Calendar, Search } from 'lucide-react';
 import { generateCSVContent, downloadCSV, CSVColumn } from '@/lib/export-csv';
+import { formatDateSafe } from '@/lib/financial-utils';
 
 interface Props {
   isOpen: boolean;
@@ -17,6 +18,7 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
 
   useEffect(() => {
     if (isOpen && accountId) {
+      setData(null);
       setLoading(true);
       fetch(`/api/budget/card-statement?account_id=${accountId}`)
         .then(res => res.json())
@@ -77,7 +79,7 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
       { header: 'Taksit Durumu', accessor: r => r[4] },
       { header: 'Aylık Tutar (TL)', accessor: r => r[5] },
       { header: 'Toplam Tutar (TL)', accessor: r => r[6] },
-      { header: 'Kalan Borç (TL)', accessor: r => r[6] },
+      { header: 'Kalan Borç (TL)', accessor: r => r[7] },
     ];
 
     const csvStr = generateCSVContent(columns, rows);
@@ -90,19 +92,7 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
   };
 
   const formatDate = (dateStr: string) => {
-    if (!dateStr) return '—';
-    try {
-      const parts = dateStr.split('-');
-      if (parts.length === 3) {
-        return `${parts[2]}.${parts[1]}.${parts[0]}`;
-      }
-      const d = new Date(dateStr).getDate().toString().padStart(2, '0');
-      const m = (new Date(dateStr).getMonth() + 1).toString().padStart(2, '0');
-      const y = new Date(dateStr).getFullYear();
-      return `${d}.${m}.${y}`;
-    } catch {
-      return dateStr;
-    }
+    return formatDateSafe(dateStr);
   };
 
   // Arama filtresi
@@ -269,7 +259,7 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
 
             {/* Tab İçerikleri: Masaüstünde Geniş Veri Tablosu */}
             {activeTab === 'installments' ? (
-              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'auto' }}>
                 {filteredInstallments.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '13px' }}>
                     {searchQuery ? 'Aramanıza uygun taksitli işlem bulunamadı.' : 'Bu kartta aktif taksitli harcama bulunmuyor.'}
@@ -318,7 +308,7 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
                 )}
               </div>
             ) : (
-              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'auto' }}>
                 {filteredSingle.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '13px' }}>
                     {searchQuery ? 'Aramanıza uygun tek çekim işlem bulunamadı.' : 'Bu ekstre döneminde tek çekim harcama bulunmuyor.'}

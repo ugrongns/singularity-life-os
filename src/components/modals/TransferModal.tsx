@@ -8,6 +8,7 @@ interface Account {
   type: string;
   balance: number;
   currency: string;
+  overdraft_limit?: number;
 }
 
 interface TransferModalProps {
@@ -50,7 +51,7 @@ export default function TransferModal({
       setNote('');
       setErrorMsg(null);
     }
-  }, [isOpen, defaultToAccountId, accounts]);
+  }, [isOpen, defaultToAccountId]);
 
   // ESC tuşuyla kapatma
   useEffect(() => {
@@ -79,17 +80,25 @@ export default function TransferModal({
   const selectedTo = accounts.find(a => a.id === toAccountId);
   const isCardPayment = selectedTo?.type === 'credit_card';
 
-  // Yetersiz bakiye kontrolü
+  const availableBalance = selectedFrom?.type === 'kmh'
+    ? (selectedFrom.balance || 0) + (selectedFrom.overdraft_limit || 0)
+    : (selectedFrom?.balance || 0);
+
+  // Yetersiz bakiye kontrolü (KMH ek hesabı dahil)
   const isInsufficientBalance = Boolean(
     selectedFrom &&
     selectedFrom.type !== 'credit_card' &&
     amount !== '' &&
-    Number(amount) > selectedFrom.balance
+    Number(amount) > availableBalance
+  );
+
+  const isCurrencyMismatch = Boolean(
+    selectedFrom && selectedTo && selectedFrom.currency !== selectedTo.currency
   );
 
   const handleFillDebt = () => {
     if (selectedTo && selectedFrom) {
-      const maxPossible = Math.min(selectedTo.balance, selectedFrom.balance);
+      const maxPossible = Math.max(0, Math.min(selectedTo.balance, availableBalance));
       setAmount(maxPossible);
     }
   };
@@ -111,7 +120,7 @@ export default function TransferModal({
       return;
     }
     if (isInsufficientBalance) {
-      setErrorMsg(`Yetersiz Bakiye! Çıkış hesabınızda sadece ${formatMoney(selectedFrom?.balance || 0)} nakit bulunmaktadır.`);
+      setErrorMsg(`Yetersiz Bakiye! Çıkış hesabınızda sadece ${formatMoney(availableBalance, selectedFrom?.currency)} kullanılabilir bakiye bulunmaktadır.`);
       return;
     }
 
@@ -259,22 +268,29 @@ export default function TransferModal({
             </div>
           )}
 
+          {/* Farklı Para Birimi Bilgilendirmesi */}
+          {isCurrencyMismatch && selectedFrom && selectedTo && (
+            <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', padding: '10px 12px', borderRadius: 'var(--radius-md)', fontSize: '12px', fontWeight: 600 }}>
+              💱 <strong>Farklı Para Birimi:</strong> {selectedFrom.name} ({selectedFrom.currency}) ➔ {selectedTo.name} ({selectedTo.currency}). Girilen tutar çıkış hesabının birimi ({selectedFrom.currency}) cinsinden tahsil edilecektir.
+            </div>
+          )}
+
           {/* Tutar */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                Aktarılacak Tutar (TL) *
+                Aktarılacak Tutar ({selectedFrom?.currency || 'TL'}) *
               </label>
               {selectedFrom && (
                 <span className="tabular-nums" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  Kullanılabilir Nakit: <strong>{formatMoney(selectedFrom.balance, selectedFrom.currency)}</strong>
+                  Kullanılabilir Bakiye: <strong>{formatMoney(availableBalance, selectedFrom.currency)}</strong>
                 </span>
               )}
             </div>
             <input
               type="number"
               required
-              min={1}
+              min={0.01}
               step="0.01"
               placeholder="0.00"
               value={amount}

@@ -1,5 +1,12 @@
 'use client';
 
+import {
+  formatMilestoneProgress,
+  formatRealAdvantage,
+  getYearsToFireDisplay,
+  calculateFireProgress
+} from '@/lib/module4-utils';
+
 interface Milestone {
   target: number;
   progress: number;
@@ -26,7 +33,7 @@ interface Props {
       fat: Milestone;
     };
   };
-  inflationMetrics: {
+  inflationMetrics?: {
     personalInflationRate: number;
     officialTuikRate: number;
     savingVsOfficialTuikPercent: number;
@@ -34,30 +41,42 @@ interface Props {
   };
 }
 
-export default function FireAnalyticsCard({ fireMetrics, inflationMetrics }: Props) {
+const defaultInflationMetrics = {
+  personalInflationRate: 0,
+  officialTuikRate: 48.6,
+  savingVsOfficialTuikPercent: 0,
+  basketSummary: 'Reel harcama verilerine dayalı kişisel enflasyon endeksi'
+};
+
+export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMetrics }: Props) {
   const {
-    monthlyPassiveIncome,
-    monthlyLivingExpense,
-    passiveCoveragePercent,
-    fireTargetNumber,
-    totalNetWorth,
-    fireProgressPercent,
-    yearsToFire
-  } = fireMetrics;
+    monthlyPassiveIncome = 0,
+    monthlyLivingExpense = 0,
+    passiveCoveragePercent = 0,
+    fireTargetNumber = 0,
+    totalNetWorth = 0,
+    fireProgressPercent = 0,
+    yearsToFire = 0
+  } = fireMetrics || {};
 
-  const { personalInflationRate, officialTuikRate, savingVsOfficialTuikPercent } = inflationMetrics;
+  const safeInflation = inflationMetrics || defaultInflationMetrics;
+  const {
+    personalInflationRate = 0,
+    officialTuikRate = 48.6,
+    savingVsOfficialTuikPercent = 0
+  } = safeInflation;
 
-  const annualExpense = fireMetrics.annualExpense || (monthlyLivingExpense * 12);
-  const savingsRatePercent = fireMetrics.savingsRatePercent ?? (monthlyLivingExpense > 0 ? 38 : 0);
+  const annualExpense = fireMetrics?.annualExpense || (monthlyLivingExpense * 12);
+  const savingsRatePercent = fireMetrics?.savingsRatePercent ?? 0;
 
   // Kilometre Taşları (Lean, Regular, Fat FIRE)
-  const leanTarget = fireMetrics.milestones?.lean?.target || Math.round(fireTargetNumber * 0.7);
-  const regularTarget = fireMetrics.milestones?.regular?.target || fireTargetNumber;
-  const fatTarget = fireMetrics.milestones?.fat?.target || Math.round(fireTargetNumber * 1.5);
+  const leanTarget = fireMetrics?.milestones?.lean?.target || Math.round(fireTargetNumber * 0.7);
+  const regularTarget = fireMetrics?.milestones?.regular?.target || fireTargetNumber;
+  const fatTarget = fireMetrics?.milestones?.fat?.target || Math.round(fireTargetNumber * 1.5);
 
-  const leanProgress = fireMetrics.milestones?.lean?.progress ?? (leanTarget > 0 ? Math.min(100, Math.round((totalNetWorth / leanTarget) * 100)) : 0);
-  const regularProgress = fireMetrics.milestones?.regular?.progress ?? fireProgressPercent;
-  const fatProgress = fireMetrics.milestones?.fat?.progress ?? (fatTarget > 0 ? Math.min(100, Math.round((totalNetWorth / fatTarget) * 100)) : 0);
+  const leanProgress = fireMetrics?.milestones?.lean?.progress ?? calculateFireProgress(totalNetWorth, leanTarget);
+  const regularProgress = fireMetrics?.milestones?.regular?.progress ?? calculateFireProgress(totalNetWorth, regularTarget);
+  const fatProgress = fireMetrics?.milestones?.fat?.progress ?? calculateFireProgress(totalNetWorth, fatTarget);
 
   // Tasarruf Oranı Rozeti
   const getSavingsBadge = (rate: number) => {
@@ -68,6 +87,13 @@ export default function FireAnalyticsCard({ fireMetrics, inflationMetrics }: Pro
   };
 
   const savingsBadge = getSavingsBadge(savingsRatePercent);
+  const yearsToFireDisplay = getYearsToFireDisplay(
+    fireTargetNumber,
+    totalNetWorth,
+    yearsToFire,
+    savingsRatePercent,
+    fireMetrics?.monthlySavingsEst
+  );
 
   const milestonesList = [
     {
@@ -193,10 +219,10 @@ export default function FireAnalyticsCard({ fireMetrics, inflationMetrics }: Pro
             <span style={{ fontSize: '14px' }}>⏳</span>
           </div>
           <div style={{
-            fontSize: 'clamp(14px, 3.8vw, 18px)', fontWeight: 900, color: 'var(--emerald)',
-            fontVariantNumeric: 'tabular-nums', lineHeight: 1.1
+            fontSize: 'clamp(12px, 3.5vw, 17px)', fontWeight: 900, color: yearsToFireDisplay.color,
+            fontVariantNumeric: 'tabular-nums', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
           }}>
-            {fireTargetNumber > 0 && yearsToFire > 0 ? `~${yearsToFire} Yıl` : fireTargetNumber > 0 ? 'Hesaplanıyor' : '—'}
+            {yearsToFireDisplay.text}
           </div>
           <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap' }}>
             Mevcut Hızla
@@ -315,7 +341,7 @@ export default function FireAnalyticsCard({ fireMetrics, inflationMetrics }: Pro
                       border: `1px solid ${isCompleted ? 'var(--emerald)' : m.color}40`,
                       display: 'inline-block', marginTop: '2px'
                     }}>
-                      {isCompleted ? '✓ Ulaşıldı (%100)' : `%{m.progress} Devam Ediyor`}
+                      {formatMilestoneProgress(m.progress, isCompleted)}
                     </span>
                   </div>
                 </div>
@@ -374,7 +400,7 @@ export default function FireAnalyticsCard({ fireMetrics, inflationMetrics }: Pro
           <div style={{ background: 'var(--surface)', padding: '8px 6px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: '10px', color: 'var(--emerald)' }}>Reel Avantaj</div>
             <div style={{ fontSize: '14px', fontWeight: 900, color: 'var(--emerald)', marginTop: '2px', fontVariantNumeric: 'tabular-nums' }}>
-              +{savingVsOfficialTuikPercent}%
+              {formatRealAdvantage(savingVsOfficialTuikPercent)}
             </div>
           </div>
         </div>

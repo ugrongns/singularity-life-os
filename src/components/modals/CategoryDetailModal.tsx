@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { Tag, X, Trash2, Calendar, CreditCard, Wallet, User, Plus, Edit3, Check, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react';
+import { parseFinancialAmount, formatDateSafe } from '@/lib/financial-utils';
 
 interface CategoryDetailModalProps {
   isOpen: boolean;
@@ -42,6 +43,7 @@ export default function CategoryDetailModal({
   const fetchCategoryDetails = async () => {
     if (!categoryId) return;
     setLoading(true);
+    setData(null);
     try {
       const res = await fetch(`/api/budget/category-details?category_id=${categoryId}&month=${monthStr}`);
       const json = await res.json();
@@ -105,7 +107,7 @@ export default function CategoryDetailModal({
 
   // Bütçe Limiti Kaydetme / Güncelleme
   const handleSaveBudgetLimit = async () => {
-    const numLimit = Number(limitInput.replace(/\D/g, ''));
+    const numLimit = parseFinancialAmount(limitInput);
     if (isNaN(numLimit) || numLimit < 0) {
       setLimitError('Lütfen geçerli bir bütçe tutarı girin.');
       return;

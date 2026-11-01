@@ -103,7 +103,7 @@ export default function FeatureShowcaseModal({ isOpen, onClose }: FeatureShowcas
             Ayrı ayrı kullanılan tüm finans, sağlık, araç ve ev sistemlerini tek bir yerel merkezde birleştiren, yapay zeka ve sesli komutlarla veri girme zahmetini minimuma indiren tam entegre yaşam işletim sistemi.
           </div>
           <div style={{ display: 'flex', gap: '12px', marginTop: '12px', fontSize: '11px', color: '#9CA3AF' }}>
-            <span>• <strong>10</strong> Aktif Modül</span>
+            <span>• <strong>{MODULES_SHOWCASE.length}</strong> Aktif Modül</span>
             <span>• <strong>%100</strong> Yerel & Gizli</span>
             <span>• <strong>AES-256</strong> Şifreli</span>
           </div>

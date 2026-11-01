@@ -17,6 +17,8 @@ export default function LiveBarcodeScannerModal({
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const isCancelledRef = useRef<boolean>(false);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -46,6 +48,10 @@ export default function LiveBarcodeScannerModal({
   };
 
   const stopCamera = () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
     if (readerRef.current) {
       try {
         readerRef.current.reset();
@@ -159,6 +165,11 @@ export default function LiveBarcodeScannerModal({
         }
       });
 
+      if (isCancelledRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       streamRef.current = stream;
 
       if (videoRef.current) {
@@ -173,7 +184,7 @@ export default function LiveBarcodeScannerModal({
               formats: ['ean_13', 'ean_8', 'code_128', 'upc_a']
             });
             const scanFrame = async () => {
-              if (!videoRef.current) return;
+              if (isCancelledRef.current || !videoRef.current) return;
               try {
                 const barcodes = await detector.detect(videoRef.current);
                 if (barcodes && barcodes.length > 0) {
@@ -184,9 +195,11 @@ export default function LiveBarcodeScannerModal({
                   }
                 }
               } catch (e) {}
-              requestAnimationFrame(scanFrame);
+              if (!isCancelledRef.current) {
+                animFrameRef.current = requestAnimationFrame(scanFrame);
+              }
             };
-            requestAnimationFrame(scanFrame);
+            animFrameRef.current = requestAnimationFrame(scanFrame);
             return;
           } catch (e) {
             // Fallback to ZXing
@@ -216,6 +229,7 @@ export default function LiveBarcodeScannerModal({
 
   useEffect(() => {
     if (!isOpen) {
+      isCancelledRef.current = true;
       stopCamera();
       setErrorMsg(null);
       setShowManualInput(false);
@@ -223,10 +237,12 @@ export default function LiveBarcodeScannerModal({
       return;
     }
 
+    isCancelledRef.current = false;
     startScanner();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        isCancelledRef.current = true;
         stopCamera();
         onClose();
       }
@@ -234,8 +250,9 @@ export default function LiveBarcodeScannerModal({
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      stopCamera();
+      isCancelledRef.current = true;
       window.removeEventListener('keydown', handleKeyDown);
+      stopCamera();
     };
   }, [isOpen, onClose]);
 

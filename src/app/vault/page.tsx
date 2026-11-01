@@ -10,6 +10,7 @@ export default function VaultPage() {
   const [data, setData] = useState<any>(null);
   const [notifData, setNotifData] = useState<any>({ notifications: [], critical: 0, warning: 0 });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Modals
@@ -39,10 +40,15 @@ export default function VaultPage() {
         notifRes.json()
       ]);
 
-      if (vaultJ.success) setData(vaultJ.data);
+      if (vaultJ.success) {
+        setData(vaultJ.data);
+      } else {
+        setError(vaultJ.error || 'Kasa verileri yüklenemedi.');
+      }
       if (notifJ.success) setNotifData(notifJ.data);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setError('Kasa verilerine erişilemedi. Lütfen bağlantınızı kontrol edin.');
     } finally {
       setLoading(false);
     }
@@ -89,6 +95,24 @@ export default function VaultPage() {
 
       <div className="dashboard-grid">
         <div className="col-full" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', minWidth: 0 }}>
+          {!data && error && (
+            <div className="card" style={{ padding: '36px', textAlign: 'center', backgroundColor: 'var(--surface)' }}>
+              <div style={{ fontSize: '36px', marginBottom: '10px' }}>⚠️</div>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '6px' }}>
+                Kasa verileri yüklenemedi
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                {error}
+              </div>
+              <button
+                className="btn-primary"
+                onClick={() => { setLoading(true); setError(null); fetchData(); }}
+                style={{ padding: '8px 20px', fontSize: '12px', fontWeight: 700 }}
+              >
+                🔄 Yeniden Dene
+              </button>
+            </div>
+          )}
           {data && (
             <DigitalVaultCard
               vaultItems={data.vaultItems || []}

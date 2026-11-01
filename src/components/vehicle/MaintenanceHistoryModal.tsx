@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { filterAndCalculateMaintenance } from '@/lib/module3-utils';
 import { Wrench, X, History, TrendingUp, Calendar, AlertCircle, DollarSign, Gauge } from 'lucide-react';
 import { TurkishPlateBadge } from '@/components/vehicle/VehicleFleetCard';
 
@@ -16,10 +17,14 @@ export default function MaintenanceHistoryModal({ isOpen, vehicle, onClose }: Ma
   useEffect(() => {
     if (isOpen) {
       setLoading(true);
-      fetch('/api/vehicles/maintenance')
+      fetch(`/api/vehicles/maintenance${vehicle?.id ? `?vehicle_id=${vehicle.id}` : ''}`)
         .then(res => res.json())
         .then(json => {
-          if (json.success) setHistory(json.data || []);
+          if (json.success) {
+            const raw = json.data || [];
+            const filtered = vehicle?.id ? raw.filter((item: any) => item.vehicle_id === vehicle.id) : raw;
+            setHistory(filtered);
+          }
           setLoading(false);
         })
         .catch(() => setLoading(false));

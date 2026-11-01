@@ -82,20 +82,40 @@ export default function AnalyticsPage() {
         </button>
       </div>
 
-      {/* İki Sütunlu Executive Dashboard Izgarası */}
-      <div className="analytics-executive-grid">
-        <div>
-          {data?.holisticScore && <HolisticScoreCard scoreData={data.holisticScore} />}
+      {/* İki Sütunlu Executive Dashboard Izgarası veya Boş Durum Kartı */}
+      {!data || (!data.holisticScore && !data.fireMetrics) ? (
+        <div className="card" style={{ textAlign: 'center', padding: '48px 24px', margin: '20px 0' }}>
+          <div style={{ fontSize: '42px', marginBottom: '12px' }}>📊</div>
+          <h2 style={{ fontSize: '17px', fontWeight: 800, margin: '0 0 8px 0', color: 'var(--text-main)' }}>
+            Analitik Verileri Henüz Hazır Değil
+          </h2>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '420px', margin: '0 auto 20px', lineHeight: 1.5 }}>
+            Bütünsel Yaşam Skoru ve FIRE projeksiyonunuzun hesaplanabilmesi için finans, sağlık, wellness veya kütüphane modüllerine ilk kayıtlarınızı ekleyin.
+          </p>
+          <button
+            onClick={fetchData}
+            className="btn-primary"
+            style={{ padding: '10px 20px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '8px', margin: '0 auto' }}
+          >
+            <span>🔄</span>
+            <span>Tekrar Dene</span>
+          </button>
         </div>
-        <div>
-          {data?.fireMetrics && (
-            <FireAnalyticsCard
-              fireMetrics={data.fireMetrics}
-              inflationMetrics={data.inflationMetrics}
-            />
-          )}
+      ) : (
+        <div className="analytics-executive-grid">
+          <div>
+            {data?.holisticScore && <HolisticScoreCard scoreData={data.holisticScore} />}
+          </div>
+          <div>
+            {data?.fireMetrics && (
+              <FireAnalyticsCard
+                fireMetrics={data.fireMetrics}
+                inflationMetrics={data.inflationMetrics}
+              />
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </SharedLayout>
   );
 }

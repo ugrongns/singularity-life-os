@@ -4,7 +4,12 @@ import React, { useState } from 'react';
 import { Sparkles, ChevronRight, Search, ShieldCheck, Microscope } from 'lucide-react';
 import NutrientProfileModal from '@/components/modals/NutrientProfileModal';
 
-export default function NutrientProfileCard() {
+interface NutrientProfileCardProps {
+  onSuccess?: (msg?: string) => void;
+  onRefresh?: () => void;
+}
+
+export default function NutrientProfileCard({ onSuccess, onRefresh }: NutrientProfileCardProps = {}) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedFood, setSelectedFood] = useState('Ceviz');
 
@@ -156,6 +161,13 @@ export default function NutrientProfileCard() {
         onClose={() => setIsModalOpen(false)}
         initialFoodName={selectedFood}
         initialGrams={100}
+        onSuccess={(msg) => {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('singularity-refresh'));
+          }
+          if (onSuccess) onSuccess(msg);
+          if (onRefresh) onRefresh();
+        }}
       />
     </>
   );

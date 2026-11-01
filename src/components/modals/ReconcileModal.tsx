@@ -209,7 +209,7 @@ export default function ReconcileModal({ isOpen, account, onClose, onSuccess }: 
             </button>
             <button
               type="button"
-              onClick={() => setRealBalance(String(Math.max(0, Math.round((targetNum - 100) * 100) / 100)))}
+              onClick={() => setRealBalance(String(Math.round((targetNum - 100) * 100) / 100))}
               style={{
                 fontSize: '11px', padding: '4px 8px', borderRadius: '6px',
                 border: '1px solid var(--border)', background: 'var(--surface-subtle)',

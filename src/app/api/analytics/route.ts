@@ -20,6 +20,10 @@ import {
 } from '@/db/schema';
 import { eq, and, or, desc, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import {
+  calculateNormalizedMonthlyExpense,
+  calculateFireProgress
+} from '@/lib/module4-utils';
 
 export async function GET() {
   try {
@@ -306,7 +310,12 @@ export async function GET() {
     // ==========================================
     // 5. 🎯 FIRE (FİNANSAL ÖZGÜRLÜK) ANALİTİĞİ
     // ==========================================
-    const monthlyLivingExpenseEst = totalSpentThisMonth > 0 ? totalSpentThisMonth : (totalBudgetLimit > 0 ? totalBudgetLimit : 0);
+    const currentDayOfMonth = Math.max(1, new Date().getDate());
+    const monthlyLivingExpenseEst = calculateNormalizedMonthlyExpense(
+      totalSpentThisMonth,
+      currentDayOfMonth,
+      totalBudgetLimit
+    );
     const passiveCoveragePercent = monthlyLivingExpenseEst > 0 ? Math.min(100, Math.round((totalMonthlyPassiveIncome / monthlyLivingExpenseEst) * 100)) : 0;
 
     // FIRE Numarası (%4 Kuralı = Yıllık Gider x 25)
@@ -315,7 +324,7 @@ export async function GET() {
 
     // Toplam Net Değer
     const totalNetWorth = liquidBalance - ccDebt;
-    const fireProgressPercent = fireTargetNumber > 0 ? Math.min(100, Math.round((totalNetWorth / fireTargetNumber) * 100)) : 0;
+    const fireProgressPercent = calculateFireProgress(totalNetWorth, fireTargetNumber);
 
     // Gerçekçi Aylık Tasarruf Tahmini: Bu ayki gelir - gider (veya kullanıcı profili geliri)
     const effectiveMonthlyIncome = thisMonthIncome > 0
@@ -327,7 +336,7 @@ export async function GET() {
       : 0;
     const remainingToFire = Math.max(0, fireTargetNumber - totalNetWorth);
     const totalAnnualSavings = (monthlySavingsEst * 12) + (totalMonthlyPassiveIncome * 12);
-    const yearsToFire = (totalNetWorth > 0 && totalAnnualSavings > 0 && remainingToFire > 0)
+    const yearsToFire = (totalNetWorth >= 0 && totalAnnualSavings > 0 && remainingToFire > 0)
       ? Math.max(0.1, Math.round((remainingToFire / totalAnnualSavings) * 10) / 10)
       : 0;
 
@@ -336,14 +345,15 @@ export async function GET() {
     const regularFireTarget = fireTargetNumber;
     const fatFireTarget = Math.round(fireTargetNumber * 1.5);
 
-    const leanFireProgress = leanFireTarget > 0 ? Math.min(100, Math.round((totalNetWorth / leanFireTarget) * 100)) : 0;
+    const leanFireProgress = calculateFireProgress(totalNetWorth, leanFireTarget);
     const regularFireProgress = fireProgressPercent;
-    const fatFireProgress = fatFireTarget > 0 ? Math.min(100, Math.round((totalNetWorth / fatFireTarget) * 100)) : 0;
+    const fatFireProgress = calculateFireProgress(totalNetWorth, fatFireTarget);
 
     // ==========================================
     // 6. 📈 KİŞİSEL ENFLASYON ENDEKSİ (Geçen aya göre harcama sepeti değişimi)
     // ==========================================
     const prevMonthDate = new Date(today);
+    prevMonthDate.setDate(1);
     prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
     const prevMonthStr = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
     const prevMonthExpense = txsList
@@ -356,7 +366,7 @@ export async function GET() {
       personalInflationRate = Math.round(diffPercent * 10) / 10;
     }
     const officialTuikRate = 48.6; // Güncel TÜİK yıllık TÜFE referansı
-    const savingVsOfficialTuikPercent = personalInflationRate > 0 ? Math.round((officialTuikRate - personalInflationRate) * 10) / 10 : 0;
+    const savingVsOfficialTuikPercent = prevMonthExpense > 0 ? Math.round((officialTuikRate - personalInflationRate) * 10) / 10 : 0;
 
     return NextResponse.json({
       success: true,
@@ -370,6 +380,7 @@ export async function GET() {
             wellness: { score: wellnessScore, max: 25, label: 'Uyku & Wellness' },
             mind: { score: mindScore, max: 25, label: 'Zihin & İkinci Beyin' }
           },
+          topActions,
           recommendation: (() => {
             if (totalLifeScore === 0) return '💡 Singularity OS\'e hoş geldiniz! İlk harcamanızı, su tüketiminizi veya okuduğunuz bir kitabı kaydederek yaşam skorunuzu oluşturmaya başlayın.';
             if (totalLifeScore >= 95) return '🌟 Mükemmel ritim! Tüm sistemleriniz hedef doğrultusunda kusursuz çalışıyor.';
@@ -388,12 +399,21 @@ export async function GET() {
         fireMetrics: {
           monthlyPassiveIncome: totalMonthlyPassiveIncome,
           monthlyLivingExpense: monthlyLivingExpenseEst,
+          annualExpense,
           passiveCoveragePercent,
           fireTargetNumber,
           totalNetWorth,
           fireProgressPercent,
+          savingsRatePercent,
+          monthlySavingsEst,
+          effectiveMonthlyIncome,
           yearsToFire,
-          isHalfway: fireProgressPercent >= 50
+          isHalfway: fireProgressPercent >= 50,
+          milestones: {
+            lean: { target: leanFireTarget, progress: leanFireProgress, label: 'Lean FIRE' },
+            regular: { target: regularFireTarget, progress: regularFireProgress, label: 'Regular FIRE' },
+            fat: { target: fatFireTarget, progress: fatFireProgress, label: 'Fat FIRE' }
+          }
         },
         inflationMetrics: {
           personalInflationRate,

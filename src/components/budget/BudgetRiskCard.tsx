@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { calculateDaysOverdue } from '@/lib/financial-utils';
 
 interface Account {
   id: string;
@@ -27,7 +28,7 @@ interface BudgetRiskCardProps {
   accounts: Account[];
   onUpdate?: () => void;
   onOpenCardStatement?: (accId: string) => void;
-  onOpenTransfer?: () => void;
+  onOpenTransfer?: (cardId?: string) => void;
 }
 
 export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({
@@ -47,7 +48,7 @@ export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({
     return false;
   }).map(acc => {
     const overdueAmount = acc.overdue_amount ?? acc.balance;
-    const daysOverdue = acc.days_overdue ?? Math.max(1, currentDay - (acc.due_day || 1));
+    const daysOverdue = acc.days_overdue ?? calculateDaysOverdue(acc.due_day || 1, today);
     const lateRatePercent = acc.interest_rate_late || 4.55;
     const dailyRate = (lateRatePercent / 100) / 30;
     const estimatedInterest = acc.estimated_late_interest ?? Math.round(overdueAmount * dailyRate * daysOverdue);
@@ -67,19 +68,24 @@ export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({
     if (acc.is_overdue) return false;
     if (!acc.due_day) return false;
     
-    // Son ödeme gününe kaç gün var hesabı
-    let daysDiff = acc.due_day - currentDay;
+    const daysInCurrentMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const effectiveDueDay = Math.min(acc.due_day, daysInCurrentMonth);
+    let daysDiff = effectiveDueDay - currentDay;
     if (daysDiff < 0) {
       // Gelecek ayın son ödeme günü
-      const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-      daysDiff = (daysInMonth - currentDay) + acc.due_day;
+      const daysInNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0).getDate();
+      const nextDueDay = Math.min(acc.due_day, daysInNextMonth);
+      daysDiff = (daysInCurrentMonth - currentDay) + nextDueDay;
     }
     return daysDiff >= 0 && daysDiff <= 15;
   }).map(acc => {
-    let daysDiff = (acc.due_day || currentDay) - currentDay;
+    const daysInCurrentMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const effectiveDueDay = Math.min(acc.due_day || currentDay, daysInCurrentMonth);
+    let daysDiff = effectiveDueDay - currentDay;
     if (daysDiff < 0) {
-      const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-      daysDiff = (daysInMonth - currentDay) + (acc.due_day || 0);
+      const daysInNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0).getDate();
+      const nextDueDay = Math.min(acc.due_day || 0, daysInNextMonth);
+      daysDiff = (daysInCurrentMonth - currentDay) + nextDueDay;
     }
     return {
       ...acc,
@@ -201,7 +207,7 @@ export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({
 
                 {onOpenTransfer && (
                   <button
-                    onClick={onOpenTransfer}
+                    onClick={() => onOpenTransfer(card.id)}
                     title="Borcu Hemen Öde"
                     style={{
                       background: '#DC2626',
@@ -307,7 +313,7 @@ export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({
 
                     {onOpenTransfer && (
                       <button
-                        onClick={onOpenTransfer}
+                        onClick={() => onOpenTransfer(card.id)}
                         title="Kart Borcunu Öde"
                         style={{
                           background: isUrgent ? '#D97706' : 'var(--blue)',
@@ -384,7 +390,7 @@ export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({
 
                 {onOpenTransfer && (
                   <button
-                    onClick={onOpenTransfer}
+                    onClick={() => onOpenTransfer(kmh.id)}
                     title="KMH Hesabına Para Aktar"
                     style={{
                       background: '#2563EB',

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CreditCard, X, ShoppingCart, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface Wallet {
@@ -32,6 +32,12 @@ export default function CheckoutToWalletModal({
 }: CheckoutToWalletModalProps) {
   const [selectedWalletId, setSelectedWalletId] = useState(wallets[0]?.id || '');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (wallets.length > 0 && !selectedWalletId) {
+      setSelectedWalletId(wallets[0].id);
+    }
+  }, [wallets, selectedWalletId]);
 
   if (!isOpen) return null;
 

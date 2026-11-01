@@ -20,6 +20,8 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanIntervalRef = useRef<any>(null);
+  const timeoutRef = useRef<any>(null);
+  const [isDeciding, setIsDeciding] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -31,6 +33,10 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
   }, [isOpen]);
 
   const stopLiveCamera = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
     if (scanIntervalRef.current) {
       clearInterval(scanIntervalRef.current);
       scanIntervalRef.current = null;
@@ -54,7 +60,7 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
       });
       streamRef.current = stream;
 
-      setTimeout(() => {
+      timeoutRef.current = setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.play();
@@ -73,7 +79,6 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
                     const code = barcodes[0].rawValue;
                     if (code) {
                       stopLiveCamera();
-                      // Bip Sesi Çal
                       try {
                         const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
                         const osc = ctx.createOscillator();
@@ -83,13 +88,16 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
                         osc.start();
                         osc.stop(ctx.currentTime + 0.15);
                       } catch (e) {}
-
                       handleManualScan(code);
                     }
                   }
                 } catch (e) {}
               }
             }, 250);
+          } else {
+            alert('Tarayıcınız canlı kamera ile barkod tanımayı (BarcodeDetector) desteklemiyor. Lütfen fotoğraf yükleme veya manuel barkod girişini kullanın.');
+            stopLiveCamera();
+            setStep('upload');
           }
         }
       }, 300);
@@ -194,6 +202,9 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
   };
 
   const handleDecision = async (decision: 'consumed' | 'rejected') => {
+    if (isDeciding) return;
+    setIsDeciding(true);
+    try {
     if (decision === 'consumed') {
       try {
         await fetch('/api/health/nutrition', {
@@ -220,9 +231,13 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
       onSuccess(`🏆 Harika karar! "${result?.product_name}" tüketmekten vazgeçtiniz ve kaydı tamamen silindi.`);
     }
 
+    window.dispatchEvent(new CustomEvent('singularity-refresh'));
     onClose();
     setResult(null);
     setStep('upload');
+    } finally {
+      setIsDeciding(false);
+    }
   };
 
   return (
@@ -420,6 +435,7 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px', marginTop: '4px' }}>
               <button
                 className="btn-primary"
+                disabled={isDeciding}
                 onClick={() => handleDecision('consumed')}
                 style={{ padding: '10px', fontSize: '12px', fontWeight: 800 }}
               >
@@ -427,6 +443,7 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
               </button>
               <button
                 className="btn-secondary"
+                disabled={isDeciding}
                 onClick={() => handleDecision('rejected')}
                 style={{ padding: '10px', fontSize: '12px', color: 'var(--rose)', fontWeight: 800 }}
               >

@@ -41,6 +41,9 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
     try {
       await fetch(`/api/health/scan-food?id=${id}`, { method: 'DELETE' });
       if (onRefresh) onRefresh();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      }
     } catch (err) {
       console.error('Delete scan item error:', err);
     }
@@ -51,6 +54,9 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
     try {
       await fetch('/api/health/scan-food?clear_junk=true', { method: 'DELETE' });
       if (onRefresh) onRefresh();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      }
     } catch (err) {
       console.error('Clear junk error:', err);
     }
@@ -269,6 +275,12 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
         initialFoodName={selectedNutrientFood}
         initialGrams={100}
         initialProfile={selectedNutrientProfile}
+        onSuccess={() => {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('singularity-refresh'));
+          }
+          if (onRefresh) onRefresh();
+        }}
       />
     </div>
   );

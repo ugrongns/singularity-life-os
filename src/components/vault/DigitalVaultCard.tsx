@@ -104,6 +104,7 @@ export default function DigitalVaultCard({
 
   // Lightbox State
   const [activeLightboxItem, setActiveLightboxItem] = useState<VaultItem | null>(null);
+  const [lightboxImageError, setLightboxImageError] = useState(false);
   const [zoomScale, setZoomScale] = useState<number>(1);
   const touchStartDistRef = useRef<number | null>(null);
 
@@ -172,20 +173,38 @@ export default function DigitalVaultCard({
   };
 
   // İndirme Yardımcısı
-  const handleDownload = (item: VaultItem) => {
+  const handleDownload = async (item: VaultItem) => {
     if (!item.document_image_url) return;
     const isPdf = item.document_image_url.startsWith('data:application/pdf') || item.document_image_url.endsWith('.pdf');
     const isPng = item.document_image_url.startsWith('data:image/png');
     const ext = isPdf ? 'pdf' : isPng ? 'png' : 'jpg';
     const cleanTitle = (item.title || 'kasa-belge').toLowerCase().replace(/[^a-z0-9]/gi, '-');
+    const filename = `${cleanTitle}.${ext}`;
 
-    const link = document.createElement('a');
-    link.href = item.document_image_url;
-    link.download = `${cleanTitle}.${ext}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    if (onToast) onToast('Belge indirilmeye başlandı.');
+    try {
+      if (item.document_image_url.startsWith('http')) {
+        const response = await fetch(item.document_image_url);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
+      } else {
+        const link = document.createElement('a');
+        link.href = item.document_image_url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+      if (onToast) onToast('Belge indirilmeye başlandı.');
+    } catch {
+      window.open(item.document_image_url, '_blank');
+    }
   };
 
   // Silme Fonksiyonu
@@ -963,9 +982,7 @@ export default function DigitalVaultCard({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              overflow: 'hidden',
-              position: 'relative',
-              padding: '16px 0'
+              overflow: zoomScale > 1 ? 'auto' : 'hidden', position: 'relative', padding: '16px 0'
             }}
           >
             {activeLightboxItem.document_image_url.startsWith('data:application/pdf') || activeLightboxItem.document_image_url.endsWith('.pdf') ? (
@@ -974,23 +991,32 @@ export default function DigitalVaultCard({
                 title="PDF Belge Önizleme"
                 style={{ width: '92vw', maxWidth: '840px', height: '70vh', border: 'none', borderRadius: '12px' }}
               />
-            ) : (
-              <img
-                src={activeLightboxItem.document_image_url}
-                alt={activeLightboxItem.title}
-                style={{
-                  maxWidth: '90vw',
-                  maxHeight: '75vh',
-                  objectFit: 'contain',
-                  borderRadius: '8px',
-                  transform: `scale(${zoomScale})`,
-                  transition: touchStartDistRef.current ? 'none' : 'transform 0.15s ease-out',
-                  userSelect: 'none',
-                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)'
-                }}
-                draggable={false}
-              />
-            )}
+            ) : lightboxImageError ? (
+                <div style={{ textAlign: 'center', color: '#FFFFFF', padding: '32px' }}>
+                  <div style={{ fontSize: '40px', marginBottom: '8px' }}>⚠️</div>
+                  <div style={{ fontSize: '15px', fontWeight: 700 }}>Belge görseli yüklenemedi</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>
+                    Bağlantı süresi dolmuş veya dosya erişilemez olabilir.
+                  </div>
+                </div>
+              ) : (
+                <img
+                  src={activeLightboxItem.document_image_url}
+                  alt={activeLightboxItem.title}
+                  onError={() => setLightboxImageError(true)}
+                  style={{
+                    maxWidth: '90vw',
+                    maxHeight: '75vh',
+                    objectFit: 'contain',
+                    borderRadius: '8px',
+                    transform: `scale(${zoomScale})`,
+                    transition: touchStartDistRef.current ? 'none' : 'transform 0.15s ease-out',
+                    userSelect: 'none',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)'
+                  }}
+                  draggable={false}
+                />
+              )}
           </div>
 
           {/* Alt Aksiyon Dokı (İndirme & Paylaşma) */}

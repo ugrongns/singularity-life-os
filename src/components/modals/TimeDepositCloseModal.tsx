@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { formatFinancialCurrency } from '@/lib/financial-utils';
 
 interface Account {
   id: string;
@@ -86,7 +87,7 @@ export default function TimeDepositCloseModal({
           setLoading(false);
         });
     }
-  }, [isOpen, accountId, accounts]);
+  }, [isOpen, accountId]);
 
   if (!isOpen) return null;
 
@@ -127,7 +128,7 @@ export default function TimeDepositCloseModal({
   };
 
   const formatCurrency = (val: number, cur: string = 'TRY') => {
-    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(val || 0);
+    return formatFinancialCurrency(val, cur, 0);
   };
 
   return (

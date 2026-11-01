@@ -11,6 +11,7 @@ interface SmartScaleScanModalProps {
 export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleScanModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDuplicate, setIsDuplicate] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState<string | null>(null);
@@ -77,13 +78,16 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
     setIsScanning(true);
     try {
       const compressedBase64 = await compressImage(file);
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
       const res = await fetch('/api/wellness/scan-scale', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           image_base64: compressedBase64,
           mime_type: 'image/jpeg'
-        })
+        }),
+        signal: controller.signal
       });
 
       const json = await res.json();
