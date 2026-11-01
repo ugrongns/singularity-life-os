@@ -172,21 +172,6 @@ export default function SecuritySettingsCard() {
     }
   };
 
-  const handleLogout = async () => {
-    if (confirm('Oturumunuz kapatılacak ve ana tanıtım sayfasına yönlendirileceksiniz. Onaylıyor musunuz?')) {
-      try {
-        await fetch('/api/auth/logout', { method: 'POST' });
-        window.location.href = '/';
-      } catch (err) {
-        window.location.href = '/';
-      }
-    }
-  };
-
-  const handleLock = async () => {
-    window.location.href = '/';
-  };
-
   const handleResetData = async () => {
     const isAdmin = currentUser?.role === 'admin';
     let scope = 'personal';
@@ -281,6 +266,19 @@ export default function SecuritySettingsCard() {
     }
   };
 
+  const handleLock = () => {
+    window.dispatchEvent(new CustomEvent('singularity-lock-screen'));
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {
+      console.error(e);
+    }
+    window.location.href = '/';
+  };
+
   if (loading) {
     return <div className="card" style={{ padding: '20px', textAlign: 'center' }}>Güvenlik ayarları yükleniyor...</div>;
   }
@@ -332,6 +330,7 @@ export default function SecuritySettingsCard() {
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', width: '100%' }}>
             <button
               type="button"
+              disabled={saving}
               onClick={handleLoadSampleData}
               title="Hesabınıza görünüm amaçlı örnek veriler ekler"
               style={{
@@ -344,6 +343,7 @@ export default function SecuritySettingsCard() {
             </button>
             <button
               type="button"
+              disabled={saving}
               onClick={handleResetData}
               title="Hesabınızdaki tüm cüzdan, harcama ve kişisel verileri sıfırlar"
               style={{
@@ -356,6 +356,7 @@ export default function SecuritySettingsCard() {
             </button>
             <button
               type="button"
+              disabled={saving}
               onClick={handleLock}
               className="btn-subtle"
               style={{ flex: '1 1 auto', padding: '8px 12px', fontSize: '11px', fontWeight: 700, border: '1px solid var(--border)', textAlign: 'center' }}
@@ -364,6 +365,7 @@ export default function SecuritySettingsCard() {
             </button>
             <button
               type="button"
+              disabled={saving}
               onClick={handleLogout}
               style={{
                 flex: '1 1 auto', padding: '8px 12px', fontSize: '11px', fontWeight: 800,
@@ -375,6 +377,7 @@ export default function SecuritySettingsCard() {
             </button>
             <button
               type="button"
+              disabled={saving || deletingAccount}
               onClick={() => { setDeletePassword(''); setShowDeleteModal(true); }}
               title="Hesabınızı ve tüm verilerinizi kalıcı olarak siler"
               style={{

@@ -24,6 +24,7 @@ export default function QuickIngestHub({
   const [justActioned, setJustActioned] = useState<string | null>(null);
 
   const triggerFeedback = (actionName: string, cb: () => void) => {
+    if (justActioned) return;
     setJustActioned(actionName);
     cb();
     setTimeout(() => {
@@ -211,6 +212,7 @@ export default function QuickIngestHub({
       >
         <button
           type="button"
+          disabled={!!justActioned}
           onClick={() => triggerFeedback('water', onQuickAddWater)}
           className="touch-target"
           style={{
@@ -225,8 +227,9 @@ export default function QuickIngestHub({
             color: justActioned === 'water' ? '#FFFFFF' : 'var(--blue)',
             fontSize: '11px',
             fontWeight: 700,
-            cursor: 'pointer',
-            transition: 'all 0.15s ease'
+            cursor: justActioned ? 'default' : 'pointer',
+            transition: 'all 0.15s ease',
+            opacity: justActioned && justActioned !== 'water' ? 0.6 : 1
           }}
         >
           {justActioned === 'water' ? <Check size={14} /> : <Droplets size={14} />}
@@ -235,6 +238,7 @@ export default function QuickIngestHub({
 
         <button
           type="button"
+          disabled={!!justActioned}
           onClick={() => triggerFeedback('supp', onQuickTakeSupplements)}
           className="touch-target"
           style={{
@@ -249,8 +253,9 @@ export default function QuickIngestHub({
             color: justActioned === 'supp' ? '#FFFFFF' : 'var(--emerald)',
             fontSize: '11px',
             fontWeight: 700,
-            cursor: 'pointer',
-            transition: 'all 0.15s ease'
+            cursor: justActioned ? 'default' : 'pointer',
+            transition: 'all 0.15s ease',
+            opacity: justActioned && justActioned !== 'supp' ? 0.6 : 1
           }}
         >
           {justActioned === 'supp' ? <Check size={14} /> : <Pill size={14} />}

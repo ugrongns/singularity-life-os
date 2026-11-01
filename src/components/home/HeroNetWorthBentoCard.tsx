@@ -44,6 +44,9 @@ export default function HeroNetWorthBentoCard({
 
   const rawTRY = netWorthData?.TRY ?? 0;
   const cashAssetsTRY = netWorthData?.breakdown?.cashAndBanks ?? 0;
+  const investmentsTRY = netWorthData?.breakdown?.investmentsAndBES ?? 0;
+  const realEstateTRY = netWorthData?.breakdown?.realEstate ?? 0;
+  const totalAssetsTRY = cashAssetsTRY + investmentsTRY + realEstateTRY;
   const debtsTRY = netWorthData?.breakdown?.debts ?? 0;
 
   // Kur çevrimleri
@@ -77,8 +80,8 @@ export default function HeroNetWorthBentoCard({
   }
 
   // Varlık / Borç Oranı
-  const totalVolume = cashAssetsTRY + debtsTRY;
-  const assetRatio = totalVolume > 0 ? Math.round((cashAssetsTRY / totalVolume) * 100) : 0;
+  const totalVolume = totalAssetsTRY + debtsTRY;
+  const assetRatio = totalVolume > 0 ? Math.round((totalAssetsTRY / totalVolume) * 100) : 0;
   const debtRatio = totalVolume > 0 ? 100 - assetRatio : 0;
 
   // KPI Hesaplamaları
@@ -211,7 +214,7 @@ export default function HeroNetWorthBentoCard({
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700, marginBottom: '6px' }}>
             <span style={{ color: 'var(--emerald)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--emerald)', display: 'inline-block' }} />
-              Varlık: {cashAssetsTRY.toLocaleString('tr-TR')} ₺ (%{assetRatio})
+              Varlık: {totalAssetsTRY.toLocaleString('tr-TR')} ₺ (%{assetRatio})
             </span>
             <span style={{ color: 'var(--rose)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--rose)', display: 'inline-block' }} />

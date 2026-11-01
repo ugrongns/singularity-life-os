@@ -18,11 +18,13 @@ export async function POST(req: Request) {
       const rawIdentifier = email || username || body.identifier || '';
       const identifier = rawIdentifier.toString().toLowerCase().trim();
 
-      // Hem email hem username ile case-insensitive ara
+      // Hem email, hem username hem de UUID/id ile ara
       targetUser = await db.select().from(users)
         .where(or(
           sql`lower(${users.email}) = ${identifier}`,
-          sql`lower(${users.username}) = ${identifier}`
+          sql`lower(${users.username}) = ${identifier}`,
+          eq(users.id, rawIdentifier.toString().trim()),
+          sql`lower(${users.id}) = ${identifier}`
         ))
         .limit(1).then((r: any) => r[0]);
 

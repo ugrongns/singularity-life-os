@@ -44,8 +44,11 @@ export default function HomeOperationsCard({
   onToast
 }: Props) {
   const [activeTab, setActiveTab] = useState<'maintenance' | 'appliances'>('maintenance');
+  const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
 
   const handleResetFilter = async (id: string, intervalMonths: number) => {
+    if (loadingActionId) return;
+    setLoadingActionId(id);
     try {
       const res = await fetch('/api/home-operations', {
         method: 'POST',
@@ -60,11 +63,15 @@ export default function HomeOperationsCard({
       }
     } catch {
       if (onToast) onToast('❌ Bakım yenileme hatası.');
+    } finally {
+      setLoadingActionId(null);
     }
   };
 
   const handleDeleteAppliance = async (id: string) => {
+    if (loadingActionId) return;
     if (!confirm('Bu cihaz kaydını silmek istediğinize emin misiniz?')) return;
+    setLoadingActionId(id);
     try {
       const res = await fetch('/api/home-operations', {
         method: 'POST',
@@ -79,6 +86,8 @@ export default function HomeOperationsCard({
       }
     } catch {
       if (onToast) onToast('❌ Silme hatası.');
+    } finally {
+      setLoadingActionId(null);
     }
   };
 
@@ -251,6 +260,7 @@ export default function HomeOperationsCard({
 
                     <button
                       type="button"
+                      disabled={loadingActionId === rec.id}
                       onClick={() => handleResetFilter(rec.id, rec.interval_months)}
                       style={{
                         display: 'inline-flex',
@@ -263,11 +273,12 @@ export default function HomeOperationsCard({
                         background: isUrgent ? 'var(--rose)' : 'var(--surface)',
                         color: isUrgent ? '#FFFFFF' : 'var(--text-main)',
                         border: '1px solid var(--border)',
-                        cursor: 'pointer'
+                        cursor: loadingActionId === rec.id ? 'default' : 'pointer',
+                        opacity: loadingActionId === rec.id ? 0.6 : 1
                       }}
                     >
-                      <RefreshCw size={12} />
-                      <span>Bakım Yapıldı</span>
+                      <RefreshCw size={12} className={loadingActionId === rec.id ? 'animate-spin' : ''} />
+                      <span>{loadingActionId === rec.id ? 'İşleniyor...' : 'Bakım Yapıldı'}</span>
                     </button>
                   </div>
                 </div>
@@ -369,15 +380,17 @@ export default function HomeOperationsCard({
 
                   <button
                     type="button"
+                    disabled={loadingActionId === app.id}
                     onClick={() => handleDeleteAppliance(app.id)}
                     style={{
                       background: 'transparent',
                       border: 'none',
                       color: 'var(--text-muted)',
-                      cursor: 'pointer',
+                      cursor: loadingActionId === app.id ? 'default' : 'pointer',
                       padding: '4px',
                       display: 'flex',
-                      alignItems: 'center'
+                      alignItems: 'center',
+                      opacity: loadingActionId === app.id ? 0.4 : 1
                     }}
                     title="Cihazı Sil"
                   >

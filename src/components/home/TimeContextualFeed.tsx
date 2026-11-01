@@ -56,6 +56,16 @@ export default function TimeContextualFeed({
 }: TimeContextualFeedProps) {
   const [period, setPeriod] = useState<'morning' | 'day' | 'evening'>('morning');
   const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
+  const [executingId, setExecutingId] = useState<string | null>(null);
+
+  const handleActionClick = (id: string, cb?: () => void) => {
+    if (executingId || !cb) return;
+    setExecutingId(id);
+    cb();
+    setTimeout(() => {
+      setExecutingId(null);
+    }, 1200);
+  };
 
   useEffect(() => {
     const updateTime = () => {
@@ -379,17 +389,19 @@ export default function TimeContextualFeed({
                   {act.onClick ? (
                     <button
                       type="button"
-                      onClick={act.onClick}
+                      disabled={executingId === act.id}
+                      onClick={() => handleActionClick(act.id, act.onClick)}
                       className="btn-primary"
                       style={{
                         padding: '6px 12px',
                         fontSize: '11px',
                         fontWeight: 700,
                         borderRadius: 'var(--radius-full)',
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        opacity: executingId === act.id ? 0.6 : 1
                       }}
                     >
-                      {act.actionText}
+                      {executingId === act.id ? 'İşleniyor...' : act.actionText}
                     </button>
                   ) : act.href ? (
                     <Link

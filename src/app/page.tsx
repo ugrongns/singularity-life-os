@@ -12,10 +12,6 @@ import HomeBentoSkeleton from '@/components/home/HomeBentoSkeleton';
 
 // Modaller
 import ReadingSessionModal from '@/components/modals/ReadingSessionModal';
-import ReceiptScanModal from '@/components/modals/ReceiptScanModal';
-import PlateScanModal from '@/components/modals/PlateScanModal';
-import VoiceCommandModal from '@/components/modals/VoiceCommandModal';
-import BarcodeScanModal from '@/components/modals/BarcodeScanModal';
 import AddHomeItemModal from '@/components/modals/AddHomeItemModal';
 
 export default function HomePage() {
@@ -35,10 +31,6 @@ export default function HomePage() {
 
   // Modaller
   const [isSessionOpen, setIsSessionOpen] = useState(false);
-  const [isReceiptScanOpen, setIsReceiptScanOpen] = useState(false);
-  const [isFoodScanOpen, setIsFoodScanOpen] = useState(false);
-  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
-  const [isBarcodeOpen, setIsBarcodeOpen] = useState(false);
   const [isHomeModalOpen, setIsHomeModalOpen] = useState(false);
 
   const showToast = (msg: string) => {
@@ -134,12 +126,7 @@ export default function HomePage() {
     );
   }
 
-  // 2. Session Guard
-  if (!session || !session.is_authenticated || !session.is_initialized) {
-    return <LandingPage />;
-  }
-
-  // 3. Hata Durumu
+  // 2. Hata Durumu (Ağ/Bağlantı hatasında kullanıcıyı landing'e düşürmek yerine hata UI göster)
   if (fetchError && !budgetData) {
     return (
       <SharedLayout notifications={notifData}>
@@ -155,6 +142,11 @@ export default function HomePage() {
         </div>
       </SharedLayout>
     );
+  }
+
+  // 3. Session Guard
+  if (!session || !session.is_authenticated || !session.is_initialized) {
+    return <LandingPage />;
   }
 
   return (
@@ -180,10 +172,10 @@ export default function HomePage() {
         {/* Üst Satır Sağ (4 Sütun): Hızlı İşlem & Veri Giriş Hub'ı (2x2 Grid) */}
         <div className="col-span-4">
           <QuickIngestHub
-            onOpenReceiptScan={() => setIsReceiptScanOpen(true)}
-            onOpenFoodScan={() => setIsFoodScanOpen(true)}
-            onOpenVoiceCommand={() => setIsVoiceOpen(true)}
-            onOpenBarcodeScan={() => setIsBarcodeOpen(true)}
+            onOpenReceiptScan={() => window.dispatchEvent(new CustomEvent('singularity-open-modal', { detail: { modal: 'receipt' } }))}
+            onOpenFoodScan={() => window.dispatchEvent(new CustomEvent('singularity-open-modal', { detail: { modal: 'plate' } }))}
+            onOpenVoiceCommand={() => window.dispatchEvent(new CustomEvent('singularity-open-modal', { detail: { modal: 'voice' } }))}
+            onOpenBarcodeScan={() => window.dispatchEvent(new CustomEvent('singularity-open-modal', { detail: { modal: 'barcode' } }))}
             onOpenReadingSession={() => setIsSessionOpen(true)}
             onQuickAddWater={handleQuickAddWater}
             onQuickTakeSupplements={handleQuickTakeSupplements}
@@ -224,27 +216,6 @@ export default function HomePage() {
         onClose={() => setIsSessionOpen(false)}
         books={libraryData?.books || []}
         onSuccess={() => handleUpdate()}
-      />
-      <ReceiptScanModal
-        isOpen={isReceiptScanOpen}
-        onClose={() => setIsReceiptScanOpen(false)}
-        accounts={budgetData?.accounts || []}
-        onSuccess={() => { setIsReceiptScanOpen(false); handleUpdate(); }}
-      />
-      <PlateScanModal
-        isOpen={isFoodScanOpen}
-        onClose={() => setIsFoodScanOpen(false)}
-        onSuccess={() => { setIsFoodScanOpen(false); handleUpdate(); }}
-      />
-      <VoiceCommandModal
-        isOpen={isVoiceOpen}
-        onClose={() => setIsVoiceOpen(false)}
-        onSuccess={() => { setIsVoiceOpen(false); handleUpdate(); }}
-      />
-      <BarcodeScanModal
-        isOpen={isBarcodeOpen}
-        onClose={() => setIsBarcodeOpen(false)}
-        onSuccess={() => { setIsBarcodeOpen(false); handleUpdate(); }}
       />
       <AddHomeItemModal
         isOpen={isHomeModalOpen}

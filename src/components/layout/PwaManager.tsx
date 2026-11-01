@@ -79,7 +79,9 @@ export default function PwaManager() {
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0,
           background: '#EF4444', color: 'white',
-          padding: '6px 12px', fontSize: '11px', fontWeight: 700,
+          paddingTop: 'calc(6px + env(safe-area-inset-top, 0px))',
+          paddingBottom: '6px', paddingLeft: '12px', paddingRight: '12px',
+          fontSize: '11px', fontWeight: 700,
           textAlign: 'center', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
         }}>
@@ -91,7 +93,7 @@ export default function PwaManager() {
       {/* Yeniden Çevrimiçi Oldu Bildirimi */}
       {showOnlineToast && (
         <div style={{
-          position: 'fixed', top: '10px', left: '50%', transform: 'translateX(-50%)',
+          position: 'fixed', top: 'calc(10px + env(safe-area-inset-top, 0px))', left: '50%', transform: 'translateX(-50%)',
           background: '#10B981', color: 'white',
           padding: '8px 18px', borderRadius: 'var(--radius-full)', fontSize: '12px', fontWeight: 700,
           zIndex: 9999, display: 'flex', alignItems: 'center', gap: '6px',
@@ -105,10 +107,10 @@ export default function PwaManager() {
       {/* PWA Ana Ekrana Ekleme Promosyon Bannerı */}
       {showInstallBanner && (
         <div style={{
-          position: 'fixed', bottom: '74px', left: '16px', right: '16px', maxWidth: '480px', margin: '0 auto',
+          position: 'fixed', bottom: 'calc(88px + env(safe-area-inset-bottom, 0px))', left: '16px', right: '16px', maxWidth: '480px', margin: '0 auto',
           background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)', padding: '14px 16px',
-          boxShadow: '0 12px 36px rgba(0,0,0,0.18)', zIndex: 90,
+          borderRadius: 'var(--radius-lg)', padding: '14px 60px 14px 16px',
+          boxShadow: '0 12px 36px rgba(0,0,0,0.18)', zIndex: 160,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

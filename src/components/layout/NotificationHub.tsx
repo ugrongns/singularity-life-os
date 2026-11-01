@@ -22,9 +22,9 @@ interface Notification {
 }
 
 interface Props {
-  notifications: Notification[];
-  critical: number;
-  warning: number;
+  notifications?: Notification[];
+  critical?: number;
+  warning?: number;
 }
 
 const PRIORITY_THEMES = {
@@ -54,7 +54,7 @@ const PRIORITY_THEMES = {
   },
 };
 
-export default function NotificationHub({ notifications, critical, warning }: Props) {
+export default function NotificationHub({ notifications = [], critical = 0, warning = 0 }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const totalBadge = critical + warning;

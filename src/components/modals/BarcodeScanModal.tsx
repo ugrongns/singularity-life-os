@@ -25,6 +25,9 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
     if (!isOpen) {
       stopLiveCamera();
     }
+    return () => {
+      stopLiveCamera();
+    };
   }, [isOpen]);
 
   const stopLiveCamera = () => {

@@ -61,12 +61,14 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
     loading: boolean;
   }>(() => ({
     isInitialized: _clientSessionCache ? _clientSessionCache.isInitialized : true,
-    isAuthenticated: _clientSessionCache ? _clientSessionCache.isAuthenticated : true,
+    isAuthenticated: _clientSessionCache ? _clientSessionCache.isAuthenticated : false,
     user: _clientSessionCache ? _clientSessionCache.user : null,
     loading: !_clientSessionCache
   }));
 
-  const [isScreenLocked, setIsScreenLocked] = useState(false);
+  const [isScreenLocked, setIsScreenLocked] = useState(() => {
+    return typeof window !== 'undefined' && sessionStorage.getItem('singularity_locked') === 'true';
+  });
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   // Hızlı işlem modalları için hesap + kategori verisi (lazy yüklenir)
@@ -103,10 +105,20 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
         _clientSessionCache = nextState;
         setAuthSession({ ...nextState, loading: false });
       } else {
-        setAuthSession(prev => ({ ...prev, loading: false }));
+        setAuthSession({
+          isInitialized: true,
+          isAuthenticated: false,
+          user: null,
+          loading: false
+        });
       }
     } catch {
-      setAuthSession(prev => ({ ...prev, loading: false }));
+      setAuthSession({
+        isInitialized: true,
+        isAuthenticated: false,
+        user: null,
+        loading: false
+      });
     }
   };
 
@@ -117,6 +129,29 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
     const savedTheme = (localStorage.getItem('singularity_theme') as 'dark' | 'light') || 'dark';
     setTheme(savedTheme);
     document.documentElement.setAttribute('data-theme', savedTheme);
+
+    const onLockScreenEvent = () => {
+      setIsScreenLocked(true);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('singularity_locked', 'true');
+      }
+    };
+
+    const onOpenModalEvent = (e: any) => {
+      const modal = e.detail?.modal;
+      if (modal) {
+        loadQuickData();
+        setActiveModal(modal);
+      }
+    };
+
+    window.addEventListener('singularity-lock-screen', onLockScreenEvent);
+    window.addEventListener('singularity-open-modal', onOpenModalEvent);
+
+    return () => {
+      window.removeEventListener('singularity-lock-screen', onLockScreenEvent);
+      window.removeEventListener('singularity-open-modal', onOpenModalEvent);
+    };
   }, []);
 
   // Modaller veya Drawer açıkken arkadaki sayfanın kaymasını engelle
@@ -157,6 +192,9 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
 
   const handleLock = () => {
     setIsScreenLocked(true);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('singularity_locked', 'true');
+    }
     showToast('🔒 Ekran kilitlendi. Açmak için PIN kodunuzu girin.');
   };
 
@@ -181,8 +219,26 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
     return null;
   }
 
-  // Oturum açılmamışsa veya ilk kurulumsa Tanıtım, Giriş Yap & Kaydol Sayfası (LandingPage) gösterilir
-  if (!authSession.isAuthenticated || !authSession.isInitialized) {
+  // Sistem henüz initialize edilmemişse OnboardingModal gösterilir
+  if (!authSession.isInitialized) {
+    return (
+      <>
+        <LandingPage />
+        <OnboardingModal
+          isOpen={true}
+          onSuccess={(newUser) => {
+            const nextState = { isInitialized: true, isAuthenticated: true, user: newUser };
+            _clientSessionCache = nextState;
+            setAuthSession({ ...nextState, loading: false });
+            showToast(`🎉 Hoş geldiniz, ${newUser.full_name}!`);
+          }}
+        />
+      </>
+    );
+  }
+
+  // Oturum açılmamışsa Tanıtım, Giriş Yap & Kaydol Sayfası (LandingPage) gösterilir
+  if (!authSession.isAuthenticated) {
     return <LandingPage />;
   }
 
@@ -837,6 +893,9 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
         user={authSession.user}
         onSuccess={(user) => {
           setIsScreenLocked(false);
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('singularity_locked');
+          }
           if (user) {
             setAuthSession(prev => ({ ...prev, isAuthenticated: true, user }));
           }

@@ -59,9 +59,13 @@ export async function POST(req: Request) {
       const updateData: Record<string, any> = {
         updated_at: new Date().toISOString()
       };
-      if (body.bot_token !== undefined) updateData.telegram_bot_token = body.bot_token;
+      if (body.bot_token !== undefined && typeof body.bot_token === 'string' && body.bot_token.trim()) {
+        updateData.telegram_bot_token = body.bot_token.trim();
+      }
       if (body.chat_id !== undefined) updateData.telegram_chat_id = body.chat_id;
-      if (body.secret_token !== undefined) updateData.telegram_secret_token = body.secret_token;
+      if (body.secret_token !== undefined && typeof body.secret_token === 'string' && body.secret_token.trim()) {
+        updateData.telegram_secret_token = body.secret_token.trim();
+      }
       if (body.is_enabled !== undefined) updateData.telegram_enabled = body.is_enabled ? 1 : 0;
 
       await db.update(users).set(updateData).where(eq(users.id, user.id));

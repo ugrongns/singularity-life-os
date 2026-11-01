@@ -51,7 +51,25 @@ export default function VoiceCommandModal({ isOpen, onClose, onSuccess }: VoiceC
         recognitionRef.current = recog;
       }
     }
+    return () => {
+      try {
+        recognitionRef.current?.abort();
+      } catch (e) {
+        try { recognitionRef.current?.stop(); } catch (_) {}
+      }
+    };
   }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      try {
+        recognitionRef.current?.abort();
+      } catch (e) {
+        try { recognitionRef.current?.stop(); } catch (_) {}
+      }
+      setIsRecording(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export default function TelegramBotCard() {
   const [botToken, setBotToken] = useState('');
@@ -10,7 +10,10 @@ export default function TelegramBotCard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [detecting, setDetecting] = useState(false);
+  const [simulating, setSimulating] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const detectTimeoutRef = useRef<any>(null);
 
   // Simülatör State
   const [simInput, setSimInput] = useState('');
@@ -40,22 +43,27 @@ export default function TelegramBotCard() {
 
   useEffect(() => {
     fetchConfig();
+    return () => {
+      if (detectTimeoutRef.current) clearTimeout(detectTimeoutRef.current);
+    };
   }, []);
 
   const handleSave = async () => {
     setSaving(true);
     setStatusMsg(null);
     try {
+      const payload: Record<string, any> = {
+        action: 'save_config',
+        chat_id: chatId,
+        is_enabled: isEnabled
+      };
+      if (botToken.trim()) payload.bot_token = botToken.trim();
+      if (secretToken.trim()) payload.secret_token = secretToken.trim();
+
       const res = await fetch('/api/telegram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'save_config',
-          bot_token: botToken,
-          chat_id: chatId,
-          secret_token: secretToken,
-          is_enabled: isEnabled
-        })
+        body: JSON.stringify(payload)
       });
       const json = await res.json();
       if (json.success) {
@@ -75,14 +83,16 @@ export default function TelegramBotCard() {
     setTesting(true);
     setStatusMsg(null);
     try {
+      const payload: Record<string, any> = {
+        action: 'send_test_message',
+        chat_id: chatId
+      };
+      if (botToken.trim()) payload.bot_token = botToken.trim();
+
       const res = await fetch('/api/telegram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'send_test_message',
-          bot_token: botToken,
-          chat_id: chatId
-        })
+        body: JSON.stringify(payload)
       });
       const json = await res.json();
       if (json.success) {
@@ -98,12 +108,13 @@ export default function TelegramBotCard() {
   };
 
   const handleSimulateMessage = async () => {
-    if (!simInput.trim()) return;
+    if (!simInput.trim() || simulating) return;
     const userText = simInput.trim();
     const nowTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 
     setSimMessages(prev => [...prev, { sender: 'user', text: userText, time: nowTime }]);
     setSimInput('');
+    setSimulating(true);
 
     try {
       const res = await fetch('/api/telegram', {
@@ -124,6 +135,8 @@ export default function TelegramBotCard() {
       setSimMessages(prev => [...prev, { sender: 'bot', text: botReply, time: nowTime }]);
     } catch (err) {
       setSimMessages(prev => [...prev, { sender: 'bot', text: 'İşlem işlenirken hata oluştu.', time: nowTime }]);
+    } finally {
+      setSimulating(false);
     }
   };
 
@@ -157,27 +170,34 @@ export default function TelegramBotCard() {
             type="password"
             placeholder="Örn: 7123456789:AAFlkB_..."
             value={botToken}
-            onChange={async (e) => {
+            onChange={(e) => {
               const val = e.target.value;
               setBotToken(val);
+              if (detectTimeoutRef.current) clearTimeout(detectTimeoutRef.current);
               if (val.length > 20 && val.includes(':')) {
-                setStatusMsg({ text: '🔍 Bot taranıyor ve Chat ID aranıyor...', type: 'success' });
-                try {
-                  const res = await fetch('/api/telegram', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'autodetect_chat_id', bot_token: val, auto_save: false })
-                  });
-                  const json = await res.json();
-                  if (json.success && json.data) {
-                    if (json.data.detected_chat_id) {
-                      setChatId(json.data.detected_chat_id);
-                      setStatusMsg({ text: `✅ @${json.data.bot_username} botu ve Chat ID (${json.data.detected_chat_id}) otomatik bağlandı!`, type: 'success' });
-                    } else {
-                      setStatusMsg({ text: `🤖 Bot @${json.data.bot_username} bulundu! Telegram'da bota bir kez "Başlat" deyin.`, type: 'success' });
+                detectTimeoutRef.current = setTimeout(async () => {
+                  setDetecting(true);
+                  setStatusMsg({ text: '🔍 Bot taranıyor ve Chat ID aranıyor...', type: 'success' });
+                  try {
+                    const res = await fetch('/api/telegram', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: 'autodetect_chat_id', bot_token: val.trim(), auto_save: false })
+                    });
+                    const json = await res.json();
+                    if (json.success && json.data) {
+                      if (json.data.detected_chat_id) {
+                        setChatId(json.data.detected_chat_id);
+                        setStatusMsg({ text: `✅ @${json.data.bot_username} botu ve Chat ID (${json.data.detected_chat_id}) otomatik bağlandı!`, type: 'success' });
+                      } else {
+                        setStatusMsg({ text: `🤖 Bot @${json.data.bot_username} bulundu! Telegram'da bota bir kez "Başlat" deyin.`, type: 'success' });
+                      }
                     }
+                  } catch (err) {}
+                  finally {
+                    setDetecting(false);
                   }
-                } catch (err) {}
+                }, 600);
               }
             }}
             style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
@@ -209,7 +229,7 @@ export default function TelegramBotCard() {
         <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || detecting || loading}
             className="btn-primary"
             style={{ flex: 1, padding: '10px', fontSize: '13px', fontWeight: 700 }}
           >
@@ -217,7 +237,7 @@ export default function TelegramBotCard() {
           </button>
           <button
             onClick={handleTestNotification}
-            disabled={testing}
+            disabled={testing || saving || detecting || loading}
             className="btn-subtle"
             style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 600, border: '1px solid var(--border)' }}
           >
@@ -280,10 +300,11 @@ export default function TelegramBotCard() {
           />
           <button
             onClick={handleSimulateMessage}
+            disabled={simulating || !simInput.trim()}
             className="btn-primary"
             style={{ padding: '8px 14px', fontSize: '12px', fontWeight: 700 }}
           >
-            Gönder ➔
+            {simulating ? '...' : 'Gönder ➔'}
           </button>
         </div>
       </div>

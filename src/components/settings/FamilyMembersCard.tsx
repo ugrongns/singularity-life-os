@@ -143,9 +143,13 @@ export default function FamilyMembersCard() {
     }
   };
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const handleDelete = async (id: string, memberName: string) => {
+    if (deletingId) return;
     if (!confirm(`${memberName} isimli aile bireyini silmek/deaktif etmek istediğinizden emin misiniz?`)) return;
 
+    setDeletingId(id);
     try {
       const res = await fetch(`/api/family-members?id=${id}`, { method: 'DELETE' });
       const json = await res.json();
@@ -156,6 +160,8 @@ export default function FamilyMembersCard() {
       }
     } catch (err) {
       alert('Silme işlemi başarısız.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -291,8 +297,9 @@ export default function FamilyMembersCard() {
                   </button>
                   {m.role !== 'admin' && !m.is_current_user && (
                     <button
+                      disabled={deletingId === m.id}
                       onClick={() => handleDelete(m.id, m.name)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '4px', color: 'var(--rose)' }}
+                      style={{ background: 'none', border: 'none', cursor: deletingId === m.id ? 'default' : 'pointer', fontSize: '14px', padding: '4px', color: 'var(--rose)', opacity: deletingId === m.id ? 0.4 : 1 }}
                       title="Sil"
                     >
                       🗑️

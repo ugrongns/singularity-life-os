@@ -66,13 +66,18 @@ export default function BackupStatusCard({ last_backup, backup_count, backups, d
 
   // 2. AES-256 Şifreli Yedek Al & İndir
   const handleEncryptedBackup = async () => {
+    const cleanPass = passphrase.trim();
+    if (!cleanPass || cleanPass.length < 8) {
+      setLastResult('❌ Şifreli yedek oluşturmak için en az 8 karakter uzunluğunda bir parola belirlemelisiniz.');
+      return;
+    }
     setEncrypting(true);
     setLastResult(null);
     try {
       const res = await fetch('/api/backup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'encrypted_backup', passphrase: passphrase || 'SingularityMasterKey2026' })
+        body: JSON.stringify({ action: 'encrypted_backup', passphrase: cleanPass })
       });
       const data = await res.json();
       setEncrypting(false);
@@ -240,7 +245,7 @@ export default function BackupStatusCard({ last_backup, backup_count, backups, d
           </div>
           <input
             type="password"
-            placeholder="Yedekleme Parolası (Opsiyonel)"
+            placeholder="Yedekleme Parolası (En az 8 karakter, Zorunlu)"
             value={passphrase}
             onChange={e => setPassphrase(e.target.value)}
             style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '6px', marginBottom: '8px', background: 'var(--surface)', color: 'var(--text-main)' }}
@@ -250,8 +255,13 @@ export default function BackupStatusCard({ last_backup, backup_count, backups, d
               İptal
             </button>
             <button
-              onClick={handleEncryptedBackup} disabled={encrypting}
-              style={{ flex: 2, padding: '6px', fontSize: '12px', background: '#4F46E5', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
+              onClick={handleEncryptedBackup}
+              disabled={encrypting || !passphrase.trim() || passphrase.trim().length < 8}
+              style={{
+                flex: 2, padding: '6px', fontSize: '12px', background: '#4F46E5', color: 'white', border: 'none',
+                borderRadius: '6px', fontWeight: 700, cursor: 'pointer',
+                opacity: (encrypting || !passphrase.trim() || passphrase.trim().length < 8) ? 0.6 : 1
+              }}
             >
               {encrypting ? 'Şifreleniyor...' : '🔒 Şifrele & İndir'}
             </button>

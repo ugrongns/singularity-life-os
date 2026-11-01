@@ -107,7 +107,6 @@ const PROTECTED_UI_ROUTES = [
   '/shopping',
   '/vault',
   '/vehicles',
-  '/welcome',
   '/wellness',
 ];
 
@@ -224,7 +223,6 @@ export const config = {
     '/shopping/:path*',
     '/vault/:path*',
     '/vehicles/:path*',
-    '/welcome/:path*',
     '/wellness/:path*',
   ],
 };

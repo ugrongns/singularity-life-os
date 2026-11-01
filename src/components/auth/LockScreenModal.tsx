@@ -7,6 +7,8 @@ interface Props {
     id: string;
     full_name: string;
     avatar_emoji?: string;
+    username?: string;
+    email?: string;
   } | null;
   onSuccess: (user: any) => void;
 }
@@ -33,8 +35,36 @@ export default function LockScreenModal({ isOpen, user, onSuccess }: Props) {
   const [isShaking, setIsShaking] = useState(false);
   const [usePasswordMode, setUsePasswordMode] = useState(false);
   const [password, setPassword] = useState('');
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setPin('');
+      setPassword('');
+      setErrorMsg(null);
+      setUsePasswordMode(false);
+      setFailedAttempts(0);
+      setCooldown(0);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const interval = setInterval(() => {
+      setCooldown(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldown]);
 
   const handleDigit = (digit: string) => {
+    if (loading || cooldown > 0) return;
     if (pin.length < 6) {
       const newPin = pin + digit;
       setPin(newPin);
@@ -46,20 +76,23 @@ export default function LockScreenModal({ isOpen, user, onSuccess }: Props) {
   };
 
   const handleBackspace = () => {
+    if (loading || cooldown > 0) return;
     setPin(prev => prev.slice(0, -1));
     setErrorMsg(null);
   };
 
   const handleClear = () => {
+    if (loading || cooldown > 0) return;
     setPin('');
     setErrorMsg(null);
   };
 
   // Masaüstü Fiziksel Klavye Dinleyicisi
   useEffect(() => {
-    if (!isOpen || usePasswordMode) return;
+    if (!isOpen || usePasswordMode || loading || cooldown > 0) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (loading || cooldown > 0) return;
       // Form inputları odaklıysa klavye dinleyicisini ezme
       if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
 
@@ -77,11 +110,12 @@ export default function LockScreenModal({ isOpen, user, onSuccess }: Props) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, usePasswordMode, pin]);
+  }, [isOpen, usePasswordMode, pin, loading, cooldown]);
 
   if (!isOpen) return null;
 
   const verifyPinDirect = async (pinToTest: string) => {
+    if (cooldown > 0) return;
     setLoading(true);
     setErrorMsg(null);
     try {
@@ -92,13 +126,23 @@ export default function LockScreenModal({ isOpen, user, onSuccess }: Props) {
       });
       const json = await res.json();
       if (json.success) {
+        setFailedAttempts(0);
+        setCooldown(0);
         onSuccess(json.data.user);
       } else if (json.code === 'UNAUTHORIZED') {
         setErrorMsg('Oturum süresi dolmuş. Lütfen Master Parolanızla giriş yapın.');
         setUsePasswordMode(true);
       } else {
+        const nextAttempts = failedAttempts + 1;
+        setFailedAttempts(nextAttempts);
         setIsShaking(true);
-        setErrorMsg(json.error || '❌ Hatalı PIN kodu.');
+        if (nextAttempts >= 3) {
+          setCooldown(30);
+          setFailedAttempts(0);
+          setErrorMsg('❌ 3 kez hatalı PIN girildi. Lütfen 30 saniye bekleyin.');
+        } else {
+          setErrorMsg(json.error || `❌ Hatalı PIN kodu. (${3 - nextAttempts} hakkınız kaldı)`);
+        }
         setTimeout(() => {
           setIsShaking(false);
           setPin('');
@@ -125,10 +169,19 @@ export default function LockScreenModal({ isOpen, user, onSuccess }: Props) {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: user?.id || 'admin', password })
+        body: JSON.stringify({
+          identifier: user?.username || user?.email || user?.id || 'admin',
+          password
+        })
       });
       const json = await res.json();
       if (json.success) {
+        setPin('');
+        setPassword('');
+        setErrorMsg(null);
+        setUsePasswordMode(false);
+        setFailedAttempts(0);
+        setCooldown(0);
         onSuccess(json.data.user);
       } else {
         setErrorMsg('❌ Hatalı Master Parola.');
@@ -142,7 +195,7 @@ export default function LockScreenModal({ isOpen, user, onSuccess }: Props) {
 
   return (
     <div className="modal-overlay" style={{
-      zIndex: 10000,
+      zIndex: 100000,
       background: 'radial-gradient(ellipse at center, rgba(15, 23, 42, 0.90) 0%, rgba(2, 6, 23, 0.96) 100%)',
       backdropFilter: 'blur(20px)',
       WebkitBackdropFilter: 'blur(20px)',
@@ -182,6 +235,16 @@ export default function LockScreenModal({ isOpen, user, onSuccess }: Props) {
           <span>🔒</span>
           <span>Güvenli Kilit • 6 Haneli PIN Girin</span>
         </div>
+
+        {cooldown > 0 && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.25)', border: '1px solid rgba(239, 68, 68, 0.5)',
+            color: '#FCA5A5', padding: '9px 12px', borderRadius: '12px', fontSize: '12px',
+            fontWeight: 800, marginBottom: '18px'
+          }}>
+            ⏳ Bekleme süresi: {cooldown} sn
+          </div>
+        )}
 
         {errorMsg && (
           <div style={{
@@ -235,7 +298,7 @@ export default function LockScreenModal({ isOpen, user, onSuccess }: Props) {
                     else if (btn.num === 'C') handleClear();
                     else handleDigit(btn.num);
                   }}
-                  disabled={loading}
+                  disabled={loading || cooldown > 0}
                 >
                   <span style={{ lineHeight: 1 }}>{btn.num}</span>
                   {btn.letters && (

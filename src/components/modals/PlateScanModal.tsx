@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Camera,
   Image as ImageIcon,
@@ -40,11 +40,36 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!isOpen) {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
+      }
+      setStep('upload');
+      setParsedPlate(null);
+      setErrorMsg(null);
+      setMultiplier(1.0);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
   if (!isOpen) return null;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
 
     setErrorMsg(null);
     setStep('scanning');
@@ -93,6 +118,9 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
   };
 
   const handleDemoScan = async () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
     setStep('scanning');
     setErrorMsg(null);
     setPreviewUrl(null);
@@ -148,6 +176,9 @@ export default function PlateScanModal({ isOpen, onClose, onSuccess }: PlateScan
   };
 
   const handleClose = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
     setStep('upload');
     setPreviewUrl(null);
     setParsedPlate(null);

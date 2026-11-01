@@ -212,6 +212,14 @@ export async function POST(request: Request) {
 
     // 2. AES-256 ŞİFRELİ YEDEK
     if (action === 'encrypted_backup') {
+      const rawPassphrase = body.passphrase;
+      if (!rawPassphrase || typeof rawPassphrase !== 'string' || rawPassphrase.trim().length < 8) {
+        return NextResponse.json({
+          success: false,
+          error: 'Şifreli yedek oluşturmak için en az 8 karakter uzunluğunda bir parola belirtmelisiniz.'
+        }, { status: 400 });
+      }
+
       const exportData = await fetchSafeData(user.id, familyId);
       const totalRecords = Object.values(exportData).reduce((sum, rows) => sum + rows.length, 0);
       const tablesCount = SAFE_EXPORT_TABLES.length + 1;
@@ -225,13 +233,6 @@ export async function POST(request: Request) {
       };
       const jsonString = JSON.stringify(payloadObject, null, 2);
 
-      const rawPassphrase = body.passphrase;
-      if (!rawPassphrase || typeof rawPassphrase !== 'string' || rawPassphrase.trim().length < 8) {
-        return NextResponse.json({
-          success: false,
-          error: 'Şifreli yedek oluşturmak için en az 8 karakter uzunluğunda bir parola belirtmelisiniz.'
-        }, { status: 400 });
-      }
       const passphrase = rawPassphrase.trim();
       const salt = crypto.randomBytes(16);
       const key = crypto.pbkdf2Sync(passphrase, salt, 100000, 32, 'sha256');
