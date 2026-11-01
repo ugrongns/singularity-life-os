@@ -29,7 +29,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'Kategori bulunamadı.' }, { status: 404 });
     }
 
-    if (category.family_id && familyId && category.family_id !== familyId) {
+    if (category.family_id && (!familyId || category.family_id !== familyId)) {
       return NextResponse.json({ success: false, error: 'Bu kategoriye erişim yetkiniz yok.' }, { status: 403 });
     }
 
@@ -93,11 +93,11 @@ export async function GET(req: Request) {
       };
     });
 
-    const totalSpent = (txList).reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+    const totalSpent = Math.round((txList).reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0) * 100) / 100;
     const txCount = txList.length;
-    const averageSpent = txCount > 0 ? Math.round(totalSpent / txCount) : 0;
+    const averageSpent = txCount > 0 ? Math.round((totalSpent / txCount) * 100) / 100 : 0;
     const limit = category.monthly_budget_limit || 0;
-    const remainingBudget = limit > 0 ? limit - totalSpent : null;
+    const remainingBudget = limit > 0 ? Math.round((limit - totalSpent) * 100) / 100 : null;
     const budgetPercentage = limit > 0 ? Math.round((totalSpent / limit) * 100) : 0;
 
     // Ay sonu projeksiyonu için gün hesaplama

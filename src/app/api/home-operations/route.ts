@@ -1,8 +1,20 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { homeMaintenanceRecords, homeAppliances } from '@/db/schema';
-import { desc, eq, or, and } from 'drizzle-orm';
+import { desc, eq, and, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
+
+function addMonthsSafe(baseDate: Date, months: number): string {
+  const d = new Date(baseDate.getTime());
+  if (isNaN(d.getTime())) return getTodayTurkeyDate();
+  const currentDay = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + months);
+  const maxDays = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(currentDay, maxDays));
+  return getTodayTurkeyDate(d);
+}
 
 export async function GET() {
   try {
@@ -15,9 +27,16 @@ export async function GET() {
     const today = new Date();
 
     const processedMaintenance = (records).map((rec: any) => {
-      const dueDate = new Date(rec.next_due_date);
-      const daysLeft = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      const status = daysLeft <= 7 ? 'urgent' : daysLeft <= 30 ? 'warning' : 'ok';
+      let daysLeft: number | null = null;
+      let status: 'urgent' | 'warning' | 'ok' = 'ok';
+
+      if (rec.next_due_date) {
+        const dueDate = new Date(rec.next_due_date);
+        if (!isNaN(dueDate.getTime())) {
+          daysLeft = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          status = daysLeft <= 7 ? 'urgent' : daysLeft <= 30 ? 'warning' : 'ok';
+        }
+      }
 
       return {
         ...rec,
@@ -29,13 +48,15 @@ export async function GET() {
     // Ev Demirbaşları & Garanti Süreleri
     const appliances = userId ? await db.select().from(homeAppliances).where(familyId ? eq(homeAppliances.family_id, familyId) : eq(homeAppliances.user_id, userId)) : [];
     const processedAppliances = (appliances).map((app: any) => {
-      let daysLeftWarranty = null;
+      let daysLeftWarranty: number | null = null;
       let isWarrantyActive = false;
 
       if (app.warranty_expiry_date) {
         const exp = new Date(app.warranty_expiry_date);
-        daysLeftWarranty = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        isWarrantyActive = daysLeftWarranty > 0;
+        if (!isNaN(exp.getTime())) {
+          daysLeftWarranty = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          isWarrantyActive = daysLeftWarranty > 0;
+        }
       }
 
       return {
@@ -67,16 +88,17 @@ export async function POST(req: Request) {
     const now = new Date();
     const nowStr = now.toISOString();
     const familyId = user.family_id || `fam-${user.id}`;
+    const todayStr = getTodayTurkeyDate();
 
     // Filtre / Bakım Yenileme (Reset Interval)
     if (action === 'reset_filter' || record_id) {
       const targetId = record_id || data.id;
-      const interval = months || data.months || 6;
-      const nextDate = new Date(now.getTime() + (interval * 30 * 86400000)).toISOString().split('T')[0];
+      const interval = Number(months || data.months) || 6;
+      const nextDate = addMonthsSafe(now, interval);
 
       await db.update(homeMaintenanceRecords)
         .set({
-          last_serviced_date: now.toISOString().split('T')[0],
+          last_serviced_date: todayStr,
           next_due_date: nextDate,
           updated_at: nowStr
         })
@@ -96,14 +118,14 @@ export async function POST(req: Request) {
     // Yeni Ev Bakım Kalemi Ekleme
     if (action === 'add_maintenance') {
       const id = `hm-${Date.now()}`;
-      const interval = parseInt(data.interval_months) || 6;
-      const nextDate = new Date(now.getTime() + (interval * 30 * 86400000)).toISOString().split('T')[0];
+      const interval = parseInt(data.interval_months, 10) || 6;
+      const nextDate = addMonthsSafe(now, interval);
 
       await db.insert(homeMaintenanceRecords).values({
         id,
         item_type: data.item_type || 'custom',
-        title: data.title,
-        last_serviced_date: now.toISOString().split('T')[0],
+        title: data.title || 'Ev Bakımı',
+        last_serviced_date: todayStr,
         next_due_date: nextDate,
         interval_months: interval,
         cost_estimate: parseFloat(data.cost_estimate) || 0,
@@ -120,13 +142,23 @@ export async function POST(req: Request) {
     // Yeni Ev Demirbaşı & Garanti Kaydı Ekleme
     if (action === 'add_appliance') {
       const id = `app-${Date.now()}`;
-      const warrantyMonths = parseInt(data.warranty_months) || 24;
-      const purchaseDate = data.purchase_date || now.toISOString().split('T')[0];
-      const expiryDate = new Date(new Date(purchaseDate).getTime() + (warrantyMonths * 30 * 86400000)).toISOString().split('T')[0];
+      const warrantyMonths = parseInt(data.warranty_months, 10) || 24;
+
+      // Geçersiz tarih kontrolü ile RangeError: Invalid time value koruması
+      let basePurchaseDate = now;
+      if (data.purchase_date) {
+        const parsed = new Date(data.purchase_date);
+        if (!isNaN(parsed.getTime())) {
+          basePurchaseDate = parsed;
+        }
+      }
+
+      const purchaseDate = getTodayTurkeyDate(basePurchaseDate);
+      const expiryDate = addMonthsSafe(basePurchaseDate, warrantyMonths);
 
       await db.insert(homeAppliances).values({
         id,
-        name: data.name,
+        name: data.name || 'Ev Cihazı',
         brand: data.brand || '',
         model: data.model || '',
         purchase_date: purchaseDate,

@@ -1,31 +1,23 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { users, authSessions } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and, ne } from 'drizzle-orm';
 import { cookies } from 'next/headers';
-import { hashPassword, hashPin, verifyPassword, verifyPin } from '@/lib/auth';
+import { hashPassword, hashPin, verifyPassword, verifyPin, getAuthUser } from '@/lib/auth';
 
 export async function POST(req: Request) {
   try {
     await initDatabase();
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get('singularity_session')?.value;
+    const user = await getAuthUser({ includeSecrets: true });
 
-    if (!sessionToken) {
-      return NextResponse.json({ success: false, error: 'Oturum bulunamadı. Lütfen giriş yapın.' }, { status: 401 });
-    }
-
-    const session = await db.select().from(authSessions)
-      .where(eq(authSessions.token, sessionToken))
-      .limit(1).then((r: any) => r[0]);
-
-    if (!session) {
-      return NextResponse.json({ success: false, error: 'Geçersiz oturum.' }, { status: 401 });
-    }
-
-    const user = (await db.select().from(users).where(eq(users.id, session.user_id)).limit(1))[0];
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Kullanıcı bulunamadı.' }, { status: 404 });
+    if (!user || !user.id || !sessionToken) {
+      return NextResponse.json({
+        success: false,
+        error: 'Oturum bulunamadı veya süresi doldu. Lütfen tekrar giriş yapın.',
+        code: 'UNAUTHORIZED'
+      }, { status: 401 });
     }
 
     const body = await req.json();
@@ -40,37 +32,44 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: 'Mevcut ve yeni parola zorunludur.' }, { status: 400 });
       }
 
-      if (new_password.length < 6) {
-        return NextResponse.json({ success: false, error: 'Yeni parola en az 6 karakter olmalıdır.' }, { status: 400 });
+      if (new_password.length < 8) {
+        return NextResponse.json({ success: false, error: 'Yeni parola en az 8 karakter olmalıdır.' }, { status: 400 });
       }
 
-      const isCurrentValid = verifyPassword(current_password, user.password_hash, user.password_salt);
+      const isCurrentValid = await verifyPassword(current_password, user.password_hash, user.password_salt);
       if (!isCurrentValid) {
         return NextResponse.json({ success: false, error: 'Mevcut master parola hatalı.' }, { status: 400 });
       }
 
       // PIN ile aynı olamaz kontrolü
-      if (user.quick_pin_hash && verifyPin(new_password, user.quick_pin_hash, user.password_salt)) {
+      if (user.quick_pin_hash && (await verifyPin(new_password, user.quick_pin_hash, user.password_salt, user.pin_salt))) {
         return NextResponse.json({
           success: false,
           error: 'Yeni Master Parola, mevcut 6 haneli PIN kodunuzla aynı olamaz! Güvenliğiniz için farklı bir parola belirleyin.'
         }, { status: 400 });
       }
 
-      // Mevcut salt ile yeni parola hash'i üret (böylece mevcut PIN bozulmaz)
-      const newHashRes = hashPassword(new_password, user.password_salt);
+      // Mevcut salt ile yeni parola hash'i üret (asenkron)
+      const newHashRes = await hashPassword(new_password, user.password_salt);
 
       await db.update(users)
         .set({
           password_hash: newHashRes.hash,
           updated_at: now
         })
-        .where(eq(users.id, user.id))
-        ;
+        .where(eq(users.id, user.id));
+
+      // Mevcut oturum haricindeki tüm diğer oturumları iptal et (OWASP Session Revocation)
+      await db.delete(authSessions).where(
+        and(
+          eq(authSessions.user_id, user.id),
+          ne(authSessions.token, sessionToken)
+        )
+      );
 
       return NextResponse.json({
         success: true,
-        message: 'Master parola başarıyla güncellendi!'
+        message: 'Master parola başarıyla güncellendi ve diğer aktif cihazlardaki oturumlar kapatıldı!'
       });
     }
 
@@ -83,7 +82,7 @@ export async function POST(req: Request) {
       }
 
       // Master Parola ile aynı olamaz kontrolü
-      if (verifyPassword(new_pin, user.password_hash, user.password_salt)) {
+      if (await verifyPassword(new_pin, user.password_hash, user.password_salt)) {
         return NextResponse.json({
           success: false,
           error: 'Yeni 6 Haneli PIN, Master Parolanızla aynı olamaz! Güvenliğiniz için farklı bir PIN belirleyin.'
@@ -93,25 +92,25 @@ export async function POST(req: Request) {
       // Doğrulama: Ya mevcut PIN doğru olmalı ya da master parola doğru olmalı
       let isAuthorized = false;
       if (current_pin && user.quick_pin_hash) {
-        isAuthorized = verifyPin(current_pin, user.quick_pin_hash, user.password_salt);
+        isAuthorized = await verifyPin(current_pin, user.quick_pin_hash, user.password_salt, user.pin_salt);
       }
       if (!isAuthorized && master_password) {
-        isAuthorized = verifyPassword(master_password, user.password_hash, user.password_salt);
+        isAuthorized = await verifyPassword(master_password, user.password_hash, user.password_salt);
       }
 
       if (!isAuthorized) {
         return NextResponse.json({ success: false, error: 'Mevcut PIN veya Master Parola doğrulanamadı.' }, { status: 400 });
       }
 
-      const newPinHash = hashPin(new_pin, user.password_salt);
+      const { hash: newPinHash, pinSalt: newPinSalt } = await hashPin(new_pin);
 
       await db.update(users)
         .set({
           quick_pin_hash: newPinHash,
+          pin_salt: newPinSalt,
           updated_at: now
         })
-        .where(eq(users.id, user.id))
-        ;
+        .where(eq(users.id, user.id));
 
       return NextResponse.json({
         success: true,
@@ -145,8 +144,7 @@ export async function POST(req: Request) {
           avatar_emoji: avatarEmojiValid(avatar_emoji) ? avatar_emoji : user.avatar_emoji,
           updated_at: now
         })
-        .where(eq(users.id, user.id))
-        ;
+        .where(eq(users.id, user.id));
 
       return NextResponse.json({
         success: true,

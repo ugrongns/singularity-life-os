@@ -3,6 +3,7 @@ import { db, initDatabase } from '@/db';
 import { userHealthProfile, waterIntakeLogs } from '@/db/schema';
 import { getAuthUser } from '@/lib/auth';
 import { eq, and } from 'drizzle-orm';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 export async function GET() {
   try {
@@ -10,13 +11,14 @@ export async function GET() {
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayTurkeyDate();
 
     const profile = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, user.id)).limit(1))[0];
     const todayLog = (await db.select().from(waterIntakeLogs).where(and(eq(waterIntakeLogs.date, today), eq(waterIntakeLogs.user_id, user.id))).limit(1))[0];
 
     const target = todayLog?.goal_ml || profile?.daily_water_target_ml || 2500;
-    const consumed = todayLog ? todayLog.amount_ml : (profile?.consumed_water_ml || 0);
+    // Yeni gün için kayıt yoksa dünün tüketimi devretmemeli, 0 ml kabul edilmeli
+    const consumed = todayLog ? todayLog.amount_ml : 0;
     const percentage = Math.min(100, Math.round((consumed / target) * 100));
 
     return NextResponse.json({
@@ -42,7 +44,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { action, target_ml, amount_ml = 250, reset = false } = body;
     const now = new Date().toISOString();
-    const today = now.split('T')[0];
+    const today = getTodayTurkeyDate();
     const familyId = user.family_id || `fam-${user.id}`;
 
     const profile = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, user.id)).limit(1))[0];
@@ -81,7 +83,7 @@ export async function POST(req: Request) {
         await db.insert(waterIntakeLogs).values({
           id: `water-${Date.now()}`,
           date: today,
-          amount_ml: profile?.consumed_water_ml || 0,
+          amount_ml: 0,
           goal_ml: newTarget,
           user_id: user.id,
           family_id: familyId,
@@ -98,7 +100,8 @@ export async function POST(req: Request) {
     }
 
     // 💧 SU İÇME KAYDI
-    const currentConsumed = todayLog ? todayLog.amount_ml : (profile?.consumed_water_ml || 0);
+    // Yeni gün başlangıcında bugün için log yoksa dünün tüketimi aktarılmamalı, 0'dan başlanmalı
+    const currentConsumed = todayLog ? todayLog.amount_ml : 0;
     const current = reset ? 0 : currentConsumed + (parseFloat(amount_ml) || 250);
     const target = profile?.daily_water_target_ml || todayLog?.goal_ml || 2500;
 

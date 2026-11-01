@@ -55,4 +55,36 @@ describe('CSV Export & Financial Tax Breakdown', () => {
     const totalTax = vat1Total + vat10Total + vat20Total;
     expect(Math.round(totalTax * 100) / 100).toBe(41.00);
   });
+
+  it('sanitizes dangerous spreadsheet formula injection prefixes (=, +, -, @, \\t, \\r)', () => {
+    interface MaliciousTx {
+      id: string;
+      merchant: string;
+      amount: number;
+      notes: string;
+    }
+
+    const testData: MaliciousTx[] = [
+      { id: '1', merchant: '=cmd|\'/C calc\'!A0', amount: 100, notes: '@SUM(A1:A10)' },
+      { id: '2', merchant: '+123456', amount: -500.50, notes: '\tsecret_tab' }
+    ];
+
+    const columns: CSVColumn<MaliciousTx>[] = [
+      { header: 'ID', accessor: t => t.id },
+      { header: 'Merchant', accessor: t => t.merchant },
+      { header: 'Amount', accessor: t => t.amount },
+      { header: 'Notes', accessor: t => t.notes }
+    ];
+
+    const csv = generateCSVContent(columns, testData);
+
+    // Formula injection payloads should be neutralized with leading single quote '
+    expect(csv).toContain('"\'=cmd|\'/C calc\'!A0"');
+    expect(csv).toContain('"\'@SUM(A1:A10)"');
+    expect(csv).toContain('"\' +123456"'.replace(' ', '')); // '+123456' -> "'+123456"
+    expect(csv).toContain('"\'\tsecret_tab"');
+
+    // Pure numbers (including negative financial amounts) should remain numbers without extra quotes
+    expect(csv).toContain('"-500.5"');
+  });
 });

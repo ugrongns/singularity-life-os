@@ -2,7 +2,14 @@ import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { dietMealOptions, nutritionMeals, familyMembers } from '@/db/schema';
 import { getAuthUser } from '@/lib/auth';
-import { eq, asc, and, or } from 'drizzle-orm';
+import { eq, asc, and, or, isNull } from 'drizzle-orm';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
+
+function parseNum(v: any, fallback = 0): number {
+  if (v === undefined || v === null || v === '') return fallback;
+  const n = typeof v === 'number' ? v : parseFloat(v);
+  return isNaN(n) ? fallback : n;
+}
 
 export async function GET() {
   try {
@@ -10,7 +17,17 @@ export async function GET() {
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
 
-    const options = await db.select().from(dietMealOptions).orderBy(asc(dietMealOptions.option_number));
+    const familyId = user.family_id || `fam-${user.id}`;
+
+    // Kullanıcıya/aileye ait veya sistem varsayılanı (user_id IS NULL) menüler
+    const options = await db.select().from(dietMealOptions).where(
+      or(
+        eq(dietMealOptions.user_id, user.id),
+        eq(dietMealOptions.family_id, familyId),
+        isNull(dietMealOptions.user_id)
+      )
+    ).orderBy(asc(dietMealOptions.option_number));
+
     const parsedOptions = options.map((opt: any) => {
       let checklist: string[] = [];
       try {
@@ -39,6 +56,7 @@ export async function POST(req: Request) {
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
 
+    const familyId = user.family_id || `fam-${user.id}`;
     const body = await req.json();
 
     // 1. Yeni Diyet Menüsü Şablonu Ekleme İşlemi
@@ -54,15 +72,17 @@ export async function POST(req: Request) {
 
       await db.insert(dietMealOptions).values({
         id: newOptionId,
+        user_id: user.id,
+        family_id: familyId,
         meal_type: meal_type || 'breakfast',
         option_number: Number(option_number) || 1,
         title: title.trim(),
         description: description?.trim() || '',
         items_checklist: itemsJson,
-        calories: parseFloat(calories) || 0,
-        protein_g: parseFloat(protein_g) || 0,
-        carbs_g: parseFloat(carbs_g) || 0,
-        fat_g: parseFloat(fat_g) || 0,
+        calories: parseNum(calories, 0),
+        protein_g: parseNum(protein_g, 0),
+        carbs_g: parseNum(carbs_g, 0),
+        fat_g: parseNum(fat_g, 0),
         created_at: now,
         updated_at: now
       });
@@ -78,10 +98,9 @@ export async function POST(req: Request) {
     const { custom_title, calories, protein_g, carbs_g, fat_g, meal_type } = body;
 
     const now = new Date().toISOString();
-    const today = now.split('T')[0];
+    const today = getTodayTurkeyDate();
 
     const userId = user.id;
-    const familyId = user.family_id || (userId ? `fam-${userId}` : null);
 
     // Aktif aile üyesi kimliğini bul (varsa member_id, yoksa null - FK hatasını önler)
     let memberId: string | null = null;
@@ -107,6 +126,12 @@ export async function POST(req: Request) {
     const mealId = `meal-${Date.now()}`;
     const finalMealType = meal_type || 'breakfast';
 
+    // Falsy 0 ezilmesini önleyen güvenli parsing
+    const cal = parseNum(calories, 380);
+    const pro = parseNum(protein_g, 20);
+    const crb = parseNum(carbs_g, 35);
+    const fat = parseNum(fat_g, 15);
+
     await db.insert(nutritionMeals).values({
       id: mealId,
       member_id: memberId,
@@ -114,10 +139,10 @@ export async function POST(req: Request) {
       family_id: familyId,
       name: custom_title || 'Diyetisyen Menüsü Öğünü',
       meal_type: finalMealType,
-      calories: parseFloat(calories) || 380,
-      protein_g: parseFloat(protein_g) || 20,
-      carbs_g: parseFloat(carbs_g) || 35,
-      fat_g: parseFloat(fat_g) || 15,
+      calories: cal,
+      protein_g: pro,
+      carbs_g: crb,
+      fat_g: fat,
       portion_multiplier: 1.0,
       date: today,
       is_verified: 1,
@@ -134,11 +159,12 @@ export async function POST(req: Request) {
       await eventBus.emit(EVENTS.DIET_MEAL_RECORDED, {
         mealId,
         name: custom_title || 'Diyetisyen Menüsü Öğünü',
-        calories: parseFloat(calories) || 380,
-        protein_g: parseFloat(protein_g) || 20,
-        carbs_g: parseFloat(carbs_g) || 35,
-        fat_g: parseFloat(fat_g) || 15,
-        userId
+        calories: cal,
+        protein_g: pro,
+        carbs_g: crb,
+        fat_g: fat,
+        userId,
+        familyId
       });
     } catch (e) {
       console.warn('EventBus emit failed:', e);
@@ -166,6 +192,18 @@ export async function PUT(req: Request) {
       return NextResponse.json({ success: false, error: 'Menü ID ve başlık zorunludur.' }, { status: 400 });
     }
 
+    const familyId = user.family_id || `fam-${user.id}`;
+    const target = (await db.select().from(dietMealOptions).where(
+      and(
+        eq(dietMealOptions.id, id),
+        or(eq(dietMealOptions.user_id, user.id), eq(dietMealOptions.family_id, familyId))
+      )
+    ).limit(1))[0];
+
+    if (!target) {
+      return NextResponse.json({ success: false, error: 'Menü bulunamadı veya güncelleme yetkiniz yok.' }, { status: 403 });
+    }
+
     const now = new Date().toISOString();
     const itemsJson = JSON.stringify(Array.isArray(checklist) ? checklist : []);
 
@@ -176,10 +214,10 @@ export async function PUT(req: Request) {
         option_number: Number(option_number) || 1,
         description: description?.trim() || '',
         items_checklist: itemsJson,
-        calories: parseFloat(calories) || 0,
-        protein_g: parseFloat(protein_g) || 0,
-        carbs_g: parseFloat(carbs_g) || 0,
-        fat_g: parseFloat(fat_g) || 0,
+        calories: parseNum(calories, 0),
+        protein_g: parseNum(protein_g, 0),
+        carbs_g: parseNum(carbs_g, 0),
+        fat_g: parseNum(fat_g, 0),
         updated_at: now
       })
       .where(eq(dietMealOptions.id, id));
@@ -204,6 +242,18 @@ export async function DELETE(req: Request) {
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'Silinecek menü ID belirtilmedi.' }, { status: 400 });
+    }
+
+    const familyId = user.family_id || `fam-${user.id}`;
+    const target = (await db.select().from(dietMealOptions).where(
+      and(
+        eq(dietMealOptions.id, id),
+        or(eq(dietMealOptions.user_id, user.id), eq(dietMealOptions.family_id, familyId))
+      )
+    ).limit(1))[0];
+
+    if (!target) {
+      return NextResponse.json({ success: false, error: 'Menü bulunamadı veya silme yetkiniz yok.' }, { status: 403 });
     }
 
     await db.delete(dietMealOptions).where(eq(dietMealOptions.id, id));

@@ -154,64 +154,79 @@ export async function POST(req: Request) {
 
     const now = new Date().toISOString();
     const nowDate = now.split('T')[0];
-    const newId = `debt-${Date.now()}`;
+    const newId = `debt-${crypto.randomUUID()}`;
     const rates = await fetchLiveExchangeRates();
     const origTL = calcCurrentTLValue(index_type || 'TRY', Number(index_amount), rates);
 
-    await db.insert(personalDebtsReceivables).values({
-      id: newId,
-      user_id: user.id,
-      family_id: familyId,
-      type,
-      person_name: person_name.trim(),
-      description: description?.trim() || null,
-      index_type: index_type || 'TRY',
-      index_amount: Number(index_amount),
-      interest_rate: Number(interest_rate) || 0,
-      interest_period: interest_period || 'yearly',
-      due_date: due_date || null,
-      connected_wallet_id: connected_wallet_id || null,
-      status: 'active',
-      paid_amount: 0,
-      created_at: now,
-      updated_at: now
-    });
+    await db.transaction(async (tx) => {
+      await tx.insert(personalDebtsReceivables).values({
+        id: newId,
+        user_id: user.id,
+        family_id: familyId,
+        type,
+        person_name: person_name.trim(),
+        description: description?.trim() || null,
+        index_type: index_type || 'TRY',
+        index_amount: Number(index_amount),
+        interest_rate: Number(interest_rate) || 0,
+        interest_period: interest_period || 'yearly',
+        due_date: due_date || null,
+        connected_wallet_id: connected_wallet_id || null,
+        status: 'active',
+        paid_amount: 0,
+        created_at: now,
+        updated_at: now
+      });
 
-    // Bağlı hesabın bakiyesini güncelle
-    if (connected_wallet_id && origTL > 0) {
-      const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, connected_wallet_id)))[0];
-      if (wallet) {
-        const newBalance = type === 'debt'
-          ? wallet.balance + origTL   // Borç aldım → para geldi
-          : wallet.balance - origTL;  // Borç verdim → para çıktı
+      // Bağlı hesabın bakiyesini güncelle
+      if (connected_wallet_id && origTL > 0) {
+        const [wallet] = await tx.select().from(walletsAccounts).where(eq(walletsAccounts.id, connected_wallet_id)).for('update');
+        if (wallet) {
+          if (type !== 'debt') {
+            // Borç verdim -> cüzdandan para çıkıyor. Yeterli bakiye var mı kontrol et.
+            const availableFunds = wallet.type === 'kmh'
+              ? (Number(wallet.balance) || 0) + (Number(wallet.overdraft_limit) || 0)
+              : (Number(wallet.balance) || 0);
 
-        await db.update(walletsAccounts)
-          .set({ balance: Math.max(0, newBalance), updated_at: now })
-          .where(eq(walletsAccounts.id, connected_wallet_id));
+            if (availableFunds < origTL) {
+              throw new Error(`Seçilen bağlı hesapta yetersiz bakiye! Mevcut kullanılabilir bakiye: ${availableFunds.toLocaleString('tr-TR')} ₺, Gereken: ${origTL.toLocaleString('tr-TR')} ₺`);
+            }
+          }
 
-        const icon = type === 'debt' ? '🤝 Şahıs Borcu Alındı' : '🤝 Şahsa Borç Verildi';
-        await db.insert(transactions).values({
-          id: `tx-${newId}`,
-          wallet_id: connected_wallet_id,
-          user_id: user.id,
-          family_id: familyId,
-          merchant: `${icon}: ${person_name.trim()}`,
-          amount: origTL,
-          currency: 'TRY',
-          transaction_date: nowDate,
-          notes: description?.trim() || (type === 'debt' ? 'Kişisel borç girişi' : 'Kişisel borç çıkışı'),
-          is_installment: 0,
-          installment_number: 1,
-          total_installments: 1,
-          is_verified: 1,
-          is_family_shared: 1,
-          created_at: now,
-          updated_at: now,
-          sync_status: 'synced',
-          device_id: 'web-client'
-        });
+          const currentBalance = Number(wallet.balance) || 0;
+          const newBalance = type === 'debt'
+            ? currentBalance + origTL   // Borç aldım → para geldi
+            : currentBalance - origTL;  // Borç verdim → para çıktı
+
+          await tx.update(walletsAccounts)
+            .set({ balance: newBalance, updated_at: now })
+            .where(eq(walletsAccounts.id, connected_wallet_id));
+
+          const icon = type === 'debt' ? '🤝 Şahıs Borcu Alındı' : '🤝 Şahsa Borç Verildi';
+          await tx.insert(transactions).values({
+            id: `tx-${newId}`,
+            wallet_id: connected_wallet_id,
+            user_id: user.id,
+            family_id: familyId,
+            merchant: `${icon}: ${person_name.trim()}`,
+            amount: origTL,
+            currency: 'TRY',
+            transaction_date: nowDate,
+            notes: description?.trim() || (type === 'debt' ? 'Kişisel borç girişi' : 'Kişisel borç çıkışı'),
+            is_installment: 0,
+            installment_number: 1,
+            total_installments: 1,
+            parent_transaction_id: newId,
+            is_verified: 1,
+            is_family_shared: 1,
+            created_at: now,
+            updated_at: now,
+            sync_status: 'synced',
+            device_id: 'web-client'
+          });
+        }
       }
-    }
+    });
 
     const typeLabel = type === 'debt' ? 'Borç' : 'Alacak';
     return NextResponse.json({
@@ -231,8 +246,9 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const { id, payment_amount } = body;
 
-    if (!id || !payment_amount) {
-      return NextResponse.json({ success: false, error: 'ID ve ödeme tutarı zorunludur.' }, { status: 400 });
+    const payAmt = Number(payment_amount);
+    if (!id || !payment_amount || isNaN(payAmt) || payAmt <= 0) {
+      return NextResponse.json({ success: false, error: 'ID ve geçerli pozitif bir ödeme tutarı zorunludur.' }, { status: 400 });
     }
 
     const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
@@ -250,7 +266,6 @@ export async function PATCH(req: Request) {
 
     const now = new Date().toISOString();
     const nowDate = now.split('T')[0];
-    const payAmt = Number(payment_amount);
 
     const rates = await fetchLiveExchangeRates();
     const maturityTL = calcMaturityValue(
@@ -262,51 +277,66 @@ export async function PATCH(req: Request) {
     const newPaid = (record.paid_amount || 0) + payAmt;
     const newStatus = newPaid >= maturityTL ? 'closed' : 'partial';
 
-    await db.update(personalDebtsReceivables)
-      .set({ paid_amount: newPaid, status: newStatus, updated_at: now })
-      .where(eq(personalDebtsReceivables.id, id));
+    await db.transaction(async (tx) => {
+      await tx.update(personalDebtsReceivables)
+        .set({ paid_amount: newPaid, status: newStatus, updated_at: now })
+        .where(eq(personalDebtsReceivables.id, id));
 
-    // Bağlı hesap bakiyesi güncelle
-    if (record.connected_wallet_id) {
-      const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, record.connected_wallet_id)))[0];
-      if (wallet) {
-        // Cüzdanın da aynı aileye ait olduğunu doğrula
-        const walletBelongs = !wallet.family_id || (familyId && wallet.family_id === familyId);
-        if (!walletBelongs || (wallet.user_id !== user.id && wallet.is_family_shared !== 1 && user.is_master_account !== 1 && user.role !== 'admin')) {
-          return NextResponse.json({ success: false, error: 'Bağlı ödeme hesabına erişim yetkiniz yok.' }, { status: 403 });
+      // Bağlı hesap bakiyesi güncelle
+      if (record.connected_wallet_id) {
+        const [wallet] = await tx.select().from(walletsAccounts).where(eq(walletsAccounts.id, record.connected_wallet_id)).for('update');
+        if (wallet) {
+          // Cüzdanın da aynı aileye ait olduğunu doğrula
+          const walletBelongs = !wallet.family_id || (familyId && wallet.family_id === familyId);
+          if (!walletBelongs || (wallet.user_id !== user.id && wallet.is_family_shared !== 1 && user.is_master_account !== 1 && user.role !== 'admin')) {
+            throw new Error('Bağlı ödeme hesabına erişim yetkiniz yok.');
+          }
+
+          if (record.type === 'debt') {
+            // Borcumu ödedim -> hesaptan para çıkıyor. Kontrol et.
+            const availableFunds = wallet.type === 'kmh'
+              ? (Number(wallet.balance) || 0) + (Number(wallet.overdraft_limit) || 0)
+              : (Number(wallet.balance) || 0);
+
+            if (availableFunds < payAmt) {
+              throw new Error(`Ödeme yapılacak hesapta yetersiz bakiye! Kullanılabilir: ${availableFunds.toLocaleString('tr-TR')} ₺, Ödenen: ${payAmt.toLocaleString('tr-TR')} ₺`);
+            }
+          }
+
+          const currentBalance = Number(wallet.balance) || 0;
+          const newBalance = record.type === 'debt'
+            ? currentBalance - payAmt   // Borcumu ödedim → para gitti
+            : currentBalance + payAmt;  // Alacağımı tahsil ettim → para geldi
+
+          await tx.update(walletsAccounts)
+            .set({ balance: newBalance, updated_at: now })
+            .where(eq(walletsAccounts.id, record.connected_wallet_id));
+
+          const icon = record.type === 'debt' ? '🤝 Şahıs Borcu Ödendi' : '🤝 Şahıs Alacağı Tahsil Edildi';
+          await tx.insert(transactions).values({
+            id: `tx-pay-${crypto.randomUUID()}`,
+            wallet_id: record.connected_wallet_id,
+            user_id: user.id,
+            family_id: familyId,
+            merchant: `${icon}: ${record.person_name}`,
+            amount: payAmt,
+            currency: 'TRY',
+            transaction_date: nowDate,
+            notes: `Kısmi / tam ödeme — ${record.person_name}`,
+            is_installment: 0,
+            installment_number: 1,
+            total_installments: 1,
+            parent_transaction_id: record.id,
+            is_verified: 1,
+            is_family_shared: 1,
+            created_at: now,
+            updated_at: now,
+            sync_status: 'synced',
+            device_id: 'web-client'
+          });
         }
-
-        const newBalance = record.type === 'debt'
-          ? wallet.balance - payAmt   // Borcumu ödedim → para gitti
-          : wallet.balance + payAmt;  // Alacağımı tahsil ettim → para geldi
-
-        await db.update(walletsAccounts)
-          .set({ balance: Math.max(0, newBalance), updated_at: now })
-          .where(eq(walletsAccounts.id, record.connected_wallet_id));
-
-        const icon = record.type === 'debt' ? '🤝 Şahıs Borcu Ödendi' : '🤝 Şahıs Alacağı Tahsil Edildi';
-        await db.insert(transactions).values({
-          id: `tx-pay-${Date.now()}`,
-          wallet_id: record.connected_wallet_id,
-          user_id: user.id,
-          family_id: familyId,
-          merchant: `${icon}: ${record.person_name}`,
-          amount: payAmt,
-          currency: 'TRY',
-          transaction_date: nowDate,
-          notes: `Kısmi / tam ödeme — ${record.person_name}`,
-          is_installment: 0,
-          installment_number: 1,
-          total_installments: 1,
-          is_verified: 1,
-          is_family_shared: 1,
-          created_at: now,
-          updated_at: now,
-          sync_status: 'synced',
-          device_id: 'web-client'
-        });
       }
-    }
+    });
 
     const label = newStatus === 'closed' ? 'tamamen kapandı' : `kısmi ödeme yapıldı, kalan ${(maturityTL - newPaid).toLocaleString('tr-TR')} ₺`;
     return NextResponse.json({
@@ -344,8 +374,40 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Bu borç/alacak kaydını silme yetkiniz yok.' }, { status: 403 });
     }
 
-    await db.delete(personalDebtsReceivables).where(eq(personalDebtsReceivables.id, id));
-    return NextResponse.json({ success: true, message: 'Kayıt silindi.' });
+    const now = new Date().toISOString();
+
+    await db.transaction(async (tx) => {
+      // Revert balance changes in connected wallet if any
+      if (record.connected_wallet_id) {
+        const [wallet] = await tx.select().from(walletsAccounts).where(eq(walletsAccounts.id, record.connected_wallet_id)).for('update');
+        if (wallet) {
+          const rates = await fetchLiveExchangeRates();
+          const origTL = calcCurrentTLValue(record.index_type || 'TRY', Number(record.index_amount), rates);
+          const paidTL = Number(record.paid_amount) || 0;
+
+          // Borç: hesaba +origTL girmiş, -paidTL çıkmıştı (net eklenen = origTL - paidTL). Geri almak için düş.
+          // Alacak: hesaptan -origTL çıkmış, +paidTL girmişti (net eksilen = -(origTL - paidTL)). Geri almak için ekle.
+          const netImpact = record.type === 'debt' ? (origTL - paidTL) : -(origTL - paidTL);
+          const revertedBalance = (Number(wallet.balance) || 0) - netImpact;
+
+          await tx.update(walletsAccounts)
+            .set({ balance: revertedBalance, updated_at: now })
+            .where(eq(walletsAccounts.id, record.connected_wallet_id));
+        }
+      }
+
+      // İlişkili işlem kayıtlarını temizle
+      await tx.delete(transactions).where(
+        or(
+          eq(transactions.id, `tx-${record.id}`),
+          eq(transactions.parent_transaction_id, record.id)
+        )
+      );
+
+      await tx.delete(personalDebtsReceivables).where(eq(personalDebtsReceivables.id, id));
+    });
+
+    return NextResponse.json({ success: true, message: 'Kayıt ve ilişkili finansal etkiler başarıyla silindi/geri alındı.' });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

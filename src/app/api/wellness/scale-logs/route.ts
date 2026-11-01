@@ -3,6 +3,7 @@ import { db, initDatabase } from '@/db';
 import { smartScaleLogs, biometrics } from '@/db/schema';
 import { getAuthUser } from '@/lib/auth';
 import { desc, eq, and } from 'drizzle-orm';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 export async function GET(req: Request) {
   try {
@@ -28,7 +29,6 @@ export async function GET(req: Request) {
   }
 }
 
-
 export async function POST(req: Request) {
   try {
     await initDatabase();
@@ -38,15 +38,24 @@ export async function POST(req: Request) {
 
     const now = new Date().toISOString();
     const logId = `scale-${Date.now()}`;
-    const todayStr = now.split('T')[0];
+    const todayStr = getTodayTurkeyDate();
     const familyId = user.family_id || `fam-${user.id}`;
-    let measurementDate = body.measurement_date || todayStr;
-    // Eğer tarih 2026 yılından eskiyse veya geçersizse bugünün tarihini atayalım
-    if (!measurementDate || measurementDate.startsWith('2025') || measurementDate.startsWith('2024')) {
+
+    // Geçerli tarih kontrolü (Geçmiş 2024/2025 tarihlerini keyfi olarak bugüne ezme)
+    let measurementDate = body.measurement_date;
+    if (!measurementDate || isNaN(Date.parse(measurementDate))) {
       measurementDate = todayStr;
     }
 
-    const weightKg = Number(body.weight_kg) || 0;
+    // Ağırlık doğrulama: Pozitif ve geçerli bir sayı olmalı
+    const weightKg = parseFloat(body.weight_kg);
+    if (isNaN(weightKg) || weightKg <= 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'Geçersiz ağırlık değeri. Ağırlık 0\'dan büyük pozitif bir sayı olmalıdır.'
+      }, { status: 400 });
+    }
+
     const bodyFatPercent = body.body_fat_percent ? Number(body.body_fat_percent) : null;
 
     await db.insert(smartScaleLogs).values({
@@ -79,22 +88,20 @@ export async function POST(req: Request) {
     });
 
     // Genel biometrics tablosuna da kaydet
-    if (weightKg > 0) {
-      try {
-        await db.insert(biometrics).values({
-          id: `bio-${Date.now()}`,
-          user_id: user.id,
-          family_id: familyId,
-          date: measurementDate,
-          weight_kg: weightKg,
-          body_fat_percent: bodyFatPercent,
-          notes: 'Akıllı tartı taraması ile eklendi',
-          created_at: now,
-          updated_at: now
-        });
-      } catch (bioErr) {
-        console.warn('Biometrics sync notice:', bioErr);
-      }
+    try {
+      await db.insert(biometrics).values({
+        id: `bio-${Date.now()}`,
+        user_id: user.id,
+        family_id: familyId,
+        date: measurementDate,
+        weight_kg: weightKg,
+        body_fat_percent: bodyFatPercent,
+        notes: 'Akıllı tartı taraması ile eklendi',
+        created_at: now,
+        updated_at: now
+      });
+    } catch (bioErr) {
+      console.warn('Biometrics sync notice:', bioErr);
     }
 
     return NextResponse.json({

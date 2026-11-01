@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { walletsAccounts, transactions, categories } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, or, sql } from 'drizzle-orm';
 import { eventBus, EVENTS } from '@/lib/events';
 import { getAuthUser } from '@/lib/auth';
+import { localYYYYMMDD } from '@/lib/bill-schedule';
 
 export async function POST(req: Request) {
   try {
@@ -58,23 +59,24 @@ export async function POST(req: Request) {
 
     const now = new Date();
     const nowISO = now.toISOString();
-    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const dateStr = localYYYYMMDD(now);
     let txCreated = false;
     let createdTxId: string | null = null;
     const absAmount = Math.abs(diff);
     const targetType = isIncome ? 'income' : 'expense';
 
     if (diff !== 0) {
-      // Mutabakat kategorisini bul veya oluştur
+      // Mutabakat kategorisini bul veya oluştur (Hane izolasyonu denetimli)
       let cat = (await db.select().from(categories).where(
         and(
           eq(categories.name, 'Bakiye Mutabakatı'),
-          eq(categories.type, targetType)
+          eq(categories.type, targetType),
+          familyId ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`) : sql`1=1`
         )
       ).limit(1))[0];
 
       if (!cat) {
-        const newCatId = `cat-reconcile-${targetType}`;
+        const newCatId = `cat-reconcile-${targetType}-${familyId || 'global'}`;
         const catExists = (await db.select().from(categories).where(eq(categories.id, newCatId)).limit(1))[0];
         if (catExists) {
           cat = catExists;
@@ -98,27 +100,32 @@ export async function POST(req: Request) {
         }
       }
 
-      // Mutabakat düzeltme işlemini ve hesap güncellemesini tek atomik transaction içinde yap
-      createdTxId = `tx-reconcile-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      // Mutabakat düzeltme işlemini ve hesap güncellemesini tek atomik transaction içinde satır kilidiyle yap
+      createdTxId = `tx-reconcile-${crypto.randomUUID()}`;
       const defaultNote = isIncome
         ? `⚖️ Bakiye Mutabakatı: Banka ile eşitleme (+${absAmount.toLocaleString('tr-TR')} ${account.currency} düzeltme geliri)`
         : `⚖️ Bakiye Mutabakatı: Banka ile eşitleme (-${absAmount.toLocaleString('tr-TR')} ${account.currency} düzeltme gideri)`;
 
       await db.transaction(async (tx) => {
+        const [lockedAccount] = await tx.select().from(walletsAccounts).where(eq(walletsAccounts.id, account.id)).for('update');
+        if (!lockedAccount) {
+          throw new Error('Hesap bulunamadı.');
+        }
+
         await tx.insert(transactions).values({
           id: createdTxId!,
           wallet_id: account.id,
           category_id: cat ? cat.id : null,
           merchant: 'Bakiye Mutabakatı',
           amount: absAmount,
-          currency: account.currency || 'TRY',
+          currency: lockedAccount.currency || 'TRY',
           transaction_date: dateStr,
           notes: notes ? `${notes} (${defaultNote})` : defaultNote,
           is_installment: 0,
           installment_number: 1,
           total_installments: 1,
           is_verified: 1,
-          is_family_shared: account.is_family_shared ?? 1,
+          is_family_shared: lockedAccount.is_family_shared ?? 1,
           created_at: nowISO,
           updated_at: nowISO,
           sync_status: 'synced',
@@ -142,7 +149,9 @@ export async function POST(req: Request) {
         amount: absAmount,
         merchant: 'Bakiye Mutabakatı',
         wallet_id: account.id,
-        type: targetType
+        type: targetType,
+        userId: user.id,
+        familyId
       });
 
       txCreated = true;

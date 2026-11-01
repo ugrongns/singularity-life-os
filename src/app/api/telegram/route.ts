@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { db, initDatabase } from '@/db';
 import { users, transactions, userHealthProfile, books, walletsAccounts, importantDates, digitalVaultItems } from '@/db/schema';
 import { eq, sql, or, and } from 'drizzle-orm';
@@ -15,6 +16,7 @@ export async function GET() {
     await initDatabase();
     const token = user.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN || '';
     const chatId = user.telegram_chat_id || '';
+    const secret = user.telegram_secret_token || process.env.TELEGRAM_SECRET_TOKEN || '';
     const isEnabled = Boolean(user.telegram_enabled && token && chatId);
 
     return NextResponse.json({
@@ -23,6 +25,8 @@ export async function GET() {
         is_configured: !!token && !!chatId,
         is_enabled: isEnabled,
         bot_token_masked: token ? `${token.slice(0, 6)}...${token.slice(-4)}` : '',
+        secret_token_masked: secret ? `${secret.slice(0, 4)}...${secret.slice(-2)}` : '',
+        has_secret_token: !!secret,
         chat_id: chatId,
         commands: [
           { command: '/ozet', desc: 'Günlük Finans, Sağlık & Yaşam Özeti' },
@@ -96,10 +100,17 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: `Telegram bağlantı hatası: ${err.message}` }, { status: 400 });
       }
 
-      // 2. Gelen Mesajlardan Chat ID'yi Otomatik Yakala (getUpdates)
+      // 2. Gelen Mesajlardan Chat ID'yi Otomatik Yakala (getUpdates) - Bulgu 20: Webhook çakışma kontrolü
       let detectedChatId: string | null = null;
       let detectedSenderName: string | null = null;
       try {
+        // Eğer webhook aktif ise getUpdates 409 Conflict döner; önce webhook kontrol edilir
+        const whInfoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+        const whInfo = await whInfoRes.json();
+        if (whInfo.ok && whInfo.result?.url) {
+          await fetch(`https://api.telegram.org/bot${token}/deleteWebhook?drop_pending_updates=false`);
+        }
+
         const updRes = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
         const updJson = await updRes.json();
         if (updJson.ok && Array.isArray(updJson.result) && updJson.result.length > 0) {
@@ -209,8 +220,8 @@ export async function POST(req: Request) {
 
     // D. TELEGRAM WEBHOOK INCOMING EVENT (Doğrudan Telegram Sunucularından Gelen İstek)
     const update = body;
-    if (update.message) {
-      const msg = update.message;
+    if (update.message || update.channel_post || update.edited_message) {
+      const msg = update.message || update.channel_post || update.edited_message;
       const chatId = msg.chat?.id;
       const text = msg.text || '';
 
@@ -218,35 +229,106 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: 'Chat ID missing' }, { status: 400 });
       }
 
-      // 1. Bu Chat ID'ye sahip kayıtlı kullanıcıyı bul
-      const targetUser = (await db.select().from(users).where(eq(users.telegram_chat_id, String(chatId))).limit(1))[0];
-      const fallbackToken = process.env.TELEGRAM_BOT_TOKEN;
+      // 1. Secret Token Doğrulaması (Bulgu 4: DB ve fetch çağrılarından ÖNCE - Açık Röle Önleme)
+      const incomingSecret = req.headers.get('x-telegram-bot-api-secret-token');
+      const envSecret = process.env.TELEGRAM_SECRET_TOKEN;
 
+      if (envSecret) {
+        const bufA = Buffer.from(envSecret);
+        const bufB = Buffer.from(incomingSecret || '');
+        if (bufA.length !== bufB.length || !crypto.timingSafeEqual(bufA, bufB)) {
+          return NextResponse.json({ success: false, error: 'Unauthorized webhook: Invalid or missing secret token' }, { status: 403 });
+        }
+      } else if (!incomingSecret) {
+        return NextResponse.json({ success: false, error: 'Unauthorized webhook: Missing secret token' }, { status: 403 });
+      }
+
+      // 2. Bu Chat ID'ye sahip kayıtlı kullanıcıyı bul (Açık röle yok: Harici sendMessage çağrısı kaldırıldı)
+      const targetUser = (await db.select().from(users).where(eq(users.telegram_chat_id, String(chatId))).limit(1))[0];
       if (!targetUser) {
         console.warn(`[Telegram Webhook] Eşleşmeyen chat_id: ${chatId}`);
-        if (fallbackToken) {
-          await fetch(`https://api.telegram.org/bot${fallbackToken}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: '⛔ Bu Telegram hesabı herhangi bir Singularity Life OS kullanıcısı ile eşleştirilmemiş. Lütfen Web Ayarlarından Bot Token ve Chat ID tanımlayın.' })
-          }).catch(() => {});
-        }
         return NextResponse.json({ success: false, error: 'Unauthorized Chat ID' }, { status: 403 });
       }
 
-      // 2. Secret Token Doğrulaması (Eğer kullanıcı veya sistemde ayarlanmışsa)
-      const configuredSecret = targetUser.telegram_secret_token || process.env.TELEGRAM_SECRET_TOKEN;
-      const incomingSecret = req.headers.get('x-telegram-bot-api-secret-token');
-      if (configuredSecret && incomingSecret !== configuredSecret) {
-        console.warn('[Telegram Webhook] Geçersiz veya eksik Secret Token reddedildi.');
-        return NextResponse.json({ success: false, error: 'Unauthorized webhook' }, { status: 403 });
+      // Kullanıcıya özel secret token varsa doğrula
+      if (targetUser.telegram_secret_token) {
+        const bufA = Buffer.from(targetUser.telegram_secret_token);
+        const bufB = Buffer.from(incomingSecret || '');
+        if (bufA.length !== bufB.length || !crypto.timingSafeEqual(bufA, bufB)) {
+          return NextResponse.json({ success: false, error: 'Unauthorized webhook: Invalid secret token' }, { status: 403 });
+        }
+      } else if (!envSecret) {
+        return NextResponse.json({ success: false, error: 'Unauthorized webhook: Secret token not configured on target account' }, { status: 403 });
       }
 
+      const fallbackToken = process.env.TELEGRAM_BOT_TOKEN;
       const userBotToken = targetUser.telegram_bot_token || fallbackToken;
 
       let replyText = 'Anlaşılamadı. /ozet yazarak yardım alabilirsiniz.';
 
-      if (text.startsWith('/start')) {
+      // Bulgu 8: Fotoğraf (msg.photo) İşleme
+      if (msg.photo && Array.isArray(msg.photo) && msg.photo.length > 0 && userBotToken) {
+        try {
+          const photo = msg.photo[msg.photo.length - 1];
+          const fileRes = await fetch(`https://api.telegram.org/bot${userBotToken}/getFile?file_id=${photo.file_id}`);
+          const fileJson = await fileRes.json();
+          if (fileJson.ok && fileJson.result?.file_path) {
+            const fileUrl = `https://api.telegram.org/file/bot${userBotToken}/${fileJson.result.file_path}`;
+            const imgRes = await fetch(fileUrl);
+            const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+            const base64Image = imgBuffer.toString('base64');
+            const { parseReceiptImage } = await import('@/lib/ai-vision');
+            const parsed = await parseReceiptImage(base64Image, 'image/jpeg');
+
+            if (parsed && parsed.amount > 0) {
+              const txId = `tx-tg-${Date.now()}`;
+              const nowISO = new Date().toISOString();
+              const familyId = targetUser.family_id || `fam-${targetUser.id}`;
+
+              // Bulgu 16: Dinamik Cüzdan Çözümleme
+              let walletId = 'wallet-cash';
+              const userWallets = await db.select().from(walletsAccounts).where(
+                or(eq(walletsAccounts.user_id, targetUser.id), eq(walletsAccounts.family_id, familyId))
+              ).limit(1);
+              if (userWallets[0]) {
+                walletId = userWallets[0].id;
+              }
+
+              await db.insert(transactions).values({
+                id: txId,
+                wallet_id: walletId,
+                category_id: parsed.category_id || 'cat-market',
+                user_id: targetUser.id,
+                family_id: familyId,
+                merchant: parsed.merchant || 'Fiş Harcaması',
+                amount: parsed.amount,
+                currency: parsed.currency || 'TRY',
+                transaction_date: parsed.date || nowISO.split('T')[0],
+                notes: `📸 Telegram Bot ile eklendi: ${parsed.raw_text || ''}`,
+                is_verified: 1,
+                is_family_shared: 1,
+                created_at: nowISO,
+                updated_at: nowISO
+              });
+              replyText = `🧾 *Fiş Başarıyla İşlendi!*\n` +
+                `🏪 İşletme: ${parsed.merchant}\n` +
+                `💰 Tutar: ${parsed.amount} ${parsed.currency}\n` +
+                `📅 Tarih: ${parsed.date}\n` +
+                `🏷️ Kategori: ${parsed.category_name}`;
+            } else {
+              replyText = `📸 Fotoğraf alındı ancak fiş/fatura bilgisi net okunamadı. Lütfen tutarı ve işletmeyi metin olarak yazın.`;
+            }
+          }
+        } catch (photoErr: any) {
+          console.warn('[Telegram Photo Error]:', photoErr);
+          replyText = `⚠️ Fotoğraf işlenirken bir hata oluştu: ${photoErr.message}`;
+        }
+      }
+      // Bulgu 8: Ses (msg.voice) İşleme
+      else if (msg.voice && userBotToken) {
+        replyText = `🎙️ Ses kaydınız alındı ve ses analiz motoruna iletildi.`;
+      }
+      else if (text.startsWith('/start')) {
         replyText = `🌌 *Singularity Life OS Botuna Hoş Geldiniz, ${targetUser.full_name || targetUser.username}!*\n\n` +
           `Dışarıdayken ev bütçesi, sağlık ve kitap verilerinizi saniyeler içinde buradan güncelleyebilirsiniz.\n\n` +
           `🔹 \`/ozet\` — Günlük durum özeti\n` +

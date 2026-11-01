@@ -4,6 +4,10 @@ import fs from 'fs';
 import path from 'path';
 import { getAuthUser } from '@/lib/auth';
 
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
 export async function POST(request: Request) {
   try {
     const user = await getAuthUser();
@@ -18,31 +22,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Görsel yüklenmedi' }, { status: 400 });
     }
 
+    // 1. Boyut Sınırı Kontrolü
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({
+        success: false,
+        error: 'Dosya boyutu çok yüksek. Lütfen 10 MB altı bir dosya yükleyin.'
+      }, { status: 400 });
+    }
+
+    // 2. Uzantı ve MIME Tipi Kontrolü
+    const fileExt = path.extname(file.name).toLowerCase();
+    const mimeType = (file.type || '').toLowerCase();
+
+    if (!ALLOWED_EXTENSIONS.includes(fileExt) || (mimeType && !ALLOWED_MIME_TYPES.includes(mimeType))) {
+      return NextResponse.json({
+        success: false,
+        error: 'Geçersiz dosya türü. Sadece JPG, PNG, WEBP veya PDF yükleyebilirsiniz.'
+      }, { status: 400 });
+    }
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const base64Image = buffer.toString('base64');
-    const mimeType = file.type || 'image/jpeg';
+    const effectiveMimeType = mimeType || (fileExt === '.pdf' ? 'application/pdf' : fileExt === '.png' ? 'image/png' : fileExt === '.webp' ? 'image/webp' : 'image/jpeg');
 
-    let publicUrl = '';
-
-    // Yerel ortamda diske yazmayı dene, serverless (Vercel) ortamında Data URI'ye düş
-    try {
-      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'home');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      const fileExt = file.name.substring(file.name.lastIndexOf('.')) || '.jpg';
-      const fileName = `invoice-${Date.now()}${fileExt}`;
-      const filePath = path.join(uploadDir, fileName);
-      fs.writeFileSync(filePath, buffer);
-      publicUrl = `/uploads/home/${fileName}`;
-    } catch {
-      publicUrl = `data:${mimeType};base64,${base64Image}`;
-    }
+    // Bulgu 18: Hassas fatura/garanti belgelerini herkese açık public/ dizinine yazmak yerine
+    // yetkisiz erişimi engelleyen Data URI formatında sakla/döndür
+    const publicUrl = `data:${effectiveMimeType};base64,${base64Image}`;
 
     // Gemini Vision OCR ile faturayı analiz et
-    const parsedData = await parseApplianceInvoiceImage(base64Image, mimeType);
+    const parsedData = await parseApplianceInvoiceImage(base64Image, effectiveMimeType);
 
     return NextResponse.json({
       success: true,

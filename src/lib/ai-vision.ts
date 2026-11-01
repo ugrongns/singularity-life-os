@@ -22,18 +22,17 @@ export interface ParsedReceipt {
 }
 
 /**
- * Resmi Gemini Modelleri Öncelik Zinciri
+ * Resmi Gemini Modelleri Öncelik Zinciri (Bulgu 5)
  */
 export const RESILIENT_GEMINI_MODELS = [
-  'gemini-3.8-flash',
-  'gemini-3.5-flash',
-  'gemini-flash-latest',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash'
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-flash-latest'
 ];
 
 /**
- * Otomatik Failover / Yeniden Deneme Özellikli Gemini Vision API Çağrıcısı
+ * Otomatik Failover / Yeniden Deneme & Backoff Özellikli Gemini Vision API Çağrıcısı (Bulgu 11)
  */
 async function callGeminiVision(
   apiKey: string,
@@ -41,25 +40,39 @@ async function callGeminiVision(
   generationConfig: any = { responseMimeType: 'application/json', temperature: 0.1 }
 ): Promise<any> {
   for (const model of RESILIENT_GEMINI_MODELS) {
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents,
-            generationConfig
-          })
-        }
-      );
+    let attempts = 0;
+    while (attempts < 2) {
+      attempts++;
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents,
+              generationConfig
+            })
+          }
+        );
 
-      if (response.ok) {
-        return await response.json();
+        if (response.ok) {
+          return await response.json();
+        }
+
+        // Bulgu 11: 429 (Rate Limit) veya 503 (Service Unavailable) durumunda backoff ile bekle
+        if ((response.status === 429 || response.status === 503) && attempts < 2) {
+          console.warn(`[AI Vision] Model ${model} ${response.status} döndürdü, backoff ile bekleniyor... (Deneme ${attempts})`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+          continue;
+        }
+
+        console.warn(`[AI Vision] Model ${model} döndürdü: ${response.status}`);
+        break;
+      } catch (err) {
+        console.warn(`[AI Vision] ${model} çağrılırken hata:`, err);
+        break;
       }
-      console.warn(`[AI Vision] Model ${model} döndürdü: ${response.status}`);
-    } catch (err) {
-      console.warn(`[AI Vision] ${model} çağrılırken hata:`, err);
     }
   }
   return null;
@@ -154,7 +167,8 @@ Buruşukluk, eksik ışık veya kısmi silinme durumunda dahi en mantıklı tahm
         console.log('[AI Vision Debug] Gemini Response:', JSON.stringify(jsonResult, null, 2));
         const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
         if (textOutput) {
-          const parsed = JSON.parse(textOutput);
+          const cleanJson = textOutput.replace(/```(?:json)?\s*/gi, '').replace(/\s*```/g, '').trim();
+          const parsed = JSON.parse(cleanJson);
           return {
             merchant: parsed.merchant || 'Market / İşletme',
             amount: Number(parsed.amount) || 0,
@@ -252,7 +266,8 @@ export async function parseVaultDocumentImage(
 
       const textOutput = jsonResult?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (textOutput) {
-        const parsed = JSON.parse(textOutput);
+        const cleanJson = textOutput.replace(/```(?:json)?\s*/gi, '').replace(/\s*```/g, '').trim();
+        const parsed = JSON.parse(cleanJson);
         return {
           title: parsed.title || 'Taranan Belge',
           type: parsed.type || 'other',

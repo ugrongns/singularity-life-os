@@ -1,28 +1,11 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { getAuthUser } from '@/lib/auth';
 import { db, initDatabase } from '@/db';
 import { transactions, walletsAccounts, categories, familyMembers } from '@/db/schema';
 import { eventBus, EVENTS } from '@/lib/events';
-import { eq, or, and } from 'drizzle-orm';
-
-// ✅ Timezone-safe & ay sonu taşmasını (setMonth overflow) önleyen taksit tarihi hesaplayıcı
-function addMonthsSafe(baseDate: Date, monthsToAdd: number): string {
-  const year = baseDate.getFullYear();
-  const month = baseDate.getMonth();
-  const day = baseDate.getDate();
-
-  const totalMonths = month + monthsToAdd;
-  const targetYear = year + Math.floor(totalMonths / 12);
-  const targetMonth = ((totalMonths % 12) + 12) % 12;
-
-  // Hedef ayın son gününü bul ve taşmayı engelle (Örn: 31 Ocak + 1 ay = 28 Şubat)
-  const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
-  const clampedDay = Math.min(day, daysInTargetMonth);
-
-  const mStr = String(targetMonth + 1).padStart(2, '0');
-  const dStr = String(clampedDay).padStart(2, '0');
-  return `${targetYear}-${mStr}-${dStr}`;
-}
+import { eq, or, and, like } from 'drizzle-orm';
+import { addMonthsSafe } from '@/lib/bill-schedule';
 
 export async function POST(req: Request) {
   try {
@@ -100,7 +83,7 @@ export async function POST(req: Request) {
     const now = new Date();
     const nowISO = now.toISOString();
     const totalInstallments = Math.max(1, parseInt(installments, 10));
-    const parentTxId = `tx-${Date.now()}`;
+    const parentTxId = `tx_${crypto.randomUUID()}`;
     const baseMonthly = Math.floor((numAmount / totalInstallments) * 100) / 100;
     const remainder = Math.round((numAmount - (baseMonthly * totalInstallments)) * 100) / 100;
     const approxMonthly = Math.round((numAmount / totalInstallments) * 100) / 100;
@@ -122,12 +105,40 @@ export async function POST(req: Request) {
     const baseDate = transaction_date ? new Date(transaction_date) : now;
     const validBaseDate = isNaN(baseDate.getTime()) ? now : baseDate;
 
-    // Atomik Veritabanı Yazma İşlemi (db.transaction)
+    // Atomik Veritabanı Yazma İşlemi (db.transaction + FOR UPDATE satır kilitleme)
     await db.transaction(async (tx) => {
-      // 1. Taksitli veya tekil işlem kayıtlarını ekle
+      // 1. Cüzdanı FOR UPDATE ile kilitleyerek çek (Lost update önleme)
+      const lockedWallet = (await tx.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)).for('update'))[0];
+      if (!lockedWallet) {
+        throw new Error('NOT_FOUND: Seçilen hesap bulunamadı.');
+      }
+
+      // 2. Kredi Kartı, KMH veya Nakit Limit Kontrolü (Transaction içinde kilitli bakiye ile kesin denetim)
+      if (!isIncome) {
+        if (lockedWallet.type === 'credit_card') {
+          const creditLimit = lockedWallet.credit_limit || 0;
+          const currentDebt = lockedWallet.balance || 0;
+          const availableLimit = Math.max(0, creditLimit - currentDebt);
+          if (numAmount > availableLimit) {
+            throw new Error(`LIMIT_EXCEEDED: Kredi Kartı Limiti Aşıldı! ${lockedWallet.name} kartınızın kullanılabilir limiti sadece ${availableLimit.toLocaleString('tr-TR')} ₺'dir.`);
+          }
+        } else if (lockedWallet.type === 'kmh') {
+          const overdraftLimit = lockedWallet.overdraft_limit || 0;
+          const availableKMH = lockedWallet.balance + overdraftLimit;
+          if (numAmount > availableKMH) {
+            throw new Error(`LIMIT_EXCEEDED: KMH (Ek Hesap) Limiti Aşıldı! ${lockedWallet.name} hesabınızın kullanılabilir toplam limiti ${availableKMH.toLocaleString('tr-TR')} ₺'dir.`);
+          }
+        } else {
+          if (numAmount > lockedWallet.balance) {
+            throw new Error(`INSUFFICIENT_FUNDS: Yetersiz Bakiye! ${lockedWallet.name} hesabınızda sadece ${lockedWallet.balance.toLocaleString('tr-TR')} ₺ bakiye bulunmaktadır.`);
+          }
+        }
+      }
+
+      // 3. Taksitli veya tekil işlem kayıtlarını ekle
       for (let i = 0; i < totalInstallments; i++) {
         const txDateString = addMonthsSafe(validBaseDate, i);
-        const txId = i === 0 ? parentTxId : `tx-${Date.now()}-${i + 1}`;
+        const txId = i === 0 ? parentTxId : `tx_${crypto.randomUUID()}_${i + 1}`;
 
         await tx.insert(transactions).values({
           id: txId,
@@ -138,7 +149,7 @@ export async function POST(req: Request) {
           family_id: familyId,
           merchant: merchant || (isIncome ? 'Gelir Girişi' : 'Genel Harcama'),
           amount: (i === 0 ? Math.round((baseMonthly + remainder) * 100) / 100 : baseMonthly),
-          currency: wallet.currency || 'TRY',
+          currency: lockedWallet.currency || 'TRY',
           transaction_date: txDateString,
           notes: totalInstallments > 1 
             ? `${notes || ''} [Taksit ${i + 1}/${totalInstallments}]` 
@@ -159,21 +170,21 @@ export async function POST(req: Request) {
         createdTxIds.push(txId);
       }
 
-      // 2. Cüzdan / Kart / KMH Bakiyesini Atomik Olarak Güncelle
-      let newBalance = wallet.balance;
+      // 4. Cüzdan / Kart / KMH Bakiyesini Atomik Olarak Güncelle
+      let newBalance = lockedWallet.balance;
       if (isIncome) {
         // Gelir: Banka bakiyesini artırır, Kredi Kartı borcunu azaltır
-        newBalance = wallet.type === 'credit_card'
-          ? Math.max(0, wallet.balance - numAmount)
-          : wallet.balance + numAmount;
+        newBalance = lockedWallet.type === 'credit_card'
+          ? Math.max(0, lockedWallet.balance - numAmount)
+          : lockedWallet.balance + numAmount;
       } else {
         // Gider: Banka bakiyesini azaltır, Kredi Kartı borcunu artırır, KMH eksiye düşebilir
-        if (wallet.type === 'credit_card') {
-          newBalance = wallet.balance + numAmount;
-        } else if (wallet.type === 'kmh') {
-          newBalance = wallet.balance - numAmount; // KMH eksiye düşebilir
+        if (lockedWallet.type === 'credit_card') {
+          newBalance = lockedWallet.balance + numAmount;
+        } else if (lockedWallet.type === 'kmh') {
+          newBalance = lockedWallet.balance - numAmount; // KMH eksiye düşebilir
         } else {
-          newBalance = Math.max(0, wallet.balance - numAmount);
+          newBalance = Math.max(0, lockedWallet.balance - numAmount);
         }
       }
 
@@ -189,7 +200,9 @@ export async function POST(req: Request) {
       merchant,
       installments: totalInstallments,
       wallet_id,
-      category_id
+      category_id,
+      userId: user.id,
+      familyId
     });
 
     return NextResponse.json({
@@ -272,14 +285,18 @@ export async function DELETE(req: Request) {
     await db.transaction(async (dbtx) => {
       // 1. Kaynak Cüzdan Bakiyesini İade Et
       if (tx.wallet_id) {
-        const wallet = (await dbtx.select().from(walletsAccounts).where(eq(walletsAccounts.id, tx.wallet_id)))[0];
+        const wallet = (await dbtx.select().from(walletsAccounts).where(eq(walletsAccounts.id, tx.wallet_id)).for('update'))[0];
         if (wallet) {
           let newBalance = wallet.balance;
           if (isIncome) {
-            // Gelir siliniyor: Normal banka bakiyesi AZALIR, Kredi kartı borcu ARTAR
-            newBalance = wallet.type === 'credit_card'
-              ? wallet.balance + totalRevertAmount
-              : Math.max(0, wallet.balance - totalRevertAmount);
+            // Gelir siliniyor: Normal banka bakiyesi AZALIR, Kredi kartı borcu ARTAR, KMH borcu derinleşebilir
+            if (wallet.type === 'credit_card') {
+              newBalance = wallet.balance + totalRevertAmount;
+            } else if (wallet.type === 'kmh') {
+              newBalance = wallet.balance - totalRevertAmount; // [K-06 Düzeltmesi]: KMH eksi bakiyeye serbestçe düşebilir, borç sıfırlanmaz
+            } else {
+              newBalance = Math.max(0, wallet.balance - totalRevertAmount);
+            }
           } else {
             // Gider siliniyor: Normal banka bakiyesi ARTAR, Kredi kartı borcu AZALIR
             newBalance = wallet.type === 'credit_card'
@@ -295,17 +312,30 @@ export async function DELETE(req: Request) {
 
       // 2. Transfer ise Hedef Hesabın Bakiyesini de Geri Al
       if (targetWalletId) {
-        const targetWallet = (await dbtx.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetWalletId)))[0];
+        const targetWallet = (await dbtx.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetWalletId)).for('update'))[0];
         if (targetWallet) {
           // Transfer silindiğinde: Hedef hesap para almıştı, şimdi o parayı geri düşüyoruz
-          const newTargetBalance = targetWallet.type === 'credit_card'
-            ? targetWallet.balance + totalRevertAmount // Kart ödemesi iptal -> kart borcu geri artar
-            : Math.max(0, targetWallet.balance - totalRevertAmount); // Banka bakiyesi geri düşer
+          let newTargetBalance: number;
+          if (targetWallet.type === 'credit_card') {
+            newTargetBalance = targetWallet.balance + totalRevertAmount; // Kart ödemesi iptal -> kart borcu geri artar
+          } else if (targetWallet.type === 'kmh') {
+            newTargetBalance = targetWallet.balance - totalRevertAmount; // [K-06 Düzeltmesi]: KMH eksiye düşebilir
+          } else {
+            newTargetBalance = Math.max(0, targetWallet.balance - totalRevertAmount); // Banka bakiyesi geri düşer
+          }
 
           await dbtx.update(walletsAccounts)
             .set({ balance: newTargetBalance, updated_at: nowISO })
             .where(eq(walletsAccounts.id, targetWalletId));
         }
+
+        // Çift taraflı transferin hedef hesaptaki karşıt hareketini de temizle
+        await dbtx.delete(transactions).where(
+          and(
+            eq(transactions.wallet_id, targetWalletId),
+            like(transactions.notes, `%[from_wallet:${tx.wallet_id}]%`)
+          )
+        );
       }
 
       // 3. Taksitli ise tüm kardeş taksitleri sil, değilse sadece bu kaydı sil

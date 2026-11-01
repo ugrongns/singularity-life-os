@@ -15,7 +15,7 @@ if (databaseUrl.includes('db.xehnmpsaitliyekoahpl.supabase.co')) {
     .replace('postgresql://postgres:', 'postgresql://postgres.xehnmpsaitliyekoahpl:');
 }
 
-const pgClient = postgres(databaseUrl, { ssl: 'require', max: 10, prepare: false });
+const pgClient = postgres(databaseUrl, { ssl: 'require', max: 2, prepare: false });
 export const db = drizzle(pgClient, { schema });
 export const client = pgClient;
 
@@ -421,6 +421,8 @@ async function _runInit(): Promise<void> {
         protein_g DOUBLE PRECISION NOT NULL DEFAULT 0,
         carbs_g DOUBLE PRECISION NOT NULL DEFAULT 0,
         fat_g DOUBLE PRECISION NOT NULL DEFAULT 0,
+        user_id TEXT,
+        family_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -694,6 +696,7 @@ async function _runInit(): Promise<void> {
         email TEXT,
         password_hash TEXT NOT NULL,
         password_salt TEXT NOT NULL,
+        pin_salt TEXT,
         quick_pin_hash TEXT NOT NULL,
         role TEXT NOT NULL DEFAULT 'admin',
         avatar_emoji TEXT DEFAULT '👤',
@@ -793,6 +796,10 @@ async function _runInit(): Promise<void> {
       ALTER TABLE biometrics ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE smart_scale_logs ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE recurring_bills ADD COLUMN IF NOT EXISTS amount_type TEXT DEFAULT 'fixed';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_salt TEXT;
+      ALTER TABLE supplement_intake_logs ADD COLUMN IF NOT EXISTS user_id TEXT;
+      ALTER TABLE supplement_intake_logs ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE supplement_intake_logs ADD COLUMN IF NOT EXISTS member_id TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_bot_token TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_chat_id TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_secret_token TEXT;
@@ -833,6 +840,11 @@ async function _runInit(): Promise<void> {
     `;
 
     const createIndexesSQL = `
+      CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
+      CREATE INDEX IF NOT EXISTS idx_users_family_id ON users (family_id);
+      CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions (user_id);
+      CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions (expires_at);
+      CREATE INDEX IF NOT EXISTS idx_family_members_family_user ON family_members (family_id, user_id);
       CREATE INDEX IF NOT EXISTS idx_transactions_family_date ON transactions (family_id, transaction_date DESC);
       CREATE INDEX IF NOT EXISTS idx_transactions_wallet_date ON transactions (wallet_id, transaction_date DESC);
       CREATE INDEX IF NOT EXISTS idx_transactions_category_id ON transactions (category_id);
@@ -842,24 +854,10 @@ async function _runInit(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_personal_debts_family_id ON personal_debts_receivables (family_id);
     `;
 
-    const enableRlsSQL = `
-      DO $$ 
-      DECLARE 
-          r RECORD;
-      BEGIN 
-          FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') 
-          LOOP 
-              EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' ENABLE ROW LEVEL SECURITY;';
-          END LOOP; 
-      END $$;
-    `;
-
     await pgClient.unsafe(createTablesSQL);
     await pgClient.unsafe(alterMissingColumnsSQL);
     await pgClient.unsafe(seedCategoriesSQL);
     await pgClient.unsafe(createIndexesSQL);
-    
-    await pgClient.unsafe(enableRlsSQL);
   } catch (err) {
     _initPromise = null; // Hata durumunda sıfırla, bir sonraki istekte tekrar denensin
     console.warn('initDatabase notice:', err);

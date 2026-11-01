@@ -3,7 +3,7 @@ import { db, initDatabase } from '@/db';
 import { workoutSessions } from '@/db/schema';
 import { getValidStravaAccessToken, mapStravaActivityToWorkout, getStravaConfig } from '@/lib/strava';
 import { getAuthUser } from '@/lib/auth';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, and } from 'drizzle-orm';
 
 export async function GET(req: Request) {
   try {
@@ -12,7 +12,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     }
 
-    const config = await getStravaConfig();
+    const config = await getStravaConfig(user.id);
     return NextResponse.json({
       success: true,
       data: {
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     }
 
-    const accessToken = await getValidStravaAccessToken();
+    const accessToken = await getValidStravaAccessToken(user.id);
     if (!accessToken) {
       return NextResponse.json({
         success: false,
@@ -42,16 +42,21 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    // Strava aktivitelerini çek
-    const stravaRes = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=30', {
+    const { searchParams } = new URL(req.url, 'http://localhost');
+    const body = await req.json().catch(() => ({}));
+    const page = Math.max(1, parseInt(searchParams.get('page') || body.page || '1', 10));
+    const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get('per_page') || body.per_page || '30', 10)));
+
+    // Strava aktivitelerini sayfalama desteğiyle çek (Bulgu 19)
+    const stravaRes = await fetch(`https://www.strava.com/api/v3/athlete/activities?page=${page}&per_page=${perPage}`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`
       }
     });
 
     if (!stravaRes.ok) {
-      const errText = await stravaRes.text();
-      return NextResponse.json({ success: false, error: `Strava API hatası: ${errText}` }, { status: 502 });
+      console.warn(`[Strava Sync] HTTP ${stravaRes.status} received from Strava API`);
+      return NextResponse.json({ success: false, error: 'Strava aktiviteleri alınamadı. Lütfen daha sonra tekrar deneyin.' }, { status: 502 });
     }
 
     const activities: any[] = await stravaRes.json();
@@ -64,7 +69,12 @@ export async function POST(req: Request) {
     const existingWorkouts = await db
       .select({ external_id: workoutSessions.external_id })
       .from(workoutSessions)
-      .where(inArray(workoutSessions.external_id, externalIds));
+      .where(
+        and(
+          inArray(workoutSessions.external_id, externalIds),
+          eq(workoutSessions.user_id, user.id)
+        )
+      );
 
     const existingIdSet = new Set(existingWorkouts.map(w => w.external_id));
 

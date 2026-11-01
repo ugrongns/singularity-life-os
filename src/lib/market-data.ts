@@ -73,7 +73,8 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
   try {
     const res = await fetch('https://finans.truncgil.com/today.json', {
       headers: { 'User-Agent': 'SingularityLifeOS/1.0' },
-      next: { revalidate: 600 }
+      next: { revalidate: 600 },
+      signal: AbortSignal.timeout(4000)
     });
     if (res.ok) {
       const data = await res.json();
@@ -111,7 +112,8 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
   if (source === 'fallback') {
     try {
       const res = await fetch('https://www.tcmb.gov.tr/kurlar/today.xml', {
-        next: { revalidate: 600 }
+        next: { revalidate: 600 },
+        signal: AbortSignal.timeout(4000)
       });
       if (res.ok) {
         const xml = await res.text();
@@ -141,7 +143,8 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
   if (source === 'fallback') {
     try {
       const res = await fetch('https://open.er-api.com/v6/latest/USD', {
-        next: { revalidate: 600 }
+        next: { revalidate: 600 },
+        signal: AbortSignal.timeout(4000)
       });
       if (res.ok) {
         const data = await res.json();
@@ -163,10 +166,16 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
     }
   }
 
+  // Eğer tüm dış API'ler başarısız olduysa ve hafızada önceki başarılı kur varsa, onu koru (Graceful Stale Cache)
+  if (source === 'fallback' && cachedRates) {
+    return cachedRates;
+  }
+
   // Kripto BTC/TRY Fiyatı (CoinGecko veya kur oranı hesabı)
   try {
     const cryptoRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=try', {
-      next: { revalidate: 600 }
+      next: { revalidate: 600 },
+      signal: AbortSignal.timeout(4000)
     });
     if (cryptoRes.ok) {
       const cData = await cryptoRes.json();
@@ -222,7 +231,8 @@ export async function fetchTefasFundPrice(fundCode: string): Promise<{ price: nu
       body: new URLSearchParams({
         fontip: 'YAT',
         fonkod: code
-      }).toString()
+      }).toString(),
+      signal: AbortSignal.timeout(4000)
     });
 
     if (res.ok) {
@@ -261,7 +271,9 @@ export async function fetchCryptoPrice(symbol: string): Promise<{ priceUSD: numb
   if (!coinId) return null;
 
   try {
-    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd,try`);
+    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd,try`, {
+      signal: AbortSignal.timeout(4000)
+    });
     if (res.ok) {
       const data = await res.json();
       if (data && data[coinId]) {

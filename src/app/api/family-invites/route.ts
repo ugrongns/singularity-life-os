@@ -3,7 +3,6 @@ import { db, initDatabase } from '@/db';
 import { familyInvites } from '@/db/schema';
 import { getAuthUser } from '@/lib/auth';
 import { eq, and, gt } from 'drizzle-orm';
-
 import crypto from 'crypto';
 
 function generateInviteCode(): string {
@@ -24,14 +23,15 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Oturum bulunamadı.' }, { status: 401 });
     }
 
+    const familyId = user.family_id || `fam-${user.id}`;
     const nowISO = new Date().toISOString();
 
-    // Aktif ve süresi dolmamış davet kodlarını çek
+    // Yalnızca bu ailenin aktif ve süresi dolmamış davet kodlarını çek
     const activeInvites = await db.select()
       .from(familyInvites)
       .where(
         and(
-          eq(familyInvites.created_by_user_id, user.id),
+          eq(familyInvites.family_id, familyId),
           eq(familyInvites.is_used, 0),
           gt(familyInvites.expires_at, nowISO)
         )
@@ -55,6 +55,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Oturum bulunamadı.' }, { status: 401 });
     }
 
+    // YETKİ KONTROLÜ: Yalnızca Aile Yöneticisi davet kodu oluşturabilir
+    if (user.role !== 'admin') {
+      return NextResponse.json({
+        success: false,
+        error: 'Aile davet kodunu yalnızca Aile Yöneticisi (admin) üretebilir.'
+      }, { status: 403 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const {
       family_role = 'member',
@@ -68,7 +76,7 @@ export async function POST(req: Request) {
     // 7 gün geçerli davet kodu
     const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const code = generateInviteCode();
-    const inviteId = `inv-${Date.now()}`;
+    const inviteId = `inv_${crypto.randomUUID()}`;
     const familyId = user.family_id || `fam-${user.id}`;
 
     await db.insert(familyInvites).values({

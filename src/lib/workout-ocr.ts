@@ -70,6 +70,7 @@ export function parseTimeToSeconds(timeStr: string | number): number {
 }
 
 export function parseTimeToCentiseconds(timeStr: string | number): number {
+  if (typeof timeStr === 'number') return Math.round(timeStr * 100);
   const secs = parseTimeToSeconds(timeStr);
   return Math.round(secs * 100);
 }
@@ -205,7 +206,7 @@ SADECE geçerli bir JSON çıktısı üret, markdown veya açıklama yazma.`;
           const parsed = JSON.parse(cleanJson);
           const durationText = parsed.duration_text || (parsed.duration_minutes ? formatSecondsToTime(Number(parsed.duration_minutes) * 60) : '30:00');
           const durationSeconds = parsed.duration_seconds !== undefined ? Number(parsed.duration_seconds) : parseTimeToSeconds(durationText);
-          const durationCentiseconds = parsed.duration_centiseconds !== undefined ? Math.round(Number(parsed.duration_centiseconds)) : parseTimeToCentiseconds(durationSeconds);
+          const durationCentiseconds = parsed.duration_centiseconds !== undefined ? Math.round(Number(parsed.duration_centiseconds)) : Math.round(Number(durationSeconds) * 100);
           const durationMinutes = Math.round(durationSeconds / 60) || 30;
 
           let distanceKm = Number(parsed.distance_km) || 0;

@@ -113,6 +113,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Vadeli mevduat hesabı bulunamadı.' }, { status: 404 });
     }
 
+    if (depositAcc.is_active === 0) {
+      return NextResponse.json({ success: false, error: 'Bu vadeli hesap zaten kapatılmış.' }, { status: 400 });
+    }
+
     // BOLA: Vadeli hesabın bu aileye/kullanıcıya ait olduğunu doğrula
     const depositBelongs = !depositAcc.family_id || (familyId && depositAcc.family_id === familyId);
     if (!depositBelongs || (depositAcc.user_id !== user.id && user.is_master_account !== 1 && user.role !== 'admin')) {
@@ -124,70 +128,81 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Hedef vadesiz hesap bulunamadı.' }, { status: 404 });
     }
 
+    if (depositAcc.currency !== targetAcc.currency) {
+      return NextResponse.json({ 
+        success: false, 
+        error: `Para birimi uyuşmazlığı: Vadeli hesap (${depositAcc.currency}) ile hedef hesap (${targetAcc.currency}) aynı para biriminde olmalıdır.` 
+      }, { status: 400 });
+    }
+
     // BOLA: Hedef hesabın aynı aileye/kullanıcıya ait olduğunu doğrula
     const targetBelongs = !targetAcc.family_id || (familyId && targetAcc.family_id === familyId);
     if (!targetBelongs || (targetAcc.user_id !== user.id && targetAcc.is_family_shared !== 1 && user.is_master_account !== 1 && user.role !== 'admin')) {
       return NextResponse.json({ success: false, error: 'Hedef hesaba aktarım yetkiniz yok.' }, { status: 403 });
     }
 
-    const principal = depositAcc.balance || 0;
+    const principal = Number(depositAcc.balance) || 0;
     const interest = Number(actualInterestEarned) || 0;
-    const totalReturn = principal + interest;
 
+    if (interest < 0) {
+      return NextResponse.json({ success: false, error: 'Faiz getirisi negatif olamaz.' }, { status: 400 });
+    }
+
+    // Mantıksız veya hileli faiz girişlerini önleme tavanı (maksimum faiz koruması)
+    if (depositAcc.interest_rate && principal > 0) {
+      const daysElapsed = Math.max(1, Math.round((Date.now() - new Date(depositAcc.created_at).getTime()) / (1000 * 60 * 60 * 24)) + 30);
+      const theoreticalMaxInterest = (principal * (Number(depositAcc.interest_rate) / 100) * (daysElapsed / 365)) * 2;
+      if (interest > theoreticalMaxInterest) {
+        return NextResponse.json({ 
+          success: false, 
+          error: `Girilen faiz tutarı (${interest.toLocaleString('tr-TR')}), hesaba göre olası azami getirinin (${Math.round(theoreticalMaxInterest).toLocaleString('tr-TR')}) üzerindedir.` 
+        }, { status: 400 });
+      }
+    }
+
+    const totalReturn = principal + interest;
     const now = new Date();
     const nowISO = now.toISOString();
 
-    // 1. Hedef hesabın bakiyesini güncelle
-    await db.update(walletsAccounts)
-      .set({
-        balance: targetAcc.balance + totalReturn,
-        updated_at: nowISO
-      })
-      .where(eq(walletsAccounts.id, targetAccountId));
+    await db.transaction(async (tx) => {
+      const [lockedDeposit] = await tx.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).for('update');
+      if (!lockedDeposit || lockedDeposit.is_active === 0) {
+        throw new Error('Bu vadeli hesap zaten kapatılmış veya mevcut değil.');
+      }
 
-    // 2. Vadeli hesabı sıfırla ve deaktif et
-    await db.update(walletsAccounts)
-      .set({
-        balance: 0,
-        is_active: 0,
-        updated_at: nowISO
-      })
-      .where(eq(walletsAccounts.id, accountId));
+      const [lockedTarget] = await tx.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetAccountId)).for('update');
+      if (!lockedTarget) {
+        throw new Error('Hedef hesap bulunamadı.');
+      }
 
-    // 3. Anapara dönüşü işlemini kaydet
-    await db.insert(transactions).values({
-      id: `tx-deposit-return-${Date.now()}`,
-      wallet_id: targetAccountId,
-      user_id: user.id,
-      family_id: familyId,
-      merchant: `🏛️ Vadeli Mevduat Dönüşü (Anapara)`,
-      amount: principal,
-      currency: depositAcc.currency,
-      transaction_date: nowISO.split('T')[0],
-      notes: `${depositAcc.name} vadeli hesabı kapanış anaparası. ${closeNotes || ''}`,
-      is_installment: 0,
-      installment_number: 1,
-      total_installments: 1,
-      is_verified: 1,
-      is_family_shared: 1,
-      created_at: nowISO,
-      updated_at: nowISO,
-      sync_status: 'synced',
-      device_id: 'web-client'
-    });
+      // 1. Hedef hesabın bakiyesini güncelle
+      await tx.update(walletsAccounts)
+        .set({
+          balance: (Number(lockedTarget.balance) || 0) + totalReturn,
+          updated_at: nowISO
+        })
+        .where(eq(walletsAccounts.id, targetAccountId));
 
-    // 4. Faiz geliri işlemini kaydet
-    if (interest > 0) {
-      await db.insert(transactions).values({
-        id: `tx-deposit-interest-${Date.now()}`,
+      // 2. Vadeli hesabı sıfırla ve deaktif et
+      await tx.update(walletsAccounts)
+        .set({
+          balance: 0,
+          is_active: 0,
+          updated_at: nowISO
+        })
+        .where(eq(walletsAccounts.id, accountId));
+
+      // 3. Anapara dönüşü işlemini kaydet
+      await tx.insert(transactions).values({
+        id: `tx-deposit-return-${crypto.randomUUID()}`,
         wallet_id: targetAccountId,
         user_id: user.id,
         family_id: familyId,
-        merchant: `💵 Vadeli Mevduat Faiz Geliri`,
-        amount: interest,
+        merchant: `🏛️ Vadeli Mevduat Dönüşü (Anapara)`,
+        amount: principal,
         currency: depositAcc.currency,
         transaction_date: nowISO.split('T')[0],
-        notes: `${depositAcc.name} vadeli hesabı net faiz getirisi.`,
+        notes: `${depositAcc.name} vadeli hesabı kapanış anaparası. ${closeNotes || ''}`,
         is_installment: 0,
         installment_number: 1,
         total_installments: 1,
@@ -198,7 +213,31 @@ export async function POST(req: Request) {
         sync_status: 'synced',
         device_id: 'web-client'
       });
-    }
+
+      // 4. Faiz geliri işlemini kaydet
+      if (interest > 0) {
+        await tx.insert(transactions).values({
+          id: `tx-deposit-interest-${crypto.randomUUID()}`,
+          wallet_id: targetAccountId,
+          user_id: user.id,
+          family_id: familyId,
+          merchant: `💵 Vadeli Mevduat Faiz Geliri`,
+          amount: interest,
+          currency: depositAcc.currency,
+          transaction_date: nowISO.split('T')[0],
+          notes: `${depositAcc.name} vadeli hesabı net faiz getirisi.`,
+          is_installment: 0,
+          installment_number: 1,
+          total_installments: 1,
+          is_verified: 1,
+          is_family_shared: 1,
+          created_at: nowISO,
+          updated_at: nowISO,
+          sync_status: 'synced',
+          device_id: 'web-client'
+        });
+      }
+    });
 
     return NextResponse.json({
       success: true,

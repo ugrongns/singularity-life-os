@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { parseVaultDocumentImage } from '@/lib/ai-vision';
 import { getAuthUser } from '@/lib/auth';
+import path from 'path';
+
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_BASE64_LENGTH = 15 * 1024 * 1024; // ~10 MB payload in base64
 
 export async function POST(req: Request) {
   try {
@@ -20,30 +26,49 @@ export async function POST(req: Request) {
       const base64Input = formData.get('base64') as string | null;
 
       if (file) {
-        // Vercel Serverless 4.5 MB sınırına karşı güvenlik kontrolü
-        if (file.size > 4.5 * 1024 * 1024) {
+        if (file.size > MAX_FILE_SIZE) {
           return NextResponse.json({
             success: false,
-            error: 'Dosya boyutu çok yüksek. Lütfen 4.5 MB altı bir dosya yükleyin.'
+            error: 'Dosya boyutu çok yüksek. Lütfen 10 MB altı bir dosya yükleyin.'
+          }, { status: 400 });
+        }
+
+        const ext = path.extname(file.name).toLowerCase();
+        const fMime = (file.type || '').toLowerCase();
+        if (!ALLOWED_EXTENSIONS.includes(ext) || (fMime && !ALLOWED_MIME_TYPES.includes(fMime))) {
+          return NextResponse.json({
+            success: false,
+            error: 'Geçersiz dosya formatı. Sadece JPG, PNG, WEBP veya PDF yükleyebilirsiniz.'
           }, { status: 400 });
         }
 
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
         base64Image = buffer.toString('base64');
-        mimeType = file.type || 'image/jpeg';
+        mimeType = fMime || (ext === '.pdf' ? 'application/pdf' : ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg');
 
-        // Kalıcı Depolama: Vercel konteyner sıfırlanmalarına karşı Base64 Data URI olarak veritabanına hazırla
         documentImageUrl = `data:${mimeType};base64,${base64Image}`;
       } else if (base64Input) {
+        if (base64Input.length > MAX_BASE64_LENGTH) {
+          return NextResponse.json({ success: false, error: 'Base64 veri boyutu sınırı aşıldı.' }, { status: 400 });
+        }
         base64Image = base64Input;
         documentImageUrl = base64Input.startsWith('data:') ? base64Input : `data:${mimeType};base64,${base64Image}`;
       }
     } else if (contentType.includes('application/json')) {
       const body = await req.json();
       base64Image = body.base64 || '';
-      mimeType = body.mimeType || 'image/jpeg';
+      mimeType = (body.mimeType || 'image/jpeg').toLowerCase();
+      if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+        return NextResponse.json({
+          success: false,
+          error: 'Geçersiz MIME tipi. Sadece JPG, PNG, WEBP veya PDF desteklenir.'
+        }, { status: 400 });
+      }
       if (base64Image) {
+        if (base64Image.length > MAX_BASE64_LENGTH) {
+          return NextResponse.json({ success: false, error: 'Base64 veri boyutu sınırı aşıldı.' }, { status: 400 });
+        }
         documentImageUrl = base64Image.startsWith('data:') ? base64Image : `data:${mimeType};base64,${base64Image}`;
       }
     }

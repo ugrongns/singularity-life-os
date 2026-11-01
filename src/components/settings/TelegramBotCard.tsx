@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 export default function TelegramBotCard() {
   const [botToken, setBotToken] = useState('');
   const [chatId, setChatId] = useState('');
+  const [secretToken, setSecretToken] = useState('');
   const [isEnabled, setIsEnabled] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -52,6 +53,7 @@ export default function TelegramBotCard() {
           action: 'save_config',
           bot_token: botToken,
           chat_id: chatId,
+          secret_token: secretToken,
           is_enabled: isEnabled
         })
       });
@@ -106,7 +108,10 @@ export default function TelegramBotCard() {
     try {
       const res = await fetch('/api/telegram', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(secretToken ? { 'x-telegram-bot-api-secret-token': secretToken } : {})
+        },
         body: JSON.stringify({
           message: {
             text: userText,
@@ -186,6 +191,17 @@ export default function TelegramBotCard() {
             placeholder="Otomatik algılanır veya 123456789"
             value={chatId}
             onChange={e => setChatId(e.target.value)}
+            style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
+          />
+        </div>
+
+        <div>
+          <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>WEBHOOK SECRET TOKEN (X-Telegram-Bot-Api-Secret-Token):</label>
+          <input
+            type="password"
+            placeholder="Gizli webhook anahtarı"
+            value={secretToken}
+            onChange={e => setSecretToken(e.target.value)}
             style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
           />
         </div>

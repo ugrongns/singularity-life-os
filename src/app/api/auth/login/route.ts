@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { users, authSessions } from '@/db/schema';
-import { verifyPassword, verifyPin, generateSessionToken } from '@/lib/auth';
+import { verifyPassword, generateSessionToken } from '@/lib/auth';
 import { eq, or, lt, sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   try {
     await initDatabase();
     const body = await req.json();
-    const { pin, username, email, password, action } = body;
+    const { username, email, password } = body;
 
     let targetUser = null;
 
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
         .limit(1).then((r: any) => r[0]);
 
       const isValidPass = targetUser
-        ? verifyPassword(password, targetUser.password_hash, targetUser.password_salt)
+        ? await verifyPassword(password, targetUser.password_hash, targetUser.password_salt)
         : false;
 
       if (!targetUser || !isValidPass) {
@@ -35,25 +35,6 @@ export async function POST(req: Request) {
           success: false,
           error: 'E-posta, kullanıcı adı veya parola hatalı.'
         }, { status: 401 });
-      }
-    }
-    // 2. KİLİT AÇMA (Sadece geçici kilit ekranı için PIN doğrulaması)
-    else if (pin && action === 'unlock') {
-      const targetUserId = body.user_id;
-      if (targetUserId) {
-        targetUser = (await db.select().from(users).where(eq(users.id, targetUserId)).limit(1))[0];
-      } else {
-        targetUser = (await db.select().from(users).where(eq(users.is_master_account, 1)).limit(1))[0]
-          || (await db.select().from(users).limit(1))[0];
-      }
-
-      if (!targetUser) {
-        return NextResponse.json({ success: false, error: 'Kullanıcı bulunamadı.' }, { status: 404 });
-      }
-
-      const isValidPin = verifyPin(String(pin), targetUser.quick_pin_hash, targetUser.password_salt);
-      if (!isValidPin) {
-        return NextResponse.json({ success: false, error: 'Hatalı 6 haneli PIN kodu.' }, { status: 401 });
       }
     }
     // Geçersiz giriş isteği
@@ -65,11 +46,11 @@ export async function POST(req: Request) {
     }
 
     // ── Eski Oturumları Temizle (Session Birikmesini Önle) ─────────────────────
-    // 30 günden eski tüm oturumları sil
-    const cutoff = new Date(Date.now() - 30 * 86400000).toISOString();
-    await db.delete(authSessions).where(lt(authSessions.expires_at, cutoff));
+    // Süresi dolmuş tüm oturumları sil (expires_at < now)
+    const nowISO = new Date().toISOString();
+    await db.delete(authSessions).where(lt(authSessions.expires_at, nowISO));
 
-    // Başarılı Giriş / Kilit Açma: Oturum Oluştur
+    // Başarılı Giriş: Oturum Oluştur
     const token = generateSessionToken();
     const now = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 30 * 86400000).toISOString(); // 30 gün

@@ -15,8 +15,25 @@ interface RateLimitEntry {
   resetAt: number;
 }
 
-// Module-level in-memory store (tek sunucu instance'ı için uygundur)
+// Bounded in-memory store (DoS ve bellek sızıntısına karşı korumalı)
+const MAX_RATE_LIMIT_ENTRIES = 5000;
 const rateLimitStore = new Map<string, RateLimitEntry>();
+
+function evictExpiredOrOldest(now: number) {
+  for (const [key, entry] of rateLimitStore.entries()) {
+    if (now > entry.resetAt) {
+      rateLimitStore.delete(key);
+    }
+  }
+  while (rateLimitStore.size >= MAX_RATE_LIMIT_ENTRIES) {
+    const oldestKey = rateLimitStore.keys().next().value;
+    if (oldestKey) {
+      rateLimitStore.delete(oldestKey);
+    } else {
+      break;
+    }
+  }
+}
 
 function checkRateLimit(
   key: string,
@@ -27,6 +44,9 @@ function checkRateLimit(
   const entry = rateLimitStore.get(key);
 
   if (!entry || now > entry.resetAt) {
+    if (rateLimitStore.size >= MAX_RATE_LIMIT_ENTRIES) {
+      evictExpiredOrOldest(now);
+    }
     rateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
     return { allowed: true, retryAfterMs: 0 };
   }
@@ -39,10 +59,23 @@ function checkRateLimit(
   return { allowed: true, retryAfterMs: 0 };
 }
 
+/**
+ * Spoofing korumalı güvenli IP tespiti
+ */
 function getClientIp(request: NextRequest): string {
+  const vercelIp = request.headers.get('x-vercel-proxied-for');
+  if (vercelIp) return vercelIp.split(',')[0].trim();
+
+  const cfIp = request.headers.get('cf-connecting-ip');
+  if (cfIp) return cfIp.trim();
+
+  const realIp = request.headers.get('x-real-ip');
+  if (realIp) return realIp.trim();
+
   const forwarded = request.headers.get('x-forwarded-for');
   if (forwarded) return forwarded.split(',')[0].trim();
-  return request.headers.get('x-real-ip') || 'unknown';
+
+  return '127.0.0.1';
 }
 
 // ─── Oturum Token Format Doğrulama ─────────────────────────────────────────
@@ -53,26 +86,52 @@ function isValidTokenFormat(token: string): boolean {
   return SESSION_TOKEN_REGEX.test(token);
 }
 
-// ─── Public Rotalar ─────────────────────────────────────────────────────────
+// ─── Public API Rotaları ────────────────────────────────────────────────────
 const PUBLIC_API_ROUTES = [
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/session',
-  '/api/telegram', // Webhook kendi secret token & chat_id doğrulamasını yapar
+  '/api/dashboard/composite', // Landing sayfasının oturum durumunu öğrenmesi için
+  '/api/market-rates',        // Canlı kur/fiyat verisi
+  '/api/telegram',            // Webhook kendi secret token & chat_id doğrulamasını yapar
   '/api/health/workouts/strava/callback', // OAuth dönüşü (kendi içinde getAuthUser ve state kontrolü yapar)
+];
+
+// ─── Korumalı UI Rotaları ───────────────────────────────────────────────────
+const PROTECTED_UI_ROUTES = [
+  '/analytics',
+  '/budget',
+  '/health',
+  '/library',
+  '/settings',
+  '/shopping',
+  '/vault',
+  '/vehicles',
+  '/welcome',
+  '/wellness',
 ];
 
 // ─── Middleware ─────────────────────────────────────────────────────────────
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const sessionToken = request.cookies.get('singularity_session')?.value;
+  const hasValidSession = sessionToken ? isValidTokenFormat(sessionToken) : false;
 
+  // 1. Korumalı Kullanıcı Arayüzü (UI) Sayfaları Kontrolü
   if (!pathname.startsWith('/api/')) {
+    const isProtectedUI = PROTECTED_UI_ROUTES.some((route) => pathname.startsWith(route));
+    if (isProtectedUI && !hasValidSession) {
+      const loginUrl = new URL('/auth/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
     return NextResponse.next();
   }
 
+  // 2. API Rotaları Yönetimi
   const ip = getClientIp(request);
 
-  // ── Rate Limiting: /api/auth/login ────────────────────────────────────────
+  // Rate Limiting: /api/auth/login
   if (pathname.startsWith('/api/auth/login') && request.method === 'POST') {
     const { allowed, retryAfterMs } = checkRateLimit(
       `login:${ip}`,
@@ -99,7 +158,7 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // ── Rate Limiting: /api/auth/register ────────────────────────────────────
+  // Rate Limiting: /api/auth/register
   if (pathname.startsWith('/api/auth/register') && request.method === 'POST') {
     const { allowed, retryAfterMs } = checkRateLimit(
       `register:${ip}`,
@@ -122,15 +181,13 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // ── Public Rota Geçişi ────────────────────────────────────────────────────
+  // Public API Rota Geçişi
   const isPublic = PUBLIC_API_ROUTES.some((route) => pathname.startsWith(route));
   if (isPublic) {
     return NextResponse.next();
   }
 
-  // ── Protected Rota: Cookie Varlık + Format Kontrolü ──────────────────────
-  const sessionToken = request.cookies.get('singularity_session')?.value;
-
+  // Korumalı API Rotası: Oturum Token Varlık + Format Kontrolü
   if (!sessionToken) {
     return NextResponse.json(
       {
@@ -142,8 +199,6 @@ export function middleware(request: NextRequest) {
     );
   }
 
-  // Token format doğrulaması (Edge Runtime'da DB sorgusu yapılamaz;
-  // gerçek geçerlilik kontrolü her route'da getAuthUser() ile yapılır)
   if (!isValidTokenFormat(sessionToken)) {
     return NextResponse.json(
       {
@@ -159,5 +214,17 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/api/:path*'],
+  matcher: [
+    '/api/:path*',
+    '/analytics/:path*',
+    '/budget/:path*',
+    '/health/:path*',
+    '/library/:path*',
+    '/settings/:path*',
+    '/shopping/:path*',
+    '/vault/:path*',
+    '/vehicles/:path*',
+    '/welcome/:path*',
+    '/wellness/:path*',
+  ],
 };

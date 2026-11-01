@@ -3,12 +3,26 @@ import { db, initDatabase } from '@/db';
 import { transactions, walletsAccounts, userHealthProfile, books, shoppingListItems, supplementRoutines, supplementIntakeLogs, moodLogs, users } from '@/db/schema';
 import { eq, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { parseTurkishNumber } from '@/lib/ebelge-parser';
 
 interface ParsedAction {
   type: 'expense' | 'water' | 'reading' | 'shopping' | 'supplement' | 'mood' | 'fasting';
   title: string;
   icon: string;
   details: Record<string, any>;
+}
+
+// Bulgu 6: Tip koruyucu (Type Guard)
+function isValidParsedAction(act: any): act is ParsedAction {
+  if (!act || typeof act !== 'object') return false;
+  const validTypes = ['expense', 'water', 'reading', 'shopping', 'supplement', 'mood', 'fasting'];
+  return (
+    validTypes.includes(act.type) &&
+    typeof act.title === 'string' &&
+    typeof act.icon === 'string' &&
+    act.details &&
+    typeof act.details === 'object'
+  );
 }
 
 export async function POST(req: Request) {
@@ -40,7 +54,9 @@ export async function POST(req: Request) {
       const body = await req.json();
       if (body.action === 'execute') {
         isExecution = true;
-        actionsToExecute = body.actions || [];
+        if (Array.isArray(body.actions)) {
+          actionsToExecute = body.actions.filter(isValidParsedAction);
+        }
       } else {
         text = body.text || '';
       }
@@ -67,7 +83,21 @@ export async function POST(req: Request) {
         if (act.type === 'expense') {
           const id = `tx-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
           const amount = Number(act.details.amount) || 0;
-          const walletId = act.details.wallet_id || 'wallet-garanti';
+          let walletId = act.details.wallet_id;
+          let wallet = walletId ? (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).limit(1))[0] : null;
+
+          if (!wallet) {
+            // Bulgu 16: Dinamik cüzdan fallback (Hardcoded 'wallet-garanti' yerine ilk aktif cüzdan)
+            const userWallets = await db.select().from(walletsAccounts).where(
+              or(eq(walletsAccounts.user_id, currentUserId), eq(walletsAccounts.family_id, currentFamilyId))
+            ).limit(1);
+            if (userWallets[0]) {
+              wallet = userWallets[0];
+              walletId = wallet.id;
+            } else {
+              walletId = 'wallet-cash';
+            }
+          }
           
           await db.insert(transactions).values({
             id,
@@ -92,7 +122,6 @@ export async function POST(req: Request) {
           });
 
           // Cüzdan Bakiyesi
-          const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)))[0];
           if (wallet) {
             const newBal = wallet.type === 'credit_card' ? wallet.balance + amount : wallet.balance - amount;
             await db.update(walletsAccounts).set({ balance: newBal, updated_at: nowISO }).where(eq(walletsAccounts.id, walletId));
@@ -227,11 +256,11 @@ function parseVoiceCommandText(rawText: string): ParsedAction[] {
 
   // 1. Harcama / Fatura Tespiti
   // Örn: "Migros'ta 450 TL harcadım", "Benzin aldım 1500 lira", "120 TL kahve içtim"
-  const expenseRegex = /(?:([a-zçğıöşü\s]+)(?:'ta|'te|'da|'de|'den|'dan|\s)?\s*)?(\d+(?:[.,]\d+)?)\s*(?:tl|lira|₺)\s*(?:harcadım|ödedim|aldım|fatura|ödemesi|çektim|tutarında)?/gi;
+  const expenseRegex = /(?:([a-zçğıöşü\s]+)(?:'ta|'te|'da|'de|'den|'dan|\s)?\s*)?(\d+(?:[.,]\d+)*)\s*(?:tl|lira|₺)\s*(?:harcadım|ödedim|aldım|fatura|ödemesi|çektim|tutarında)?/gi;
   let match;
   while ((match = expenseRegex.exec(text)) !== null) {
     const rawMerchant = (match[1] || '').trim();
-    const amount = parseFloat(match[2].replace(',', '.'));
+    const amount = parseTurkishNumber(match[2]);
     if (amount > 0 && amount < 1000000) {
       let merchant = 'Genel Harcama';
       let categoryId = 'cat-market';
@@ -256,7 +285,7 @@ function parseVoiceCommandText(rawText: string): ParsedAction[] {
           merchant,
           amount,
           category_id: categoryId,
-          wallet_id: text.includes('nakit') ? 'wallet-cash' : text.includes('iş bank') ? 'wallet-isbank' : 'wallet-garanti'
+          wallet_id: text.includes('nakit') ? 'wallet-cash' : text.includes('iş bank') ? 'wallet-isbank' : undefined
         }
       });
     }
@@ -267,11 +296,11 @@ function parseVoiceCommandText(rawText: string): ParsedAction[] {
   if (text.includes('su') && (text.includes('içtim') || text.includes('bardak') || text.includes('ml') || text.includes('litre'))) {
     let ml = 250;
     const mlMatch = text.match(/(\d+)\s*ml/);
-    const literMatch = text.match(/(\d+(?:[.,]\d+)?)\s*litre/);
+    const literMatch = text.match(/(\d+(?:[.,]\d+)*)\s*litre/);
     const glassMatch = text.match(/(\d+)\s*bardak/);
 
     if (mlMatch) ml = parseInt(mlMatch[1], 10);
-    else if (literMatch) ml = Math.round(parseFloat(literMatch[1].replace(',', '.')) * 1000);
+    else if (literMatch) ml = Math.round(parseTurkishNumber(literMatch[1]) * 1000);
     else if (glassMatch) ml = parseInt(glassMatch[1], 10) * 250;
     else if (text.includes('büyük bardak')) ml = 400;
 

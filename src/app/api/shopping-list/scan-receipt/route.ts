@@ -2,8 +2,31 @@ import { NextResponse } from 'next/server';
 import { parseReceiptImage } from '@/lib/ai-vision';
 import { db, initDatabase } from '@/db';
 import { shoppingListItems } from '@/db/schema';
-import { eq , or } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import path from 'path';
+
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_BASE64_LENGTH = 15 * 1024 * 1024; // 15 MB
+
+function isReceiptItemMatch(itemName: string, receiptItemName: string): boolean {
+  const iLower = itemName.toLowerCase().trim();
+  const rLower = receiptItemName.toLowerCase().trim();
+
+  if (!iLower || !rLower) return false;
+  if (iLower === rLower) return true;
+
+  // 2-3 harfli kısa kelimelerde substring includes yanılgısını önle (örn: 'su', 'un', 'et')
+  if (iLower.length <= 3 || rLower.length <= 3) {
+    const wordsI = iLower.split(/[\s,.;:()\[\]{}*\/\\_+-]+/).filter(Boolean);
+    const wordsR = rLower.split(/[\s,.;:()\[\]{}*\/\\_+-]+/).filter(Boolean);
+    return wordsI.includes(rLower) || wordsR.includes(iLower);
+  }
+
+  return iLower.includes(rLower) || rLower.includes(iLower);
+}
 
 export async function POST(req: Request) {
   try {
@@ -23,16 +46,44 @@ export async function POST(req: Request) {
       const base64Input = formData.get('base64') as string | null;
 
       if (file) {
+        if (file.size > MAX_FILE_SIZE) {
+          return NextResponse.json({
+            success: false,
+            error: 'Dosya boyutu çok yüksek. Lütfen 10 MB altı bir dosya yükleyin.'
+          }, { status: 400 });
+        }
+
+        const ext = path.extname(file.name).toLowerCase();
+        const fMime = (file.type || '').toLowerCase();
+        if (!ALLOWED_EXTENSIONS.includes(ext) || (fMime && !ALLOWED_MIME_TYPES.includes(fMime))) {
+          return NextResponse.json({
+            success: false,
+            error: 'Geçersiz dosya türü. Sadece JPG, PNG, WEBP veya PDF yükleyebilirsiniz.'
+          }, { status: 400 });
+        }
+
         const buffer = Buffer.from(await file.arrayBuffer());
         base64Image = buffer.toString('base64');
-        mimeType = file.type || 'image/jpeg';
+        mimeType = fMime || (ext === '.pdf' ? 'application/pdf' : ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg');
       } else if (base64Input) {
+        if (base64Input.length > MAX_BASE64_LENGTH) {
+          return NextResponse.json({ success: false, error: 'Base64 veri boyutu sınırı aşıldı.' }, { status: 400 });
+        }
         base64Image = base64Input;
       }
     } else if (contentType.includes('application/json')) {
       const body = await req.json();
       base64Image = body.base64 || '';
-      mimeType = body.mimeType || 'image/jpeg';
+      mimeType = (body.mimeType || 'image/jpeg').toLowerCase();
+      if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+        return NextResponse.json({
+          success: false,
+          error: 'Geçersiz MIME türü. Sadece JPG, PNG, WEBP veya PDF desteklenir.'
+        }, { status: 400 });
+      }
+      if (base64Image.length > MAX_BASE64_LENGTH) {
+        return NextResponse.json({ success: false, error: 'Base64 veri boyutu sınırı aşıldı.' }, { status: 400 });
+      }
     }
 
     if (!base64Image) {
@@ -50,14 +101,15 @@ export async function POST(req: Request) {
     let matchedCount = 0;
     const matchedNames: string[] = [];
 
-    // Fişteki ürünlerle alışveriş listesindeki ürünleri eşleştir
-    for (const receiptItem of parsedReceipt.items || []) {
-      const rNameLower = receiptItem.name.toLowerCase();
-      
-      const matched = (currentItems).find((i: any) => {
-        const iNameLower = i.name.toLowerCase();
-        return iNameLower.includes(rNameLower) || rNameLower.includes(iNameLower);
-      });
+    // Fişteki ürünlerle alışveriş listesindeki ürünleri tip güvenli eşleştir (Bulgu 6)
+    const receiptItems = Array.isArray(parsedReceipt.items)
+      ? parsedReceipt.items.filter((item): item is { name: string; price: number; quantity?: number; barcode?: string } =>
+          Boolean(item && typeof item === 'object' && typeof item.name === 'string' && typeof item.price === 'number')
+        )
+      : [];
+
+    for (const receiptItem of receiptItems) {
+      const matched = (currentItems).find((i: any) => isReceiptItemMatch(i.name, receiptItem.name));
 
       if (matched) {
         await db.update(shoppingListItems).set({

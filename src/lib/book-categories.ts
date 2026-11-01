@@ -294,7 +294,7 @@ export function normalizeBookCategory(rawCategory?: string, bookTitle?: string, 
       return cleaned;
     }
 
-    // 2. Alt kategori ayrıştırması
+    // 2. Alt kategori ayrıştırması - Tam eşleşme
     const parts = cleaned.split(/[\/\->]/).map(p => p.trim().toLowerCase()).filter(Boolean);
 
     for (const part of parts) {
@@ -303,20 +303,29 @@ export function normalizeBookCategory(rawCategory?: string, bookTitle?: string, 
       }
     }
 
-    // Kısmi eşleşme
+    // Kısmi eşleşme (Sadece 4+ karakterli kelimelerde prefix eşleşmesine izin ver)
     for (const part of parts) {
       for (const [key, trCategory] of Object.entries(CATEGORY_TRANSLATIONS)) {
-        if (part === key || part.startsWith(key) || key.startsWith(part)) {
-          return trCategory;
+        if (key.length >= 4 && part.length >= 4) {
+          if (part.startsWith(key)) {
+            return trCategory;
+          }
         }
       }
     }
 
-    // 3. Genel küçük harf eşleşmesi
+    // 3. Genel küçük harf eşleşmesi (2-3 harfli anahtarlar için tam kelime sınırı zorunluluğu)
     const lower = cleaned.toLowerCase();
     for (const [key, trCategory] of Object.entries(CATEGORY_TRANSLATIONS)) {
-      if (lower.includes(key)) {
-        return trCategory;
+      if (key.length <= 3) {
+        const wordRegex = new RegExp(`(?:^|[^a-z0-9ğüşıöç])${key}(?:$|[^a-z0-9ğüşıöç])`, 'i');
+        if (wordRegex.test(lower)) {
+          return trCategory;
+        }
+      } else {
+        if (lower.includes(key)) {
+          return trCategory;
+        }
       }
     }
 

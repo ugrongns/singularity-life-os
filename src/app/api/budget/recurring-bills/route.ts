@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { db, initDatabase } from '@/db';
 import { recurringBills, walletsAccounts, categories, transactions } from '@/db/schema';
 import { eq, and, or, desc } from 'drizzle-orm';
@@ -296,44 +297,65 @@ export async function PATCH(req: Request) {
     const now = new Date().toISOString();
 
     if (action === 'mark_paid') {
-      await db.update(recurringBills)
-        .set({
-          last_paid_month: targetPaidMonth,
-          last_paid_date: todayISO,
-          updated_at: now
-        })
-        .where(eq(recurringBills.id, id));
-
-      // Opsiyonel: Cüzdandan harcama olarak düş ve işlem kaydı oluştur
       const targetWalletId = wallet_id || bill.auto_pay_wallet_id;
       const paymentAmount = Number(amount) || bill.amount;
 
-      if (create_transaction && targetWalletId && paymentAmount > 0) {
-        const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetWalletId)))[0];
-        if (wallet) {
+      // Atomik Veritabanı İşlemi (db.transaction)
+      await db.transaction(async (tx) => {
+        await tx.update(recurringBills)
+          .set({
+            last_paid_month: targetPaidMonth,
+            last_paid_date: todayISO,
+            updated_at: now
+          })
+          .where(eq(recurringBills.id, id));
+
+        // Opsiyonel: Cüzdandan harcama olarak düş ve işlem kaydı oluştur
+        if (create_transaction && targetWalletId && paymentAmount > 0) {
+          const wallet = (await tx.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetWalletId)).for('update'))[0];
+          if (!wallet) {
+            throw new Error('NOT_FOUND: Seçilen ödeme hesabı bulunamadı.');
+          }
+
           // BOLA Koruması: Ödeme yapılan cüzdanın bu aileye ait olduğunu doğrula
           const walletBelongs = !wallet.family_id || (familyId && wallet.family_id === familyId);
           if (!walletBelongs || (wallet.user_id !== user.id && wallet.is_family_shared !== 1 && user.is_master_account !== 1 && user.role !== 'admin')) {
-            return NextResponse.json({ success: false, error: 'Seçilen ödeme hesabına erişim yetkiniz yok.' }, { status: 403 });
+            throw new Error('FORBIDDEN: Seçilen ödeme hesabına erişim yetkiniz yok.');
           }
 
-          const newBalance = wallet.type === 'credit_card'
-            ? wallet.balance + paymentAmount
-            : Math.max(0, wallet.balance - paymentAmount);
+          let newBalance: number;
+          if (wallet.type === 'credit_card') {
+            const availableLimit = Math.max(0, (wallet.credit_limit || 0) - wallet.balance);
+            if (paymentAmount > availableLimit) {
+              throw new Error(`LIMIT_EXCEEDED: Kredi kartı limiti aşıldı! Kullanılabilir limit: ${availableLimit.toLocaleString('tr-TR')} ₺`);
+            }
+            newBalance = wallet.balance + paymentAmount;
+          } else if (wallet.type === 'kmh') {
+            const availableKMH = wallet.balance + (wallet.overdraft_limit || 0);
+            if (paymentAmount > availableKMH) {
+              throw new Error(`LIMIT_EXCEEDED: KMH (Ek Hesap) limiti aşıldı! Kullanılabilir limit: ${availableKMH.toLocaleString('tr-TR')} ₺`);
+            }
+            newBalance = wallet.balance - paymentAmount; // [K-06 Düzeltmesi]: KMH eksiye düşebilir
+          } else {
+            if (paymentAmount > wallet.balance) {
+              throw new Error(`INSUFFICIENT_FUNDS: Yetersiz bakiye! Kullanılabilir bakiye: ${wallet.balance.toLocaleString('tr-TR')} ₺`);
+            }
+            newBalance = wallet.balance - paymentAmount;
+          }
 
-          await db.update(walletsAccounts)
+          await tx.update(walletsAccounts)
             .set({ balance: newBalance, updated_at: now })
             .where(eq(walletsAccounts.id, targetWalletId));
 
-          await db.insert(transactions).values({
-            id: `tx-bill-${Date.now()}`,
+          await tx.insert(transactions).values({
+            id: `tx_bill_${crypto.randomUUID()}`,
             wallet_id: targetWalletId,
             category_id: bill.category_id || null,
             user_id: user.id,
             family_id: familyId,
             merchant: `🧾 Fatura Ödemesi: ${bill.name}`,
             amount: paymentAmount,
-            currency: 'TRY',
+            currency: wallet.currency || 'TRY',
             transaction_date: todayISO,
             notes: `${bill.name} - ${targetPaidMonth} dönemi faturası ödendi${bill.amount_type === 'variable' ? ' (Net Tutar)' : ''}`,
             is_installment: 0,
@@ -345,7 +367,7 @@ export async function PATCH(req: Request) {
             device_id: 'web-client'
           });
         }
-      }
+      });
 
       return NextResponse.json({
         success: true,

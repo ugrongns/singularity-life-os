@@ -96,27 +96,11 @@ export async function GET(req: Request) {
       .from(vehicleLegalReminders)
       .where(eq(vehicleLegalReminders.vehicle_id, primaryVehicle.id));
 
-    // Eğer henüz yasal hatırlatıcı tanımlanmamışsa TÜVTÜRK & MTV takvimini otomatik üret ve kaydet
+    // Eğer henüz yasal hatırlatıcı tanımlanmamışsa takvimi bellek içinde hesapla (GET rotasında db.insert yan etkisini önle)
     if (legalReminders.length === 0) {
       try {
         const { generateAutoLegalReminders } = await import('@/lib/vehicle-legal');
-        const autoReminders = generateAutoLegalReminders(primaryVehicle.id, primaryVehicle.year || 2022);
-        for (const rem of autoReminders) {
-          await db.insert(vehicleLegalReminders).values({
-            id: rem.id,
-            vehicle_id: rem.vehicle_id,
-            type: rem.type,
-            due_date: rem.due_date,
-            policy_no: rem.policy_no,
-            cost_estimate: rem.cost_estimate,
-            is_completed: rem.is_completed,
-            created_at: rem.created_at,
-            updated_at: rem.updated_at
-          });
-        }
-        legalReminders = await db.select()
-          .from(vehicleLegalReminders)
-          .where(eq(vehicleLegalReminders.vehicle_id, primaryVehicle.id));
+        legalReminders = generateAutoLegalReminders(primaryVehicle.id, primaryVehicle.year || 2022) as any;
       } catch (autoErr) {
         console.warn('Auto legal reminder generation notice:', autoErr);
       }
@@ -448,10 +432,23 @@ export async function POST(req: Request) {
 
     // Yasal Hatırlatıcı Ekleme/Güncelleme
     if (action === 'add_legal') {
+      const vehicleId = data.vehicle_id;
+      if (!vehicleId) return NextResponse.json({ success: false, error: 'Araç ID belirtilmelidir.' }, { status: 400 });
+      const familyId = user.family_id || `fam-${user.id}`;
+      const targetVeh = (await db.select({ id: vehicles.id }).from(vehicles).where(
+        and(
+          eq(vehicles.id, vehicleId),
+          or(eq(vehicles.user_id, user.id), eq(vehicles.family_id, familyId))
+        )
+      ).limit(1))[0];
+      if (!targetVeh) {
+        return NextResponse.json({ success: false, error: 'Araç bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
+      }
+
       const id = `leg-${Date.now()}`;
       await db.insert(vehicleLegalReminders).values({
         id,
-        vehicle_id: data.vehicle_id,
+        vehicle_id: vehicleId,
         type: data.type,
         due_date: data.due_date,
         policy_no: data.policy_no || '',
@@ -467,6 +464,17 @@ export async function POST(req: Request) {
     // Yasal Hatırlatıcıları Toplu Güncelleme (Muayene, Sigorta, Kasko)
     if (action === 'update_legal_dates' && data.vehicle_id) {
       const vehicleId = data.vehicle_id;
+      const familyId = user.family_id || `fam-${user.id}`;
+      const targetVeh = (await db.select({ id: vehicles.id }).from(vehicles).where(
+        and(
+          eq(vehicles.id, vehicleId),
+          or(eq(vehicles.user_id, user.id), eq(vehicles.family_id, familyId))
+        )
+      ).limit(1))[0];
+      if (!targetVeh) {
+        return NextResponse.json({ success: false, error: 'Araç bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
+      }
+
       const { muayene_date, sigorta_date, sigorta_policy_no, kasko_date, kasko_policy_no } = data;
 
       const itemsToUpdate = [
@@ -514,8 +522,14 @@ export async function POST(req: Request) {
 
     // Yasal Hatırlatıcıları Otomatik Üret (TÜVTÜRK & MTV)
     if (action === 'auto_generate_legal' && data.vehicle_id) {
-      const veh = (await db.select().from(vehicles).where(eq(vehicles.id, data.vehicle_id)))[0];
-      if (!veh) return NextResponse.json({ success: false, error: 'Araç bulunamadı.' }, { status: 404 });
+      const familyId = user.family_id || `fam-${user.id}`;
+      const veh = (await db.select().from(vehicles).where(
+        and(
+          eq(vehicles.id, data.vehicle_id),
+          or(eq(vehicles.user_id, user.id), eq(vehicles.family_id, familyId))
+        )
+      ).limit(1))[0];
+      if (!veh) return NextResponse.json({ success: false, error: 'Araç bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
 
       const { generateAutoLegalReminders } = await import('@/lib/vehicle-legal');
       const generated = generateAutoLegalReminders(veh.id, veh.year || 2022);

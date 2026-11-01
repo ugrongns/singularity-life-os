@@ -113,6 +113,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Oturum bulunamadı.' }, { status: 401 });
     }
 
+    // YETKİ KONTROLÜ: Sadece Aile Yöneticisi üye ekleyebilir
+    if (user.role !== 'admin') {
+      return NextResponse.json({
+        success: false,
+        error: 'Aileye yeni üye eklemek ve davet kodu oluşturmak için Aile Yöneticisi yetkisi gereklidir.'
+      }, { status: 403 });
+    }
+
     const body = await req.json();
     const { name, role = 'spouse', avatar = '👩' } = body;
     const cleanName = (name || '').trim();
@@ -125,9 +133,9 @@ export async function POST(req: Request) {
     const nowISO = now.toISOString();
     const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 gün geçerli
     const code = generateInviteCode();
-    const newId = `fm-${Date.now()}`;
+    const newId = `fm_${crypto.randomUUID()}`;
     const familyId = user.family_id || `fam-${user.id}`;
-    const inviteId = `inv-${Date.now()}`;
+    const inviteId = `inv_${crypto.randomUUID()}`;
 
     // 1. Aile Üyesi Profil Kaydını Oluştur
     await db.insert(familyMembers).values({
@@ -182,6 +190,14 @@ export async function PUT(req: Request) {
       return NextResponse.json({ success: false, error: 'Oturum bulunamadı.' }, { status: 401 });
     }
 
+    // YETKİ KONTROLÜ: Sadece Aile Yöneticisi üye güncelleyebilir
+    if (user.role !== 'admin') {
+      return NextResponse.json({
+        success: false,
+        error: 'Aile üyesi bilgilerini yalnızca Aile Yöneticisi (admin) güncelleyebilir.'
+      }, { status: 403 });
+    }
+
     const familyId = user.family_id || `fam-${user.id}`;
     const body = await req.json();
     const { id, name, role, relationship_type, avatar, is_active } = body;
@@ -221,12 +237,33 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Oturum bulunamadı.' }, { status: 401 });
     }
 
+    // YETKİ KONTROLÜ: Sadece Aile Yöneticisi silebilir/deaktif edebilir
+    if (user.role !== 'admin') {
+      return NextResponse.json({
+        success: false,
+        error: 'Aile üyesini yalnızca Aile Yöneticisi (admin) silebilir veya deaktif edebilir.'
+      }, { status: 403 });
+    }
+
     const familyId = user.family_id || `fam-${user.id}`;
     const { searchParams } = new URL(req.url, 'http://localhost');
     const id = searchParams.get('id');
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'Üye ID zorunludur.' }, { status: 400 });
+    }
+
+    const targetMember = (await db.select().from(familyMembers).where(and(eq(familyMembers.id, id), eq(familyMembers.family_id, familyId))).limit(1))[0];
+    if (!targetMember) {
+      return NextResponse.json({ success: false, error: 'Üye bulunamadı.' }, { status: 404 });
+    }
+
+    // Aile lideri kendini üye listesinden silemez
+    if (targetMember.user_id === user.id) {
+      return NextResponse.json({
+        success: false,
+        error: 'Hane liderliği profilinizi buradan silemezsiniz. Hesabınızı kapatmak için Güvenlik bölümünden Hesabı Sil işlemini kullanın.'
+      }, { status: 400 });
     }
 
     // Soft delete (is_active = 0) with family isolation

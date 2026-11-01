@@ -3,6 +3,7 @@ import { db, initDatabase } from '@/db';
 import { walletsAccounts, transactions } from '@/db/schema';
 import { eq, or, and, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { addMonthsSafe, addMonthsDate, localYYYYMMDD } from '@/lib/bill-schedule';
 
 export async function POST(req: Request) {
   try {
@@ -88,10 +89,10 @@ export async function POST(req: Request) {
         const totalRepay = Number(loan_total_repayment) || origAmt;
         const countInst = Math.max(1, Number(total_installments) || 1);
         const monthlyInst = Math.round((totalRepay / countInst) * 100) / 100;
-        const firstDate = first_installment_date || new Date(now.getFullYear(), now.getMonth() + 1, 15).toISOString().split('T')[0];
+        const firstDate = first_installment_date || addMonthsSafe(now, 1, 15);
         const dueDayNum = parseInt(firstDate.split('-')[2] || '15', 10);
 
-        const newLoanId = `loan-${Date.now()}`;
+        const newLoanId = `loan-${crypto.randomUUID()}`;
 
         const targetUserId = owner_user_id !== undefined
           ? (owner_user_id === 'joint' || owner_user_id === null || owner_user_id === '' ? null : owner_user_id)
@@ -138,40 +139,41 @@ export async function POST(req: Request) {
           });
 
           // 1. Nakit Paranın Seçilen Vadesiz Banka Hesabına Yatırılması
-          if (bankAcc && origAmt > 0) {
-            await tx.update(walletsAccounts)
-              .set({ balance: bankAcc.balance + origAmt, updated_at: nowISO })
-              .where(eq(walletsAccounts.id, deposited_account_id));
+          if (deposited_account_id && origAmt > 0) {
+            const [lockedBankAcc] = await tx.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)).for('update');
+            if (lockedBankAcc) {
+              await tx.update(walletsAccounts)
+                .set({ balance: (Number(lockedBankAcc.balance) || 0) + origAmt, updated_at: nowISO })
+                .where(eq(walletsAccounts.id, deposited_account_id));
 
-            // Nakit Giriş İşlemi
-            await tx.insert(transactions).values({
-              id: `tx-loan-dep-${Date.now()}`,
-              wallet_id: deposited_account_id,
-              merchant: `🏛️ Kredi Çekim Anaparası (${name.trim()})`,
-              amount: origAmt,
-              currency: 'TRY',
-              transaction_date: nowISO.split('T')[0],
-              notes: `${name.trim()} çekilen nakit anapara girişi [to_wallet:${newLoanId}]`,
-              is_installment: 0,
-              installment_number: 1,
-              total_installments: 1,
-              is_verified: 1,
-              is_family_shared: 1,
-              user_id: userId,
-              family_id: familyId,
-              created_at: nowISO,
-              updated_at: nowISO,
-              sync_status: 'synced',
-              device_id: 'web-client'
-            });
+              // Nakit Giriş İşlemi
+              await tx.insert(transactions).values({
+                id: `tx-loan-dep-${crypto.randomUUID()}`,
+                wallet_id: deposited_account_id,
+                merchant: `🏛️ Kredi Çekim Anaparası (${name.trim()})`,
+                amount: origAmt,
+                currency: 'TRY',
+                transaction_date: nowISO.split('T')[0],
+                notes: `${name.trim()} çekilen nakit anapara girişi [to_wallet:${newLoanId}]`,
+                is_installment: 0,
+                installment_number: 1,
+                total_installments: 1,
+                is_verified: 1,
+                is_family_shared: 1,
+                user_id: userId,
+                family_id: familyId,
+                created_at: nowISO,
+                updated_at: nowISO,
+                sync_status: 'synced',
+                device_id: 'web-client'
+              });
+            }
           }
 
           // 2. Gelecek Taksit Planlarının transactions Tablosuna İşlenmesi
-          const instDate = new Date(firstDate);
+          const instBaseDate = new Date(firstDate);
           for (let i = 0; i < countInst; i++) {
-            const currentInstDate = new Date(instDate);
-            currentInstDate.setMonth(currentInstDate.getMonth() + i);
-            const instDateStr = currentInstDate.toISOString().split('T')[0];
+            const instDateStr = addMonthsSafe(instBaseDate, i);
 
             await tx.insert(transactions).values({
               id: `tx-${newLoanId}-${i + 1}`,
@@ -205,15 +207,24 @@ export async function POST(req: Request) {
 
       if (type === 'time_deposit') {
         const principal = Number(balance) || 0;
-        let bankAcc: any = null;
-        if (deposited_account_id && principal > 0) {
-          bankAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)))[0];
+        if (principal <= 0) {
+          return NextResponse.json({ success: false, error: 'Mevduat anaparası sıfır veya negatif olamaz.' }, { status: 400 });
+        }
+
+        if (deposited_account_id) {
+          const bankAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)))[0];
           if (!bankAcc) {
             return NextResponse.json({ success: false, error: 'Mevduat anaparasının aktarılacağı kaynak hesap bulunamadı.' }, { status: 404 });
           }
           const bankBelongs = !bankAcc.family_id || (familyId && bankAcc.family_id === familyId);
           if (!bankBelongs) {
             return NextResponse.json({ success: false, error: 'Seçilen kaynak hesaba yetkiniz yok.' }, { status: 403 });
+          }
+          if (bankAcc.currency !== (currency || 'TRY')) {
+            return NextResponse.json({ 
+              success: false, 
+              error: `Para birimi uyuşmazlığı: Kaynak hesap (${bankAcc.currency}), Vadeli mevduat (${currency || 'TRY'}).` 
+            }, { status: 400 });
           }
         }
 
@@ -224,18 +235,31 @@ export async function POST(req: Request) {
           ? (is_family_shared === true || is_family_shared === 1 || targetUserId === null ? 1 : 0)
           : 1;
 
-        const newId = `acc-${Date.now()}`;
+        const newId = `acc-${crypto.randomUUID()}`;
 
         // Atomik Veritabanı İşlemi (db.transaction)
         await db.transaction(async (tx) => {
-          if (bankAcc && principal > 0) {
+          if (deposited_account_id && principal > 0) {
+            const [lockedBankAcc] = await tx.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)).for('update');
+            if (!lockedBankAcc) {
+              throw new Error('Kaynak hesap bulunamadı.');
+            }
+
+            const availableBalance = lockedBankAcc.type === 'kmh'
+              ? (Number(lockedBankAcc.balance) || 0) + (Number(lockedBankAcc.overdraft_limit) || 0)
+              : (Number(lockedBankAcc.balance) || 0);
+
+            if (availableBalance < principal) {
+              throw new Error(`Kaynak hesapta yetersiz bakiye! Kullanılabilir: ${availableBalance.toLocaleString('tr-TR')} ${lockedBankAcc.currency}, Talep edilen: ${principal.toLocaleString('tr-TR')} ${currency || 'TRY'}`);
+            }
+
             await tx.update(walletsAccounts)
-              .set({ balance: bankAcc.balance - principal, updated_at: nowISO })
+              .set({ balance: (Number(lockedBankAcc.balance) || 0) - principal, updated_at: nowISO })
               .where(eq(walletsAccounts.id, deposited_account_id));
 
             // Nakit Çıkış İşlemi - Pozitif tutar (virman)
             await tx.insert(transactions).values({
-              id: `tx-deposit-out-${Date.now()}`,
+              id: `tx-deposit-out-${crypto.randomUUID()}`,
               wallet_id: deposited_account_id,
               merchant: `🏛️ Vadeli Mevduat Açılışı (${name.trim()})`,
               amount: principal,
@@ -289,7 +313,7 @@ export async function POST(req: Request) {
         ? (is_family_shared === true || is_family_shared === 1 || targetUserId === null ? 1 : 0)
         : 1;
 
-      const newId = `acc-${Date.now()}`;
+      const newId = `acc-${crypto.randomUUID()}`;
       await db.insert(walletsAccounts).values({
         id: newId,
         name: name.trim(),

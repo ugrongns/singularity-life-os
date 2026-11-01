@@ -3,6 +3,7 @@ import { db, initDatabase } from '@/db';
 import { nutritionMeals, userHealthProfile, waterIntakeLogs, familyMembers } from '@/db/schema';
 import { eq, desc, and, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 export async function GET(req: Request) {
   try {
@@ -10,7 +11,7 @@ export async function GET(req: Request) {
     const user = await getAuthUser();
     const userId = user?.id;
     const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayTurkeyDate();
 
     const { searchParams } = new URL(req.url);
     const memberId = searchParams.get('member_id');
@@ -113,7 +114,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { action, ...data } = body;
     const now = new Date().toISOString();
-    const today = now.split('T')[0];
+    const today = getTodayTurkeyDate();
     const familyId = user.family_id || `fam-${user.id}`;
 
     // Günlük Makro ve Su Hedeflerini Güncelleme

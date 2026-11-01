@@ -11,8 +11,9 @@ export interface StravaTokens {
 
 /**
  * Veritabanından veya ortam değişkenlerinden Strava ayarlarını çeker.
+ * Çok kullanıcılı izolasyon için userId parametresini destekler.
  */
-export async function getStravaConfig() {
+export async function getStravaConfig(userId?: string) {
   await initDatabase();
   const settings = await db.select().from(appSettings);
   const settingsMap: Record<string, string> = {};
@@ -22,10 +23,17 @@ export async function getStravaConfig() {
 
   const clientId = settingsMap['strava_client_id'] || process.env.STRAVA_CLIENT_ID || '';
   const clientSecret = settingsMap['strava_client_secret'] || process.env.STRAVA_CLIENT_SECRET || '';
-  const accessToken = settingsMap['strava_access_token'] || '';
-  const refreshToken = settingsMap['strava_refresh_token'] || '';
-  const expiresAt = Number(settingsMap['strava_expires_at'] || '0');
-  const athleteId = settingsMap['strava_athlete_id'] || '';
+
+  // Kullanıcıya özel token anahtarları (varsa öncelikli al)
+  const userAccessKey = userId ? `strava_access_token_${userId}` : 'strava_access_token';
+  const userRefreshKey = userId ? `strava_refresh_token_${userId}` : 'strava_refresh_token';
+  const userExpiresKey = userId ? `strava_expires_at_${userId}` : 'strava_expires_at';
+  const userAthleteKey = userId ? `strava_athlete_id_${userId}` : 'strava_athlete_id';
+
+  const accessToken = userId ? (settingsMap[userAccessKey] || '') : (settingsMap['strava_access_token'] || '');
+  const refreshToken = userId ? (settingsMap[userRefreshKey] || '') : (settingsMap['strava_refresh_token'] || '');
+  const expiresAt = Number((userId ? settingsMap[userExpiresKey] : settingsMap['strava_expires_at']) || '0');
+  const athleteId = (userId ? settingsMap[userAthleteKey] : settingsMap['strava_athlete_id']) || '';
 
   return {
     clientId,
@@ -41,8 +49,8 @@ export async function getStravaConfig() {
 /**
  * Strava Token yenileme (Refresh Token Flow)
  */
-export async function getValidStravaAccessToken(): Promise<string | null> {
-  const config = await getStravaConfig();
+export async function getValidStravaAccessToken(userId?: string): Promise<string | null> {
+  const config = await getStravaConfig(userId);
   if (!config.refreshToken || !config.clientId || !config.clientSecret) {
     return null;
   }
@@ -67,39 +75,29 @@ export async function getValidStravaAccessToken(): Promise<string | null> {
     });
 
     if (!res.ok) {
-      console.error('Strava token refresh failed:', await res.text());
+      console.error(`Strava token refresh failed with status HTTP ${res.status}`);
       return null;
     }
 
     const data = await res.json();
     const now = new Date().toISOString();
 
-    await db.insert(appSettings).values({
-      key: 'strava_access_token',
-      value: data.access_token,
-      updated_at: now
-    }).onConflictDoUpdate({
-      target: appSettings.key,
-      set: { value: data.access_token, updated_at: now }
-    });
+    const updates = [
+      { key: userId ? `strava_access_token_${userId}` : 'strava_access_token', value: data.access_token },
+      { key: userId ? `strava_refresh_token_${userId}` : 'strava_refresh_token', value: data.refresh_token },
+      { key: userId ? `strava_expires_at_${userId}` : 'strava_expires_at', value: String(data.expires_at) }
+    ];
 
-    await db.insert(appSettings).values({
-      key: 'strava_refresh_token',
-      value: data.refresh_token,
-      updated_at: now
-    }).onConflictDoUpdate({
-      target: appSettings.key,
-      set: { value: data.refresh_token, updated_at: now }
-    });
-
-    await db.insert(appSettings).values({
-      key: 'strava_expires_at',
-      value: String(data.expires_at),
-      updated_at: now
-    }).onConflictDoUpdate({
-      target: appSettings.key,
-      set: { value: String(data.expires_at), updated_at: now }
-    });
+    for (const u of updates) {
+      await db.insert(appSettings).values({
+        key: u.key,
+        value: u.value,
+        updated_at: now
+      }).onConflictDoUpdate({
+        target: appSettings.key,
+        set: { value: u.value, updated_at: now }
+      });
+    }
 
     return data.access_token;
   } catch (err) {
@@ -166,7 +164,7 @@ export function mapStravaActivityToWorkout(act: any, userId?: string | null) {
   const now = new Date().toISOString();
 
   return {
-    id: `wk-strava-${act.id}`,
+    id: userId ? `wk-strava-${userId}-${act.id}` : `wk-strava-${act.id}`,
     title: act.name || `${sportType.toUpperCase()} Antrenmanı`,
     sport_type: sportType,
     date: dateStr,

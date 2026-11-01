@@ -1,48 +1,83 @@
 import crypto from 'crypto';
+import util from 'util';
+
+const pbkdf2Async = util.promisify(crypto.pbkdf2);
 
 export interface HashResult {
   hash: string;
   salt: string;
 }
 
+export interface PinHashResult {
+  hash: string;
+  pinSalt: string;
+}
+
 /**
- * PBKDF2-SHA256 ile parola hashleme (100.000 iterasyon)
+ * PBKDF2-SHA256 ile asenkron parola hashleme (100.000 iterasyon)
+ * Event-loop bloklanmasını önler.
  */
-export function hashPassword(password: string, salt?: string): HashResult {
+export async function hashPassword(password: string, salt?: string): Promise<HashResult> {
   const finalSalt = salt || crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(password, finalSalt, 100000, 32, 'sha256').toString('hex');
-  return { hash, salt: finalSalt };
+  const derived = await pbkdf2Async(password, finalSalt, 100000, 32, 'sha256');
+  return { hash: derived.toString('hex'), salt: finalSalt };
 }
 
 /**
- * 6 haneli PIN hashleme (PBKDF2-SHA256)
+ * 6 haneli PIN hashleme (PBKDF2-SHA256, 50.000 iterasyon)
+ * Bağımsız pin_salt kullanır (salt reuse zafiyetini önler).
  */
-export function hashPin(pin: string, salt: string): string {
-  return crypto.pbkdf2Sync(pin, `pin_salt_${salt}`, 50000, 32, 'sha256').toString('hex');
+export async function hashPin(pin: string, pinSalt?: string): Promise<PinHashResult> {
+  const finalPinSalt = pinSalt || crypto.randomBytes(16).toString('hex');
+  const derived = await pbkdf2Async(pin, finalPinSalt, 50000, 32, 'sha256');
+  return { hash: derived.toString('hex'), pinSalt: finalPinSalt };
 }
 
 /**
- * Parola doğrulama
+ * Asenkron parola doğrulama (timing-attack korumalı)
  */
-export function verifyPassword(password: string, storedHash: string, salt: string): boolean {
+export async function verifyPassword(password: string, storedHash: string, salt: string): Promise<boolean> {
   if (!password || !storedHash || !salt) return false;
-  const computed = crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256').toString('hex');
-  const bufA = Buffer.from(computed);
+  const derived = await pbkdf2Async(password, salt, 100000, 32, 'sha256');
+  const bufA = Buffer.from(derived.toString('hex'));
   const bufB = Buffer.from(storedHash);
   if (bufA.length !== bufB.length) return false;
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
 /**
- * PIN doğrulama
+ * Asenkron PIN doğrulama
+ * Öncelikle bağımsız pin_salt dener; eski hesaplar için 'pin_salt_' + passwordSalt geriye dönük uyumluluk sağlar.
  */
-export function verifyPin(pin: string, storedPinHash: string, salt: string): boolean {
-  if (!pin || !storedPinHash || !salt) return false;
-  const computed = crypto.pbkdf2Sync(pin, `pin_salt_${salt}`, 50000, 32, 'sha256').toString('hex');
-  const bufA = Buffer.from(computed);
-  const bufB = Buffer.from(storedPinHash);
-  if (bufA.length !== bufB.length) return false;
-  return crypto.timingSafeEqual(bufA, bufB);
+export async function verifyPin(
+  pin: string,
+  storedPinHash: string,
+  passwordSalt: string,
+  pinSalt?: string | null
+): Promise<boolean> {
+  if (!pin || !storedPinHash) return false;
+
+  // 1. Yeni ve bağımsız pin_salt ile doğrulama
+  if (pinSalt) {
+    const derived = await pbkdf2Async(pin, pinSalt, 50000, 32, 'sha256');
+    const bufA = Buffer.from(derived.toString('hex'));
+    const bufB = Buffer.from(storedPinHash);
+    if (bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB)) {
+      return true;
+    }
+  }
+
+  // 2. Geriye dönük uyumluluk: Eski hesaplar için legacy salt doğrulama
+  if (passwordSalt) {
+    const legacyDerived = await pbkdf2Async(pin, `pin_salt_${passwordSalt}`, 50000, 32, 'sha256');
+    const bufA = Buffer.from(legacyDerived.toString('hex'));
+    const bufB = Buffer.from(storedPinHash);
+    if (bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -53,13 +88,14 @@ export function generateSessionToken(): string {
 }
 
 /**
- * Hassas sütunları (parola hash/salt, PIN hash, bot token) nesneden ayıklar (OWASP BOPLA koruması)
+ * Hassas sütunları (parola hash/salt, PIN hash/salt, bot token) nesneden ayıklar (OWASP BOPLA koruması)
  */
 export function sanitizeUser(user: any) {
   if (!user) return null;
   const {
     password_hash,
     password_salt,
+    pin_salt,
     quick_pin_hash,
     telegram_bot_token,
     telegram_secret_token,

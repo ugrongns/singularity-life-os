@@ -9,9 +9,23 @@ export interface CSVColumn<T> {
 }
 
 export function generateCSVContent<T>(columns: CSVColumn<T>[], items: T[]): string {
+  const sanitizeCell = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'number') return String(val);
+
+    const str = String(val);
+    // OWASP Formula Injection (CSV Injection) Koruması:
+    // Hücre '=', '+', '-', '@', '\t', '\r' ile başlıyorsa Excel/Calc formülü gibi çalıştırılmaması için tek tırnak eklenir.
+    const dangerousPrefixes = ['=', '+', '-', '@', '\t', '\r'];
+    if (dangerousPrefixes.some(prefix => str.startsWith(prefix))) {
+      return `'${str}`;
+    }
+    return str;
+  };
+
   const escapeCell = (cell: any) => {
-    if (cell === null || cell === undefined) return '""';
-    const str = String(cell).replace(/"/g, '""');
+    const sanitized = sanitizeCell(cell);
+    const str = sanitized.replace(/"/g, '""');
     return `"${str}"`;
   };
 

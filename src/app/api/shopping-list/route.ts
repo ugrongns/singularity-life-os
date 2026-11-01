@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { shoppingListItems, walletsAccounts, transactions, categories } from '@/db/schema';
-import { eq, and, or } from 'drizzle-orm';
+import { eq, and, or, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { eventBus, EVENTS } from '@/lib/events';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 export async function GET() {
   try {
@@ -65,14 +66,14 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { action, ...data } = body;
     const now = new Date().toISOString();
-    const today = now.split('T')[0];
+    const today = getTodayTurkeyDate();
     const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
 
-    const currentItems = familyId
-      ? await db.select().from(shoppingListItems).where(eq(shoppingListItems.family_id, familyId))
-      : await db.select().from(shoppingListItems).where(eq(shoppingListItems.user_id, user.id));
-
     if (action === 'add') {
+      const currentItems = familyId
+        ? await db.select().from(shoppingListItems).where(eq(shoppingListItems.family_id, familyId))
+        : await db.select().from(shoppingListItems).where(eq(shoppingListItems.user_id, user.id));
+
       const nameTrimmed = (data.name || '').trim();
       const existing = (currentItems).find((i: any) => i.name.toLowerCase() === nameTrimmed.toLowerCase());
 
@@ -126,18 +127,31 @@ export async function POST(request: Request) {
     }
 
     if (action === 'toggle') {
-      const item = (await db.select().from(shoppingListItems).where(eq(shoppingListItems.id, data.id)).limit(1))[0];
-      if (item) {
-        await db.update(shoppingListItems).set({
-          is_checked: item.is_checked === 1 ? 0 : 1,
-          updated_at: now
-        }).where(eq(shoppingListItems.id, data.id));
+      const userCondition = and(
+        eq(shoppingListItems.id, data.id),
+        familyId ? eq(shoppingListItems.family_id, familyId) : eq(shoppingListItems.user_id, user.id)
+      );
+      const item = (await db.select().from(shoppingListItems).where(userCondition).limit(1))[0];
+      if (!item) {
+        return NextResponse.json({ success: false, error: 'Ürün bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
       }
+      await db.update(shoppingListItems).set({
+        is_checked: item.is_checked === 1 ? 0 : 1,
+        updated_at: now
+      }).where(userCondition);
       return NextResponse.json({ success: true });
     }
 
     if (action === 'delete') {
-      await db.delete(shoppingListItems).where(eq(shoppingListItems.id, data.id));
+      const userCondition = and(
+        eq(shoppingListItems.id, data.id),
+        familyId ? eq(shoppingListItems.family_id, familyId) : eq(shoppingListItems.user_id, user.id)
+      );
+      const item = (await db.select().from(shoppingListItems).where(userCondition).limit(1))[0];
+      if (!item) {
+        return NextResponse.json({ success: false, error: 'Ürün bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
+      }
+      await db.delete(shoppingListItems).where(userCondition);
       return NextResponse.json({ success: true });
     }
 
@@ -186,6 +200,10 @@ export async function POST(request: Request) {
           { name: 'Limon', quantity: '1', unit: 'kg', category: 'Manav', estimated_price: 45 }
         ];
       }
+
+      const currentItems = familyId
+        ? await db.select().from(shoppingListItems).where(eq(shoppingListItems.family_id, familyId))
+        : await db.select().from(shoppingListItems).where(eq(shoppingListItems.user_id, user.id));
 
       let added = 0;
       let existingCount = 0;
@@ -294,9 +312,11 @@ export async function POST(request: Request) {
 
       // Atomik Veritabanı İşlemi (db.transaction)
       await db.transaction(async (tx) => {
-        // 1. Cüzdan bakiyesini güncelle
+        // 1. Cüzdan bakiyesini atomik SQL ifadesi ile güncelle (TOCTOU race condition koruması)
         await tx.update(walletsAccounts).set({
-          balance: newBalance,
+          balance: isCreditCard 
+            ? sql`${walletsAccounts.balance} + ${totalAmount}` 
+            : sql`${walletsAccounts.balance} - ${totalAmount}`,
           updated_at: now
         }).where(eq(walletsAccounts.id, walletId));
 
@@ -332,7 +352,9 @@ export async function POST(request: Request) {
         amount: totalAmount,
         merchant: 'Market Alışverişi',
         wallet_id: walletId,
-        category_id: marketCat?.id || 'cat-market'
+        category_id: marketCat?.id || 'cat-market',
+        userId: user.id,
+        familyId
       });
 
       return NextResponse.json({

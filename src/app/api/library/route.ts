@@ -278,8 +278,23 @@ export async function POST(req: Request) {
       });
     }
 
+    const checkBookAuth = async (bId: string) => {
+      const condition = and(
+        eq(books.id, bId),
+        user.is_master_account === 1 ? sql`1=1` : or(eq(books.user_id, user.id), eq(books.family_id, familyId))
+      );
+      const res = await db.select().from(books).where(condition).limit(1);
+      return res[0] || null;
+    };
+
     // 2. Emanet Durumu Değiştirme
     if (action === 'toggle_lent') {
+      if (!book_id) return NextResponse.json({ success: false, error: 'Kitap ID gereklidir.' }, { status: 400 });
+      const targetBook = await checkBookAuth(book_id);
+      if (!targetBook) {
+        return NextResponse.json({ success: false, error: 'Kitap bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
+      }
+
       await db.update(books)
         .set({
           is_lent_out: is_lent_out ? 1 : 0,
@@ -287,8 +302,7 @@ export async function POST(req: Request) {
           lent_date: is_lent_out ? (lent_date || now.split('T')[0]) : null,
           updated_at: now
         })
-        .where(eq(books.id, book_id))
-        ;
+        .where(eq(books.id, book_id));
 
       return NextResponse.json({
         success: true,
@@ -298,6 +312,11 @@ export async function POST(req: Request) {
 
     // 3. Kitap Detaylarını Tam Güncelleme
     if (action === 'update_details' && book_id) {
+      const targetBook = await checkBookAuth(book_id);
+      if (!targetBook) {
+        return NextResponse.json({ success: false, error: 'Kitap bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
+      }
+
       const total = parseInt(total_pages) || 200;
       let curr = parseInt(current_page) || 0;
       const bookStatus = status || (curr >= total ? 'completed' : curr > 0 ? 'reading' : 'wishlist');
@@ -330,8 +349,7 @@ export async function POST(req: Request) {
           lent_date: is_lent_out ? (lent_date || now.split('T')[0]) : null,
           updated_at: now
         })
-        .where(eq(books.id, book_id))
-        ;
+        .where(eq(books.id, book_id));
 
       return NextResponse.json({
         success: true,
@@ -341,14 +359,18 @@ export async function POST(req: Request) {
 
     // 4. Sayfa Kelime Yoğunluğu Kalibrasyon Güncellemesi
     if (action === 'update_words_per_page' && book_id) {
+      const targetBook = await checkBookAuth(book_id);
+      if (!targetBook) {
+        return NextResponse.json({ success: false, error: 'Kitap bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
+      }
+
       const wpp = parseInt(body.words_per_page) || 250;
       await db.update(books)
         .set({
           words_per_page: wpp,
           updated_at: now
         })
-        .where(eq(books.id, book_id))
-        ;
+        .where(eq(books.id, book_id));
 
       return NextResponse.json({
         success: true,
@@ -362,9 +384,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Kitap ID ve sayfa sayısı gereklidir.' }, { status: 400 });
     }
 
-    const targetBook = (await db.select().from(books).where(eq(books.id, book_id)))[0];
+    const targetBook = await checkBookAuth(book_id);
     if (!targetBook) {
-      return NextResponse.json({ success: false, error: 'Kitap bulunamadı.' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'Kitap bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
     }
 
     const newPage = Math.min(targetBook.total_pages, Math.max(0, current_page));
@@ -377,8 +399,7 @@ export async function POST(req: Request) {
         finish_date: newStatus === 'completed' ? (targetBook.finish_date || now.split('T')[0]) : targetBook.finish_date,
         updated_at: now 
       })
-      .where(eq(books.id, book_id))
-      ;
+      .where(eq(books.id, book_id));
 
     return NextResponse.json({
       success: true,

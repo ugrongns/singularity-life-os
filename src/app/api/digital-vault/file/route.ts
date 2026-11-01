@@ -40,67 +40,77 @@ export async function GET(req: Request) {
       vaultRecord = records[0] || null;
     }
 
-    // OWASP BOLA / Gizlilik Doğrulaması
-    if (vaultRecord) {
-      const isSameFamily = vaultRecord.family_id === familyId || vaultRecord.user_id === user.id;
-      if (!isSameFamily) {
-        return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu belge ailenize ait değil.' }, { status: 403 });
-      }
-      const canView = vaultRecord.user_id === user.id || vaultRecord.is_family_shared === 1 || user.is_master_account === 1;
-      if (!canView) {
-        return NextResponse.json({ success: false, error: 'Bu özel kasadaki belgeyi görüntüleme yetkiniz yok.' }, { status: 403 });
-      }
-
-      // 1. Kalıcı Depolama (Base64 Data URI) Doğrudan Servis
-      const docUrl = vaultRecord.document_image_url;
-      if (docUrl && docUrl.startsWith('data:')) {
-        const match = docUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (match) {
-          const mimeType = match[1];
-          const fileBuffer = Buffer.from(match[2], 'base64');
-          const ext = mimeType === 'application/pdf' ? '.pdf' :
-                      mimeType === 'image/png' ? '.png' :
-                      mimeType === 'image/webp' ? '.webp' : '.jpg';
-          const safeTitle = (vaultRecord.title || 'belge')
-            .replace(/[^a-zA-Z0-9_\u00C0-\u017F-]/g, '_')
-            .slice(0, 50);
-
-          return new Response(fileBuffer, {
-            headers: {
-              'Content-Type': mimeType,
-              'Content-Disposition': `inline; filename="${safeTitle}${ext}"`,
-              'Cache-Control': 'private, max-age=86400'
-            }
-          });
-        }
-      }
+    // 1. Kayıt yoksa doğrudan 404 dön — yetkisiz disk okumasını engelle
+    if (!vaultRecord) {
+      return NextResponse.json({ success: false, error: 'Belge bulunamadı.' }, { status: 404 });
     }
 
-    // 2. Geriye dönük uyumluluk: Yerel diskten servis et (Legacy dosyalar)
-    if (rawFilename) {
-      const sanitizedFilename = path.basename(rawFilename);
-      let filePath = path.join(process.cwd(), 'private_storage', 'vault', sanitizedFilename);
-      if (!fs.existsSync(filePath)) {
-        filePath = path.join(process.cwd(), 'public', 'uploads', 'vault', sanitizedFilename);
-      }
+    // 2. OWASP BOLA / Gizlilik Doğrulaması
+    const isSameFamily = vaultRecord.family_id === familyId || vaultRecord.user_id === user.id;
+    if (!isSameFamily) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu belge ailenize ait değil.' }, { status: 403 });
+    }
+    const canView = vaultRecord.user_id === user.id || vaultRecord.is_family_shared === 1 || user.is_master_account === 1;
+    if (!canView) {
+      return NextResponse.json({ success: false, error: 'Bu özel kasadaki belgeyi görüntüleme yetkiniz yok.' }, { status: 403 });
+    }
 
-      if (fs.existsSync(filePath)) {
-        const fileBuffer = fs.readFileSync(filePath);
-        const ext = path.extname(sanitizedFilename).toLowerCase();
-
-        let contentType = 'application/octet-stream';
-        if (ext === '.pdf') contentType = 'application/pdf';
-        else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-        else if (ext === '.png') contentType = 'image/png';
-        else if (ext === '.webp') contentType = 'image/webp';
+    // 3. Kalıcı Depolama (Base64 Data URI) Doğrudan Servis
+    const docUrl = vaultRecord.document_image_url;
+    if (docUrl && docUrl.startsWith('data:')) {
+      const match = docUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        const mimeType = match[1];
+        const fileBuffer = Buffer.from(match[2], 'base64');
+        const ext = mimeType === 'application/pdf' ? '.pdf' :
+                    mimeType === 'image/png' ? '.png' :
+                    mimeType === 'image/webp' ? '.webp' : '.jpg';
+        const safeTitle = (vaultRecord.title || 'belge')
+          .replace(/[^a-zA-Z0-9_\u00C0-\u017F-]/g, '_')
+          .slice(0, 50);
 
         return new Response(fileBuffer, {
           headers: {
-            'Content-Type': contentType,
-            'Content-Disposition': `inline; filename="${sanitizedFilename}"`,
-            'Cache-Control': 'private, max-age=3600'
+            'Content-Type': mimeType,
+            'Content-Disposition': `inline; filename="${safeTitle}${ext}"`,
+            'Cache-Control': 'private, max-age=86400'
           }
         });
+      }
+    }
+
+    // 4. Geriye dönük uyumluluk: Sadece yetkili vaultRecord'a bağlı yerel disk dosyasını servis et
+    if (id && rawFilename && docUrl && !docUrl.includes(path.basename(rawFilename))) {
+      return NextResponse.json({ success: false, error: 'Belirtilen dosya adı bu belge kaydı ile eşleşmiyor.' }, { status: 403 });
+    }
+
+    const fileSource = docUrl || rawFilename;
+    if (fileSource && !fileSource.startsWith('data:')) {
+      const sanitizedFilename = path.basename(docUrl || rawFilename || '');
+      if (sanitizedFilename && !sanitizedFilename.includes('..')) {
+        let filePath = path.join(process.cwd(), 'private_storage', 'vault', sanitizedFilename);
+        if (!fs.existsSync(filePath)) {
+          filePath = path.join(process.cwd(), 'public', 'uploads', 'vault', sanitizedFilename);
+        }
+
+        if (fs.existsSync(filePath)) {
+          const fileBuffer = fs.readFileSync(filePath);
+          const ext = path.extname(sanitizedFilename).toLowerCase();
+
+          let contentType = 'application/octet-stream';
+          if (ext === '.pdf') contentType = 'application/pdf';
+          else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+          else if (ext === '.png') contentType = 'image/png';
+          else if (ext === '.webp') contentType = 'image/webp';
+
+          return new Response(fileBuffer, {
+            headers: {
+              'Content-Type': contentType,
+              'Content-Disposition': `inline; filename="${sanitizedFilename}"`,
+              'Cache-Control': 'private, max-age=3600'
+            }
+          });
+        }
       }
     }
 

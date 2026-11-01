@@ -3,7 +3,7 @@ import { db, initDatabase } from '@/db';
 import { walletsAccounts, transactions, categories } from '@/db/schema';
 import { eq, desc, or, and, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
-import { calculateCreditCardSchedule } from '@/lib/bill-schedule';
+import { calculateCreditCardSchedule, localYYYYMMDD } from '@/lib/bill-schedule';
 
 export async function GET(req: Request) {
   try {
@@ -52,13 +52,15 @@ export async function GET(req: Request) {
     const categoryMap = new Map((allCategories).map((c: any) => [c.id, c.name]));
 
     const today = new Date();
-    const todayISO = today.toISOString().split('T')[0];
-    const currentMonthStr = todayISO.slice(0, 7);
+    const todayISO = localYYYYMMDD(today);
+    const ccSchedule = calculateCreditCardSchedule(cardAccount, allCardTx, today);
+    const cycleStartISO = ccSchedule.cycle_start_date;
+    const cycleEndISO = ccSchedule.cycle_end_date;
 
     // 1. Bu Dönemki Tek Çekim Harcamalar (is_installment === 0)
-    // Sadece cari ekstre ayında yapılan tek çekim işlemleri döndür
+    // Cari ekstre döneminde (cycleStartISO - cycleEndISO) yapılan tek çekim işlemleri
     const singleTransactions = (allCardTx)
-      .filter((tx: any) => (!tx.is_installment || tx.is_installment === 0) && tx.transaction_date.startsWith(currentMonthStr))
+      .filter((tx: any) => (!tx.is_installment || tx.is_installment === 0) && tx.transaction_date >= cycleStartISO && tx.transaction_date <= cycleEndISO)
       .map((tx: any) => ({
         ...tx,
         category_name: tx.category_id ? categoryMap.get(tx.category_id) || 'Genel' : 'Genel'
@@ -72,12 +74,14 @@ export async function GET(req: Request) {
       if (tx.is_installment === 1) {
         const groupKey = tx.parent_transaction_id || `${tx.merchant}-${tx.total_installments}`;
         if (!installmentGroupMap.has(groupKey)) {
+          const totalInst = tx.total_installments || 1;
+          const monthlyAmt = Number(tx.amount) || 0;
           installmentGroupMap.set(groupKey, {
             parent_id: groupKey,
             merchant: tx.merchant,
-            monthly_amount: tx.amount,
-            total_installments: tx.total_installments || 1,
-            total_amount: (tx.amount) * (tx.total_installments || 1),
+            monthly_amount: monthlyAmt,
+            total_installments: totalInst,
+            total_amount: Math.round(monthlyAmt * totalInst * 100) / 100,
             category_name: tx.category_id ? categoryMap.get(tx.category_id) || 'Taksitli Harcama' : 'Taksitli Harcama',
             start_date: tx.transaction_date
           });
@@ -85,7 +89,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // Gerçekleşen taksit sayısını hesapla ve SADECE henüz bitmemiş veya bu aya ait taksiti olan planları döndür
+    // Gerçekleşen taksit sayısını hesapla ve SADECE henüz bitmemiş veya bu döneme ait taksiti olan planları döndür
     const activeInstallments = Array.from(installmentGroupMap.values()).map(inst => {
       const dueCount = (allCardTx).filter((tx: any) => 
         (tx.parent_transaction_id === inst.parent_id || (tx.merchant === inst.merchant && tx.total_installments === inst.total_installments)) &&
@@ -98,34 +102,31 @@ export async function GET(req: Request) {
         completed_installments: Math.max(1, Math.min(dueCount, inst.total_installments))
       };
     }).filter(inst => {
-      // Tamamlanmamış taksitler veya bu ay içinde taksit satırı olanlar aktiftir
+      // Tamamlanmamış taksitler veya bu dönem içinde taksit satırı olanlar aktiftir
       const hasPending = inst.completed_installments < inst.total_installments;
-      const hasThisMonthTx = allCardTx.some((tx: any) => 
+      const hasThisCycleTx = allCardTx.some((tx: any) => 
         (tx.parent_transaction_id === inst.parent_id || (tx.merchant === inst.merchant && tx.total_installments === inst.total_installments)) &&
         tx.is_installment === 1 &&
-        tx.transaction_date.startsWith(currentMonthStr)
+        tx.transaction_date >= cycleStartISO && tx.transaction_date <= cycleEndISO
       );
-      return hasPending || hasThisMonthTx;
+      return hasPending || hasThisCycleTx;
     });
 
     // Hesaplama Özeti
-    // Bu ayki tek çekimler
-    const singleTotal = singleTransactions
-      .reduce((sum: number, t: any) => sum + t.amount, 0);
+    // Bu dönemki tek çekimler (Kuruş yuvarlama güvenli)
+    const singleTotal = Math.round(singleTransactions.reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0) * 100) / 100;
 
-    // Bu ayki taksit dilimleri toplamı (Sadece cari aya denk gelen taksit satırlarını topla)
-    const thisMonthInstallments = allCardTx.filter((tx: any) => 
-      tx.is_installment === 1 && tx.transaction_date.startsWith(currentMonthStr)
+    // Bu dönemki taksit dilimleri toplamı (Cari ekstre döngüsüne denk gelen taksit satırları)
+    const thisPeriodInstallments = allCardTx.filter((tx: any) => 
+      tx.is_installment === 1 && tx.transaction_date >= cycleStartISO && tx.transaction_date <= cycleEndISO
     );
-    const monthlyInstallmentTotal = thisMonthInstallments.reduce((sum: number, tx: any) => sum + tx.amount, 0);
+    const monthlyInstallmentTotal = Math.round(thisPeriodInstallments.reduce((sum: number, tx: any) => sum + (Number(tx.amount) || 0), 0) * 100) / 100;
 
     // Bu ay ödenecek net güncel ekstre borcu (Tek çekim + Bu ayki taksit dilimi)
-    const currentStatementDebt = singleTotal + monthlyInstallmentTotal;
+    const currentStatementDebt = Math.round((singleTotal + monthlyInstallmentTotal) * 100) / 100;
 
     // Gelecek aylara sarkan taksit borcu
-    const futureInstallmentsDebt = Math.max(0, cardAccount.balance - currentStatementDebt);
-
-    const ccSchedule = calculateCreditCardSchedule(cardAccount, allCardTx, today);
+    const futureInstallmentsDebt = Math.max(0, Math.round(((Number(cardAccount.balance) || 0) - currentStatementDebt) * 100) / 100);
 
     return NextResponse.json({
       success: true,
@@ -135,7 +136,7 @@ export async function GET(req: Request) {
           name: cardAccount.name,
           balance: cardAccount.balance, // Toplam Kart Borcu (Limit Kullanımı)
           credit_limit: cardAccount.credit_limit || 0,
-          available_limit: Math.max(0, (cardAccount.credit_limit || 0) - cardAccount.balance),
+          available_limit: Math.max(0, Math.round(((cardAccount.credit_limit || 0) - (cardAccount.balance || 0)) * 100) / 100),
           cutoff_day: cardAccount.cutoff_day || null,
           due_day: cardAccount.due_day || null,
           currency: cardAccount.currency || 'TRY',
@@ -149,7 +150,7 @@ export async function GET(req: Request) {
         summary: {
           singleTotal,
           monthlyInstallmentTotal,
-          currentStatementDebt,      // BU AYKİ GÜNCEL EKSTRE BORCU
+          currentStatementDebt,      // BU DÖNEMKİ GÜNCEL EKSTRE BORCU
           futureInstallmentsDebt,    // GELECEK DÖNEM TAKSİT BORÇLARI
           totalCardDebt: cardAccount.balance, // TOPLAM KART BORCU
           schedule: ccSchedule

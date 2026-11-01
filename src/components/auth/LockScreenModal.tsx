@@ -85,17 +85,20 @@ export default function LockScreenModal({ isOpen, user, onSuccess }: Props) {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/auth/unlock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'unlock', pin: pinToTest, user_id: user?.id })
+        body: JSON.stringify({ pin: pinToTest })
       });
       const json = await res.json();
       if (json.success) {
         onSuccess(json.data.user);
+      } else if (json.code === 'UNAUTHORIZED') {
+        setErrorMsg('Oturum süresi dolmuş. Lütfen Master Parolanızla giriş yapın.');
+        setUsePasswordMode(true);
       } else {
         setIsShaking(true);
-        setErrorMsg('❌ Hatalı PIN kodu.');
+        setErrorMsg(json.error || '❌ Hatalı PIN kodu.');
         setTimeout(() => {
           setIsShaking(false);
           setPin('');

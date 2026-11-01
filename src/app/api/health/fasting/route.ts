@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { fastingSessions } from '@/db/schema';
-import { eq, desc, and , or } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 export async function GET() {
@@ -13,23 +13,50 @@ export async function GET() {
     }
     const userId = user.id;
 
-    const activeSession = (await db.select()
+    let activeSession = (await db.select()
       .from(fastingSessions)
       .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, userId)))
       .orderBy(desc(fastingSessions.created_at))
       .limit(1))[0];
+
+    const now = Date.now();
+
+    // 1. Zombi Seans Kalkanı: Hedef bitişin üzerinden 48 saat geçmiş veya toplam 7 günü aşmış terk edilmiş seansları kapat
+    if (activeSession) {
+      const startTime = new Date(activeSession.start_time).getTime();
+      const targetTime = new Date(activeSession.target_end_time).getTime();
+      const elapsedHours = (now - startTime) / (1000 * 60 * 60);
+
+      if (elapsedHours > 168 || (now - targetTime > 48 * 3600 * 1000)) {
+        await db.update(fastingSessions)
+          .set({
+            is_active: 0,
+            actual_end_time: activeSession.target_end_time || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .where(eq(fastingSessions.id, activeSession.id));
+        activeSession = null as any;
+      }
+    }
+
+    // 2. Geçmiş Seansları (History) Çek
+    const pastSessions = await db.select()
+      .from(fastingSessions)
+      .where(and(eq(fastingSessions.is_active, 0), eq(fastingSessions.user_id, userId)))
+      .orderBy(desc(fastingSessions.created_at))
+      .limit(10);
 
     if (!activeSession) {
       return NextResponse.json({
         success: true,
         data: {
           isActive: false,
-          protocol: '16:8'
+          protocol: '16:8',
+          history: pastSessions
         }
       });
     }
 
-    const now = Date.now();
     const startTime = new Date(activeSession.start_time).getTime();
     const targetTime = new Date(activeSession.target_end_time).getTime();
 
@@ -92,7 +119,8 @@ export async function GET() {
         progressPercent,
         currentPhase,
         phaseColor,
-        phaseDescription
+        phaseDescription,
+        history: pastSessions
       }
     });
   } catch (error: any) {
@@ -119,7 +147,7 @@ export async function POST(req: Request) {
     if (action === 'start') {
       // Önceki tüm aktif seansları kapat
       await db.update(fastingSessions)
-        .set({ is_active: 0, actual_end_time: nowISO })
+        .set({ is_active: 0, actual_end_time: nowISO, updated_at: nowISO })
         .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id)));
 
       let hours = 16;

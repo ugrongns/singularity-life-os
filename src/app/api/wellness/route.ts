@@ -4,14 +4,7 @@ import { supplementRoutines, supplementIntakeLogs, sleepLogs, moodLogs, biometri
 import { desc, eq, and, sql, or, ne, isNull } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
-function getTodayTurkeyDate(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date());
-}
-
-function getDaysAgoTurkeyDate(days: number): string {
-  const d = new Date(Date.now() - days * 86400000);
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(d);
-}
+import { getTodayTurkeyDate, getDaysAgoTurkeyDate } from '@/lib/date-utils';
 
 export async function GET() {
   try {

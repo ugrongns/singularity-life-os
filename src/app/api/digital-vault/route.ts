@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { digitalVaultItems, importantDates, petRecords } from '@/db/schema';
-import { desc, eq , or , and } from 'drizzle-orm';
+import { desc, eq, or, and, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 export async function GET() {
@@ -11,9 +11,36 @@ export async function GET() {
     const userId = user?.id;
 
     const today = new Date();
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
     const vaultItems = userId
-      ? await db.select().from(digitalVaultItems).where(
+      ? await db.select({
+          id: digitalVaultItems.id,
+          title: digitalVaultItems.title,
+          type: digitalVaultItems.type,
+          owner: digitalVaultItems.owner,
+          issuer: digitalVaultItems.issuer,
+          issue_date: digitalVaultItems.issue_date,
+          expiry_date: digitalVaultItems.expiry_date,
+          remind_days_before: digitalVaultItems.remind_days_before,
+          document_number: digitalVaultItems.document_number,
+          notes: digitalVaultItems.notes,
+          is_family_shared: digitalVaultItems.is_family_shared,
+          user_id: digitalVaultItems.user_id,
+          family_id: digitalVaultItems.family_id,
+          created_at: digitalVaultItems.created_at,
+          updated_at: digitalVaultItems.updated_at,
+          document_image_url: sql<string>`CASE 
+            WHEN ${digitalVaultItems.document_image_url} LIKE 'data:%' 
+            THEN '/api/digital-vault/file?id=' || ${digitalVaultItems.id}
+            ELSE ${digitalVaultItems.document_image_url} 
+          END`,
+          has_file: sql<boolean>`CASE 
+            WHEN ${digitalVaultItems.document_image_url} IS NOT NULL AND ${digitalVaultItems.document_image_url} != '' 
+            THEN 1 
+            ELSE 0 
+          END`
+        }).from(digitalVaultItems).where(
           familyId
             ? and(eq(digitalVaultItems.family_id, familyId), or(eq(digitalVaultItems.user_id, userId), eq(digitalVaultItems.is_family_shared, 1)))
             : eq(digitalVaultItems.user_id, userId)
@@ -45,8 +72,14 @@ export async function GET() {
         }
       }
 
+      // Dev Base64 verisinin liste sorgusunda çekilip 502 vermesini önle (mock verileri için de güvenli koruma)
+      const isBase64 = item.document_image_url && item.document_image_url.startsWith('data:');
+      const safeDocumentUrl = isBase64 ? `/api/digital-vault/file?id=${item.id}` : item.document_image_url;
+
       return {
         ...item,
+        document_image_url: safeDocumentUrl,
+        has_file: item.has_file !== undefined ? Boolean(item.has_file) : !!item.document_image_url,
         days_left: daysLeft,
         alert_level: alertLevel,
         visa_warning: visaWarning
@@ -56,12 +89,21 @@ export async function GET() {
     // Önemli günler — bu yıl veya gelecek yıl için gün farkı
     const datesWithCountdown = (dates).map((d: any) => {
       if (!d.event_date) return { ...d, days_left: 999, next_date: '' };
-      const parts = d.event_date.split(/[-/.]/);
+      const parts = d.event_date.trim().split(/[-/.]/);
       let mm: number, dd: number;
       if (parts.length >= 3) {
-        // YYYY-MM-DD formatı
-        mm = parseInt(parts[1], 10);
-        dd = parseInt(parts[2], 10);
+        if (parts[0].length === 4) {
+          // YYYY-MM-DD formatı
+          mm = parseInt(parts[1], 10);
+          dd = parseInt(parts[2], 10);
+        } else if (parts[2].length === 4) {
+          // DD.MM.YYYY formatı (Türkiye standardı)
+          dd = parseInt(parts[0], 10);
+          mm = parseInt(parts[1], 10);
+        } else {
+          mm = parseInt(parts[1], 10);
+          dd = parseInt(parts[2], 10);
+        }
       } else {
         // MM-DD formatı
         mm = parseInt(parts[0] || '1', 10);
@@ -72,11 +114,12 @@ export async function GET() {
       
       const thisYear = new Date(today.getFullYear(), mm - 1, dd);
       let eventDate = thisYear;
-      if (thisYear < today) {
+      if (thisYear < todayMidnight) {
         eventDate = new Date(today.getFullYear() + 1, mm - 1, dd);
       }
-      const daysLeft = Math.ceil((eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      return { ...d, days_left: daysLeft, next_date: eventDate.toISOString().split('T')[0] };
+      const daysLeft = Math.ceil((eventDate.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
+      const nextDateStr = `${eventDate.getFullYear()}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+      return { ...d, days_left: daysLeft, next_date: nextDateStr };
     }).sort((a, b) => a.days_left - b.days_left);
 
     return NextResponse.json({

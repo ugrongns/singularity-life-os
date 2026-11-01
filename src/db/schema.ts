@@ -1,6 +1,9 @@
-import { pgTable, text, integer, real, boolean, doublePrecision } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, real, boolean, doublePrecision, index } from 'drizzle-orm/pg-core';
 
-// 0. Aileler / Haneler (Multi-Tenant Household)
+// ==========================================
+// 0. ÇEKİRDEK KİMLİK & HANE OMURGASI (MULTI-TENANT HOUSEHOLD)
+// ==========================================
+
 export const families = pgTable('families', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -9,11 +12,48 @@ export const families = pgTable('families', {
   updated_at: text('updated_at').notNull()
 });
 
-// 1. Aile Üyeleri & Kullanıcılar
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  username: text('username').notNull().unique(),
+  full_name: text('full_name').notNull(),
+  email: text('email'),
+  password_hash: text('password_hash').notNull(),
+  password_salt: text('password_salt').notNull(),
+  pin_salt: text('pin_salt'),
+  quick_pin_hash: text('quick_pin_hash').notNull(),
+  role: text('role').notNull().default('admin'),
+  relationship_type: text('relationship_type').default('leader'),
+  avatar_emoji: text('avatar_emoji').default('👤'),
+  is_master_account: integer('is_master_account').notNull().default(1),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
+  telegram_bot_token: text('telegram_bot_token'),
+  telegram_chat_id: text('telegram_chat_id'),
+  telegram_secret_token: text('telegram_secret_token'),
+  telegram_enabled: integer('telegram_enabled').default(0),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+}, (table) => [
+  index('idx_users_username').on(table.username),
+  index('idx_users_email').on(table.email),
+  index('idx_users_family_id').on(table.family_id)
+]);
+
+export const authSessions = pgTable('auth_sessions', {
+  token: text('token').primaryKey(),
+  user_id: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  expires_at: text('expires_at').notNull(),
+  device_name: text('device_name').default('web-client'),
+  created_at: text('created_at').notNull()
+}, (table) => [
+  index('idx_auth_sessions_user_id').on(table.user_id),
+  index('idx_auth_sessions_expires_at').on(table.expires_at)
+]);
+
+// 1. Aile Üyeleri & Davetler
 export const familyMembers = pgTable('family_members', {
   id: text('id').primaryKey(),
-  family_id: text('family_id'),
-  user_id: text('user_id'),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   role: text('role').notNull().default('admin'),
   relationship_type: text('relationship_type').default('member'),
@@ -23,23 +63,31 @@ export const familyMembers = pgTable('family_members', {
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client')
-});
+}, (table) => [
+  index('idx_family_members_family_user').on(table.family_id, table.user_id)
+]);
 
 export const familyInvites = pgTable('family_invites', {
   id: text('id').primaryKey(),
-  family_id: text('family_id'),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
   invite_code: text('invite_code').notNull().unique(),
-  created_by_user_id: text('created_by_user_id').notNull(),
+  created_by_user_id: text('created_by_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   family_role: text('family_role').notNull().default('member'),
   relationship_type: text('relationship_type').default('spouse'),
   target_name: text('target_name'),
   expires_at: text('expires_at').notNull(),
   is_used: integer('is_used').notNull().default(0),
-  used_by_user_id: text('used_by_user_id'),
+  used_by_user_id: text('used_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   created_at: text('created_at').notNull()
-});
+}, (table) => [
+  index('idx_family_invites_family_id').on(table.family_id),
+  index('idx_family_invites_code').on(table.invite_code)
+]);
 
-// 2. Varlık Merkezleri & Hesaplar
+// ==========================================
+// 2. FİNANS, VARLIKLAR & BÜTÇE TABLOLARI
+// ==========================================
+
 export const walletsAccounts = pgTable('wallets_accounts', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -69,11 +117,13 @@ export const walletsAccounts = pgTable('wallets_accounts', {
   interest_rate_late: doublePrecision('interest_rate_late').default(4.55),
   min_payment_percent: doublePrecision('min_payment_percent').default(20),
   overdraft_limit: doublePrecision('overdraft_limit').default(0),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_wallets_family_id').on(table.family_id),
+  index('idx_wallets_user_id').on(table.user_id)
+]);
 
-// 3. Kişisel Borç & Alacak Takibi
 export const personalDebtsReceivables = pgTable('personal_debts_receivables', {
   id: text('id').primaryKey(),
   type: text('type').notNull(),
@@ -84,16 +134,18 @@ export const personalDebtsReceivables = pgTable('personal_debts_receivables', {
   interest_rate: doublePrecision('interest_rate').default(0),
   interest_period: text('interest_period').default('yearly'),
   due_date: text('due_date'),
-  connected_wallet_id: text('connected_wallet_id'),
+  connected_wallet_id: text('connected_wallet_id').references(() => walletsAccounts.id, { onDelete: 'set null' }),
   status: text('status').notNull().default('active'),
   paid_amount: doublePrecision('paid_amount').default(0),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_personal_debts_family_id').on(table.family_id),
+  index('idx_personal_debts_user_id').on(table.user_id)
+]);
 
-// 4. Gelir & Gider Kategorileri
 export const categories = pgTable('categories', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -107,15 +159,16 @@ export const categories = pgTable('categories', {
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client'),
-  family_id: text('family_id')
-});
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_categories_family_id').on(table.family_id)
+]);
 
-// 4. Gelir, Gider & Taksitli İşlemler
 export const transactions = pgTable('transactions', {
   id: text('id').primaryKey(),
-  wallet_id: text('wallet_id').notNull().references(() => walletsAccounts.id),
-  category_id: text('category_id').references(() => categories.id),
-  member_id: text('member_id').references(() => familyMembers.id),
+  wallet_id: text('wallet_id').notNull().references(() => walletsAccounts.id, { onDelete: 'cascade' }),
+  category_id: text('category_id').references(() => categories.id, { onDelete: 'set null' }),
+  member_id: text('member_id').references(() => familyMembers.id, { onDelete: 'set null' }),
   merchant: text('merchant').default('Diğer'),
   amount: doublePrecision('amount').notNull(),
   currency: text('currency').notNull().default('TRY'),
@@ -132,11 +185,15 @@ export const transactions = pgTable('transactions', {
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client'),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_transactions_family_date').on(table.family_id, table.transaction_date),
+  index('idx_transactions_wallet_id').on(table.wallet_id),
+  index('idx_transactions_category_id').on(table.category_id),
+  index('idx_transactions_parent_id').on(table.parent_transaction_id)
+]);
 
-// 5. Hedef Fonları & Kumbaralar
 export const sinkingFunds = pgTable('sinking_funds', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -149,12 +206,11 @@ export const sinkingFunds = pgTable('sinking_funds', {
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client'),
-  family_id: text('family_id')
-});
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_sinking_funds_family_id').on(table.family_id)
+]);
 
-// 6. Çevrimdışı Senkron Kuyruğu
-// NOTE: sync_queue tablosu ve sync_status alanları çevrimdışı önbellek senkronizasyon mimarisinin
-// gelecekteki offline worker aşaması için ayrılmıştır. Şu an tüm işlemler canlı online DB'ye doğrudan yazılır.
 export const syncQueue = pgTable('sync_queue', {
   id: text('id').primaryKey(),
   table_name: text('table_name').notNull(),
@@ -184,13 +240,16 @@ export const vehicles = pgTable('vehicles', {
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client'),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_vehicles_family_id').on(table.family_id),
+  index('idx_vehicles_user_id').on(table.user_id)
+]);
 
 export const vehicleMaintenanceRecords = pgTable('vehicle_maintenance_records', {
   id: text('id').primaryKey(),
-  vehicle_id: text('vehicle_id').notNull().references(() => vehicles.id),
+  vehicle_id: text('vehicle_id').notNull().references(() => vehicles.id, { onDelete: 'cascade' }),
   type: text('type').notNull().default('periyodik_bakim'),
   km_at_service: doublePrecision('km_at_service').notNull(),
   service_date: text('service_date').notNull(),
@@ -205,11 +264,13 @@ export const vehicleMaintenanceRecords = pgTable('vehicle_maintenance_records', 
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client')
-});
+}, (table) => [
+  index('idx_vehicle_maintenance_vehicle_id').on(table.vehicle_id)
+]);
 
 export const vehicleFuelLogs = pgTable('vehicle_fuel_logs', {
   id: text('id').primaryKey(),
-  vehicle_id: text('vehicle_id').notNull().references(() => vehicles.id),
+  vehicle_id: text('vehicle_id').notNull().references(() => vehicles.id, { onDelete: 'cascade' }),
   km: doublePrecision('km').notNull(),
   fuel_station: text('fuel_station').notNull().default('Opet'),
   liters: doublePrecision('liters').notNull(),
@@ -220,11 +281,13 @@ export const vehicleFuelLogs = pgTable('vehicle_fuel_logs', {
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client')
-});
+}, (table) => [
+  index('idx_vehicle_fuel_vehicle_id').on(table.vehicle_id)
+]);
 
 export const vehicleLegalReminders = pgTable('vehicle_legal_reminders', {
   id: text('id').primaryKey(),
-  vehicle_id: text('vehicle_id').notNull().references(() => vehicles.id),
+  vehicle_id: text('vehicle_id').notNull().references(() => vehicles.id, { onDelete: 'cascade' }),
   type: text('type').notNull(),
   due_date: text('due_date').notNull(),
   policy_no: text('policy_no'),
@@ -232,7 +295,9 @@ export const vehicleLegalReminders = pgTable('vehicle_legal_reminders', {
   is_completed: integer('is_completed').notNull().default(0),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()
-});
+}, (table) => [
+  index('idx_vehicle_legal_vehicle_id').on(table.vehicle_id)
+]);
 
 export const homeMaintenanceRecords = pgTable('home_maintenance_records', {
   id: text('id').primaryKey(),
@@ -245,9 +310,11 @@ export const homeMaintenanceRecords = pgTable('home_maintenance_records', {
   status: text('status').notNull().default('ok'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_home_maintenance_family_id').on(table.family_id)
+]);
 
 export const homeAppliances = pgTable('home_appliances', {
   id: text('id').primaryKey(),
@@ -262,9 +329,11 @@ export const homeAppliances = pgTable('home_appliances', {
   notes: text('notes'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_home_appliances_family_id').on(table.family_id)
+]);
 
 // ==========================================
 // 📚 FAZ 4: DİJİTAL KÜTÜPHANE TABLOLARI
@@ -301,13 +370,16 @@ export const books = pgTable('books', {
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client'),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_books_family_id').on(table.family_id),
+  index('idx_books_user_id').on(table.user_id)
+]);
 
 export const readingSessions = pgTable('reading_sessions', {
   id: text('id').primaryKey(),
-  book_id: text('book_id').notNull().references(() => books.id),
+  book_id: text('book_id').notNull().references(() => books.id, { onDelete: 'cascade' }),
   start_page: integer('start_page').notNull(),
   end_page: integer('end_page').notNull(),
   pages_read: integer('pages_read').notNull(),
@@ -315,33 +387,38 @@ export const readingSessions = pgTable('reading_sessions', {
   session_date: text('session_date').notNull(),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_reading_sessions_book_id').on(table.book_id),
+  index('idx_reading_sessions_user_id').on(table.user_id)
+]);
 
 export const bookQuotes = pgTable('book_quotes', {
   id: text('id').primaryKey(),
-  book_id: text('book_id').notNull().references(() => books.id),
+  book_id: text('book_id').notNull().references(() => books.id, { onDelete: 'cascade' }),
   page_number: integer('page_number'),
   quote_text: text('quote_text').notNull(),
   reflection_note: text('reflection_note'),
   is_favorite: integer('is_favorite').notNull().default(0),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_book_quotes_book_id').on(table.book_id)
+]);
 
 export const userReadingProfile = pgTable('user_reading_profile', {
   id: text('id').primaryKey(),
-  member_id: text('member_id').references(() => familyMembers.id),
+  member_id: text('member_id').references(() => familyMembers.id, { onDelete: 'cascade' }),
   yearly_target_books: integer('yearly_target_books').notNull().default(24),
   calibrated_avg_wpm: doublePrecision('calibrated_avg_wpm').notNull().default(220),
   avg_seconds_per_page: doublePrecision('avg_seconds_per_page').notNull().default(84),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id'),
-  family_id: text('family_id')
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
 });
 
 // ==========================================
@@ -350,7 +427,7 @@ export const userReadingProfile = pgTable('user_reading_profile', {
 
 export const nutritionMeals = pgTable('nutrition_meals', {
   id: text('id').primaryKey(),
-  member_id: text('member_id').references(() => familyMembers.id),
+  member_id: text('member_id').references(() => familyMembers.id, { onDelete: 'set null' }),
   name: text('name').notNull(),
   meal_type: text('meal_type').notNull().default('lunch'),
   calories: doublePrecision('calories').notNull().default(0),
@@ -366,10 +443,13 @@ export const nutritionMeals = pgTable('nutrition_meals', {
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client'),
-  user_id: text('user_id'),
-  family_id: text('family_id'),
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
   micronutrient_data: text('micronutrient_data')
-});
+}, (table) => [
+  index('idx_nutrition_meals_family_id').on(table.family_id),
+  index('idx_nutrition_meals_user_id').on(table.user_id)
+]);
 
 export const foodNutrientProfiles = pgTable('food_nutrient_profiles', {
   id: text('id').primaryKey(),
@@ -378,12 +458,12 @@ export const foodNutrientProfiles = pgTable('food_nutrient_profiles', {
   categories_data: text('categories_data').notNull(),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' })
 });
 
 export const nutritionMealItems = pgTable('nutrition_meal_items', {
   id: text('id').primaryKey(),
-  meal_id: text('meal_id').notNull().references(() => nutritionMeals.id),
+  meal_id: text('meal_id').notNull().references(() => nutritionMeals.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   grams: doublePrecision('grams').default(100),
   calories: doublePrecision('calories').notNull().default(0),
@@ -392,11 +472,13 @@ export const nutritionMealItems = pgTable('nutrition_meal_items', {
   fat_g: doublePrecision('fat_g').notNull().default(0),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()
-});
+}, (table) => [
+  index('idx_nutrition_meal_items_meal_id').on(table.meal_id)
+]);
 
 export const fastingSessions = pgTable('fasting_sessions', {
   id: text('id').primaryKey(),
-  member_id: text('member_id').references(() => familyMembers.id),
+  member_id: text('member_id').references(() => familyMembers.id, { onDelete: 'set null' }),
   protocol: text('protocol').notNull().default('16:8'),
   start_time: text('start_time').notNull(),
   target_end_time: text('target_end_time').notNull(),
@@ -405,9 +487,11 @@ export const fastingSessions = pgTable('fasting_sessions', {
   notes: text('notes'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_fasting_sessions_user_id').on(table.user_id)
+]);
 
 export const packagedFoodScans = pgTable('packaged_food_scans', {
   id: text('id').primaryKey(),
@@ -423,7 +507,7 @@ export const packagedFoodScans = pgTable('packaged_food_scans', {
   image_url: text('image_url'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id'),
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
   micronutrient_profile: text('micronutrient_profile')
 });
 
@@ -438,13 +522,15 @@ export const dietMealOptions = pgTable('diet_meal_options', {
   protein_g: doublePrecision('protein_g').notNull().default(0),
   carbs_g: doublePrecision('carbs_g').notNull().default(0),
   fat_g: doublePrecision('fat_g').notNull().default(0),
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()
 });
 
 export const userHealthProfile = pgTable('user_health_profile', {
   id: text('id').primaryKey(),
-  member_id: text('member_id').references(() => familyMembers.id),
+  member_id: text('member_id').references(() => familyMembers.id, { onDelete: 'cascade' }),
   daily_calorie_target: doublePrecision('daily_calorie_target').notNull().default(2200),
   target_protein_g: doublePrecision('target_protein_g').notNull().default(140),
   target_carbs_g: doublePrecision('target_carbs_g').notNull().default(180),
@@ -454,59 +540,62 @@ export const userHealthProfile = pgTable('user_health_profile', {
   active_fasting_protocol: text('active_fasting_protocol').notNull().default('16:8'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id'),
-  family_id: text('family_id')
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
 });
 
 export const workoutSessions = pgTable('workout_sessions', {
   id: text('id').primaryKey(),
   title: text('title').notNull(),
-  sport_type: text('sport_type').notNull().default('strength'), // 'cycling' | 'running' | 'walking' | 'swimming' | 'strength' | 'hiit' | 'other'
+  sport_type: text('sport_type').notNull().default('strength'),
   date: text('date').notNull(),
   start_time: text('start_time'),
   end_time: text('end_time'),
   duration_minutes: integer('duration_minutes').default(45),
-  duration_seconds: doublePrecision('duration_seconds'), // Kesirli veya tam saniye (örn: 2784.35 sn)
-  duration_centiseconds: integer('duration_centiseconds'), // Toplam salise (1/100 sn, örn: 278435)
-  formatted_duration: text('formatted_duration'), // Örn: "46:24" veya "01:15:30"
+  duration_seconds: doublePrecision('duration_seconds'),
+  duration_centiseconds: integer('duration_centiseconds'),
+  formatted_duration: text('formatted_duration'),
   total_volume_kg: doublePrecision('total_volume_kg').default(0),
   distance_km: doublePrecision('distance_km').default(0),
-  distance_meters: doublePrecision('distance_meters'), // Metre cinsinden kesin mesafe (örn: 14980 veya 425)
-  distance_cm: doublePrecision('distance_cm'), // Santimetre cinsinden atomik mesafe (örn: 1498000 cm)
-  formatted_distance: text('formatted_distance'), // Örn: "14,98 km" veya "425 m"
+  distance_meters: doublePrecision('distance_meters'),
+  distance_cm: doublePrecision('distance_cm'),
+  formatted_distance: text('formatted_distance'),
   calories: doublePrecision('calories').default(0),
   avg_speed_kmh: doublePrecision('avg_speed_kmh'),
   max_speed_kmh: doublePrecision('max_speed_kmh'),
-  avg_pace: text('avg_pace'), // Örn: "03'55\" /km" veya "05'13\" /100 m"
+  avg_pace: text('avg_pace'),
   avg_heart_rate: integer('avg_heart_rate'),
   max_heart_rate: integer('max_heart_rate'),
   vo2_max: doublePrecision('vo2_max'),
   elevation_gain_m: doublePrecision('elevation_gain_m'),
   elevation_loss_m: doublePrecision('elevation_loss_m'),
   step_count: integer('step_count'),
-  cadence_spm: integer('cadence_spm'), // Adım frekansı (adım/dk) veya pedal devri
-  sweat_loss_ml: integer('sweat_loss_ml'), // Tahmini ter kaybı
-  swim_pool_length_m: integer('swim_pool_length_m'), // 25 veya 50
-  swim_total_lengths: integer('swim_total_lengths'), // Havuz boyu sayısı (tur)
-  swim_stroke_count: integer('swim_stroke_count'), // Toplam kulaç
+  cadence_spm: integer('cadence_spm'),
+  sweat_loss_ml: integer('sweat_loss_ml'),
+  swim_pool_length_m: integer('swim_pool_length_m'),
+  swim_total_lengths: integer('swim_total_lengths'),
+  swim_stroke_count: integer('swim_stroke_count'),
   swim_avg_swolf: integer('swim_avg_swolf'),
   swim_best_swolf: integer('swim_best_swolf'),
-  swim_style: text('swim_style'), // Serbest stil vb.
-  heart_rate_zones: text('heart_rate_zones'), // JSON: Zon 1-5 süreleri ve yüzdeleri
-  splits_data: text('splits_data'), // JSON: Kilometre / tur bölümleri
-  running_dynamics: text('running_dynamics'), // JSON: Asimetri, temas süresi, havada kalma vb.
-  source: text('source').default('manual'), // 'manual' | 'ai_ocr' | 'strava' | 'galaxy_watch'
-  external_id: text('external_id'), // Strava veya dış kaynak aktivite ID
-  map_polyline: text('map_polyline'), // GPS harita çizgi koordinatları
+  swim_style: text('swim_style'),
+  heart_rate_zones: text('heart_rate_zones'),
+  splits_data: text('splits_data'),
+  running_dynamics: text('running_dynamics'),
+  source: text('source').default('manual'),
+  external_id: text('external_id'),
+  map_polyline: text('map_polyline'),
   notes: text('notes'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_workout_sessions_user_id').on(table.user_id),
+  index('idx_workout_sessions_date').on(table.date)
+]);
 
 export const workoutExerciseLogs = pgTable('workout_exercise_logs', {
   id: text('id').primaryKey(),
-  workout_id: text('workout_id').notNull(),
+  workout_id: text('workout_id').notNull().references(() => workoutSessions.id, { onDelete: 'cascade' }),
   exercise_name: text('exercise_name').notNull(),
   category: text('category').notNull().default('gogus'),
   equipment: text('equipment').notNull().default('dumbbell'),
@@ -515,8 +604,10 @@ export const workoutExerciseLogs = pgTable('workout_exercise_logs', {
   total_reps: integer('total_reps').default(0),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_workout_exercise_logs_workout_id').on(table.workout_id)
+]);
 
 // ==========================================
 // 🗂️ FAZ 6: DİJİTAL KASA & EVRAK YÖNETİMİ
@@ -537,9 +628,12 @@ export const digitalVaultItems = pgTable('digital_vault_items', {
   is_family_shared: integer('is_family_shared').notNull().default(0),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_digital_vault_family_id').on(table.family_id),
+  index('idx_digital_vault_user_id').on(table.user_id)
+]);
 
 export const importantDates = pgTable('important_dates', {
   id: text('id').primaryKey(),
@@ -553,9 +647,11 @@ export const importantDates = pgTable('important_dates', {
   notes: text('notes'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_important_dates_family_id').on(table.family_id)
+]);
 
 export const petRecords = pgTable('pet_records', {
   id: text('id').primaryKey(),
@@ -571,9 +667,11 @@ export const petRecords = pgTable('pet_records', {
   notes: text('notes'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_pet_records_family_id').on(table.family_id)
+]);
 
 // ==========================================
 // 💊 FAZ 6: WELLNESS — TAKVİYE, UYKU & RUH HALİ
@@ -581,7 +679,7 @@ export const petRecords = pgTable('pet_records', {
 
 export const supplementRoutines = pgTable('supplement_routines', {
   id: text('id').primaryKey(),
-  member_id: text('member_id'),
+  member_id: text('member_id').references(() => familyMembers.id, { onDelete: 'set null' }),
   name: text('name').notNull(),
   dose: text('dose').notNull(),
   timing: text('timing').notNull(),
@@ -598,16 +696,19 @@ export const supplementRoutines = pgTable('supplement_routines', {
   unit: text('unit').default('kapsül'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_supplement_routines_family_id').on(table.family_id),
+  index('idx_supplement_routines_user_id').on(table.user_id)
+]);
 
 export const supplementIntakeLogs = pgTable('supplement_intake_logs', {
   id: text('id').primaryKey(),
-  supplement_id: text('supplement_id').notNull().references(() => supplementRoutines.id),
-  user_id: text('user_id'),
-  family_id: text('family_id'),
-  member_id: text('member_id'),
+  supplement_id: text('supplement_id').notNull().references(() => supplementRoutines.id, { onDelete: 'cascade' }),
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
+  member_id: text('member_id').references(() => familyMembers.id, { onDelete: 'set null' }),
   supplement_name: text('supplement_name').notNull(),
   dose: text('dose'),
   timing: text('timing'),
@@ -615,14 +716,16 @@ export const supplementIntakeLogs = pgTable('supplement_intake_logs', {
   taken_at: text('taken_at').notNull(),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()
-});
-
+}, (table) => [
+  index('idx_supplement_logs_supplement_id').on(table.supplement_id),
+  index('idx_supplement_logs_user_id').on(table.user_id)
+]);
 
 export const sleepLogs = pgTable('sleep_logs', {
   id: text('id').primaryKey(),
-  user_id: text('user_id'),
-  family_id: text('family_id'),
-  member_id: text('member_id'),
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
+  member_id: text('member_id').references(() => familyMembers.id, { onDelete: 'set null' }),
   bedtime: text('bedtime').notNull(),
   wake_time: text('wake_time').notNull(),
   duration_hours: doublePrecision('duration_hours').notNull(),
@@ -631,13 +734,16 @@ export const sleepLogs = pgTable('sleep_logs', {
   date: text('date').notNull(),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()
-});
+}, (table) => [
+  index('idx_sleep_logs_family_id').on(table.family_id),
+  index('idx_sleep_logs_user_id').on(table.user_id)
+]);
 
 export const moodLogs = pgTable('mood_logs', {
   id: text('id').primaryKey(),
-  user_id: text('user_id'),
-  family_id: text('family_id'),
-  member_id: text('member_id'),
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
+  member_id: text('member_id').references(() => familyMembers.id, { onDelete: 'set null' }),
   mood_emoji: text('mood_emoji').notNull(),
   mood_score: integer('mood_score').notNull(),
   energy_level: integer('energy_level').default(3),
@@ -646,25 +752,31 @@ export const moodLogs = pgTable('mood_logs', {
   date: text('date').notNull(),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()
-});
+}, (table) => [
+  index('idx_mood_logs_family_id').on(table.family_id),
+  index('idx_mood_logs_user_id').on(table.user_id)
+]);
 
 export const waterIntakeLogs = pgTable('water_intake_logs', {
   id: text('id').primaryKey(),
-  user_id: text('user_id'),
-  family_id: text('family_id'),
-  member_id: text('member_id'),
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
+  member_id: text('member_id').references(() => familyMembers.id, { onDelete: 'set null' }),
   date: text('date').notNull(),
   amount_ml: integer('amount_ml').notNull().default(0),
   goal_ml: integer('goal_ml').notNull().default(2500),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()
-});
+}, (table) => [
+  index('idx_water_intake_logs_family_id').on(table.family_id),
+  index('idx_water_intake_logs_user_id').on(table.user_id)
+]);
 
 export const biometrics = pgTable('biometrics', {
   id: text('id').primaryKey(),
-  user_id: text('user_id'),
-  family_id: text('family_id'),
-  member_id: text('member_id'),
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
+  member_id: text('member_id').references(() => familyMembers.id, { onDelete: 'set null' }),
   weight_kg: doublePrecision('weight_kg'),
   waist_cm: doublePrecision('waist_cm'),
   body_fat_percent: doublePrecision('body_fat_percent'),
@@ -675,13 +787,16 @@ export const biometrics = pgTable('biometrics', {
   notes: text('notes'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()
-});
+}, (table) => [
+  index('idx_biometrics_family_id').on(table.family_id),
+  index('idx_biometrics_user_id').on(table.user_id)
+]);
 
 export const smartScaleLogs = pgTable('smart_scale_logs', {
   id: text('id').primaryKey(),
-  member_id: text('member_id'),
-  user_id: text('user_id'),
-  family_id: text('family_id'),
+  member_id: text('member_id').references(() => familyMembers.id, { onDelete: 'set null' }),
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
   measurement_date: text('measurement_date').notNull(),
   weight_kg: doublePrecision('weight_kg').notNull(),
   bmi: doublePrecision('bmi'),
@@ -705,7 +820,10 @@ export const smartScaleLogs = pgTable('smart_scale_logs', {
   notes: text('notes'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()
-});
+}, (table) => [
+  index('idx_smart_scale_logs_family_id').on(table.family_id),
+  index('idx_smart_scale_logs_user_id').on(table.user_id)
+]);
 
 // ==========================================
 // 🛒 FAZ 6: AKILLI MARKET LİSTESİ
@@ -724,9 +842,12 @@ export const shoppingListItems = pgTable('shopping_list_items', {
   notes: text('notes'),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-  user_id: text('user_id'),
-  family_id: text('family_id')
-});
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
+}, (table) => [
+  index('idx_shopping_list_family_id').on(table.family_id),
+  index('idx_shopping_list_user_id').on(table.user_id)
+]);
 
 // ==========================================
 // ⚙️ FAZ 13: SİSTEM & TELEGRAM AYARLARI
@@ -739,62 +860,31 @@ export const appSettings = pgTable('app_settings', {
 });
 
 // ==========================================
-// 🔐 FAZ 15: KULLANICI KAYIT & GÜVENLİK
-// ==========================================
-
-export const users = pgTable('users', {
-  id: text('id').primaryKey(),
-  username: text('username').notNull().unique(),
-  full_name: text('full_name').notNull(),
-  email: text('email'),
-  password_hash: text('password_hash').notNull(),
-  password_salt: text('password_salt').notNull(),
-  quick_pin_hash: text('quick_pin_hash').notNull(),
-  role: text('role').notNull().default('admin'),
-  relationship_type: text('relationship_type').default('leader'),
-  avatar_emoji: text('avatar_emoji').default('👤'),
-  is_master_account: integer('is_master_account').notNull().default(1),
-  family_id: text('family_id'),
-  telegram_bot_token: text('telegram_bot_token'),
-  telegram_chat_id: text('telegram_chat_id'),
-  telegram_secret_token: text('telegram_secret_token'),
-  telegram_enabled: integer('telegram_enabled').default(0),
-  created_at: text('created_at').notNull(),
-  updated_at: text('updated_at').notNull()
-});
-
-export const authSessions = pgTable('auth_sessions', {
-  token: text('token').primaryKey(),
-  user_id: text('user_id').notNull().references(() => users.id),
-  expires_at: text('expires_at').notNull(),
-  device_name: text('device_name').default('web-client'),
-  created_at: text('created_at').notNull()
-});
-
-// ==========================================
 // 🧾 FAZ 16: PERİYODİK FATURA & ABONELİK TAKVİMİ
 // ==========================================
 
 export const recurringBills = pgTable('recurring_bills', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  type: text('type').notNull().default('utility'), // 'utility' | 'subscription' | 'tax' | 'other'
-  billing_day: integer('billing_day'),            // 1-31 (Tebliğ / kesim günü - ödeme penceresi açılışı)
-  due_day: integer('due_day').notNull(),           // 1-31 (Son ödeme günü)
-  period: text('period').notNull().default('monthly'), // 'monthly' | 'yearly' | 'quarterly'
-  due_month: integer('due_month'),                // 1-12 (Yıllık ödemeler için ay)
+  type: text('type').notNull().default('utility'),
+  billing_day: integer('billing_day'),
+  due_day: integer('due_day').notNull(),
+  period: text('period').notNull().default('monthly'),
+  due_month: integer('due_month'),
   amount: doublePrecision('amount').notNull().default(0),
-  amount_type: text('amount_type').notNull().default('fixed'), // 'fixed' | 'variable'
-  is_auto_pay: integer('is_auto_pay').default(0), // 1: Otomatik ödeme talimatı var
-  auto_pay_wallet_id: text('auto_pay_wallet_id').references(() => walletsAccounts.id),
-  category_id: text('category_id').references(() => categories.id),
-  last_paid_month: text('last_paid_month'),       // 'YYYY-MM'
+  amount_type: text('amount_type').notNull().default('fixed'),
+  is_auto_pay: integer('is_auto_pay').default(0),
+  auto_pay_wallet_id: text('auto_pay_wallet_id').references(() => walletsAccounts.id, { onDelete: 'set null' }),
+  category_id: text('category_id').references(() => categories.id, { onDelete: 'set null' }),
+  last_paid_month: text('last_paid_month'),
   last_paid_date: text('last_paid_date'),
-  status: text('status').notNull().default('active'), // 'active' | 'paused' | 'cancelled'
+  status: text('status').notNull().default('active'),
   notes: text('notes'),
-  user_id: text('user_id'),
-  family_id: text('family_id'),
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()
-});
-
+}, (table) => [
+  index('idx_recurring_bills_family_id').on(table.family_id),
+  index('idx_recurring_bills_user_id').on(table.user_id)
+]);

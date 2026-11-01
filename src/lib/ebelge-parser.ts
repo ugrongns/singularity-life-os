@@ -13,6 +13,56 @@ export interface EBelgeParseResult extends ParsedReceipt {
 }
 
 /**
+ * Türkçe Para / Tutar Formatını Güvenli Sayıya Dönüştürür (1000 Kat Hata Önleme - Bulgu 3)
+ * Desteklenen Formatlar:
+ * "1.250,50" -> 1250.50
+ * "1.250 TL" -> 1250
+ * "500,25" -> 500.25
+ * "150" -> 150
+ * "1.250.000 TL" -> 1250000
+ */
+export function parseTurkishNumber(val: string | number | null | undefined): number {
+  if (val === null || val === undefined) return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  if (typeof val !== 'string') return 0;
+
+  let str = val.trim();
+  str = str.replace(/[^\d.,\-+]/g, '');
+  if (!str) return 0;
+
+  const lastDot = str.lastIndexOf('.');
+  const lastComma = str.lastIndexOf(',');
+
+  if (lastDot !== -1 && lastComma !== -1) {
+    if (lastComma > lastDot) {
+      // Örn: "1.250,50" veya "1.250.000,75" -> Noktaları at, virgülü noktaya çevir
+      str = str.replace(/\./g, '').replace(',', '.');
+    } else {
+      // Örn: "1,250.50" veya "1,250,000.75" -> Virgülleri at
+      str = str.replace(/,/g, '');
+    }
+  } else if (lastComma !== -1) {
+    const commaCount = (str.match(/,/g) || []).length;
+    if (commaCount > 1 || /^[\-+]?\d{1,3}(,\d{3})+$/.test(str)) {
+      // Örn: "1,250,000" -> Binlik ayracı virgül
+      str = str.replace(/,/g, '');
+    } else {
+      // Örn: "500,25" -> Ondalık ayracı virgül
+      str = str.replace(',', '.');
+    }
+  } else if (lastDot !== -1) {
+    const dotCount = (str.match(/\./g) || []).length;
+    if (dotCount > 1 || /^[\-+]?\d{1,3}(\.\d{3})+$/.test(str)) {
+      // Örn: "1.250" veya "1.250.000" -> Binlik ayracı nokta
+      str = str.replace(/\./g, '');
+    }
+  }
+
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+}
+
+/**
  * Metnin veya URL'nin bir e-Belge / QR bağlantısı olup olmadığını kontrol eder
  */
 export function isEBelgeOrQRUrl(text: string): boolean {
@@ -21,6 +71,8 @@ export function isEBelgeOrQRUrl(text: string): boolean {
   return (
     trimmed.startsWith('http://') ||
     trimmed.startsWith('https://') ||
+    trimmed.startsWith('<?xml') ||
+    trimmed.includes('<Invoice') ||
     trimmed.includes('fitbulut.com') ||
     trimmed.includes('gib.gov.tr') ||
     trimmed.includes('migros.com.tr') ||
@@ -49,8 +101,8 @@ export function parseGibKarekodText(text: string): EBelgeParseResult | null {
     }
   }
 
-  const amount = parseFloat(dict['TOPLAM']?.replace(',', '.') || '0') || 0;
-  const tax = parseFloat(dict['KDV']?.replace(',', '.') || '0') || 0;
+  const amount = parseTurkishNumber(dict['TOPLAM']);
+  const tax = parseTurkishNumber(dict['KDV']);
   const rawDate = dict['TARIH'] || new Date().toISOString().split('T')[0];
   let formattedDate = rawDate;
   if (/^\d{2}[-/.]\d{2}[-/.]\d{4}$/.test(rawDate)) {
@@ -127,8 +179,8 @@ export function parseEBelgeHtml(html: string, originalUrl: string = ''): EBelgeP
     html.match(/FATURA TOPLAMI\s*:\s*([\d.,]+)/i) ||
     html.match(/ÖDENECEK TUTAR\s*:[\s\S]*?<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i);
   if (totalMatch) {
-    const rawVal = totalMatch[1].replace(/<[^>]+>/g, '').trim().replace(/\s/g, '');
-    amount = parseFloat(rawVal.replace(',', '.'));
+    const rawVal = totalMatch[1].replace(/<[^>]+>/g, '').trim();
+    amount = parseTurkishNumber(rawVal);
   }
 
   // 4. KDV Tutarı
@@ -137,8 +189,8 @@ export function parseEBelgeHtml(html: string, originalUrl: string = ''): EBelgeP
     html.match(/TOPLAM KDV\s*:[\s\S]*?<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i) ||
     html.match(/TOPLAM KDV\s*:\s*([\d.,]+)/i);
   if (taxMatch) {
-    const rawTax = taxMatch[1].replace(/<[^>]+>/g, '').trim().replace(/\s/g, '');
-    tax_amount = parseFloat(rawTax.replace(',', '.'));
+    const rawTax = taxMatch[1].replace(/<[^>]+>/g, '').trim();
+    tax_amount = parseTurkishNumber(rawTax);
   }
 
   // 5. Ürün Kalemleri Tablosu
@@ -155,8 +207,8 @@ export function parseEBelgeHtml(html: string, originalUrl: string = ''): EBelgeP
         if (cells.length >= 6) {
           // Col 0: Ürün Kodu, Col 1: Barkod, Col 2: Ürün Adı, Col 3: Miktar, Col 4: Birim, Col 5: Birim Fiyat, Col 6: Brüt, Col 8: İsk. Sonrası
           const name = cells[2];
-          const qty = parseFloat(cells[3]?.replace(',', '.')) || 1;
-          const price = parseFloat((cells[8] || cells[6] || cells[5])?.replace(',', '.')) || 0;
+          const qty = parseTurkishNumber(cells[3]) || 1;
+          const price = parseTurkishNumber(cells[8] || cells[6] || cells[5]) || 0;
           const barcode = cells[1] || '';
 
           if (name && price > 0) {
@@ -207,6 +259,107 @@ export function parseEBelgeHtml(html: string, originalUrl: string = ''): EBelgeP
     qr_url: originalUrl,
     source_type: 'qr_ebelge',
     raw_text: `GİB e-Belge / Karekod: ${originalUrl}`
+  };
+}
+
+/**
+ * UBL-TR Standart XML e-Fatura / e-Arşiv Ayrıştırıcısı (Bulgu 21)
+ */
+export function parseUblTrXml(xmlText: string, originalUrl: string = ''): EBelgeParseResult | null {
+  if (!xmlText || (!xmlText.includes('<Invoice') && !xmlText.includes(':Invoice') && !xmlText.includes('xmlns'))) {
+    return null;
+  }
+
+  // 1. Satıcı / Merchant Adı
+  let merchant = 'Kurumsal E-Fatura';
+  const supplierMatch =
+    xmlText.match(/<cac:AccountingSupplierParty>[\s\S]*?<cbc:Name>([\s\S]*?)<\/cbc:Name>/i) ||
+    xmlText.match(/<cac:PartyName>[\s\S]*?<cbc:Name>([\s\S]*?)<\/cbc:Name>/i) ||
+    xmlText.match(/<cac:PartyLegalEntity>[\s\S]*?<cbc:RegistrationName>([\s\S]*?)<\/cbc:RegistrationName>/i);
+  if (supplierMatch) {
+    merchant = supplierMatch[1].replace(/<[^>]+>/g, '').trim();
+  }
+
+  // 2. VKN / TCKN
+  const vknMatch = xmlText.match(/<cac:AccountingSupplierParty>[\s\S]*?<cbc:ID[^>]*schemeID="VKN"[^>]*>([\s\S]*?)<\/cbc:ID>/i) ||
+                   xmlText.match(/<cbc:ID[^>]*schemeID="(?:VKN|TCKN)"[^>]*>([\s\S]*?)<\/cbc:ID>/i);
+  const vkn = vknMatch ? vknMatch[1].trim() : undefined;
+
+  // 3. Fatura Tarihi
+  let date = new Date().toISOString().split('T')[0];
+  const dateMatch = xmlText.match(/<cbc:IssueDate>([\s\S]*?)<\/cbc:IssueDate>/i);
+  if (dateMatch) {
+    date = dateMatch[1].trim();
+  }
+
+  // 4. Ödenecek Tutar
+  let amount = 0;
+  const payableMatch = xmlText.match(/<cbc:PayableAmount[^>]*>([\s\S]*?)<\/cbc:PayableAmount>/i) ||
+                      xmlText.match(/<cbc:TaxInclusiveAmount[^>]*>([\s\S]*?)<\/cbc:TaxInclusiveAmount>/i) ||
+                      xmlText.match(/<cbc:LineExtensionAmount[^>]*>([\s\S]*?)<\/cbc:LineExtensionAmount>/i);
+  if (payableMatch) {
+    amount = parseTurkishNumber(payableMatch[1].trim());
+  }
+
+  // 5. KDV Tutarı
+  let taxAmount = 0;
+  const taxMatch = xmlText.match(/<cac:TaxTotal>[\s\S]*?<cbc:TaxAmount[^>]*>([\s\S]*?)<\/cbc:TaxAmount>/i);
+  if (taxMatch) {
+    taxAmount = parseTurkishNumber(taxMatch[1].trim());
+  }
+
+  // 6. ETTN (UUID) & Fatura Numarası
+  const uuidMatch = xmlText.match(/<cbc:UUID>([\s\S]*?)<\/cbc:UUID>/i);
+  const ettn = uuidMatch ? uuidMatch[1].trim() : undefined;
+
+  const idMatch = xmlText.match(/<cbc:ID>([\s\S]*?)<\/cbc:ID>/i);
+  const referenceNumber = idMatch ? idMatch[1].trim() : undefined;
+
+  // 7. Kalemler (InvoiceLine)
+  const items: Array<{ name: string; price: number; quantity?: number; barcode?: string; vat_rate?: number }> = [];
+  const lineRegex = /<cac:InvoiceLine>([\s\S]*?)<\/cac:InvoiceLine>/gi;
+  let lineMatch;
+  while ((lineMatch = lineRegex.exec(xmlText)) !== null) {
+    const lineContent = lineMatch[1];
+    const nameMatch = lineContent.match(/<cac:Item>[\s\S]*?<cbc:Name>([\s\S]*?)<\/cbc:Name>/i);
+    const qtyMatch = lineContent.match(/<cbc:InvoicedQuantity[^>]*>([\s\S]*?)<\/cbc:InvoicedQuantity>/i);
+    const priceMatch =
+      lineContent.match(/<cac:Price>[\s\S]*?<cbc:PriceAmount[^>]*>([\s\S]*?)<\/cbc:PriceAmount>/i) ||
+      lineContent.match(/<cbc:LineExtensionAmount[^>]*>([\s\S]*?)<\/cbc:LineExtensionAmount>/i);
+
+    if (nameMatch) {
+      const name = nameMatch[1].replace(/<[^>]+>/g, '').trim();
+      const qty = qtyMatch ? parseTurkishNumber(qtyMatch[1]) : 1;
+      const price = priceMatch ? parseTurkishNumber(priceMatch[1]) : 0;
+      if (name && price > 0) {
+        items.push({
+          name,
+          price,
+          quantity: qty > 0 ? qty : 1
+        });
+      }
+    }
+  }
+
+  if (amount === 0 && items.length > 0) {
+    amount = items.reduce((sum, item) => sum + item.price, 0);
+  }
+
+  return {
+    merchant: vkn && merchant === 'Kurumsal E-Fatura' ? `Kurumsal Fatura (VKN: ${vkn})` : merchant,
+    amount,
+    currency: 'TRY',
+    date,
+    category_id: 'cat-market',
+    category_name: 'Market & Gıda',
+    items,
+    tax_amount: taxAmount > 0 ? taxAmount : undefined,
+    confidence: 1.0,
+    reference_number: referenceNumber,
+    ettn,
+    qr_url: originalUrl || undefined,
+    source_type: 'qr_ebelge',
+    raw_text: `UBL-TR e-Fatura / e-Arşiv: ${referenceNumber || ettn || ''}`
   };
 }
 
@@ -279,7 +432,7 @@ export function isSafeEBelgeUrl(urlString: string): boolean {
 }
 
 /**
- * QR Kod URL'sini güvenli bir şekilde arka planda çeker ve ayrıştırır (SSRF Korumalı)
+ * QR Kod URL'sini güvenli bir şekilde arka planda çeker ve ayrıştırır (SSRF ve Body Limit Korumalı)
  */
 export async function fetchAndParseEBelge(url: string): Promise<EBelgeParseResult | null> {
   if (!url || typeof url !== 'string' || !isSafeEBelgeUrl(url)) {
@@ -306,8 +459,23 @@ export async function fetchAndParseEBelge(url: string): Promise<EBelgeParseResul
       return null;
     }
 
-    const html = await response.text();
-    return parseEBelgeHtml(html, url);
+    // Content-Length kontrolü (Maksimum 5MB)
+    const contentLength = response.headers.get('content-length');
+    if (contentLength && parseInt(contentLength, 10) > 5 * 1024 * 1024) {
+      console.warn(`[eBelge Parser] Boyut sınırı aşıldı: ${contentLength} bayt`);
+      return null;
+    }
+
+    const rawText = await response.text();
+    // Maksimum 2MB metin işle (ReDoS / OOM engelle)
+    const text = rawText.slice(0, 2 * 1024 * 1024);
+
+    if (text.trim().startsWith('<?xml') || text.includes('<Invoice') || text.includes(':Invoice')) {
+      const xmlRes = parseUblTrXml(text, url);
+      if (xmlRes) return xmlRes;
+    }
+
+    return parseEBelgeHtml(text, url);
   } catch (err: any) {
     console.warn(`[eBelge Parser] Fetch error for ${url}:`, err.message || err);
     return null;

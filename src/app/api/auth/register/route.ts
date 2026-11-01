@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { db, initDatabase } from '@/db';
 import { users, families, authSessions, appSettings, userHealthProfile, userReadingProfile, walletsAccounts, familyInvites, familyMembers } from '@/db/schema';
 import { hashPassword, hashPin, generateSessionToken } from '@/lib/auth';
@@ -73,13 +74,20 @@ export async function POST(req: Request) {
     }
 
     const now = new Date().toISOString();
+    const userId = `usr_${crypto.randomUUID()}`;
+    let familyId = '';
+    let userRole = 'admin';
+    let userRelationship = 'leader';
+    let isMaster = 1;
 
-    // 4. DAVET KODU KONTROLÜ (Eğer girildiyse)
+    // 4. DAVET KODU KONTROLÜ VE ATOMİK TÜKETİM (Eğer girildiyse)
     let validInvite: any = null;
     if (invite_code && String(invite_code).trim()) {
       const cleanCode = String(invite_code).trim().toUpperCase();
-      validInvite = await db.select()
-        .from(familyInvites)
+
+      // Atomik Check-and-Set: Tek adımda rezerve et ve tüket (Race Condition / TOCTOU önleme)
+      const consumedInvite = await db.update(familyInvites)
+        .set({ is_used: 1, used_by_user_id: userId })
         .where(
           and(
             eq(familyInvites.invite_code, cleanCode),
@@ -87,43 +95,26 @@ export async function POST(req: Request) {
             gt(familyInvites.expires_at, now)
           )
         )
-        .limit(1).then((r: any) => r[0]);
+        .returning();
 
-      if (!validInvite) {
+      if (!consumedInvite || consumedInvite.length === 0) {
         return NextResponse.json({
           success: false,
-          error: 'Geçersiz veya süresi dolmuş Aile Davet Kodu. Lütfen doğru kodu girdiğinizden emin olun.'
+          error: 'Geçersiz, süresi dolmuş veya az önce kullanılmış Aile Davet Kodu. Lütfen doğru kodu girdiğinizden emin olun.'
         }, { status: 400 });
       }
-    }
 
-    // Hash password & PIN
-    const { hash: passwordHash, salt } = hashPassword(password);
-    const quickPinHash = hashPin(String(quick_pin), salt);
-
-    const userId = `user-${Date.now()}`;
-    let familyId = '';
-    let userRole = 'admin';
-    let userRelationship = 'leader';
-    let isMaster = 1;
-
-    if (validInvite) {
-      // 🏠 Davet Kodu ile Kayıt: Mevcut Aileye Katıl
+      validInvite = consumedInvite[0];
       familyId = validInvite.family_id || `fam-${validInvite.created_by_user_id}`;
       userRole = validInvite.family_role || 'member';
       userRelationship = validInvite.relationship_type || 'spouse';
       isMaster = 0;
-
-      // Davet Kodunu Kullanıldı Olarak İşaretle
-      await db.update(familyInvites)
-        .set({ is_used: 1, used_by_user_id: userId })
-        .where(eq(familyInvites.id, validInvite.id));
     } else {
       // 👑 Bağımsız Kayıt: Yeni Bir Aile / Hane Oluştur
       const nameParts = full_name.trim().split(' ');
       const surname = nameParts.length > 1 ? nameParts[nameParts.length - 1] : full_name.trim();
       const familyName = `${surname} Ailesi`;
-      familyId = `fam-${Date.now()}`;
+      familyId = `fam_${crypto.randomUUID()}`;
 
       await db.insert(families).values({
         id: familyId,
@@ -134,6 +125,10 @@ export async function POST(req: Request) {
       });
     }
 
+    // Hash password & PIN (asenkron, bağımsız salt)
+    const { hash: passwordHash, salt } = await hashPassword(password);
+    const { hash: quickPinHash, pinSalt } = await hashPin(String(quick_pin));
+
     // Insert user
     await db.insert(users).values({
       id: userId,
@@ -142,6 +137,7 @@ export async function POST(req: Request) {
       email: email ? email.trim() : null,
       password_hash: passwordHash,
       password_salt: salt,
+      pin_salt: pinSalt,
       quick_pin_hash: quickPinHash,
       role: userRole,
       relationship_type: userRelationship,
@@ -255,23 +251,23 @@ export async function POST(req: Request) {
     cookieStore.set('singularity_session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',  // 'lax' → 'strict' (daha güçlü CSRF koruması)
+      sameSite: 'lax', // Standardized to 'lax'
       path: '/',
       maxAge: 30 * 86400
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Master kullanıcı başarıyla oluşturuldu!',
+      message: isMaster ? 'Master kullanıcı başarıyla oluşturuldu!' : 'Aile üyesi kaydı başarıyla tamamlandı!',
       data: {
         user: {
           id: userId,
           username: username.toLowerCase().trim(),
           full_name: full_name.trim(),
           email: email || null,
-          role: 'admin',
-          avatar_emoji: avatar_emoji || '👤',
-          is_master_account: true
+          role: userRole,
+          avatar_emoji: avatar_emoji || (isMaster ? '👑' : '👤'),
+          is_master_account: isMaster === 1
         }
       }
     });

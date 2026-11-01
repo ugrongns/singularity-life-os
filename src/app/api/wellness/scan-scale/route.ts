@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 
+const SCALE_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash'
+];
+
 export async function POST(req: Request) {
   try {
     const user = await getAuthUser();
@@ -59,43 +65,73 @@ Kurallar:
 - Fotoğrafta görünmeyen metrikleri null olarak bırak.
 - Sayıları float/number tipinde döndür (virgülleri noktaya çevir).`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: promptText },
+    const cleanBase64 = image_base64.replace(/^data:image\/\w+;base64,/, '');
+
+    let jsonResult: any = null;
+    let lastError: string | null = null;
+
+    // Dayanıklı model zinciri (gemini-2.5-flash -> gemini-2.0-flash -> gemini-1.5-flash)
+    for (const model of SCALE_MODELS) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
                 {
-                  inlineData: {
-                    mimeType: mime_type,
-                    data: image_base64.replace(/^data:image\/\w+;base64,/, '')
-                  }
+                  parts: [
+                    { text: promptText },
+                    {
+                      inlineData: {
+                        mimeType: mime_type,
+                        data: cleanBase64
+                      }
+                    }
+                  ]
                 }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.0
+              ],
+              generationConfig: {
+                temperature: 0.0,
+                responseMimeType: 'application/json'
+              }
+            })
           }
-        })
+        );
+
+        if (response.ok) {
+          jsonResult = await response.json();
+          break;
+        } else {
+          lastError = await response.text();
+          console.warn(`[Smart Scale OCR] Model ${model} failed:`, response.status, lastError);
+        }
+      } catch (err: any) {
+        lastError = err.message;
+        console.warn(`[Smart Scale OCR] Model ${model} network error:`, err);
       }
-    );
+    }
 
-    const jsonResult = await response.json();
-
-    if (jsonResult.error) {
-      console.warn('[Smart Scale OCR Error]', jsonResult.error);
-      return NextResponse.json({ success: false, error: 'Tartı verileri okunamadı.' }, { status: 500 });
+    if (!jsonResult || jsonResult.error) {
+      console.warn('[Smart Scale OCR Error]', jsonResult?.error || lastError);
+      return NextResponse.json({ success: false, error: 'Tartı verileri okunamadı. Lütfen tekrar deneyin.' }, { status: 500 });
     }
 
     const rawText = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const cleanJsonText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
 
-    const parsedData = JSON.parse(cleanJsonText);
+    let parsedData: any = null;
+    try {
+      const jsonMatch = cleanJsonText.match(/\{[\s\S]*\}/);
+      parsedData = JSON.parse(jsonMatch ? jsonMatch[0] : cleanJsonText);
+    } catch (parseErr) {
+      console.error('[Smart Scale JSON Parse Error]', parseErr, 'Raw Text:', rawText);
+      return NextResponse.json({
+        success: false,
+        error: 'Tartı verileri çözümlenemedi. Görsel net olmayabilir.'
+      }, { status: 422 });
+    }
 
     return NextResponse.json({
       success: true,

@@ -80,8 +80,13 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: 'Kategori bulunamadı.' }, { status: 404 });
       }
       // OWASP BOLA: Özel kategoriyi sadece ait olduğu aile güncelleyebilir
-      if (!seedCategories.includes(id) && existing.family_id && existing.family_id !== familyId) {
+      if (existing.family_id && existing.family_id !== familyId) {
         return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu kategori ailenize ait değil.' }, { status: 403 });
+      }
+
+      // Sistem genel seed kategorilerini sadece Aile Lideri / Yönetici değiştirebilir
+      if ((!existing.family_id || seedCategories.includes(id)) && user.is_master_account !== 1 && user.role !== 'admin') {
+        return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Sistem temel kategorilerini yalnızca Aile Yöneticisi düzenleyebilir.' }, { status: 403 });
       }
 
       await db.update(categories)
@@ -100,7 +105,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: 'Kategori ve bütçe limiti güncellendi!' });
     } else {
       // Yeni Ekle
-      const newId = `cat-${Date.now()}`;
+      const newId = `cat-${crypto.randomUUID()}`;
       await db.insert(categories).values({
         id: newId,
         name: name.trim(),
@@ -136,17 +141,18 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Kategori ID zorunludur.' }, { status: 400 });
     }
 
-    // Sistem çekirdek kategorileri (cat-maas, cat-market, vb.) foreign key bütünlüğü için silinemez
-    const seedCategories = ['cat-maas', 'cat-market', 'cat-kira', 'cat-fatura', 'cat-ulasim', 'cat-eeglence', 'cat-saglik', 'cat-diger'];
-    if (seedCategories.includes(id)) {
-      return NextResponse.json({ success: false, error: 'Sistem temel kategorileri silinemez. Dilerseniz bütçe limitini 0 yapabilirsiniz.' }, { status: 400 });
-    }
-
     // OWASP BOLA: Özel kategoriyi sadece sahibi olan aile silebilir
     const existing = (await db.select().from(categories).where(eq(categories.id, id)))[0];
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Kategori bulunamadı.' }, { status: 404 });
     }
+
+    // Sistem çekirdek kategorileri (cat-maas, cat-market, vb.) veya global şablonlar silinemez
+    const seedCategories = ['cat-maas', 'cat-market', 'cat-kira', 'cat-fatura', 'cat-ulasim', 'cat-eeglence', 'cat-saglik', 'cat-diger'];
+    if (seedCategories.includes(id) || !existing.family_id) {
+      return NextResponse.json({ success: false, error: 'Sistem temel kategorileri silinemez. Dilerseniz bütçe limitini 0 yapabilirsiniz.' }, { status: 400 });
+    }
+
     const familyId = user.family_id || `fam-${user.id}`;
     if (existing.family_id && existing.family_id !== familyId) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu kategori ailenize ait değil.' }, { status: 403 });
