@@ -8,6 +8,7 @@ import RecentTxCard from '@/components/budget/RecentTxCard';
 import FutureForecastCard from '@/components/budget/FutureForecastCard';
 import PersonalDebtsCard from '@/components/budget/PersonalDebtsCard';
 import RecurringBillsCard from '@/components/budget/RecurringBillsCard';
+import SpendingHabitsCard from '@/components/budget/SpendingHabitsCard';
 import ReceiptScanModal from '@/components/modals/ReceiptScanModal';
 import ManualExpenseModal from '@/components/modals/ManualExpenseModal';
 import CreditCardStatementModal from '@/components/modals/CreditCardStatementModal';
@@ -450,7 +451,10 @@ export default function BudgetPage() {
                   onUpdate={handleUpdate}
                 />
 
-                {/* 3. Son İşlemler (Mobilde 2 Satırlı Kompakt Kart, Masaüstünde Veri Tablosu + CSV + Arama) */}
+                {/* 3. Finansal Harcama Davranışları & No-Spend Analitiği (Faz 3) */}
+                <SpendingHabitsCard />
+
+                {/* 4. Son İşlemler (Mobilde 2 Satırlı Kompakt Kart, Masaüstünde Veri Tablosu + CSV + Arama) */}
                 <RecentTxCard
                   transactions={filteredRecentTx}
                   upcomingPayments={data?.upcomingPayments || []}

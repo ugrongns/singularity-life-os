@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import SharedLayout from '@/components/layout/SharedLayout';
 import LibraryHeroCard from '@/components/library/LibraryHeroCard';
+import ReadingProgressTrendCard from '@/components/library/ReadingProgressTrendCard';
 import BookShelfList from '@/components/library/BookShelfList';
 import QuotesDrawer from '@/components/library/QuotesDrawer';
 import ReadingSessionModal from '@/components/modals/ReadingSessionModal';
@@ -125,6 +126,11 @@ export default function LibraryPage() {
           onOpenQuotes={() => setIsQuotesOpen(true)}
           onOpenBookDetail={(b) => setSelectedBookDetail(b)}
           onUpdate={handleUpdate}
+        />
+
+        {/* Kitap Okuma Hızı (WPM) & Seans Zaman Serisi Kartı (Faz 2) */}
+        <ReadingProgressTrendCard
+          onOpenSession={() => handleOpenSessionForBook(data?.activeReadingBook?.id)}
         />
 
         <BookShelfList

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import SharedLayout from '@/components/layout/SharedLayout';
 import HolisticScoreCard from '@/components/analytics/HolisticScoreCard';
 import FireAnalyticsCard from '@/components/analytics/FireAnalyticsCard';
+import LifeCalendarHeatmap from '@/components/analytics/LifeCalendarHeatmap';
 
 export default function AnalyticsPage() {
   const [data, setData] = useState<any>(null);
@@ -83,6 +84,10 @@ export default function AnalyticsPage() {
       </div>
 
       {/* İki Sütunlu Executive Dashboard Izgarası veya Boş Durum Kartı */}
+      <div style={{ marginBottom: '20px' }}>
+        <LifeCalendarHeatmap />
+      </div>
+
       {!data || (!data.holisticScore && !data.fireMetrics) ? (
         <div className="card" style={{ textAlign: 'center', padding: '48px 24px', margin: '20px 0' }}>
           <div style={{ fontSize: '42px', marginBottom: '12px' }}>📊</div>

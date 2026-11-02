@@ -184,6 +184,12 @@ export async function POST(req: Request) {
         .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id)));
 
       return NextResponse.json({ success: true, message: 'Oruç seansı tamamlandı ve günlüğe kaydedildi. 🥗' });
+    } else if (action === 'cancel') {
+      await db.update(fastingSessions)
+        .set({ is_active: 0, actual_end_time: null, notes: 'cancelled', updated_at: nowISO })
+        .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id)));
+
+      return NextResponse.json({ success: true, message: 'Oruç seansı iptal edildi.' });
     }
 
     return NextResponse.json({ success: false, error: 'Geçersiz işlem.' }, { status: 400 });

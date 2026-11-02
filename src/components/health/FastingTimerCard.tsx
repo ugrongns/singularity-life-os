@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { calculateFastingProgress } from '@/lib/module3-utils';
+import FastingHistoryModal from './FastingHistoryModal';
 import {
   Clock,
   Zap,
@@ -40,6 +41,7 @@ const FASTING_PROTOCOLS = [
 export default function FastingTimerCard({ fastingData, onToggleFasting }: FastingProps) {
   const [selectedProtocol, setSelectedProtocol] = useState(fastingData.protocol || '16:8');
   const [isToggling, setIsToggling] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const [liveMetrics, setLiveMetrics] = useState(() =>
     fastingData.isActive && fastingData.startTime
@@ -120,31 +122,56 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
           </div>
         </div>
 
-        <span
-          style={{
-            fontSize: '11px',
-            fontWeight: 800,
-            padding: '4px 10px',
-            borderRadius: '999px',
-            backgroundColor: fastingData.isActive ? 'rgba(16, 185, 129, 0.15)' : 'var(--surface-subtle)',
-            color: fastingData.isActive ? '#10B981' : 'var(--text-muted)',
-            border: `1px solid ${fastingData.isActive ? 'rgba(16, 185, 129, 0.3)' : 'var(--border)'}`,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '5px'
-          }}
-        >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={() => setIsHistoryOpen(true)}
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              padding: '4px 10px',
+              borderRadius: '999px',
+              backgroundColor: 'var(--surface-subtle)',
+              color: 'var(--text-main)',
+              border: '1px solid var(--border)',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              transition: 'all 0.2s'
+            }}
+            title="Geçmiş & Ötofaji Analitiği"
+          >
+            <span>📜</span>
+            <span>Geçmiş & Ötofaji</span>
+          </button>
+
           <span
             style={{
-              width: '6px',
-              height: '6px',
-              borderRadius: '50%',
-              backgroundColor: fastingData.isActive ? '#10B981' : 'var(--text-muted)',
-              boxShadow: fastingData.isActive ? '0 0 6px #10B981' : 'none'
+              fontSize: '11px',
+              fontWeight: 800,
+              padding: '4px 10px',
+              borderRadius: '999px',
+              backgroundColor: fastingData.isActive ? 'rgba(16, 185, 129, 0.15)' : 'var(--surface-subtle)',
+              color: fastingData.isActive ? '#10B981' : 'var(--text-muted)',
+              border: `1px solid ${fastingData.isActive ? 'rgba(16, 185, 129, 0.3)' : 'var(--border)'}`,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px'
             }}
-          />
-          {fastingData.isActive ? `Aktif (${fastingData.protocol || '16:8'})` : 'Pasif'}
-        </span>
+          >
+            <span
+              style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                backgroundColor: fastingData.isActive ? '#10B981' : 'var(--text-muted)',
+                boxShadow: fastingData.isActive ? '0 0 6px #10B981' : 'none'
+              }}
+            />
+            {fastingData.isActive ? `Aktif (${fastingData.protocol || '16:8'})` : 'Pasif'}
+          </span>
+        </div>
       </div>
 
       {fastingData.isActive ? (
@@ -412,6 +439,12 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
           </button>
         </div>
       )}
+
+      {/* Geçmiş & Ötofaji Analitiği Modalı */}
+      <FastingHistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+      />
     </div>
   );
 }
