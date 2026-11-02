@@ -199,14 +199,17 @@ export async function POST(req: Request) {
 
             const apiKey = process.env.GEMINI_API_KEY;
             if (apiKey) {
-              try {
-                const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    contents: [{
-                      parts: [{
-                        text: `Sen uzman bir gıda mühendisi ve beslenme toksikoloğusun.
+              const FOOD_MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview', 'gemini-flash-latest'];
+              for (const fModel of FOOD_MODELS) {
+                try {
+                  const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${fModel}:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: AbortSignal.timeout(10000),
+                    body: JSON.stringify({
+                      contents: [{
+                        parts: [{
+                          text: `Sen uzman bir gıda mühendisi ve beslenme toksikoloğusun.
 ${barcode} barkod numarası ve aşağıdaki web arama sonuçları üzerinden ürünün gerçek adını, markasını ve beslenme/katkı maddesi profilini tespit et.
 
 Web Arama İndeksi:
@@ -223,18 +226,21 @@ SADECE aşağıdaki JSON formatında yanıt ver:
   "pesticide_risk_summary": "Pestisit, cıva/ağır metal ve işlenmişlik riski değerlendirmesi",
   "alternative_suggestions": "Sağlıklı alternatif tavsiyesi"
 }`
-                      }]
-                    }],
-                    generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
-                  })
-                });
-                const aiData = await aiRes.json();
-                const text = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (text) {
-                  foodAnalysis = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
+                        }]
+                      }],
+                      generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
+                    })
+                  });
+                  if (!aiRes.ok) continue;
+                  const aiData = await aiRes.json();
+                  const text = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+                  if (text) {
+                    foodAnalysis = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
+                    break;
+                  }
+                } catch (e) {
+                  console.warn(`[Barcode Scan Gemini Error (${fModel})]:`, e);
                 }
-              } catch (e) {
-                console.warn('[Barcode Scan Gemini Error]:', e);
               }
             }
           }

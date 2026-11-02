@@ -25,9 +25,10 @@ export interface ParsedReceipt {
  * Resmi Gemini Modelleri Öncelik Zinciri (Bulgu 5)
  */
 export const RESILIENT_GEMINI_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
+  'gemini-flash-lite-latest',
+  'gemini-3.5-flash-lite',
+  'gemini-3-flash-preview',
+  'gemini-3.5-flash',
   'gemini-flash-latest'
 ];
 

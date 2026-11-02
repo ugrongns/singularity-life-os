@@ -31,7 +31,13 @@ export async function POST(req: Request) {
 Eğer görüntü net değilse, sayfa eğikse veya bazı kelimeleri kesin olarak okuyamıyorsan, o kısmı UYDURMA — emin olmadığın kelimeleri [OKUNAMADI] olarak işaretle.
 Başka hiçbir açıklama veya giriş cümlesi yazma, SADECE sayfadan okuduğun ham metni döndür.`;
 
-    const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+    const MODELS = [
+      'gemini-flash-lite-latest',
+      'gemini-3.5-flash-lite',
+      'gemini-3-flash-preview',
+      'gemini-3.5-flash',
+      'gemini-flash-latest'
+    ];
     let lastError = 'Yapay Zekâ Görsel OCR servisine erişilemedi.';
 
     for (const modelName of MODELS) {
@@ -41,6 +47,7 @@ Başka hiçbir açıklama veya giriş cümlesi yazma, SADECE sayfadan okuduğun 
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: AbortSignal.timeout(15000),
             body: JSON.stringify({
               contents: [
                 {
@@ -101,6 +108,10 @@ Başka hiçbir açıklama veya giriş cümlesi yazma, SADECE sayfadan okuduğun 
             .filter((w: string) => w.length >= 2);
 
           const wordCount = words.length;
+          if (wordCount === 0) {
+            lastError = 'Sayfadaki metin okunamadı veya görüntü çok bulanık. Lütfen ışığın iyi olduğu bir ortamda sayfayı düz tutarak tekrar çekin.';
+            continue;
+          }
           const sampleText = words.slice(0, 10).join(' ');
 
           console.log('\n===========================================');

@@ -57,7 +57,13 @@ SADECE aşağıdaki JSON formatında çıktı üret, başka hiçbir açıklama y
   "fat_g": 18
 }`;
 
-        const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+        const MODELS = [
+          'gemini-flash-lite-latest',
+          'gemini-3.5-flash-lite',
+          'gemini-3-flash-preview',
+          'gemini-3.5-flash',
+          'gemini-flash-latest'
+        ];
         let jsonResult: any = null;
 
         for (const modelName of MODELS) {
