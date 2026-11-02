@@ -104,9 +104,14 @@ export default function ReadingProgressTrendCard({
     ? summary.sessions.filter(s => s.category === selectedCategory)
     : summary.sessions;
 
-  // Çizgi Grafiği Noktaları (Kronolojik: Eskiden yeniye son 15 seans)
+  // Çizgi Grafiği Noktaları (Kronolojik: Eskiden yeniye son 15 seans - İki Kademeli Deterministik Sıralama)
   const chartSessions = [...summary.sessions]
-    .sort((a, b) => new Date(a.sessionDate).getTime() - new Date(b.sessionDate).getTime())
+    .sort((a, b) => {
+      const timeA = new Date(a.createdAt || a.sessionDate).getTime();
+      const timeB = new Date(b.createdAt || b.sessionDate).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      return a.sessionId.localeCompare(b.sessionId);
+    })
     .slice(-15);
 
   const wpmValues = chartSessions.map(s => s.wpm);

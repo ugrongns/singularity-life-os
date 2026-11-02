@@ -24,6 +24,7 @@ export interface EnrichedReadingSession {
   pagesRead: number;
   durationMinutes: number;
   sessionDate: string;
+  createdAt: string;
   wpm: number;
   wordsPerPage: number;
 }
@@ -120,13 +121,19 @@ export function calculateReadingAnalytics(
       pagesRead: row.pages_read ?? 0,
       durationMinutes: Math.round((row.duration_minutes ?? 0) * 10) / 10,
       sessionDate: row.session_date ?? row.created_at?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+      createdAt: row.created_at ?? row.session_date ?? new Date().toISOString(),
       wpm,
       wordsPerPage: wpp
     };
   });
 
-  // Tarihe göre sırala: Yeniden eskiye
-  enriched.sort((a, b) => new Date(b.sessionDate).getTime() - new Date(a.sessionDate).getTime());
+  // Tarihe göre sırala: Yeniden eskiye (En son kaydedilen seans en başta - Liste için)
+  enriched.sort((a, b) => {
+    const timeA = new Date(a.createdAt || a.sessionDate).getTime();
+    const timeB = new Date(b.createdAt || b.sessionDate).getTime();
+    if (timeB !== timeA) return timeB - timeA;
+    return b.sessionId.localeCompare(a.sessionId);
+  });
 
   const totalSessions = enriched.length;
   const totalPagesRead = enriched.reduce((sum, s) => sum + s.pagesRead, 0);
@@ -144,8 +151,13 @@ export function calculateReadingAnalytics(
     : 0;
 
   // Hızlanma Yüzdesi: ((Son 5 seans ort. WPM - İlk 5 seans ort. WPM) / İlk 5 seans ort.) * 100
-  // Kronolojik sıralama: eskiden yeniye
-  const chronological = [...enriched].sort((a, b) => new Date(a.sessionDate).getTime() - new Date(b.sessionDate).getTime());
+  // Kronolojik sıralama: eskiden yeniye (Zaman serisi ve grafik için)
+  const chronological = [...enriched].sort((a, b) => {
+    const timeA = new Date(a.createdAt || a.sessionDate).getTime();
+    const timeB = new Date(b.createdAt || b.sessionDate).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+    return a.sessionId.localeCompare(b.sessionId);
+  });
   let accelerationPercent = 0;
 
   if (chronological.length >= 2) {

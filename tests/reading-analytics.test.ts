@@ -169,4 +169,123 @@ describe('📚 Singularity Faz 2: Kitap Okuma Hızı (WPM) & Seans Zaman Serisi 
       expect(summary.dailyTrend[0].avgWpm).toBe(0);
     });
   });
+
+  describe('4. Aynı Gün İçinde Çoklu Seans Kayıtlarında Deterministik Sıralama (Liste vs Çizgi Grafiği)', () => {
+    it('Aynı gün içinde kaydedilen seanslar listede yeniden eskiye (yeni seans başta) olmalıdır', () => {
+      // 11-02 tarihinde önce 160 WPM (16:00), sonra 163 WPM (16:30) okundu
+      const mockRows: RawReadingSessionWithBook[] = [
+        {
+          session_id: 'session-1730563200000',
+          book_id: 'b-korluk',
+          pages_read: 17,
+          duration_minutes: 27, // 17 * 254 / 27 ≈ 160 WPM
+          session_date: '2026-11-02',
+          created_at: '2026-11-02T16:00:00.000Z',
+          words_per_page: 254,
+          book_title: 'Körlük',
+          book_category: 'Kurgu (Fiction)'
+        },
+        {
+          session_id: 'session-1730565000000',
+          book_id: 'b-korluk',
+          pages_read: 16,
+          duration_minutes: 25, // 16 * 255 / 25 ≈ 163 WPM
+          session_date: '2026-11-02',
+          created_at: '2026-11-02T16:30:00.000Z',
+          words_per_page: 255,
+          book_title: 'Körlük',
+          book_category: 'Kurgu (Fiction)'
+        }
+      ];
+
+      const summary = calculateReadingAnalytics(mockRows);
+
+      // summary.sessions (liste için): En son kaydedilen (16:30, 163 WPM) en başta olmalı
+      expect(summary.sessions).toHaveLength(2);
+      expect(summary.sessions[0].createdAt).toBe('2026-11-02T16:30:00.000Z');
+      expect(summary.sessions[0].wpm).toBe(163);
+      expect(summary.sessions[1].createdAt).toBe('2026-11-02T16:00:00.000Z');
+      expect(summary.sessions[1].wpm).toBe(160);
+    });
+
+    it('Grafik için kronolojik sıralandığında aynı gün içindeki seanslar eskiden yeniye doğru dizilmelidir', () => {
+      const mockRows: RawReadingSessionWithBook[] = [
+        {
+          session_id: 'session-1',
+          book_id: 'b-korluk',
+          pages_read: 17,
+          duration_minutes: 27,
+          session_date: '2026-11-02',
+          created_at: '2026-11-02T16:00:00.000Z',
+          words_per_page: 254,
+          book_title: 'Körlük',
+          book_category: 'Kurgu (Fiction)'
+        },
+        {
+          session_id: 'session-2',
+          book_id: 'b-korluk',
+          pages_read: 16,
+          duration_minutes: 25,
+          session_date: '2026-11-02',
+          created_at: '2026-11-02T16:30:00.000Z',
+          words_per_page: 255,
+          book_title: 'Körlük',
+          book_category: 'Kurgu (Fiction)'
+        }
+      ];
+
+      const summary = calculateReadingAnalytics(mockRows);
+
+      // Grafik sıralama algoritması:
+      const chartSessions = [...summary.sessions].sort((a, b) => {
+        const timeA = new Date(a.createdAt || a.sessionDate).getTime();
+        const timeB = new Date(b.createdAt || b.sessionDate).getTime();
+        if (timeA !== timeB) return timeA - timeB;
+        return a.sessionId.localeCompare(b.sessionId);
+      });
+
+      // Grafikte soldan sağa ilk nokta eski (160 WPM), ikinci nokta yeni (163 WPM) olmalıdır!
+      expect(chartSessions[0].wpm).toBe(160);
+      expect(chartSessions[1].wpm).toBe(163);
+    });
+
+    it('created_at damgaları eşit bile olsa sessionId tie-breaker deterministik sıralamayı garanti etmelidir', () => {
+      const mockRows: RawReadingSessionWithBook[] = [
+        {
+          session_id: 'session-200',
+          book_id: 'b-1',
+          pages_read: 10,
+          duration_minutes: 10,
+          session_date: '2026-11-02',
+          created_at: '2026-11-02T12:00:00.000Z',
+          words_per_page: 250
+        },
+        {
+          session_id: 'session-100',
+          book_id: 'b-1',
+          pages_read: 10,
+          duration_minutes: 10,
+          session_date: '2026-11-02',
+          created_at: '2026-11-02T12:00:00.000Z',
+          words_per_page: 250
+        }
+      ];
+
+      const summary = calculateReadingAnalytics(mockRows);
+
+      // Liste (descending): session-200 önce gelir
+      expect(summary.sessions[0].sessionId).toBe('session-200');
+      expect(summary.sessions[1].sessionId).toBe('session-100');
+
+      // Grafik (ascending): session-100 önce gelir
+      const chartSessions = [...summary.sessions].sort((a, b) => {
+        const timeA = new Date(a.createdAt || a.sessionDate).getTime();
+        const timeB = new Date(b.createdAt || b.sessionDate).getTime();
+        if (timeA !== timeB) return timeA - timeB;
+        return a.sessionId.localeCompare(b.sessionId);
+      });
+      expect(chartSessions[0].sessionId).toBe('session-100');
+      expect(chartSessions[1].sessionId).toBe('session-200');
+    });
+  });
 });
