@@ -26,7 +26,7 @@ export default function HealthSubNav({
 }: HealthSubNavProps) {
   const pathname = usePathname();
   const isHealth = pathname === '/health';
-  const isWellness = pathname === '/wellness';
+  const isWellness = pathname === '/wellness' || pathname === '/boost';
 
   return (
     <div
@@ -94,7 +94,7 @@ export default function HealthSubNav({
           </Link>
 
           <Link
-            href="/wellness"
+            href={pathname === '/boost' ? '/boost' : '/wellness'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',

@@ -82,6 +82,9 @@ interface Props {
   aiInsight?: string;
   onOpenAddSupplement?: (item?: Supplement) => void;
   onRefresh?: () => void;
+  selectedDate?: string;
+  isToday?: boolean;
+  onResetDay?: () => void;
 }
 
 const MOODS = [
@@ -111,7 +114,10 @@ export default function WellnessCard({
   sleepHistory,
   aiInsight,
   onOpenAddSupplement,
-  onRefresh
+  onRefresh,
+  selectedDate,
+  isToday = true,
+  onResetDay
 }: Props) {
   const [taking, setTaking] = useState<string | null>(null);
   const [undoing, setUndoing] = useState<string | null>(null);
@@ -129,6 +135,10 @@ export default function WellnessCard({
       setWaterAmount(todayWater.amount_ml || 0);
       setWaterGoal(todayWater.goal_ml || 2500);
       setGoalInput(String(todayWater.goal_ml || 2500));
+    } else {
+      setWaterAmount(0);
+      setWaterGoal(2500);
+      setGoalInput('2500');
     }
   }, [todayWater]);
 
@@ -142,12 +152,44 @@ export default function WellnessCard({
   });
   const [savingSleep, setSavingSleep] = useState(false);
 
+  useEffect(() => {
+    if (todaySleep) {
+      setSleepForm({
+        bedtime: todaySleep.bedtime || '23:30',
+        wake_time: todaySleep.wake_time || '07:30',
+        quality_rating: todaySleep.quality_rating || 4,
+        notes: todaySleep.notes || ''
+      });
+    } else {
+      setSleepForm({
+        bedtime: '23:30',
+        wake_time: '07:30',
+        quality_rating: 4,
+        notes: ''
+      });
+    }
+  }, [todaySleep]);
+
   // 3. Mood / Enerji / Stres Durumu
-  const [selectedMood, setSelectedMood] = useState<number | null>(todayMood?.mood_score || 4);
+  const [selectedMood, setSelectedMood] = useState<number | null>(todayMood?.mood_score ?? null);
   const [energyLevel, setEnergyLevel] = useState<number>(todayMood?.energy_level || 3);
   const [stressLevel, setStressLevel] = useState<number>(todayMood?.stress_level || 2);
   const [wellnessNote, setWellnessNote] = useState<string>(todayMood?.note || '');
   const [savingMood, setSavingMood] = useState(false);
+
+  useEffect(() => {
+    if (todayMood) {
+      setSelectedMood(todayMood.mood_score);
+      setEnergyLevel(todayMood.energy_level || 3);
+      setStressLevel(todayMood.stress_level || 2);
+      setWellnessNote(todayMood.note || '');
+    } else {
+      setSelectedMood(null);
+      setEnergyLevel(3);
+      setStressLevel(2);
+      setWellnessNote('');
+    }
+  }, [todayMood]);
 
   // Takviyeleri Filtreleme & İlerleme
   const allSupps = supplements.all || [...supplements.morning, ...supplements.with_meal, ...supplements.evening];
@@ -167,7 +209,7 @@ export default function WellnessCard({
       await fetch('/api/wellness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'take_supplement', id })
+        body: JSON.stringify({ action: 'take_supplement', id, date: selectedDate })
       });
       window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
@@ -182,7 +224,7 @@ export default function WellnessCard({
       await fetch('/api/wellness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'undo_supplement', id })
+        body: JSON.stringify({ action: 'undo_supplement', id, date: selectedDate })
       });
       window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
@@ -197,7 +239,7 @@ export default function WellnessCard({
       await fetch('/api/wellness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'take_all' })
+        body: JSON.stringify({ action: 'take_all', date: selectedDate })
       });
       window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
@@ -226,7 +268,7 @@ export default function WellnessCard({
       await fetch('/api/wellness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'log_water', amount_ml: newAmount, goal_ml: waterGoal })
+        body: JSON.stringify({ action: 'log_water', amount_ml: newAmount, goal_ml: waterGoal, date: selectedDate })
       });
       window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
@@ -242,7 +284,7 @@ export default function WellnessCard({
     await fetch('/api/wellness', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'set_water_goal', goal_ml: val })
+      body: JSON.stringify({ action: 'set_water_goal', goal_ml: val, date: selectedDate })
     });
     window.dispatchEvent(new CustomEvent('singularity-refresh'));
     if (onRefresh) onRefresh();
@@ -256,7 +298,7 @@ export default function WellnessCard({
       await fetch('/api/wellness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add_sleep', ...sleepForm })
+        body: JSON.stringify({ action: 'add_sleep', ...sleepForm, date: selectedDate })
       });
       setIsSleepModalOpen(false);
       window.dispatchEvent(new CustomEvent('singularity-refresh'));
@@ -281,7 +323,8 @@ export default function WellnessCard({
           mood_score: score,
           energy_level: energyLevel,
           stress_level: stressLevel,
-          note: wellnessNote
+          note: wellnessNote,
+          date: selectedDate
         })
       });
       window.dispatchEvent(new CustomEvent('singularity-refresh'));
@@ -521,9 +564,27 @@ export default function WellnessCard({
             <Pill size={18} color="#10B981" />
           </div>
           <div style={{ minWidth: 0 }}>
-            <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              Günlük Rutin & Biyometrik Takip
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                Günlük Rutin & Biyometrik Takip
+              </h2>
+              {selectedDate && !isToday && (
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                    color: '#60A5FA',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  📅 {selectedDate} (Geçmiş Gün)
+                </span>
+              )}
+            </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Whoop & Oura Standardında Biyolojik İyileşme
             </div>

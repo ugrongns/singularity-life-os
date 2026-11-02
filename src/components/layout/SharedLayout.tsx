@@ -277,7 +277,7 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
         {/* Modül Linkleri */}
         <div className="sidebar-menu-list">
           {sidebarPages.map(page => {
-            const isActive = pathname === page.href || (page.href !== '/' && pathname.startsWith(page.href));
+            const isActive = pathname === page.href || (page.href !== '/' && pathname.startsWith(page.href)) || (page.href === '/wellness' && pathname === '/boost');
             const IconComponent = page.icon;
             return (
               <Link
@@ -684,7 +684,7 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
 
         {/* 4. Sağlık & Beslenme */}
         {(() => {
-          const isActive = pathname.startsWith('/health') || pathname === '/wellness';
+          const isActive = pathname.startsWith('/health') || pathname === '/wellness' || pathname === '/boost';
           return (
             <Link
               href="/health"
@@ -763,7 +763,7 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
             {/* Modül Linkleri Listesi */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
               {sidebarPages.map(page => {
-                const isActive = pathname === page.href || (page.href !== '/' && pathname.startsWith(page.href));
+                const isActive = pathname === page.href || (page.href !== '/' && pathname.startsWith(page.href)) || (page.href === '/wellness' && pathname === '/boost');
                 const IconComponent = page.icon;
                 return (
                   <Link
