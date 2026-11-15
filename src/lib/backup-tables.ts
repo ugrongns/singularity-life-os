@@ -43,4 +43,5 @@ export const SAFE_EXPORT_TABLES = [
   { name: 'home_appliances', table: schema.homeAppliances },
   { name: 'home_maintenance_records', table: schema.homeMaintenanceRecords },
   { name: 'shopping_list_items', table: schema.shoppingListItems },
+  { name: 'tasks', table: schema.tasks },
 ];

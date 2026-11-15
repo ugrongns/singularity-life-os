@@ -888,3 +888,35 @@ export const recurringBills = pgTable('recurring_bills', {
   index('idx_recurring_bills_family_id').on(table.family_id),
   index('idx_recurring_bills_user_id').on(table.user_id)
 ]);
+
+// ==========================================
+// 🎯 FAZ 17: GÖREVLER & ODAK MOTORU (TO-DO & MIT)
+// ==========================================
+
+export const tasks = pgTable('tasks', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  description: text('description'),
+  status: text('status').notNull().default('pending'),
+  priority: text('priority').notNull().default('medium'),
+  pillar: text('pillar').notNull().default('general'),
+  is_mit: integer('is_mit').notNull().default(0),
+  due_date: text('due_date'),
+  due_time: text('due_time'),
+  recurrence: text('recurrence').notNull().default('none'),
+  subtasks_json: text('subtasks_json').default('[]'),
+  is_family_shared: integer('is_family_shared').notNull().default(0),
+  assigned_member_id: text('assigned_member_id').references(() => familyMembers.id, { onDelete: 'set null' }),
+  source_module: text('source_module').default('manual'),
+  source_ref_id: text('source_ref_id'),
+  completed_at: text('completed_at'),
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+}, (table) => [
+  index('idx_tasks_user_id').on(table.user_id),
+  index('idx_tasks_family_id').on(table.family_id),
+  index('idx_tasks_due_date').on(table.due_date),
+  index('idx_tasks_status').on(table.status)
+]);

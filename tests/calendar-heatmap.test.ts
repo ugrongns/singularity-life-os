@@ -55,12 +55,13 @@ describe('🌌 Singularity Faz 4: Bütünsel Yaşam Takvimi & Isı Haritası (TD
         family_id: 'fam-ugur'
       } as any);
 
-      // 4 tablo sorgusu için mock döngüsü
+      // 5 tablo sorgusu için mock döngüsü (fasting, reading, transactions, water, tasks)
       mockSelect
         .mockReturnValueOnce(createSelectChain([])) // fasting
         .mockReturnValueOnce(createSelectChain([])) // reading
         .mockReturnValueOnce(createSelectChain([])) // transactions
-        .mockReturnValueOnce(createSelectChain([])); // water
+        .mockReturnValueOnce(createSelectChain([])) // water
+        .mockReturnValueOnce(createSelectChain([])); // tasks
 
       const req = new Request('http://localhost:3000/api/analytics/calendar?days=90');
       const res = await getCalendarHeatmap(req);

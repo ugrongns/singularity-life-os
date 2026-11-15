@@ -37,9 +37,11 @@ interface TimeContextualFeedProps {
   libraryData?: any;
   homeData?: any;
   shoppingData?: any;
+  tasksData?: any;
   onOpenReadingSession?: () => void;
   onQuickTakeSupplements?: () => void;
   onQuickAddWater?: () => void;
+  onQuickCompleteTask?: (taskId: string) => void;
 }
 
 export default function TimeContextualFeed({
@@ -50,9 +52,11 @@ export default function TimeContextualFeed({
   libraryData,
   homeData,
   shoppingData,
+  tasksData,
   onOpenReadingSession,
   onQuickTakeSupplements,
-  onQuickAddWater
+  onQuickAddWater,
+  onQuickCompleteTask
 }: TimeContextualFeedProps) {
   const [period, setPeriod] = useState<'morning' | 'day' | 'evening'>('morning');
   const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
@@ -139,6 +143,24 @@ export default function TimeContextualFeed({
         actionText: 'Görüntüle',
         badge: 'ACİL',
         href: '/vehicles'
+      });
+    });
+  }
+
+  // 1.2 Günün 3 Odak Görevi (MIT)
+  if (tasksData?.tasks) {
+    const mitPending = tasksData.tasks.filter((t: any) => t.is_mit === 1 && t.status !== 'completed');
+    mitPending.slice(0, 3).forEach((task: any) => {
+      actions.push({
+        id: `mit-${task.id}`,
+        level: task.priority === 'critical' ? 'critical' : 'warning',
+        category: 'Günün Odağı (MIT)',
+        title: `🎯 ${task.title}`,
+        subtitle: task.due_time ? `Saat: ${task.due_time}` : 'Bugün tamamlanması hedeflendi',
+        actionText: '✔ Tamamla',
+        badge: 'ODAK',
+        onClick: () => onQuickCompleteTask?.(task.id),
+        href: '/tasks'
       });
     });
   }

@@ -26,6 +26,10 @@ export interface RawHeatmapData {
     date: string;
     amount_ml: number;
   }>;
+  completedTasks?: Array<{
+    completed_at?: string | null;
+    is_mit?: number | null;
+  }>;
 }
 
 export interface DayHeatmapCell {
@@ -42,6 +46,8 @@ export interface DayHeatmapCell {
   waterMl: number;
   habitsMetCount: number; // 0..4
   dominantLevel: number; // 0 (boş), 1 (hafif), 2 (orta), 3 (mükemmel)
+  completedTasksCount: number;
+  completedMitsCount: number;
 }
 
 export interface HeatmapSummary {
@@ -53,6 +59,8 @@ export interface HeatmapSummary {
   totalAutophagyHours: number;
   totalPagesRead: number;
   totalNoSpendDays: number;
+  totalCompletedTasks: number;
+  totalCompletedMits: number;
 }
 
 /**
@@ -123,6 +131,17 @@ export function calculateHeatmapMatrix(
     waterByDate.set(dStr, cur + (w.amount_ml ?? 0));
   }
 
+  // 4.1 Tamamlanan Görevleri ve MIT'leri gün bazında indeksle
+  const tasksByDate = new Map<string, { tasks: number; mits: number }>();
+  for (const t of data.completedTasks || []) {
+    const dStr = t.completed_at?.slice(0, 10);
+    if (!dStr) continue;
+    const existing = tasksByDate.get(dStr) || { tasks: 0, mits: 0 };
+    existing.tasks += 1;
+    if (Number(t.is_mit) === 1) existing.mits += 1;
+    tasksByDate.set(dStr, existing);
+  }
+
   // 5. Gün gün matris üretimi
   const cells: DayHeatmapCell[] = [];
   let totalFastingHours = 0;
@@ -131,6 +150,8 @@ export function calculateHeatmapMatrix(
   let totalNoSpendDays = 0;
   let totalActiveDays = 0;
   let perfectDaysCount = 0;
+  let totalCompletedTasks = 0;
+  let totalCompletedMits = 0;
 
   for (let i = totalDays - 1; i >= 0; i--) {
     const d = new Date(referenceDate);
@@ -144,6 +165,7 @@ export function calculateHeatmapMatrix(
     const spent = Math.round((spendingByDate.get(dateStr) ?? 0) * 100) / 100;
     const isNoSpend = spent === 0;
     const water = waterByDate.get(dateStr) ?? 0;
+    const taskInfo = tasksByDate.get(dateStr) || { tasks: 0, mits: 0 };
 
     const fastingH = Math.round(fast.totalHours * 10) / 10;
     const autophagyH = Math.round(fast.autophagyHours * 10) / 10;
@@ -178,6 +200,8 @@ export function calculateHeatmapMatrix(
     totalFastingHours += fastingH;
     totalAutophagyHours += autophagyH;
     totalPagesRead += read.pages;
+    totalCompletedTasks += taskInfo.tasks;
+    totalCompletedMits += taskInfo.mits;
 
     cells.push({
       date: dateStr,
@@ -192,7 +216,9 @@ export function calculateHeatmapMatrix(
       isNoSpend,
       waterMl: water,
       habitsMetCount,
-      dominantLevel
+      dominantLevel,
+      completedTasksCount: taskInfo.tasks,
+      completedMitsCount: taskInfo.mits
     });
   }
 
@@ -204,6 +230,8 @@ export function calculateHeatmapMatrix(
     totalFastingHours: Math.round(totalFastingHours * 10) / 10,
     totalAutophagyHours: Math.round(totalAutophagyHours * 10) / 10,
     totalPagesRead,
-    totalNoSpendDays
+    totalNoSpendDays,
+    totalCompletedTasks,
+    totalCompletedMits
   };
 }

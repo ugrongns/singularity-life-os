@@ -9,6 +9,7 @@ import { GET as getWellness } from '@/app/api/wellness/route';
 import { GET as getShopping } from '@/app/api/shopping-list/route';
 import { GET as getHome } from '@/app/api/home-operations/route';
 import { GET as getNotifications } from '@/app/api/notifications/route';
+import { GET as getTasks } from '@/app/api/tasks/route';
 import { fetchLiveExchangeRates } from '@/lib/market-data';
 
 /**
@@ -39,7 +40,8 @@ export async function GET(req: Request) {
       shoppingRes,
       homeRes,
       notifRes,
-      ratesRes
+      ratesRes,
+      tasksRes
     ] = await Promise.allSettled([
       getBudget(req).then(r => r.json()),
       getVehicles(req).then(r => r.json()),
@@ -49,7 +51,8 @@ export async function GET(req: Request) {
       getShopping().then(r => r.json()),
       getHome().then(r => r.json()),
       getNotifications().then(r => r.json()),
-      fetchLiveExchangeRates()
+      fetchLiveExchangeRates(),
+      getTasks(new Request('http://localhost/api/tasks?view=today')).then(r => r.json())
     ]);
 
     const getVal = (res: PromiseSettledResult<any>) => (res.status === 'fulfilled' && res.value?.success) ? res.value.data : null;
@@ -79,6 +82,7 @@ export async function GET(req: Request) {
         wellness: getVal(wellnessRes),
         shopping: getVal(shoppingRes),
         home: getVal(homeRes),
+        tasks: getVal(tasksRes),
         notifications: getVal(notifRes) || { notifications: [], critical: 0, warning: 0 },
         market_rates: ratesRes.status === 'fulfilled' ? ratesRes.value : null,
         timestamp: new Date().toISOString()

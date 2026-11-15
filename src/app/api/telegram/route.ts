@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db, initDatabase } from '@/db';
-import { users, transactions, userHealthProfile, books, walletsAccounts, importantDates, digitalVaultItems } from '@/db/schema';
+import { users, transactions, userHealthProfile, books, walletsAccounts, importantDates, digitalVaultItems, tasks } from '@/db/schema';
 import { eq, sql, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
@@ -33,6 +33,7 @@ export async function GET() {
           { command: '/harcama [tutar] [isletme]', desc: 'Hızlı harcama kaydı (Örn: /harcama 450 Migros)' },
           { command: '/su [ml]', desc: 'Su kaydı (Örn: /su 500)' },
           { command: '/kitap [sayfa]', desc: 'Kitap okuma ilerlemesi (Örn: /kitap 30)' },
+          { command: '/gorev [başlık]', desc: 'Yeni görev ekler (Örn: /gorev Muhasebeciyi ara)' },
           { command: '📸 Fotoğraf Gönder', desc: 'Fiş/fatura fotoğrafı atın, anında bütçeye işlensin' },
           { command: '🎙️ Ses Kaydı Gönder', desc: 'Sesli komut atın, tüm işlemleri otomatik dağıtsın' }
         ]
@@ -199,14 +200,17 @@ export async function POST(req: Request) {
         || { consumed_water_ml: 1250, daily_water_target_ml: 2500 };
       const activeBook = (await db.select().from(books).where(and(eq(books.user_id, user.id), eq(books.status, 'reading'))).limit(1))[0]
         || (await db.select().from(books).where(eq(books.user_id, user.id)).limit(1))[0];
+      const pendingTasks = await db.select().from(tasks).where(and(eq(tasks.user_id, user.id), eq(tasks.status, 'pending')));
+      const mitTasks = pendingTasks.filter(t => t.is_mit === 1);
       const today = new Date().toISOString().split('T')[0];
 
       const briefing = `🌌 *Singularity Günlük Yaşam Bülteni* (${today})\n\n` +
+        `🎯 *Görevler:* ${pendingTasks.length} bekleyen (${mitTasks.length} Günün Odağı / MIT)\n` +
         `💰 *Finans:* Hesaplar ve bütçe güncel\n` +
         `💧 *Su:* ${health.consumed_water_ml} / ${health.daily_water_target_ml} ml (%${Math.round((health.consumed_water_ml / health.daily_water_target_ml) * 100)})\n` +
         (activeBook ? `📚 *Kitap:* ${activeBook.title} (${activeBook.current_page}/${activeBook.total_pages} sayfa)\n` : '') +
         `💊 *Wellness:* Sabah takviyeleri aktif\n\n` +
-        `_Harcama, su veya okuma eklemek için mesaj veya ses atabilirsiniz._`;
+        `_Harcama, su, görev veya okuma eklemek için mesaj veya ses atabilirsiniz._`;
 
       const token = user.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
       const chatId = user.telegram_chat_id;
@@ -334,8 +338,9 @@ export async function POST(req: Request) {
       }
       else if (text.startsWith('/start')) {
         replyText = `🌌 *Singularity Life OS Botuna Hoş Geldiniz, ${targetUser.full_name || targetUser.username}!*\n\n` +
-          `Dışarıdayken ev bütçesi, sağlık ve kitap verilerinizi saniyeler içinde buradan güncelleyebilirsiniz.\n\n` +
+          `Dışarıdayken ev bütçesi, sağlık, görevler ve kitap verilerinizi saniyeler içinde buradan güncelleyebilirsiniz.\n\n` +
           `🔹 \`/ozet\` — Günlük durum özeti\n` +
+          `🔹 \`/gorev [başlık]\` — Hızlı görev ekler\n` +
           `🔹 Fiş Fotoğrafı gönderin ➔ Otomatik harcama taslağı oluşturur\n` +
           `🔹 Ses Kaydı atın ➔ Çoklu işlem olarak modüllere dağıtsın\n` +
           `🔹 \`/su 500\` ➔ 500 ml su ekler\n` +
@@ -344,10 +349,37 @@ export async function POST(req: Request) {
         const health = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, targetUser.id)).limit(1))[0]
           || { consumed_water_ml: 1250, daily_water_target_ml: 2500 };
         const activeBook = (await db.select().from(books).where(and(eq(books.user_id, targetUser.id), eq(books.status, 'reading'))).limit(1))[0];
+        const pendingTasks = await db.select().from(tasks).where(and(eq(tasks.user_id, targetUser.id), eq(tasks.status, 'pending')));
+        const mitTasks = pendingTasks.filter(t => t.is_mit === 1);
         replyText = `📊 *GÜNLÜK YAŞAM ÖZETİ (${targetUser.full_name || targetUser.username})*\n\n` +
+          `🎯 Görevler: ${pendingTasks.length} bekleyen (${mitTasks.length} Günün Odağı)\n` +
           `💧 Su: ${health.consumed_water_ml} / ${health.daily_water_target_ml} ml\n` +
           (activeBook ? `📚 Aktif Kitap: ${activeBook.title} (${activeBook.current_page}/${activeBook.total_pages} sayfa)\n` : '') +
           `✅ Kullanıcı hesabınızla tam senkronize.`;
+      } else if (text.startsWith('/gorev') || text.startsWith('/task')) {
+        const taskTitle = text.replace(/^\/(gorev|task)\s*/i, '').trim();
+        if (!taskTitle) {
+          replyText = `⚠️ Lütfen bir görev başlığı belirtin.\n*Örnek:* \`/gorev Muhasebeciyi ara\``;
+        } else {
+          const taskId = `task-${Date.now()}`;
+          const nowISO = new Date().toISOString();
+          const todayDate = nowISO.split('T')[0];
+          await db.insert(tasks).values({
+            id: taskId,
+            user_id: targetUser.id,
+            family_id: targetUser.family_id || `fam-${targetUser.id}`,
+            title: taskTitle,
+            status: 'pending',
+            priority: 'medium',
+            pillar: 'work',
+            due_date: todayDate,
+            is_mit: 0,
+            is_family_shared: 0,
+            created_at: nowISO,
+            updated_at: nowISO
+          });
+          replyText = `🎯 *Görev Başarıyla Eklendi!*\n📌 ${taskTitle}\n📅 Vade: Bugün\n🏷️ Kategori: İş & Kariyer`;
+        }
       } else if (text.startsWith('/su')) {
         const parts = text.split(' ');
         const ml = parseInt(parts[1], 10) || 250;

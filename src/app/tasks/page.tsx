@@ -1,0 +1,92 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import SharedLayout from '@/components/layout/SharedLayout';
+import TasksClient from '@/components/tasks/TasksClient';
+
+export default function TasksPage() {
+  const [data, setData] = useState<any>(null);
+  const [notifData, setNotifData] = useState<any>({ notifications: [], critical: 0, warning: 0 });
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    try {
+      const [tasksRes, notifRes] = await Promise.all([
+        fetch('/api/tasks'),
+        fetch('/api/notifications')
+      ]);
+
+      const [tasksJ, notifJ] = await Promise.all([
+        tasksRes.json(),
+        notifRes.json()
+      ]);
+
+      if (tasksJ.success) setData(tasksJ.data);
+      if (notifJ.success) setNotifData(notifJ.data);
+    } catch (err) {
+      console.error('Tasks page fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+
+    const handleRefresh = () => fetchData();
+    window.addEventListener('singularity-refresh', handleRefresh);
+    return () => window.removeEventListener('singularity-refresh', handleRefresh);
+  }, []);
+
+  if (loading) {
+    return (
+      <SharedLayout notifications={notifData}>
+        <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: '36px', animation: 'spin 1.2s linear infinite', marginBottom: '12px' }}>🎯</div>
+          <div style={{ fontSize: '15px', fontWeight: 700 }}>Görevler & Odak Merkezi Yükleniyor...</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Günün 3 odağı, rutinler ve modüller arası köprü taranıyor
+          </div>
+        </div>
+      </SharedLayout>
+    );
+  }
+
+  return (
+    <SharedLayout notifications={notifData}>
+      {/* Sayfa Başlık Alanı */}
+      <div style={{ padding: '0 4px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+        <div>
+          <h1 style={{ fontSize: '22px', fontWeight: 900, margin: 0, letterSpacing: '-0.5px' }}>
+            🎯 Görevler & Odak Merkezi
+          </h1>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+            Günün 3 Odağı (MIT), alt görevler, tekrarlayan rutinler ve sistem entegrasyonu
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={fetchData}
+          className="btn-subtle"
+          style={{
+            fontSize: '12px',
+            fontWeight: 700,
+            padding: '8px 12px',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            border: '1px solid var(--border)'
+          }}
+          title="Verileri Yenile"
+        >
+          <span>🔄</span>
+          <span className="hidden-mobile">Yenile</span>
+        </button>
+      </div>
+
+      <TasksClient initialData={data} />
+    </SharedLayout>
+  );
+}

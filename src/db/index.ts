@@ -735,6 +735,29 @@ async function _runInit(): Promise<void> {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS tasks (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        priority TEXT NOT NULL DEFAULT 'medium',
+        pillar TEXT NOT NULL DEFAULT 'general',
+        is_mit INTEGER NOT NULL DEFAULT 0,
+        due_date TEXT,
+        due_time TEXT,
+        recurrence TEXT NOT NULL DEFAULT 'none',
+        subtasks_json TEXT DEFAULT '[]',
+        is_family_shared INTEGER NOT NULL DEFAULT 0,
+        assigned_member_id TEXT,
+        source_module TEXT DEFAULT 'manual',
+        source_ref_id TEXT,
+        completed_at TEXT,
+        user_id TEXT,
+        family_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `;
 
     const seedCategoriesSQL = `
@@ -852,6 +875,10 @@ async function _runInit(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_wallets_family_id ON wallets_accounts (family_id);
       CREATE INDEX IF NOT EXISTS idx_recurring_bills_family_id ON recurring_bills (family_id);
       CREATE INDEX IF NOT EXISTS idx_personal_debts_family_id ON personal_debts_receivables (family_id);
+      CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks (user_id);
+      CREATE INDEX IF NOT EXISTS idx_tasks_family_id ON tasks (family_id);
+      CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks (due_date);
+      CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks (status);
     `;
 
     await pgClient.unsafe(createTablesSQL);

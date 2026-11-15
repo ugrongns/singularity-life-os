@@ -23,6 +23,7 @@ export default function HomePage() {
   const [wellnessData, setWellnessData] = useState<any>(null);
   const [shoppingData, setShoppingData] = useState<any>(null);
   const [homeData, setHomeData] = useState<any>(null);
+  const [tasksData, setTasksData] = useState<any>(null);
   const [marketRates, setMarketRates] = useState<any>(null);
   const [notifData, setNotifData] = useState<any>({ notifications: [], critical: 0, warning: 0 });
   const [loading, setLoading] = useState(true);
@@ -62,6 +63,7 @@ export default function HomePage() {
       setWellnessData(json.data.wellness);
       setShoppingData(json.data.shopping);
       setHomeData(json.data.home);
+      setTasksData(json.data.tasks);
       setMarketRates(json.data.market_rates || json.data.budget?.marketRates);
       setNotifData(json.data.notifications || { notifications: [], critical: 0, warning: 0 });
     } catch (err) {
@@ -114,6 +116,24 @@ export default function HomePage() {
     } catch (e) {
       console.error('Supplements take error:', e);
       showToast('Takviye durumu güncellenirken hata oluştu.');
+    }
+  };
+
+  const handleQuickCompleteTask = async (taskId: string) => {
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle_complete', task_id: taskId })
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast(json.message || '🎯 Görev tamamlandı!');
+        handleUpdate();
+      }
+    } catch (e) {
+      console.error('Task complete error:', e);
+      showToast('Görev güncellenirken hata oluştu.');
     }
   };
 
@@ -192,9 +212,11 @@ export default function HomePage() {
             libraryData={libraryData}
             homeData={homeData}
             shoppingData={shoppingData}
+            tasksData={tasksData}
             onOpenReadingSession={() => setIsSessionOpen(true)}
             onQuickTakeSupplements={handleQuickTakeSupplements}
             onQuickAddWater={handleQuickAddWater}
+            onQuickCompleteTask={handleQuickCompleteTask}
           />
         </div>
 

@@ -23,7 +23,8 @@ import {
   ReceiptText,
   CreditCard,
   Camera,
-  ScanLine
+  ScanLine,
+  CheckSquare
 } from 'lucide-react';
 import NotificationHub from './NotificationHub';
 import ReceiptScanModal from '@/components/modals/ReceiptScanModal';
@@ -32,6 +33,7 @@ import PlateScanModal from '@/components/modals/PlateScanModal';
 import ManualExpenseModal from '@/components/modals/ManualExpenseModal';
 import VoiceCommandModal from '@/components/modals/VoiceCommandModal';
 import FeatureShowcaseModal from '@/components/modals/FeatureShowcaseModal';
+import AddTaskModal from '@/components/modals/AddTaskModal';
 import PwaManager from './PwaManager';
 import OnboardingModal from '@/components/auth/OnboardingModal';
 import LockScreenModal from '@/components/auth/LockScreenModal';
@@ -50,7 +52,7 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
   const [mounted, setMounted] = useState(false);
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
-  const [activeModal, setActiveModal] = useState<'receipt' | 'barcode' | 'plate' | 'manual' | 'voice' | 'showcase' | null>(null);
+  const [activeModal, setActiveModal] = useState<'receipt' | 'barcode' | 'plate' | 'manual' | 'voice' | 'showcase' | 'task' | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Auth & Lock State
@@ -205,6 +207,7 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
 
   const sidebarPages = [
     { href: '/',          icon: Home,         color: 'blue',    label: 'Ana Sayfa' },
+    { href: '/tasks',     icon: CheckSquare,  color: 'emerald', label: 'Görevler & Odak' },
     { href: '/budget',    icon: Wallet,       color: 'emerald', label: 'Finans & Bütçe' },
     { href: '/vehicles',  icon: Car,          color: 'cyan',    label: 'Araç & Ev' },
     { href: '/library',   icon: BookOpen,     color: 'amber',   label: 'Kütüphane' },
@@ -526,6 +529,32 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>Sesli Çoklu Komut Girişi</div>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Doğal dille harcama, fiş veya not aktar</div>
+              </div>
+            </button>
+
+            {/* Yeni Görev / Odak Belirle Hızlı Butonu */}
+            <button
+              onClick={() => { setIsQuickMenuOpen(false); setActiveModal('task'); }}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--surface-subtle)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-main)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <div className="icon-badge icon-badge-emerald" style={{ width: '38px', height: '38px', minWidth: '38px', minHeight: '38px' }}>
+                <CheckSquare size={18} strokeWidth={2} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: 800 }}>Yeni Görev / Odak Belirle</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Günün 3 odağı (MIT) veya alt görevler</div>
               </div>
             </button>
 
@@ -875,6 +904,14 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
         onClose={() => setActiveModal(null)}
         onSuccess={(msg) => {
           showToast(msg || '✅ Barkod kaydedildi!');
+          window.dispatchEvent(new CustomEvent('singularity-refresh'));
+        }}
+      />
+      <AddTaskModal
+        isOpen={activeModal === 'task'}
+        onClose={() => setActiveModal(null)}
+        onSuccess={(msg) => {
+          showToast(msg || '🎯 Görev kaydedildi!');
           window.dispatchEvent(new CustomEvent('singularity-refresh'));
         }}
       />

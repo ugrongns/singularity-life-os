@@ -14,10 +14,11 @@ import {
   X,
   Award,
   Flame,
-  Droplet
+  Droplet,
+  CheckSquare
 } from 'lucide-react';
 
-type HeatmapMode = 'holistic' | 'fasting' | 'reading' | 'nospend';
+type HeatmapMode = 'holistic' | 'fasting' | 'reading' | 'nospend' | 'tasks';
 
 export default function LifeCalendarHeatmap() {
   const [loading, setLoading] = useState(true);
@@ -101,6 +102,12 @@ export default function LifeCalendarHeatmap() {
         if (cell.isNoSpend) return '#F59E0B'; // Altın No-Spend günü!
         if (cell.spentAmount <= 300) return 'rgba(16, 185, 129, 0.35)'; // Düşük bütçe
         return 'rgba(239, 68, 68, 0.35)'; // Harcama yapıldı
+
+      case 'tasks':
+        if ((cell.completedMitsCount ?? 0) >= 2 || (cell.completedTasksCount ?? 0) >= 5) return '#10B981'; // Zirve odak
+        if ((cell.completedMitsCount ?? 0) >= 1 || (cell.completedTasksCount ?? 0) >= 3) return 'rgba(16, 185, 129, 0.65)';
+        if ((cell.completedTasksCount ?? 0) >= 1) return 'rgba(16, 185, 129, 0.35)';
+        return 'var(--surface-subtle)';
     }
   };
 
@@ -287,6 +294,27 @@ export default function LifeCalendarHeatmap() {
             <span>💰</span>
             <span>Harcamasız Günler</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setMode('tasks')}
+            style={{
+              padding: '6px 12px',
+              fontSize: '11px',
+              fontWeight: 800,
+              borderRadius: '999px',
+              border: `1px solid ${mode === 'tasks' ? '#10B981' : 'var(--border)'}`,
+              background: mode === 'tasks' ? 'rgba(16, 185, 129, 0.15)' : 'var(--surface-subtle)',
+              color: mode === 'tasks' ? '#10B981' : 'var(--text-main)',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <span>🎯</span>
+            <span>Görev & Odak</span>
+          </button>
         </div>
       </div>
 
@@ -302,6 +330,13 @@ export default function LifeCalendarHeatmap() {
           <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800 }}>MÜKEMMEL GÜNLER</div>
           <div style={{ fontSize: '18px', fontWeight: 900, color: '#10B981', marginTop: '2px' }}>
             {summary.perfectDaysCount} <span style={{ fontSize: '11px', fontWeight: 700 }}>gün 🏆</span>
+          </div>
+        </div>
+
+        <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px' }}>
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800 }}>ODAK & GÖREV</div>
+          <div style={{ fontSize: '18px', fontWeight: 900, color: '#10B981', marginTop: '2px' }}>
+            {summary.totalCompletedTasks ?? 0} <span style={{ fontSize: '11px', fontWeight: 700 }}>görev 🎯</span>
           </div>
         </div>
 
@@ -385,7 +420,7 @@ export default function LifeCalendarHeatmap() {
                       style={{ cursor: 'pointer', transition: 'all 0.15s ease' }}
                       onClick={() => setSelectedCell(cell)}
                     >
-                      <title>{`${cell.dayLabel} (${cell.date})\n• Oruç: ${cell.fastingHours}s (Ötofaji: ${cell.autophagyHours}s)\n• Okuma: ${cell.pagesRead} sayfa (${cell.avgWpm} WPM)\n• Harcama: ₺${cell.spentAmount} (${cell.isNoSpend ? 'No-Spend' : 'Harcamalı'})\n• Alışkanlık: ${cell.habitsMetCount}/4`}</title>
+                      <title>{`${cell.dayLabel} (${cell.date})\n• Oruç: ${cell.fastingHours}s (Ötofaji: ${cell.autophagyHours}s)\n• Okuma: ${cell.pagesRead} sayfa (${cell.avgWpm} WPM)\n• Harcama: ₺${cell.spentAmount} (${cell.isNoSpend ? 'No-Spend' : 'Harcamalı'})\n• Görev: ${cell.completedTasksCount ?? 0} tamamlandı (${cell.completedMitsCount ?? 0} MIT)\n• Alışkanlık: ${cell.habitsMetCount}/4`}</title>
                     </rect>
                   );
                 })}
@@ -496,6 +531,19 @@ export default function LifeCalendarHeatmap() {
               </div>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
                 {selectedCell.waterMl >= 2000 ? '✓ Optimum hidrasyon' : 'Hedef: 2.000 ml'}
+              </div>
+            </div>
+
+            {/* Görev & Odak */}
+            <div style={{ background: 'rgba(139, 92, 246, 0.08)', border: '1px solid rgba(139, 92, 246, 0.2)', borderRadius: '6px', padding: '8px 10px' }}>
+              <div style={{ fontSize: '10px', color: '#8B5CF6', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <CheckSquare size={12} /> GÖREV & ODAK
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px' }}>
+                {(selectedCell.completedTasksCount ?? 0) > 0 ? `${selectedCell.completedTasksCount} görev bitti` : 'Tamamlanan görev yok'}
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                {(selectedCell.completedMitsCount ?? 0) > 0 ? `🎯 ${selectedCell.completedMitsCount} Odak (MIT) tamamlandı` : 'Odak hedefi tamamlanmadı'}
               </div>
             </div>
           </div>

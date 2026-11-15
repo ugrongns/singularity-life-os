@@ -6,7 +6,8 @@ import {
   books,
   transactions,
   categories,
-  waterIntakeLogs
+  waterIntakeLogs,
+  tasks
 } from '@/db/schema';
 import { eq, and, gte, desc, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
@@ -103,11 +104,30 @@ export async function GET(req: Request) {
       )
       .limit(500);
 
+    // 5. Tamamlanan Görevler (OWASP BOLA)
+    const rawTasks = await db.select({
+      completed_at: tasks.completed_at,
+      is_mit: tasks.is_mit
+    })
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.status, 'completed'),
+          or(
+            eq(tasks.user_id, user.id),
+            and(eq(tasks.family_id, familyId), eq(tasks.is_family_shared, 1))
+          ),
+          gte(tasks.completed_at, startDateStr)
+        )
+      )
+      .limit(1000);
+
     const rawData: RawHeatmapData = {
       fastingSessions: rawFasting,
       readingSessions: rawReading,
       transactions: rawTransactions,
-      waterLogs: rawWater
+      waterLogs: rawWater,
+      completedTasks: rawTasks
     };
 
     const summary = calculateHeatmapMatrix(rawData, daysCount, today);

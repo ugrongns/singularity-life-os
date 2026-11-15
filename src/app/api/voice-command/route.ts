@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { transactions, walletsAccounts, userHealthProfile, books, shoppingListItems, supplementRoutines, supplementIntakeLogs, moodLogs, users } from '@/db/schema';
+import { transactions, walletsAccounts, userHealthProfile, books, shoppingListItems, supplementRoutines, supplementIntakeLogs, moodLogs, users, tasks } from '@/db/schema';
 import { eq, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { parseTurkishNumber } from '@/lib/ebelge-parser';
 
 interface ParsedAction {
-  type: 'expense' | 'water' | 'reading' | 'shopping' | 'supplement' | 'mood' | 'fasting';
+  type: 'expense' | 'water' | 'reading' | 'shopping' | 'supplement' | 'mood' | 'fasting' | 'task';
   title: string;
   icon: string;
   details: Record<string, any>;
@@ -15,7 +15,7 @@ interface ParsedAction {
 // Bulgu 6: Tip koruyucu (Type Guard)
 function isValidParsedAction(act: any): act is ParsedAction {
   if (!act || typeof act !== 'object') return false;
-  const validTypes = ['expense', 'water', 'reading', 'shopping', 'supplement', 'mood', 'fasting'];
+  const validTypes = ['expense', 'water', 'reading', 'shopping', 'supplement', 'mood', 'fasting', 'task'];
   return (
     validTypes.includes(act.type) &&
     typeof act.title === 'string' &&
@@ -224,6 +224,27 @@ export async function POST(req: Request) {
             }
             results.push(`💊 ${suppCount > 0 ? `${suppCount} takviye alındı olarak işlendi` : 'Takviyeleriniz bugün zaten alınmıştı'}`);
           }
+        } else if (act.type === 'task') {
+          const taskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          await db.insert(tasks).values({
+            id: taskId,
+            title: act.details.title || act.title,
+            description: act.details.description || null,
+            status: 'pending',
+            priority: act.details.priority || 'medium',
+            pillar: act.details.pillar || 'general',
+            is_mit: act.details.is_mit ? 1 : 0,
+            due_date: act.details.due_date || today,
+            recurrence: act.details.recurrence || 'none',
+            subtasks_json: '[]',
+            is_family_shared: 0,
+            completed_at: null,
+            user_id: currentUserId,
+            family_id: currentFamilyId,
+            created_at: nowISO,
+            updated_at: nowISO
+          });
+          results.push(`🎯 Görev: ${act.details.title || act.title}`);
         }
       }
 
@@ -350,6 +371,34 @@ function parseVoiceCommandText(rawText: string): ParsedAction[] {
       icon: '💊',
       details: { is_taken_today: 1 }
     });
+  }
+
+  // 6. Görev / To-Do Tespiti
+  // Örn: "Görev ekle: muhasebeciyi ara", "Yarın için kasko yenileme görevi ekle", "Yapılacaklara rapor hazırla yaz"
+  const taskMatch = text.match(/(?:görev(?:lere|e)?|yapılacaklara?|hatırlatıcı|to-?do)\s*(?:olarak)?\s*(?:ekle|yaz|koy)?\s*[:\s-]?\s*([a-zçğıöşü0-9\s]+?)(?:\sgörevi|\syapılacak)?\s*(?:ekle|yaz|koy)?$/i)
+    || text.match(/(?:yarın|bugün)?\s*([a-zçğıöşü0-9\s]+?)\s*(?:görevi|işi)\s*(?:ekle|yaz|koy)/i);
+
+  if (taskMatch && taskMatch[1]) {
+    const taskTitle = taskMatch[1].trim();
+    if (taskTitle.length > 2 && !taskTitle.includes('market') && !taskTitle.includes('alışveriş')) {
+      const isTomorrow = text.includes('yarın');
+      const targetDate = new Date();
+      if (isTomorrow) targetDate.setDate(targetDate.getDate() + 1);
+      const isMitCandidate = text.includes('odak') || text.includes('önemli') || text.includes('mit');
+
+      actions.push({
+        type: 'task',
+        title: `${taskTitle.charAt(0).toUpperCase() + taskTitle.slice(1)} (Görev)`,
+        icon: '🎯',
+        details: {
+          title: taskTitle.charAt(0).toUpperCase() + taskTitle.slice(1),
+          due_date: targetDate.toISOString().slice(0, 10),
+          is_mit: isMitCandidate ? 1 : 0,
+          pillar: text.includes('fatura') || text.includes('vergi') || text.includes('para') || text.includes('kart') ? 'finance' : 'general',
+          priority: isMitCandidate ? 'high' : 'medium'
+        }
+      });
+    }
   }
 
   // Eğer hiçbir şey yakalanamadıysa en azından harcama/not olarak varsayılan oluştur
