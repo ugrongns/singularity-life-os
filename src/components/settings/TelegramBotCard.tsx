@@ -13,7 +13,10 @@ export default function TelegramBotCard() {
   const [detecting, setDetecting] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [botHint, setBotHint] = useState<{ username: string; link: string } | null>(null);
   const detectTimeoutRef = useRef<any>(null);
+
+  const isChatIdInvalid = chatId.trim().length > 0 && !/^-?\d+$/.test(chatId.trim());
 
   // Simülatör State
   const [simInput, setSimInput] = useState('');
@@ -48,14 +51,73 @@ export default function TelegramBotCard() {
     };
   }, []);
 
+  const runAutoDetect = async (tokenOverride?: string, autoSave = false) => {
+    setDetecting(true);
+    setBotHint(null);
+    setStatusMsg({ text: '🔍 Bot taranıyor ve Chat ID aranıyor...', type: 'success' });
+    try {
+      const payload: Record<string, any> = {
+        action: 'autodetect_chat_id',
+        auto_save: autoSave
+      };
+      if (tokenOverride && tokenOverride.trim()) {
+        payload.bot_token = tokenOverride.trim();
+      }
+
+      const res = await fetch('/api/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        if (json.data.detected_chat_id) {
+          setChatId(json.data.detected_chat_id);
+          if (autoSave) {
+            setIsConfigured(true);
+            setIsEnabled(true);
+          }
+          setStatusMsg({
+            text: autoSave
+              ? `✅ @${json.data.bot_username} üzerinden Chat ID (${json.data.detected_chat_id}) otomatik bulundu ve kaydedildi!`
+              : `✅ @${json.data.bot_username} botu ve Chat ID (${json.data.detected_chat_id}) otomatik bağlandı!`,
+            type: 'success'
+          });
+        } else {
+          setBotHint(
+            json.data.bot_username
+              ? { username: json.data.bot_username, link: json.data.bot_link || `https://t.me/${json.data.bot_username}` }
+              : null
+          );
+          setStatusMsg({
+            text: `⚠️ @${json.data.bot_username} botuna henüz mesaj atılmamış. Lütfen Telegram'da botu açıp "/start" yazın ve tekrar "🔍 Otomatik Bul" butonuna basın.`,
+            type: 'error'
+          });
+        }
+      } else {
+        setStatusMsg({ text: `❌ Hata: ${json.error || 'Bot bilgisi alınamadı.'}`, type: 'error' });
+      }
+    } catch (err: any) {
+      setStatusMsg({ text: `❌ Hata: ${err.message}`, type: 'error' });
+    } finally {
+      setDetecting(false);
+    }
+  };
+
+  const handleAutoDetectChatId = () => {
+    runAutoDetect(botToken, true);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setStatusMsg(null);
+    setBotHint(null);
     try {
       const payload: Record<string, any> = {
         action: 'save_config',
-        chat_id: chatId,
-        is_enabled: isEnabled
+        chat_id: chatId.trim(),
+        is_enabled: isEnabled,
+        auto_setup_webhook: true
       };
       if (botToken.trim()) payload.bot_token = botToken.trim();
       if (secretToken.trim()) payload.secret_token = secretToken.trim();
@@ -67,8 +129,14 @@ export default function TelegramBotCard() {
       });
       const json = await res.json();
       if (json.success) {
-        setStatusMsg({ text: '✅ Telegram ayarları başarıyla kaydedildi!', type: 'success' });
-        setIsConfigured(!!chatId);
+        const resolvedChatId = json.data?.chat_id || chatId.trim();
+        if (json.data?.chat_id) setChatId(json.data.chat_id);
+        setStatusMsg({
+          text: `✅ ${json.message || 'Telegram yapılandırması ve Webhook başarıyla kaydedildi!'}`,
+          type: 'success'
+        });
+        setIsConfigured(Boolean(resolvedChatId && /^-?\d+$/.test(resolvedChatId)));
+        if (resolvedChatId && /^-?\d+$/.test(resolvedChatId)) setIsEnabled(true);
       } else {
         setStatusMsg({ text: `❌ Hata: ${json.error}`, type: 'error' });
       }
@@ -80,12 +148,21 @@ export default function TelegramBotCard() {
   };
 
   const handleTestNotification = async () => {
-    setTesting(true);
     setStatusMsg(null);
+    setBotHint(null);
+    if (isChatIdInvalid) {
+      setStatusMsg({
+        text: '❌ Chat ID sadece rakamlardan oluşmalıdır (Örn: 123456789). Bot adını değil, Telegram kullanıcı ID numaranızı girin veya "🔍 Otomatik Bul" butonuna tıklayın.',
+        type: 'error'
+      });
+      return;
+    }
+
+    setTesting(true);
     try {
       const payload: Record<string, any> = {
         action: 'send_test_message',
-        chat_id: chatId
+        chat_id: chatId.trim()
       };
       if (botToken.trim()) payload.bot_token = botToken.trim();
 
@@ -175,28 +252,8 @@ export default function TelegramBotCard() {
               setBotToken(val);
               if (detectTimeoutRef.current) clearTimeout(detectTimeoutRef.current);
               if (val.length > 20 && val.includes(':')) {
-                detectTimeoutRef.current = setTimeout(async () => {
-                  setDetecting(true);
-                  setStatusMsg({ text: '🔍 Bot taranıyor ve Chat ID aranıyor...', type: 'success' });
-                  try {
-                    const res = await fetch('/api/telegram', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ action: 'autodetect_chat_id', bot_token: val.trim(), auto_save: false })
-                    });
-                    const json = await res.json();
-                    if (json.success && json.data) {
-                      if (json.data.detected_chat_id) {
-                        setChatId(json.data.detected_chat_id);
-                        setStatusMsg({ text: `✅ @${json.data.bot_username} botu ve Chat ID (${json.data.detected_chat_id}) otomatik bağlandı!`, type: 'success' });
-                      } else {
-                        setStatusMsg({ text: `🤖 Bot @${json.data.bot_username} bulundu! Telegram'da bota bir kez "Başlat" deyin.`, type: 'success' });
-                      }
-                    }
-                  } catch (err) {}
-                  finally {
-                    setDetecting(false);
-                  }
+                detectTimeoutRef.current = setTimeout(() => {
+                  runAutoDetect(val, false);
                 }, 600);
               }
             }}
@@ -206,20 +263,53 @@ export default function TelegramBotCard() {
 
         <div>
           <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>CHAT ID (Otomatik Dolan veya Numaranız):</label>
-          <input
-            type="text"
-            placeholder="Otomatik algılanır veya 123456789"
-            value={chatId}
-            onChange={e => setChatId(e.target.value)}
-            style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
-          />
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch', marginTop: '4px' }}>
+            <input
+              type="text"
+              placeholder="Otomatik algılanır veya 123456789"
+              value={chatId}
+              onChange={e => setChatId(e.target.value)}
+              style={{
+                flex: 1,
+                padding: '9px 12px',
+                fontSize: '13px',
+                border: `1px solid ${isChatIdInvalid ? 'var(--rose)' : 'var(--border)'}`,
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--surface-subtle)',
+                color: 'var(--text-main)'
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleAutoDetectChatId}
+              disabled={detecting || saving || loading}
+              className="btn-subtle"
+              style={{
+                padding: '0 12px',
+                fontSize: '12px',
+                fontWeight: 700,
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                whiteSpace: 'nowrap',
+                background: 'var(--surface)',
+                color: 'var(--text-main)'
+              }}
+            >
+              {detecting ? 'Aranıyor...' : '🔍 Otomatik Bul'}
+            </button>
+          </div>
+          {isChatIdInvalid && (
+            <div style={{ fontSize: '11px', color: 'var(--rose)', marginTop: '4px', fontWeight: 600 }}>
+              ⚠️ Chat ID bot adı değil, sayısal numaranız olmalıdır (Örn: 123456789). Telegram'dan bota /start yazıp "🔍 Otomatik Bul" butonuna basın.
+            </div>
+          )}
         </div>
 
         <div>
           <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>WEBHOOK SECRET TOKEN (X-Telegram-Bot-Api-Secret-Token):</label>
           <input
             type="password"
-            placeholder="Gizli webhook anahtarı"
+            placeholder="Boş bırakırsanız otomatik oluşturulur ve bağlanır"
             value={secretToken}
             onChange={e => setSecretToken(e.target.value)}
             style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }}
@@ -250,9 +340,22 @@ export default function TelegramBotCard() {
             fontSize: '12px', padding: '8px 12px', borderRadius: 'var(--radius-md)',
             background: statusMsg.type === 'success' ? 'var(--emerald-bg)' : 'var(--rose-bg)',
             color: statusMsg.type === 'success' ? 'var(--emerald)' : 'var(--rose)',
-            fontWeight: 600
+            fontWeight: 600,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px'
           }}>
-            {statusMsg.text}
+            <span>{statusMsg.text}</span>
+            {botHint && (
+              <a
+                href={botHint.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: 'inherit', textDecoration: 'underline', fontWeight: 700, width: 'fit-content' }}
+              >
+                Telegram'da @{botHint.username} botunu aç (/start gönder) ↗
+              </a>
+            )}
           </div>
         )}
       </div>

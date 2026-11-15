@@ -5,6 +5,82 @@ import { users, transactions, userHealthProfile, books, walletsAccounts, importa
 import { eq, sql, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
+const isNumericChatId = (val: unknown): boolean =>
+  typeof val === 'string' && /^-?\d+$/.test(val.trim());
+
+/** Resolves the public application origin so Telegram webhooks never register localhost URLs. */
+function resolveWebhookOrigin(req: Request): string {
+  const forwardedHost = req.headers.get('x-forwarded-host');
+  const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+  let origin = forwardedHost
+    ? `${forwardedProto}://${forwardedHost}`
+    : new URL(req.url).origin;
+
+  if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+    origin = process.env.NEXT_PUBLIC_APP_URL || 'https://singularity-life-os.vercel.app';
+  }
+  return origin.replace(/\/+$/, '');
+}
+
+/** Clears an existing webhook if needed (getUpdates returns 409 otherwise) and reads the latest numeric chat ID. */
+async function detectChatIdFromUpdates(token: string): Promise<{
+  detectedChatId: string | null;
+  detectedSenderName: string | null;
+  hadWebhook: boolean;
+}> {
+  let detectedChatId: string | null = null;
+  let detectedSenderName: string | null = null;
+  let hadWebhook = false;
+
+  try {
+    const whInfoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+    const whInfo = await whInfoRes.json();
+    if (whInfo.ok && whInfo.result?.url) {
+      hadWebhook = true;
+      await fetch(`https://api.telegram.org/bot${token}/deleteWebhook?drop_pending_updates=false`);
+    }
+
+    const updRes = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
+    const updJson = await updRes.json();
+    if (updJson.ok && Array.isArray(updJson.result) && updJson.result.length > 0) {
+      for (let i = updJson.result.length - 1; i >= 0; i--) {
+        const update = updJson.result[i];
+        const msg = update.message || update.channel_post || update.my_chat_member || update.edited_message;
+        if (msg?.chat?.id !== undefined && isNumericChatId(String(msg.chat.id))) {
+          detectedChatId = String(msg.chat.id);
+          detectedSenderName = msg.from
+            ? `${msg.from.first_name || ''} ${msg.from.last_name || ''}`.trim() || null
+            : null;
+          break;
+        }
+      }
+    }
+  } catch {
+    // Polling errors should degrade gracefully so callers can instruct the user to send /start
+  }
+
+  return { detectedChatId, detectedSenderName, hadWebhook };
+}
+
+/** Registers the authenticated webhook URL and secret token with Telegram. */
+async function registerTelegramWebhook(token: string, req: Request, secretToken: string): Promise<boolean> {
+  try {
+    const webhookOrigin = resolveWebhookOrigin(req);
+    const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: `${webhookOrigin}/api/telegram`,
+        secret_token: secretToken,
+      }),
+    });
+    const json = await res.json();
+    return Boolean(json?.ok);
+  } catch {
+    return false;
+  }
+}
+
 // 1. GET: Telegram Bot Durum ve Yapılandırma Bilgisi (Sadece Oturum Açmış Kullanıcı)
 export async function GET() {
   try {
@@ -60,14 +136,73 @@ export async function POST(req: Request) {
       const updateData: Record<string, any> = {
         updated_at: new Date().toISOString()
       };
-      if (body.bot_token !== undefined && typeof body.bot_token === 'string' && body.bot_token.trim()) {
-        updateData.telegram_bot_token = body.bot_token.trim();
+      const trimmedBotToken = typeof body.bot_token === 'string' ? body.bot_token.trim() : '';
+      const trimmedSecretToken = typeof body.secret_token === 'string' ? body.secret_token.trim() : '';
+
+      if (trimmedBotToken) {
+        updateData.telegram_bot_token = trimmedBotToken;
       }
-      if (body.chat_id !== undefined) updateData.telegram_chat_id = body.chat_id;
-      if (body.secret_token !== undefined && typeof body.secret_token === 'string' && body.secret_token.trim()) {
-        updateData.telegram_secret_token = body.secret_token.trim();
+      if (body.chat_id !== undefined) {
+        updateData.telegram_chat_id = typeof body.chat_id === 'string' ? body.chat_id.trim() : body.chat_id;
+      }
+      if (trimmedSecretToken) {
+        updateData.telegram_secret_token = trimmedSecretToken;
       }
       if (body.is_enabled !== undefined) updateData.telegram_enabled = body.is_enabled ? 1 : 0;
+
+      // Auto-setup mode triggered from TelegramBotCard UI (does not alter legacy unit tests where auto_setup_webhook is omitted)
+      if (body.auto_setup_webhook === true) {
+        const effectiveToken = trimmedBotToken || user.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN || '';
+        let finalChatId = typeof updateData.telegram_chat_id === 'string'
+          ? updateData.telegram_chat_id
+          : (user.telegram_chat_id || '');
+
+        if (effectiveToken && (!finalChatId || !isNumericChatId(finalChatId))) {
+          const { detectedChatId } = await detectChatIdFromUpdates(effectiveToken);
+          if (detectedChatId) {
+            finalChatId = detectedChatId;
+            updateData.telegram_chat_id = finalChatId;
+          } else if (finalChatId && !isNumericChatId(finalChatId)) {
+            return NextResponse.json({
+              success: false,
+              error: `Chat ID sayısal bir numara olmalıdır ('${finalChatId}' geçersiz). Lütfen önce Telegram'da botunuza '/start' yazın ve '🔍 Otomatik Bul' butonuna tıklayın.`
+            }, { status: 400 });
+          }
+        } else if (finalChatId && !isNumericChatId(finalChatId)) {
+          return NextResponse.json({
+            success: false,
+            error: `Chat ID sayısal bir numara olmalıdır ('${finalChatId}' geçersiz). Bot adını değil, Telegram kullanıcı numaranızı girin.`
+          }, { status: 400 });
+        }
+
+        const effectiveSecret = trimmedSecretToken
+          || user.telegram_secret_token
+          || process.env.TELEGRAM_SECRET_TOKEN
+          || crypto.randomBytes(16).toString('hex');
+        updateData.telegram_secret_token = effectiveSecret;
+
+        if (finalChatId && isNumericChatId(finalChatId)) {
+          updateData.telegram_enabled = 1;
+        }
+
+        await db.update(users).set(updateData).where(eq(users.id, user.id));
+
+        let webhookConfigured = false;
+        if (effectiveToken) {
+          webhookConfigured = await registerTelegramWebhook(effectiveToken, req, effectiveSecret);
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: webhookConfigured
+            ? 'Telegram yapılandırması ve Webhook başarıyla kaydedildi!'
+            : 'Telegram yapılandırması başarıyla kaydedildi!',
+          data: {
+            chat_id: finalChatId,
+            webhook_configured: webhookConfigured
+          }
+        });
+      }
 
       await db.update(users).set(updateData).where(eq(users.id, user.id));
 
@@ -84,9 +219,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: 'Yetkisiz erişim' }, { status: 401 });
       }
 
-      const token = body.bot_token || user.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
+      const bodyToken = typeof body.bot_token === 'string' ? body.bot_token.trim() : '';
+      const token = bodyToken || user.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
       if (!token) {
-        return NextResponse.json({ success: false, error: 'Bot Token girilmedi.' }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'Bot Token girilmedi veya sistemde kayıtlı değil.' }, { status: 400 });
       }
 
       // 1. Bot Bilgisini Al (getMe)
@@ -106,35 +242,26 @@ export async function POST(req: Request) {
       }
 
       // 2. Gelen Mesajlardan Chat ID'yi Otomatik Yakala (getUpdates) - Bulgu 20: Webhook çakışma kontrolü
-      let detectedChatId: string | null = null;
-      let detectedSenderName: string | null = null;
-      try {
-        // Eğer webhook aktif ise getUpdates 409 Conflict döner; önce webhook kontrol edilir
-        const whInfoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
-        const whInfo = await whInfoRes.json();
-        if (whInfo.ok && whInfo.result?.url) {
-          await fetch(`https://api.telegram.org/bot${token}/deleteWebhook?drop_pending_updates=false`);
-        }
+      const { detectedChatId, detectedSenderName } = await detectChatIdFromUpdates(token);
 
-        const updRes = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
-        const updJson = await updRes.json();
-        if (updJson.ok && Array.isArray(updJson.result) && updJson.result.length > 0) {
-          const lastUpdate = updJson.result[updJson.result.length - 1];
-          const msg = lastUpdate.message || lastUpdate.channel_post || lastUpdate.my_chat_member;
-          if (msg && msg.chat && msg.chat.id) {
-            detectedChatId = String(msg.chat.id);
-            detectedSenderName = msg.from ? `${msg.from.first_name || ''} ${msg.from.last_name || ''}`.trim() : null;
-          }
-        }
-      } catch (err) {}
+      const effectiveSecret = (typeof body.secret_token === 'string' && body.secret_token.trim())
+        || user.telegram_secret_token
+        || process.env.TELEGRAM_SECRET_TOKEN
+        || crypto.randomBytes(16).toString('hex');
 
+      let webhookConfigured = false;
       if (detectedChatId && body.auto_save) {
         await db.update(users).set({
           telegram_bot_token: token,
           telegram_chat_id: detectedChatId,
+          telegram_secret_token: effectiveSecret,
           telegram_enabled: 1,
           updated_at: new Date().toISOString()
         }).where(eq(users.id, user.id));
+
+        webhookConfigured = await registerTelegramWebhook(token, req, effectiveSecret);
+      } else if (body.restore_webhook) {
+        webhookConfigured = await registerTelegramWebhook(token, req, effectiveSecret);
       }
 
       return NextResponse.json({
@@ -145,7 +272,8 @@ export async function POST(req: Request) {
           bot_link: `https://t.me/${botUsername}`,
           detected_chat_id: detectedChatId,
           sender_name: detectedSenderName,
-          is_paired: !!detectedChatId
+          is_paired: !!detectedChatId,
+          webhook_configured: webhookConfigured
         }
       });
     }
@@ -157,11 +285,20 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: 'Yetkisiz erişim' }, { status: 401 });
       }
 
-      const token = body.bot_token || user.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
-      const chatId = body.chat_id || user.telegram_chat_id;
+      const token = (typeof body.bot_token === 'string' && body.bot_token.trim()) || user.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
+      const rawChatId = body.chat_id !== undefined && String(body.chat_id).trim() !== ''
+        ? String(body.chat_id).trim()
+        : (user.telegram_chat_id || '').trim();
 
-      if (!token || !chatId) {
+      if (!token || !rawChatId) {
         return NextResponse.json({ success: false, error: 'Telegram Bot Token veya Chat ID tanımlı değil.' }, { status: 400 });
+      }
+
+      if (!isNumericChatId(rawChatId)) {
+        return NextResponse.json({
+          success: false,
+          error: 'Chat ID sadece rakamlardan oluşmalıdır (Örn: 123456789). Bot adını değil, Telegram kullanıcı ID numaranızı girin veya "🔍 Otomatik Bul" butonuna tıklayın.'
+        }, { status: 400 });
       }
 
       const messageText = `🌌 *Singularity Life OS — Test Bildirimi*\n\n✅ Telegram Bot entegrasyonu başarıyla bağlandı!\n\n💡 *Neler Yapabilirsiniz?*\n• Fiş fotoğrafı atarak bütçeye işleyebilirsiniz\n• Ses kaydı atarak çoklu işlem girebilirsiniz\n• \`/ozet\` yazarak anlık yaşam durumunuzu görebilirsiniz.`;
@@ -171,7 +308,7 @@ export async function POST(req: Request) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            chat_id: chatId,
+            chat_id: rawChatId,
             text: messageText,
             parse_mode: 'Markdown'
           })

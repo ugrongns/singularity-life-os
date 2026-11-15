@@ -170,6 +170,114 @@ describe('🎯 Modül 1 UI & Security Audit Bulguları Doğrulama Testleri', () 
       expect(json.success).toBe(true);
       expect(capturedSetData.telegram_bot_token).toBe('123456789:ABCdef_ValidBotToken');
     });
+
+    it('sayısal olmayan chat_id ile send_test_message çağrıldığında Türkçe doğrulama hatası dönmelidir', async () => {
+      const req = new Request('http://localhost/api/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send_test_message',
+          bot_token: '123456789:ABCdef_ValidBotToken',
+          chat_id: 'Singularity Asistanım'
+        })
+      });
+
+      const res = await handleTelegram(req);
+      const json = await res.json();
+
+      expect(res.status).toBe(400);
+      expect(json.success).toBe(false);
+      expect(json.error).toContain('rakamlardan oluşmalıdır');
+    });
+
+    it('auto_setup_webhook=true ile kaydetmede getUpdates boşsa geçersiz chat_id reddedilmelidir; güncellenen chat_id varsa otomatik kaydedilip webhook kurulmalıdır', async () => {
+      const { db } = await import('@/db');
+      let capturedSetData: any = null;
+      (db.update as any).mockReturnValue({
+        set: vi.fn().mockImplementation((data) => {
+          capturedSetData = data;
+          return {
+            where: vi.fn().mockResolvedValue([{ id: '1' }])
+          };
+        })
+      });
+
+      const originalFetch = global.fetch;
+      try {
+        // Senaryo A: getUpdates boş -> sayısal olmayan Chat ID reddedilmeli
+        global.fetch = vi.fn().mockImplementation(async (url: any) => {
+          if (String(url).includes('getWebhookInfo')) {
+            return { ok: true, json: async () => ({ ok: true, result: { url: '' } }) } as any;
+          }
+          if (String(url).includes('getUpdates')) {
+            return { ok: true, json: async () => ({ ok: true, result: [] }) } as any;
+          }
+          return { ok: true, json: async () => ({ ok: true }) } as any;
+        });
+
+        const failReq = new Request('https://singularity-life-os.vercel.app/api/telegram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'save_config',
+            chat_id: 'Singularity Asistanım',
+            auto_setup_webhook: true
+          })
+        });
+        const failRes = await handleTelegram(failReq);
+        const failJson = await failRes.json();
+        expect(failRes.status).toBe(400);
+        expect(failJson.success).toBe(false);
+        expect(failJson.error).toContain('sayısal bir numara olmalıdır');
+
+        // Senaryo B: getUpdates içinde sayısal chat.id var -> otomatik iyileştirme + setWebhook çağrısı
+        let setWebhookPayload: any = null;
+        global.fetch = vi.fn().mockImplementation(async (url: any, opts?: any) => {
+          if (String(url).includes('getWebhookInfo')) {
+            return { ok: true, json: async () => ({ ok: true, result: { url: '' } }) } as any;
+          }
+          if (String(url).includes('getUpdates')) {
+            return {
+              ok: true,
+              json: async () => ({
+                ok: true,
+                result: [{ message: { chat: { id: 555666777 }, from: { first_name: 'Uğur' }, text: '/start' } }]
+              })
+            } as any;
+          }
+          if (String(url).includes('setWebhook')) {
+            setWebhookPayload = JSON.parse(opts.body);
+            return { ok: true, json: async () => ({ ok: true, result: true }) } as any;
+          }
+          return { ok: true, json: async () => ({ ok: true }) } as any;
+        });
+
+        const okReq = new Request('https://singularity-life-os.vercel.app/api/telegram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'save_config',
+            chat_id: 'Singularity Asistanım',
+            auto_setup_webhook: true
+          })
+        });
+        const okRes = await handleTelegram(okReq);
+        const okJson = await okRes.json();
+
+        expect(okRes.status).toBe(200);
+        expect(okJson.success).toBe(true);
+        expect(okJson.data.chat_id).toBe('555666777');
+        expect(okJson.data.webhook_configured).toBe(true);
+        expect(capturedSetData.telegram_chat_id).toBe('555666777');
+        expect(capturedSetData.telegram_secret_token).toBeTruthy();
+        expect(setWebhookPayload).toEqual({
+          url: 'https://singularity-life-os.vercel.app/api/telegram',
+          secret_token: capturedSetData.telegram_secret_token
+        });
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
   });
 
   describe('3. Backup API: Şifreli Yedek Parola Zorunluluğu (Bulgu 15)', () => {
