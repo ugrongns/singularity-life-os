@@ -1326,8 +1326,15 @@ body {
 .currency-row::-webkit-scrollbar,
 .tabs-scroll-row::-webkit-scrollbar,
 .horizontal-scroll-row::-webkit-scrollbar,
-.tags-scroll-row::-webkit-scrollbar {
+.tags-scroll-row::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Dokunma Alanları: Minimum 44x44px */

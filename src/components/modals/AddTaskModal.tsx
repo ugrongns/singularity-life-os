@@ -302,7 +302,7 @@ export default function AddTaskModal({
           </div>
 
           {/* Öncelik & MIT Kalkanı */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px' }}>
             {/* Öncelik */}
             <div>
               <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', marginBottom: '4px' }}>
@@ -368,7 +368,7 @@ export default function AddTaskModal({
           </div>
 
           {/* Tarih, Saat ve Tekrarlama */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '8px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', marginBottom: '4px' }}>
                 VADE TARİHİ
@@ -555,7 +555,7 @@ export default function AddTaskModal({
               type="button"
               onClick={onClose}
               className="btn-subtle"
-              style={{ flex: 1, padding: '10px', fontSize: '13px', fontWeight: 700 }}
+              style={{ flex: 1, padding: '10px', fontSize: '13px', fontWeight: 700, marginTop: 0, width: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
             >
               İptal
             </button>
@@ -563,7 +563,7 @@ export default function AddTaskModal({
               type="submit"
               disabled={loading}
               className="btn-primary"
-              style={{ flex: 2, padding: '10px', fontSize: '13px', fontWeight: 800 }}
+              style={{ flex: 2, padding: '10px', fontSize: '13px', fontWeight: 800, marginTop: 0, width: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
             >
               {loading ? 'Kaydediliyor...' : initialData?.id ? '💾 Değişiklikleri Kaydet' : '🎯 Görevi Oluştur'}
             </button>

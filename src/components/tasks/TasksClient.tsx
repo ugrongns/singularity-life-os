@@ -275,6 +275,46 @@ export default function TasksClient({ initialData }: TasksClientProps) {
     displayedTasks = displayedTasks.filter(t => t.assigned_member_id === selectedMember);
   }
 
+  const compactPrimaryBtnStyle: React.CSSProperties = {
+    width: 'auto',
+    marginTop: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    flexShrink: 0,
+    whiteSpace: 'nowrap'
+  };
+
+  const renderLeftAccent = (color: string) => (
+    <div
+      aria-hidden="true"
+      style={{
+        position: 'absolute',
+        left: 0,
+        top: '10px',
+        bottom: '10px',
+        width: '4px',
+        borderRadius: '0 4px 4px 0',
+        background: color
+      }}
+    />
+  );
+
+  const actionIconBtnStyle = (highlight?: boolean, color?: string): React.CSSProperties => ({
+    background: highlight ? 'rgba(245, 158, 11, 0.15)' : 'var(--surface-subtle)',
+    border: `1px solid ${highlight ? 'rgba(245, 158, 11, 0.3)' : 'var(--border)'}`,
+    borderRadius: '6px',
+    width: '30px',
+    height: '30px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: color || 'var(--text-muted)',
+    cursor: 'pointer',
+    flexShrink: 0
+  });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
       {/* Toast Notification */}
@@ -296,8 +336,8 @@ export default function TasksClient({ initialData }: TasksClientProps) {
           gap: '14px'
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minWidth: 0, flex: '1 1 240px' }}>
             <div
               style={{
                 width: '36px',
@@ -313,9 +353,9 @@ export default function TasksClient({ initialData }: TasksClientProps) {
             >
               <Flame size={20} />
             </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h2 style={{ fontSize: '16px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', rowGap: '4px' }}>
+                <h2 style={{ fontSize: '15px', fontWeight: 900, margin: 0, lineHeight: 1.3, color: 'var(--text-main)' }}>
                   Günün 3 Odak Görevi (MIT)
                 </h2>
                 <span
@@ -326,13 +366,15 @@ export default function TasksClient({ initialData }: TasksClientProps) {
                     borderRadius: '999px',
                     background: mitSummary.completedMitCount === 3 ? 'var(--emerald-bg)' : 'rgba(245, 158, 11, 0.15)',
                     color: mitSummary.completedMitCount === 3 ? 'var(--emerald)' : '#F59E0B',
-                    border: '1px solid rgba(245, 158, 11, 0.3)'
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
                   }}
                 >
                   {mitSummary.completedMitCount} / {Math.min(3, Math.max(todayMitTasks.length, 3))} Tamamlandı
                 </span>
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
                 Anti-Overwhelm: Gün bitmeden kesinlikle tamamlanması gereken en kritik 3 iş.
               </div>
             </div>
@@ -346,12 +388,10 @@ export default function TasksClient({ initialData }: TasksClientProps) {
             }}
             className="btn-primary"
             style={{
-              padding: '8px 14px',
+              ...compactPrimaryBtnStyle,
+              padding: '9px 14px',
               fontSize: '12px',
-              fontWeight: 800,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px'
+              fontWeight: 800
             }}
           >
             <Plus size={16} strokeWidth={2.4} />
@@ -375,8 +415,8 @@ export default function TasksClient({ initialData }: TasksClientProps) {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: '10px'
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '8px'
           }}
         >
           {[0, 1, 2].map(slotIdx => {
@@ -391,20 +431,20 @@ export default function TasksClient({ initialData }: TasksClientProps) {
                   }}
                   style={{
                     border: '1px dashed var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '12px',
+                    borderRadius: '10px',
+                    padding: '8px 12px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '8px',
                     color: 'var(--text-muted)',
                     cursor: 'pointer',
-                    minHeight: '64px',
+                    minHeight: '42px',
                     background: 'rgba(255, 255, 255, 0.01)',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <Plus size={16} />
+                  <Plus size={15} />
                   <span style={{ fontSize: '12px', fontWeight: 700 }}>{slotIdx + 1}. Odak Görevini Belirle</span>
                 </div>
               );
@@ -478,10 +518,22 @@ export default function TasksClient({ initialData }: TasksClientProps) {
       </div>
 
       {/* 2. GÖRÜNÜM SEÇİCİ SEKMELER & FİLTRELER */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          {/* 6 Akıllı Sekme */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {/* 6 Akıllı Sekme — Mobilde tek satır kaydırılabilir hap barı */}
+          <div
+            className="no-scrollbar"
+            style={{
+              display: 'flex',
+              flexWrap: 'nowrap',
+              gap: '6px',
+              overflowX: 'auto',
+              flex: '1 1 540px',
+              minWidth: 0,
+              maxWidth: '100%',
+              paddingBottom: '2px'
+            }}
+          >
             {[
               { id: 'today', label: '☀️ Bugün', count: tasks.filter(t => t.due_date === todayStr || (t.due_date && t.due_date < todayStr) || t.is_mit === 1).length, color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.15)' },
               { id: 'upcoming', label: '📅 Yaklaşan', count: tasks.filter(t => t.status !== 'completed' && t.due_date && t.due_date > todayStr).length, color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.15)' },
@@ -508,6 +560,8 @@ export default function TasksClient({ initialData }: TasksClientProps) {
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
                     transition: 'all 0.15s ease'
                   }}
                 >
@@ -531,7 +585,7 @@ export default function TasksClient({ initialData }: TasksClientProps) {
           </div>
 
           {/* Kişisel / Aile Filtre Hapları */}
-          <div style={{ display: 'flex', gap: '4px' }}>
+          <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
             {[
               { id: 'all', label: 'Tümü' },
               { id: 'personal', label: '🔒 Kişisel' },
@@ -546,12 +600,13 @@ export default function TasksClient({ initialData }: TasksClientProps) {
                   style={{
                     fontSize: '11px',
                     fontWeight: 700,
-                    padding: '3px 8px',
+                    padding: '4px 9px',
                     borderRadius: '6px',
                     border: `1px solid ${isSelected ? 'var(--emerald)' : 'var(--border)'}`,
                     background: isSelected ? 'var(--emerald-bg)' : 'transparent',
                     color: isSelected ? 'var(--emerald)' : 'var(--text-muted)',
                     cursor: 'pointer',
+                    whiteSpace: 'nowrap',
                     transition: 'all 0.15s ease'
                   }}
                 >
@@ -564,8 +619,11 @@ export default function TasksClient({ initialData }: TasksClientProps) {
 
         {/* Pillar & Üye Filtre Çubuğu */}
         {activeTab !== 'bridge' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div
+            className="no-scrollbar"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', paddingBottom: '2px', width: '100%' }}
+          >
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0, whiteSpace: 'nowrap' }}>
               <Filter size={12} /> Alan:
             </span>
             <button
@@ -574,12 +632,14 @@ export default function TasksClient({ initialData }: TasksClientProps) {
               style={{
                 fontSize: '10px',
                 fontWeight: 700,
-                padding: '2px 8px',
+                padding: '3px 8px',
                 borderRadius: '4px',
                 border: `1px solid ${selectedPillar === 'all' ? 'var(--blue)' : 'var(--border)'}`,
                 background: selectedPillar === 'all' ? 'var(--blue-bg)' : 'var(--surface-subtle)',
                 color: selectedPillar === 'all' ? 'var(--blue)' : 'var(--text-muted)',
                 cursor: 'pointer',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
                 transition: 'all 0.15s ease'
               }}
             >
@@ -596,12 +656,13 @@ export default function TasksClient({ initialData }: TasksClientProps) {
                   style={{
                     fontSize: '10px',
                     fontWeight: 700,
-                    padding: '2px 8px',
+                    padding: '3px 8px',
                     borderRadius: '4px',
                     border: `1px solid ${isSelected ? cfg.color : 'var(--border)'}`,
                     background: isSelected ? cfg.bg : 'var(--surface-subtle)',
                     color: isSelected ? cfg.color : 'var(--text-muted)',
                     cursor: 'pointer',
+                    flexShrink: 0,
                     whiteSpace: 'nowrap',
                     transition: 'all 0.15s ease'
                   }}
@@ -638,15 +699,18 @@ export default function TasksClient({ initialData }: TasksClientProps) {
                 key={action.id}
                 className="card"
                 style={{
-                  padding: '14px 16px',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  padding: '14px 16px 14px 18px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  gap: '12px',
-                  borderLeft: `4px solid ${action.priority === 'critical' ? '#EF4444' : '#F59E0B'}`
+                  flexWrap: 'wrap',
+                  gap: '12px'
                 }}
               >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                {renderLeftAccent(action.priority === 'critical' ? '#EF4444' : '#F59E0B')}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, flex: '1 1 220px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '11px', fontWeight: 800, color: action.priority === 'critical' ? '#EF4444' : '#F59E0B' }}>
                       {action.priority === 'critical' ? '🚨 ACİL' : '⚠️ YAKLAŞAN'}
@@ -660,11 +724,11 @@ export default function TasksClient({ initialData }: TasksClientProps) {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
                   <Link
                     href={action.action_url}
                     className="btn-subtle"
-                    style={{ fontSize: '11px', padding: '6px 10px', textDecoration: 'none' }}
+                    style={{ fontSize: '11px', padding: '6px 10px', textDecoration: 'none', whiteSpace: 'nowrap' }}
                   >
                     <span>Modüle Git</span>
                     <ArrowRight size={12} />
@@ -673,7 +737,12 @@ export default function TasksClient({ initialData }: TasksClientProps) {
                     type="button"
                     onClick={() => handleImportCrossModule(action)}
                     className="btn-primary"
-                    style={{ fontSize: '11px', padding: '6px 12px', fontWeight: 800 }}
+                    style={{
+                      ...compactPrimaryBtnStyle,
+                      fontSize: '11px',
+                      padding: '6px 12px',
+                      fontWeight: 800
+                    }}
                   >
                     <span>📥 Göreve Aktar</span>
                   </button>
@@ -710,16 +779,18 @@ export default function TasksClient({ initialData }: TasksClientProps) {
                   key={task.id}
                   className="card"
                   style={{
-                    padding: '12px 16px',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    padding: '12px 16px 12px 18px',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '10px',
                     background: isDone ? 'rgba(255, 255, 255, 0.01)' : 'var(--surface)',
-                    borderLeft: `4px solid ${isDone ? 'var(--border)' : pillarCfg.color}`,
                     opacity: isDone ? 0.75 : 1,
                     transition: 'all 0.15s ease'
                   }}
                 >
+                  {renderLeftAccent(isDone ? 'var(--border)' : pillarCfg.color)}
                   {/* Üst Kısım: Checkbox + Başlık + Aksiyonlar */}
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: 0, flex: 1 }}>
@@ -848,18 +919,7 @@ export default function TasksClient({ initialData }: TasksClientProps) {
                         <button
                           type="button"
                           onClick={() => handleToggleMit(task.id)}
-                          style={{
-                            background: task.is_mit === 1 ? 'rgba(245, 158, 11, 0.15)' : 'var(--surface-subtle)',
-                            border: `1px solid ${task.is_mit === 1 ? 'rgba(245, 158, 11, 0.3)' : 'var(--border)'}`,
-                            borderRadius: '6px',
-                            width: '28px',
-                            height: '28px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: task.is_mit === 1 ? '#F59E0B' : 'var(--text-muted)',
-                            cursor: 'pointer'
-                          }}
+                          style={actionIconBtnStyle(task.is_mit === 1, task.is_mit === 1 ? '#F59E0B' : 'var(--text-muted)')}
                           title={task.is_mit === 1 ? 'Odak listesinden çıkar' : 'Günün odağına (MIT) al'}
                         >
                           <Flame size={14} fill={task.is_mit === 1 ? '#F59E0B' : 'none'} />
@@ -873,18 +933,7 @@ export default function TasksClient({ initialData }: TasksClientProps) {
                           setEditingTask(task);
                           setIsModalOpen(true);
                         }}
-                        style={{
-                          background: 'var(--surface-subtle)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '6px',
-                          width: '28px',
-                          height: '28px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'var(--text-muted)',
-                          cursor: 'pointer'
-                        }}
+                        style={actionIconBtnStyle(false, 'var(--text-muted)')}
                         title="Görevi Düzenle"
                       >
                         <Edit2 size={13} />
@@ -894,18 +943,7 @@ export default function TasksClient({ initialData }: TasksClientProps) {
                       <button
                         type="button"
                         onClick={() => handleDeleteTask(task.id)}
-                        style={{
-                          background: 'var(--surface-subtle)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '6px',
-                          width: '28px',
-                          height: '28px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'var(--rose)',
-                          cursor: 'pointer'
-                        }}
+                        style={actionIconBtnStyle(false, 'var(--rose)')}
                         title="Görevi Sil"
                       >
                         <Trash2 size={13} />
