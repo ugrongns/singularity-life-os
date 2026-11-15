@@ -483,45 +483,51 @@ export default function TasksClient({ initialData }: TasksClientProps) {
           {/* 6 Akıllı Sekme */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
             {[
-              { id: 'today', label: '☀️ Bugün', count: tasks.filter(t => t.due_date === todayStr || (t.due_date && t.due_date < todayStr) || t.is_mit === 1).length },
-              { id: 'upcoming', label: '📅 Yaklaşan', count: tasks.filter(t => t.status !== 'completed' && t.due_date && t.due_date > todayStr).length },
-              { id: 'backlog', label: '📥 Backlog', count: tasks.filter(t => t.status !== 'completed' && (!t.due_date || t.due_date.trim() === '')).length },
-              { id: 'recurring', label: '🔄 Rutinler', count: tasks.filter(t => t.recurrence && t.recurrence !== 'none').length },
-              { id: 'bridge', label: '🌉 Sistem Köprüsü', count: crossModuleActions.length },
-              { id: 'completed', label: '✅ Tamamlananlar', count: tasks.filter(t => t.status === 'completed').length },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id as any)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '999px',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  border: `1px solid ${activeTab === tab.id ? 'var(--text-main)' : 'var(--border)'}`,
-                  background: activeTab === tab.id ? 'var(--text-main)' : 'var(--surface-subtle)',
-                  color: activeTab === tab.id ? 'var(--bg-main)' : 'var(--text-main)',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px'
-                }}
-              >
-                <span>{tab.label}</span>
-                <span
+              { id: 'today', label: '☀️ Bugün', count: tasks.filter(t => t.due_date === todayStr || (t.due_date && t.due_date < todayStr) || t.is_mit === 1).length, color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.15)' },
+              { id: 'upcoming', label: '📅 Yaklaşan', count: tasks.filter(t => t.status !== 'completed' && t.due_date && t.due_date > todayStr).length, color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.15)' },
+              { id: 'backlog', label: '📥 Backlog', count: tasks.filter(t => t.status !== 'completed' && (!t.due_date || t.due_date.trim() === '')).length, color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.15)' },
+              { id: 'recurring', label: '🔄 Rutinler', count: tasks.filter(t => t.recurrence && t.recurrence !== 'none').length, color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.15)' },
+              { id: 'bridge', label: '🌉 Sistem Köprüsü', count: crossModuleActions.length, color: '#EC4899', bg: 'rgba(236, 72, 153, 0.15)' },
+              { id: 'completed', label: '✅ Tamamlananlar', count: tasks.filter(t => t.status === 'completed').length, color: '#10B981', bg: 'rgba(16, 185, 129, 0.15)' },
+            ].map(tab => {
+              const isSelected = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id as any)}
                   style={{
-                    fontSize: '10px',
-                    padding: '1px 5px',
+                    padding: '6px 12px',
                     borderRadius: '999px',
-                    background: activeTab === tab.id ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.06)',
-                    fontWeight: 700
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    border: `1px solid ${isSelected ? tab.color : 'var(--border)'}`,
+                    background: isSelected ? tab.bg : 'var(--surface-subtle)',
+                    color: isSelected ? tab.color : 'var(--text-main)',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  {tab.count}
-                </span>
-              </button>
-            ))}
+                  <span>{tab.label}</span>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      padding: '1px 6px',
+                      borderRadius: '999px',
+                      background: isSelected ? tab.color : 'var(--surface)',
+                      color: isSelected ? '#FFFFFF' : 'var(--text-muted)',
+                      border: isSelected ? 'none' : '1px solid var(--border)',
+                      fontWeight: 800
+                    }}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Kişisel / Aile Filtre Hapları */}
@@ -530,25 +536,29 @@ export default function TasksClient({ initialData }: TasksClientProps) {
               { id: 'all', label: 'Tümü' },
               { id: 'personal', label: '🔒 Kişisel' },
               { id: 'family', label: '👨‍👩‍👧 Aile' },
-            ].map(f => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setFilterType(f.id as any)}
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  padding: '3px 8px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border)',
-                  background: filterType === f.id ? 'var(--surface)' : 'transparent',
-                  color: filterType === f.id ? 'var(--emerald)' : 'var(--text-muted)',
-                  cursor: 'pointer'
-                }}
-              >
-                {f.label}
-              </button>
-            ))}
+            ].map(f => {
+              const isSelected = filterType === f.id;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setFilterType(f.id as any)}
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    border: `1px solid ${isSelected ? 'var(--emerald)' : 'var(--border)'}`,
+                    background: isSelected ? 'var(--emerald-bg)' : 'transparent',
+                    color: isSelected ? 'var(--emerald)' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -566,10 +576,11 @@ export default function TasksClient({ initialData }: TasksClientProps) {
                 fontWeight: 700,
                 padding: '2px 8px',
                 borderRadius: '4px',
-                border: '1px solid var(--border)',
-                background: selectedPillar === 'all' ? 'var(--text-main)' : 'var(--surface-subtle)',
-                color: selectedPillar === 'all' ? 'var(--bg-main)' : 'var(--text-muted)',
-                cursor: 'pointer'
+                border: `1px solid ${selectedPillar === 'all' ? 'var(--blue)' : 'var(--border)'}`,
+                background: selectedPillar === 'all' ? 'var(--blue-bg)' : 'var(--surface-subtle)',
+                color: selectedPillar === 'all' ? 'var(--blue)' : 'var(--text-muted)',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
               }}
             >
               Tümü
@@ -591,7 +602,8 @@ export default function TasksClient({ initialData }: TasksClientProps) {
                     background: isSelected ? cfg.bg : 'var(--surface-subtle)',
                     color: isSelected ? cfg.color : 'var(--text-muted)',
                     cursor: 'pointer',
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease'
                   }}
                 >
                   {cfg.icon} {cfg.label}

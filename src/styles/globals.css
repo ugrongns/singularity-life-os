@@ -2,6 +2,7 @@
   color-scheme: light;
   /* Default Light Mode Token Set */
   --bg: #F8F9FA;
+  --bg-main: #F8F9FA;
   --surface: #FFFFFF;
   --surface-subtle: #F3F4F6;
   --glass-surface: rgba(255, 255, 255, 0.85);
@@ -39,6 +40,7 @@
 body.dark-mode {
   color-scheme: dark;
   --bg: #090A0F;
+  --bg-main: #090A0F;
   --surface: #12141C;
   --surface-subtle: #181B26;
   --glass-surface: rgba(18, 20, 28, 0.85);
