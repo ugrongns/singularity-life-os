@@ -1,4 +1,5 @@
 'use client';
+import PageLoadingState from '@/components/ui/PageLoadingState';
 import { useState, useEffect } from 'react';
 import SharedLayout from '@/components/layout/SharedLayout';
 import ShoppingListCard from '@/components/shopping/ShoppingListCard';
@@ -61,7 +62,12 @@ export default function ShoppingPage() {
   if (loading) {
     return (
       <SharedLayout notifications={notifData}>
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Yükleniyor...</div>
+        <PageLoadingState
+          icon="🛒"
+          title="Alışveriş & İhtiyaç Listesi Yükleniyor..."
+          description="Tükenen malzemeler, planlanan alımlar ve bütçe sepeti derleniyor"
+          color="#F59E0B"
+        />
       </SharedLayout>
     );
   }

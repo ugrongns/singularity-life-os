@@ -1066,6 +1066,27 @@ body {
   50% { opacity: 0.5; }
 }
 
+@keyframes floatGlow {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+    box-shadow: 0 4px 20px -4px var(--glow-color, rgba(59, 130, 246, 0.25));
+  }
+  50% {
+    transform: translateY(-6px) scale(1.04);
+    box-shadow: 0 12px 28px -2px var(--glow-color, rgba(59, 130, 246, 0.45));
+  }
+}
+
+@keyframes shimmerBar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+@keyframes iconPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
 /* ===== Toast Glass ===== */
 .toast-glass {
   position: fixed;

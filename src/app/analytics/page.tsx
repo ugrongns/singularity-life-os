@@ -1,4 +1,5 @@
 'use client';
+import PageLoadingState from '@/components/ui/PageLoadingState';
 import { useState, useEffect } from 'react';
 import SharedLayout from '@/components/layout/SharedLayout';
 import HolisticScoreCard from '@/components/analytics/HolisticScoreCard';
@@ -44,13 +45,12 @@ export default function AnalyticsPage() {
   if (loading) {
     return (
       <SharedLayout notifications={notifData}>
-        <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
-          <div style={{ fontSize: '36px', animation: 'spin 1.2s linear infinite', marginBottom: '12px' }}>📊</div>
-          <div style={{ fontSize: '15px', fontWeight: 700 }}>Yaşam Skoru & FIRE Analitiği Yükleniyor...</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Finans, Biyometri, Wellness ve Zihin eksenleri sentezleniyor
-          </div>
-        </div>
+        <PageLoadingState
+          icon="📊"
+          title="Yaşam Skoru & FIRE Analitiği Yükleniyor..."
+          description="365 günlük katkı matrisi, radar dengesi ve finansal projeksiyon hesaplanıyor"
+          color="#10B981"
+        />
       </SharedLayout>
     );
   }

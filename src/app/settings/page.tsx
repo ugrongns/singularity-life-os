@@ -1,4 +1,5 @@
 'use client';
+import PageLoadingState from '@/components/ui/PageLoadingState';
 import { useState, useEffect } from 'react';
 import SharedLayout from '@/components/layout/SharedLayout';
 import BackupStatusCard from '@/components/settings/BackupStatusCard';
@@ -64,10 +65,12 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <SharedLayout notifications={notifData}>
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
-          <div style={{ fontSize: '32px', marginBottom: '8px' }}>⚙️</div>
-          <div>Ayarlar ve sistem durumu yükleniyor...</div>
-        </div>
+        <PageLoadingState
+          icon="⚙️"
+          title="Ayarlar & Sistem Durumu Yükleniyor..."
+          description="Aile profilleri, Telegram botu, güvenlik tercihleri ve yedekleme durumu kontrol ediliyor"
+          color="#6B7280"
+        />
       </SharedLayout>
     );
   }

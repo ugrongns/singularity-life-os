@@ -5,6 +5,7 @@ import DigitalVaultCard from '@/components/vault/DigitalVaultCard';
 import AddVaultItemModal from '@/components/modals/AddVaultItemModal';
 import AddImportantDateModal from '@/components/modals/AddImportantDateModal';
 import AddPetModal from '@/components/modals/AddPetModal';
+import PageLoadingState from '@/components/ui/PageLoadingState';
 
 export default function VaultPage() {
   const [data, setData] = useState<any>(null);
@@ -73,7 +74,12 @@ export default function VaultPage() {
   if (loading) {
     return (
       <SharedLayout notifications={notifData}>
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Yükleniyor...</div>
+        <PageLoadingState
+          icon="🔒"
+          title="Dijital Kasa & Evraklar Yükleniyor..."
+          description="Kriptolanmış belgeler, poliçeler ve son geçerlilik uyarıları çözümleniyor"
+          color="#6366F1"
+        />
       </SharedLayout>
     );
   }

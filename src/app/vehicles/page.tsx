@@ -8,6 +8,7 @@ import AddFuelLogModal from '@/components/modals/AddFuelLogModal';
 import AddVehicleServiceModal from '@/components/modals/AddVehicleServiceModal';
 import AddHomeItemModal from '@/components/modals/AddHomeItemModal';
 import AddVehicleModal from '@/components/modals/AddVehicleModal';
+import PageLoadingState from '@/components/ui/PageLoadingState';
 
 export default function VehiclesPage() {
   const [vehicleData, setVehicleData] = useState<any>(null);
@@ -84,7 +85,12 @@ export default function VehiclesPage() {
   if (loading) {
     return (
       <SharedLayout notifications={notifData}>
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Yükleniyor...</div>
+        <PageLoadingState
+          icon="🚗"
+          title="Araç & Ev Operasyonları Yükleniyor..."
+          description="Muayene/kasko yasal tarihleri, servis kayıtları ve ev bakım takvimi denetleniyor"
+          color="#06B6D4"
+        />
       </SharedLayout>
     );
   }

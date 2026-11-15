@@ -13,6 +13,7 @@ import BarcodeScanModal from '@/components/modals/BarcodeScanModal';
 import DietPlanModal from '@/components/modals/DietPlanModal';
 import AddMealModal from '@/components/modals/AddMealModal';
 import EditHealthProfileModal from '@/components/modals/EditHealthProfileModal';
+import PageLoadingState from '@/components/ui/PageLoadingState';
 
 export default function HealthPage() {
   const [nutritionData, setNutritionData] = useState<any>(null);
@@ -149,10 +150,12 @@ export default function HealthPage() {
   if (loading) {
     return (
       <SharedLayout notifications={notifData}>
-        <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
-          <div style={{ fontSize: '36px', marginBottom: '12px' }}>🧬</div>
-          <div style={{ fontSize: '15px', fontWeight: 700 }}>Sağlık & Biyometrik Veriler Yükleniyor...</div>
-        </div>
+        <PageLoadingState
+          icon="🧬"
+          title="Sağlık & Biyometrik Veriler Yükleniyor..."
+          description="Diyet makroları, günlük su tüketimi ve aralıklı oruç durumu hazırlanıyor"
+          color="#EF4444"
+        />
       </SharedLayout>
     );
   }

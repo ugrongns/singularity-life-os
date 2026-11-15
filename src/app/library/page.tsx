@@ -9,6 +9,7 @@ import QuotesDrawer from '@/components/library/QuotesDrawer';
 import ReadingSessionModal from '@/components/modals/ReadingSessionModal';
 import AddBookModal from '@/components/modals/AddBookModal';
 import BookDetailModal from '@/components/modals/BookDetailModal';
+import PageLoadingState from '@/components/ui/PageLoadingState';
 
 export default function LibraryPage() {
   const [data, setData] = useState<any>(null);
@@ -78,9 +79,12 @@ export default function LibraryPage() {
   if (loading) {
     return (
       <SharedLayout notifications={notifData}>
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
-          Yükleniyor...
-        </div>
+        <PageLoadingState
+          icon="📚"
+          title="Kişisel Kütüphane Yükleniyor..."
+          description="Aktif kitaplar, okuma seansları, hız (WPM) trendi ve alıntılar derleniyor"
+          color="#3B82F6"
+        />
       </SharedLayout>
     );
   }

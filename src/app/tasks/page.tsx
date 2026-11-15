@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import SharedLayout from '@/components/layout/SharedLayout';
 import TasksClient from '@/components/tasks/TasksClient';
+import PageLoadingState from '@/components/ui/PageLoadingState';
 
 export default function TasksPage() {
   const [data, setData] = useState<any>(null);
@@ -41,13 +42,12 @@ export default function TasksPage() {
   if (loading) {
     return (
       <SharedLayout notifications={notifData}>
-        <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
-          <div style={{ fontSize: '36px', animation: 'spin 1.2s linear infinite', marginBottom: '12px' }}>🎯</div>
-          <div style={{ fontSize: '15px', fontWeight: 700 }}>Görevler & Odak Merkezi Yükleniyor...</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Günün 3 odağı, rutinler ve modüller arası köprü taranıyor
-          </div>
-        </div>
+        <PageLoadingState
+          icon="🎯"
+          title="Görevler & Odak Merkezi Yükleniyor..."
+          description="Günün 3 Odağı (MIT), alt görevler, rutinler ve sistem köprüsü taranıyor"
+          color="#F59E0B"
+        />
       </SharedLayout>
     );
   }

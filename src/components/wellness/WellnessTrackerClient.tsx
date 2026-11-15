@@ -10,6 +10,7 @@ import { SmartScaleTrendDashboard } from '@/components/wellness/SmartScaleTrendD
 import { SmartScaleScanModal } from '@/components/modals/SmartScaleScanModal';
 import DailyTrackerCalendarBar from '@/components/wellness/DailyTrackerCalendarBar';
 import { getTodayTurkeyDate } from '@/lib/date-utils';
+import PageLoadingState from '@/components/ui/PageLoadingState';
 
 interface WellnessTrackerClientProps {
   isBoostRoute?: boolean;
@@ -145,7 +146,12 @@ export default function WellnessTrackerClient({ isBoostRoute = false }: Wellness
   if (loading) {
     return (
       <SharedLayout notifications={notifData}>
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Yükleniyor...</div>
+        <PageLoadingState
+          icon="✨"
+          title="Wellness & Yaşam Ritmi Yükleniyor..."
+          description="Takviye rutinleri, uyku döngüsü ve 14 günlük biyometrik panosu taranıyor"
+          color="#8B5CF6"
+        />
       </SharedLayout>
     );
   }

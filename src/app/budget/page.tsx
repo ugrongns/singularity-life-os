@@ -15,6 +15,7 @@ import CreditCardStatementModal from '@/components/modals/CreditCardStatementMod
 import CategoryDetailModal from '@/components/modals/CategoryDetailModal';
 import TransferModal from '@/components/modals/TransferModal';
 import MarketRatesBar from '@/components/budget/MarketRatesBar';
+import PageLoadingState from '@/components/ui/PageLoadingState';
 
 export default function BudgetPage() {
   const [data, setData] = useState<any>(null);
@@ -83,7 +84,18 @@ export default function BudgetPage() {
     if (msg) showToast(msg);
   };
 
-  if (loading) return <SharedLayout notifications={notifData}><div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Yükleniyor...</div></SharedLayout>;
+  if (loading) {
+    return (
+      <SharedLayout notifications={notifData}>
+        <PageLoadingState
+          icon="💰"
+          title="Bütçe & Nakit Akışı Yükleniyor..."
+          description="Cüzdanlar, kredi kartları, yaklaşan faturalar ve harcama limitleri taranıyor"
+          color="#10B981"
+        />
+      </SharedLayout>
+    );
+  }
 
   const formatTRY = (val: number) =>
     new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(val || 0);
