@@ -4,7 +4,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Camera,
   Image as ImageIcon,
-  Zap,
   Check,
   X,
   Sliders,
@@ -132,34 +131,6 @@ export default function PlateScanModal({
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       setErrorMsg(err.message || 'Görsel analiz edilemedi. Tekrar deneyin.');
-      setStep('upload');
-    }
-  };
-
-  const handleDemoScan = async () => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
-    setStep('scanning');
-    setErrorMsg(null);
-    setPreviewUrl(null);
-
-    try {
-      const res = await fetch('/api/health/scan-food', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'plate' })
-      });
-      const json = await res.json();
-      if (json.success && json.data) {
-        setParsedPlate(json.data);
-        setMultiplier(1.0);
-        setStep('confirm');
-      } else {
-        throw new Error(json.error || 'Demo analiz başarısız');
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message);
       setStep('upload');
     }
   };
@@ -363,25 +334,6 @@ export default function PlateScanModal({
                 >
                   <ImageIcon className="w-4 h-4 text-slate-400" />
                   <span>Fotoğraf Galerisinden Seç</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="btn-subtle"
-                  onClick={handleDemoScan}
-                  style={{
-                    padding: '10px',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    color: 'var(--text-muted)'
-                  }}
-                >
-                  <Zap className="w-3.5 h-3.5 text-amber-500" />
-                  <span>⚡ Demo Mod (AI Örnek Tabak Simülasyonu)</span>
                 </button>
               </div>
             </div>

@@ -135,12 +135,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // Geçerli ardışık kayıt yoksa varsayılan değer
-    if (avgConsumptionLiters <= 0) {
-      avgConsumptionLiters = 6.2;
-      avgCostPerKm = 2.76;
-    }
-
+    
     return NextResponse.json({
       success: true,
       data: {
@@ -153,7 +148,7 @@ export async function GET(req: Request) {
           nextServiceKm,
           remainingKm,
           kmProgressPercentage,
-          nextServiceDate: lastCompletedService?.next_service_date || '2027-03-15'
+          nextServiceDate: lastCompletedService?.next_service_date || null
         },
         recentFuels,
         maintenanceHistory,
@@ -275,7 +270,7 @@ export async function POST(req: Request) {
       const liters = parseFloat(data.liters);
       const pricePerLiter = parseFloat(data.price_per_liter);
       const totalAmount = parseFloat(data.total_amount) || (liters * pricePerLiter);
-      const fuelStation = data.fuel_station || 'Opet';
+      const fuelStation = data.fuel_station || 'Akaryakıt İstasyonu';
       const walletId = data.wallet_id;
       const familyId = user.family_id || `fam-${user.id}`;
 
@@ -377,7 +372,7 @@ export async function POST(req: Request) {
         km_at_service: km,
         service_date: data.service_date || today,
         next_service_km: nextKm,
-        next_service_date: data.next_service_date || '2027-03-15',
+        next_service_date: data.next_service_date || null,
         description: data.description || 'Periyodik Yağ & Filtre Değişimi',
         cost,
         service_provider: data.service_provider || 'Yetkili Servis',

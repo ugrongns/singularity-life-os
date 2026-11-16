@@ -35,16 +35,16 @@ interface Props {
   };
   inflationMetrics?: {
     personalInflationRate: number;
-    officialTuikRate: number;
-    savingVsOfficialTuikPercent: number;
+    officialTuikRate: number | null;
+    savingVsOfficialTuikPercent: number | null;
     basketSummary: string;
   };
 }
 
 const defaultInflationMetrics = {
   personalInflationRate: 0,
-  officialTuikRate: 48.6,
-  savingVsOfficialTuikPercent: 0,
+  officialTuikRate: null as number | null,
+  savingVsOfficialTuikPercent: null as number | null,
   basketSummary: 'Reel harcama verilerine dayalı kişisel enflasyon endeksi'
 };
 
@@ -62,8 +62,8 @@ export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMe
   const safeInflation = inflationMetrics || defaultInflationMetrics;
   const {
     personalInflationRate = 0,
-    officialTuikRate = 48.6,
-    savingVsOfficialTuikPercent = 0
+    officialTuikRate = null,
+    savingVsOfficialTuikPercent = null
   } = safeInflation;
 
   const annualExpense = fireMetrics?.annualExpense || (monthlyLivingExpense * 12);
@@ -393,14 +393,14 @@ export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMe
           <div style={{ background: 'var(--surface)', padding: '8px 6px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Resmi TÜİK TÜFE</div>
             <div style={{ fontSize: '14px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px', fontVariantNumeric: 'tabular-nums' }}>
-              %{officialTuikRate}
+              {officialTuikRate !== null ? `%${officialTuikRate}` : '—'}
             </div>
           </div>
 
           <div style={{ background: 'var(--surface)', padding: '8px 6px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: '10px', color: 'var(--emerald)' }}>Reel Avantaj</div>
             <div style={{ fontSize: '14px', fontWeight: 900, color: 'var(--emerald)', marginTop: '2px', fontVariantNumeric: 'tabular-nums' }}>
-              {formatRealAdvantage(savingVsOfficialTuikPercent)}
+              {savingVsOfficialTuikPercent !== null ? formatRealAdvantage(savingVsOfficialTuikPercent) : '—'}
             </div>
           </div>
         </div>

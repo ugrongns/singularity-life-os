@@ -57,13 +57,12 @@ export async function POST(req: Request) {
       }
     }
 
-    // Sabit / Tahmini Aylık Gelir Toplamı (Maaş / Gelir kategorisi varsa o, yoksa makul başlangıç tavanı)
-    const effectiveIncome = calculatedIncome > 0 ? calculatedIncome : 100000;
-    const maxAllowedCap = effectiveIncome + totalCreditCardLimits;
+    // Gerçek tanımlı gelir veya kredi kartı limiti varsa tavan kontrolü uygula
+    const maxAllowedCap = calculatedIncome + totalCreditCardLimits;
 
     const proposedTotalLimit = currentTotalLimitExceptTarget + targetLimit;
 
-    if (proposedTotalLimit > maxAllowedCap) {
+    if (calculatedIncome > 0 && proposedTotalLimit > maxAllowedCap) {
       return NextResponse.json({
         success: false,
         error: `Bütçe Tavanı Sınırı Aşıldı! Tüm kategorilerin bütçe limitleri toplamı (${proposedTotalLimit.toLocaleString('tr-TR')} ₺), Aylık Gelir + Kredi Kartı Limitleri Toplamı tavanını (${maxAllowedCap.toLocaleString('tr-TR')} ₺) aşamaz.`

@@ -110,10 +110,10 @@ export default function BudgetPage() {
       if (curr === 'GOLD') return 3200;
       return 1.0;
     }
-    if (curr === 'USD') return rates.USD_TRY || 38.5;
-    if (curr === 'EUR') return rates.EUR_TRY || 41.5;
-    if (curr === 'GBP') return rates.GBP_TRY || 48.5;
-    if (curr === 'GOLD') return rates.GOLD_GRAM_TRY || 3200;
+    if (curr === 'USD') return rates.USD_TRY || 0;
+    if (curr === 'EUR') return rates.EUR_TRY || 0;
+    if (curr === 'GBP') return rates.GBP_TRY || 0;
+    if (curr === 'GOLD') return rates.GOLD_GRAM_TRY || 0;
     return 1.0;
   };
 

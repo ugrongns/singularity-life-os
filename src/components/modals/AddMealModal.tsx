@@ -11,10 +11,10 @@ interface AddMealModalProps {
 export default function AddMealModal({ isOpen, initialMealType, onClose, onSuccess }: AddMealModalProps) {
   const [name, setName] = useState('');
   const [mealType, setMealType] = useState(initialMealType || 'lunch');
-  const [calories, setCalories] = useState('450');
-  const [proteinG, setProteinG] = useState('35');
-  const [carbsG, setCarbsG] = useState('40');
-  const [fatG, setFatG] = useState('15');
+  const [calories, setCalories] = useState('');
+  const [proteinG, setProteinG] = useState('');
+  const [carbsG, setCarbsG] = useState('');
+  const [fatG, setFatG] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {

@@ -31,10 +31,10 @@ export default function ReadingSessionModal({
   const activeBook = books.find(b => b.id === selectedBookId) || books[0];
 
   const [inputMode, setInputMode] = useState<'count' | 'range'>('count');
-  const [pagesReadInput, setPagesReadInput] = useState('15');
+  const [pagesReadInput, setPagesReadInput] = useState('');
   const [startPage, setStartPage] = useState(String(activeBook?.current_page || 0));
   const [endPage, setEndPage] = useState(String((activeBook?.current_page || 0) + 15));
-  const [durationMinutes, setDurationMinutes] = useState('25');
+  const [durationMinutes, setDurationMinutes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
   const [overrideWordsPerPage, setOverrideWordsPerPage] = useState<Record<string, number>>({});

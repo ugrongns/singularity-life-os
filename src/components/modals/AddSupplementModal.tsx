@@ -103,12 +103,12 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
   const [name, setName] = useState(item?.name || '');
   const [formType, setFormType] = useState(item?.form_type || 'capsule');
   const [unit, setUnit] = useState(item?.unit || FORM_TYPES[item?.form_type || 'capsule']?.defaultUnit || 'kapsül');
-  const [dose, setDose] = useState(item?.dose || '1000 mg');
+  const [dose, setDose] = useState(item?.dose || '');
   const [timing, setTiming] = useState(item?.timing || 'morning');
   const [frequencyType, setFrequencyType] = useState(item?.frequency_type || 'daily');
   const [intervalDays, setIntervalDays] = useState(String(item?.interval_days || 2));
-  const [totalPills, setTotalPills] = useState(String(item?.total_pills || 60));
-  const [remainingPills, setRemainingPills] = useState(String(item?.remaining_pills ?? item?.total_pills ?? 60));
+  const [totalPills, setTotalPills] = useState(item?.total_pills ? String(item.total_pills) : '');
+  const [remainingPills, setRemainingPills] = useState(item?.remaining_pills !== undefined && item?.remaining_pills !== null ? String(item.remaining_pills) : '');
   const [notes, setNotes] = useState(item?.notes || '');
   const [submitting, setSubmitting] = useState(false);
 
@@ -118,12 +118,12 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
       const fType = item?.form_type || 'capsule';
       setFormType(fType);
       setUnit(item?.unit || FORM_TYPES[fType]?.defaultUnit || 'kapsül');
-      setDose(item?.dose || '1000 mg');
+      setDose(item?.dose || '');
       setTiming(item?.timing || 'morning');
       setFrequencyType(item?.frequency_type || 'daily');
       setIntervalDays(String(item?.interval_days || 2));
-      setTotalPills(String(item?.total_pills || 60));
-      setRemainingPills(String(item?.remaining_pills ?? item?.total_pills ?? 60));
+      setTotalPills(item?.total_pills ? String(item.total_pills) : '');
+      setRemainingPills(item?.remaining_pills !== undefined && item?.remaining_pills !== null ? String(item.remaining_pills) : '');
       setNotes(item?.notes || '');
     }
   }, [isOpen, item]);

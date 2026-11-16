@@ -20,6 +20,7 @@ import {
 } from '@/db/schema';
 import { eq, and, or, desc, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { fetchLiveExchangeRates } from '@/lib/market-data';
 import {
   calculateNormalizedMonthlyExpense,
   calculateFireProgress
@@ -50,12 +51,13 @@ export async function GET() {
     let txsList: any[] = [];
     let incomeCatIds = new Set<string>();
 
+    const liveRates = await fetchLiveExchangeRates();
     const getTryValue = (balance: number, currency: string) => {
       const c = (currency || 'TRY').toUpperCase();
-      if (c === 'USD') return balance * 35;
-      if (c === 'EUR') return balance * 38;
-      if (c === 'GBP') return balance * 45;
-      if (c === 'GOLD') return balance * 3100;
+      if (c === 'USD') return balance * (liveRates.USD_TRY || 0);
+      if (c === 'EUR') return balance * (liveRates.EUR_TRY || 0);
+      if (c === 'GBP') return balance * (liveRates.GBP_TRY || 0);
+      if (c === 'GOLD') return balance * (liveRates.GOLD_GRAM_TRY || 0);
       return balance;
     };
 
@@ -88,7 +90,7 @@ export async function GET() {
       const timeDeposits = wallets.filter((w: any) => w.type === 'time_deposit');
       totalMonthlyPassiveIncome = timeDeposits.reduce((sum: number, w: any) => {
         const principal = Number(w.balance) || 0;
-        const interestRate = Number(w.interest_rate) || 45; // %45 yıllık
+        const interestRate = Number(w.interest_rate) || 0;
         const monthlyYield = (principal * (interestRate / 100)) / 12;
         return sum + Math.round(monthlyYield);
       }, 0);
@@ -365,8 +367,8 @@ export async function GET() {
       const diffPercent = ((totalSpentThisMonth - prevMonthExpense) / prevMonthExpense) * 100;
       personalInflationRate = Math.round(diffPercent * 10) / 10;
     }
-    const officialTuikRate = 48.6; // Güncel TÜİK yıllık TÜFE referansı
-    const savingVsOfficialTuikPercent = prevMonthExpense > 0 ? Math.round((officialTuikRate - personalInflationRate) * 10) / 10 : 0;
+    const officialTuikRate: number | null = null;
+    const savingVsOfficialTuikPercent: number | null = null;
 
     return NextResponse.json({
       success: true,

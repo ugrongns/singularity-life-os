@@ -72,7 +72,7 @@ export function calculateUpcomingMtvDates(): { type: 'mtv_1' | 'mtv_2'; title: s
         type: 'mtv_1',
         title: `🏛️ ${yr} Yılı MTV 1. Taksit Ödemesi`,
         due_date: mtv1Date,
-        cost_estimate: 2450
+        cost_estimate: 0
       });
     }
 
@@ -81,7 +81,7 @@ export function calculateUpcomingMtvDates(): { type: 'mtv_1' | 'mtv_2'; title: s
         type: 'mtv_2',
         title: `🏛️ ${yr} Yılı MTV 2. Taksit Ödemesi`,
         due_date: mtv2Date,
-        cost_estimate: 2450
+        cost_estimate: 0
       });
     }
   }
@@ -105,8 +105,8 @@ export function generateAutoLegalReminders(vehicleId: string, modelYear: number)
     type: 'muayene',
     title: '🔧 TÜVTÜRK Periyodik Araç Muayenesi',
     due_date: tuvturkDate,
-    cost_estimate: 2850,
-    policy_no: 'TÜVTÜRK Randevu',
+    cost_estimate: 0,
+    policy_no: '',
     is_completed: 0,
     created_at: now,
     updated_at: now
@@ -122,7 +122,7 @@ export function generateAutoLegalReminders(vehicleId: string, modelYear: number)
       title: mtv.title,
       due_date: mtv.due_date,
       cost_estimate: mtv.cost_estimate,
-      policy_no: 'GİB / Dijital Vergi Dairesi',
+      policy_no: '',
       is_completed: 0,
       created_at: now,
       updated_at: now
@@ -138,8 +138,8 @@ export function generateAutoLegalReminders(vehicleId: string, modelYear: number)
     type: 'sigorta',
     title: '📋 Zorunlu Trafik Sigortası Yenileme',
     due_date: nextYear.toISOString().split('T')[0],
-    cost_estimate: 7500,
-    policy_no: 'TRF-POL-84920',
+    cost_estimate: 0,
+    policy_no: '',
     is_completed: 0,
     created_at: now,
     updated_at: now

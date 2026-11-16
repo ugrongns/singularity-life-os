@@ -27,11 +27,11 @@ export async function GET(req: Request) {
 
     // Canlı Piyasa & TCMB / Serbest Piyasa Kurları
     const liveRates = await fetchLiveExchangeRates();
-    const USD_RATE = liveRates.USD_TRY;
-    const EUR_RATE = liveRates.EUR_TRY;
-    const GBP_RATE = liveRates.GBP_TRY || 65.20;
-    const GOLD_GRAM_RATE = liveRates.GOLD_GRAM_TRY;
-    const BTC_RATE = liveRates.BTC_TRY || 3900000;
+    const USD_RATE = liveRates.USD_TRY || 0;
+    const EUR_RATE = liveRates.EUR_TRY || 0;
+    const GBP_RATE = liveRates.GBP_TRY || 0;
+    const GOLD_GRAM_RATE = liveRates.GOLD_GRAM_TRY || 0;
+    const BTC_RATE = liveRates.BTC_TRY || 0;
 
     const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
 

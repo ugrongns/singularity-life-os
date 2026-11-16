@@ -18,11 +18,11 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
   const [isbn, setIsbn] = useState('');
   const [categoriesList, setCategoriesList] = useState<string[]>(() => sortCategoriesInTurkish(BOOK_CATEGORIES));
   const [category, setCategory] = useState('Kişisel Gelişim');
-  const [totalPages, setTotalPages] = useState('200');
+  const [totalPages, setTotalPages] = useState('');
   const [currentPage, setCurrentPage] = useState('0');
   const [status, setStatus] = useState<'reading' | 'wishlist' | 'completed'>('wishlist');
   const [format, setFormat] = useState<'physical' | 'ebook' | 'audiobook'>('physical');
-  const [shelfLocation, setShelfLocation] = useState('Salon Kitaplığı A-3');
+  const [shelfLocation, setShelfLocation] = useState('');
   const [wordsPerPage, setWordsPerPage] = useState('250');
   const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
   const [summary, setSummary] = useState('');
@@ -81,11 +81,11 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
     setIsbn('');
     setCategoriesList(sortCategoriesInTurkish(BOOK_CATEGORIES));
     setCategory('Kişisel Gelişim');
-    setTotalPages('200');
+    setTotalPages('');
     setCurrentPage('0');
     setStatus('wishlist');
     setFormat('physical');
-    setShelfLocation('Salon Kitaplığı A-3');
+    setShelfLocation('');
     setWordsPerPage('250');
     setSummary('');
     setRating('5');
@@ -628,7 +628,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                             : '📌 İstek Listesinde'}
                         </span>
                         <span style={{ backgroundColor: 'var(--surface)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border)' }}>
-                          📍 <strong>Konum:</strong> {existingBook.shelf_location || 'Salon Kitaplığı'}
+                          📍 <strong>Konum:</strong> {existingBook.shelf_location || 'Belirtilmemiş'}
                         </span>
                       </div>
                     </div>

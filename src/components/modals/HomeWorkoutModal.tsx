@@ -51,9 +51,9 @@ const PRESET_EXERCISES = [
 
 export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWorkoutModalProps) {
   const [sportType, setSportType] = useState<SportType>('cycling');
-  const [title, setTitle] = useState('Bisiklet Antrenmanı');
+  const [title, setTitle] = useState('');
   const [workoutDate, setWorkoutDate] = useState(new Date().toISOString().split('T')[0]);
-  const [durationInput, setDurationInput] = useState('45:00');
+  const [durationInput, setDurationInput] = useState('');
   const [distanceKm, setDistanceKm] = useState('');
   const [calories, setCalories] = useState('');
   const [avgSpeedKmh, setAvgSpeedKmh] = useState('');
@@ -87,17 +87,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Kuvvet egzersizleri
-  const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([
-    {
-      exercise_name: 'Incline Dumbbell Bench Press',
-      category: 'gogus',
-      equipment: 'bench',
-      sets: [
-        { set_number: 1, weight_kg: '15', reps: '12' },
-        { set_number: 2, weight_kg: '17.5', reps: '10' }
-      ]
-    }
-  ]);
+  const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([]);
 
   // Dinlenme sayacı
   const [restSeconds, setRestSeconds] = useState<number | null>(null);
@@ -779,7 +769,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
 
               <button
                 type="button"
-                onClick={() => setExerciseEntries([...exerciseEntries, { exercise_name: PRESET_EXERCISES[0].name, category: PRESET_EXERCISES[0].category, equipment: PRESET_EXERCISES[0].equipment, sets: [{ set_number: 1, weight_kg: '15', reps: '10' }] }])}
+                onClick={() => setExerciseEntries([...exerciseEntries, { exercise_name: PRESET_EXERCISES[0].name, category: PRESET_EXERCISES[0].category, equipment: PRESET_EXERCISES[0].equipment, sets: [{ set_number: 1, weight_kg: '', reps: '' }] }])}
                 style={{ padding: '8px', fontSize: '12px', fontWeight: 800, borderRadius: '8px', border: '1px dashed var(--primary)', background: 'var(--indigo-bg)', color: 'var(--primary)', cursor: 'pointer' }}
               >
                 ➕ Yeni Hareket Ekle

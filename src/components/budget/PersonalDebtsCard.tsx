@@ -66,9 +66,9 @@ export default function PersonalDebtsCard({ accounts, onToast, onUpdate, marketR
   const [dueDate, setDueDate] = useState('');
   const [connectedWalletId, setConnectedWalletId] = useState('');
 
-  const USD_RATE = liveRates?.USD_TRY || 38.5;
-  const EUR_RATE = liveRates?.EUR_TRY || 41.5;
-  const GOLD_RATE = liveRates?.GOLD_GRAM_TRY || 3200;
+  const USD_RATE = liveRates?.USD_TRY || 0;
+  const EUR_RATE = liveRates?.EUR_TRY || 0;
+  const GOLD_RATE = liveRates?.GOLD_GRAM_TRY || 0;
 
   const formatTRY = (v: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(v);
 

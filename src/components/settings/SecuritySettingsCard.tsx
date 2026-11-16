@@ -216,26 +216,6 @@ export default function SecuritySettingsCard() {
     }
   };
 
-  const handleLoadSampleData = async () => {
-    if (confirm('Hesabınıza test ve görünüm amaçlı örnek demo veriler (Cüzdan, Harcama, Kitap, Alıntı, Mülk) yüklensin mi?')) {
-      try {
-        setSaving(true);
-        const res = await fetch('/api/auth/load-sample-data', { method: 'POST' });
-        const json = await res.json();
-        if (json.success) {
-          alert(json.message);
-          window.location.reload();
-        } else {
-          alert('❌ Hata: ' + (json.error || 'Örnek veri yükleme başarısız.'));
-        }
-      } catch (err) {
-        alert('❌ Bağlantı hatası.');
-      } finally {
-        setSaving(false);
-      }
-    }
-  };
-
   const handleDeleteAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!deletePassword) {
@@ -328,19 +308,6 @@ export default function SecuritySettingsCard() {
 
           {/* Alt Kısım: Yatay Düzende Aksiyon Butonları */}
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', width: '100%' }}>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={handleLoadSampleData}
-              title="Hesabınıza görünüm amaçlı örnek veriler ekler"
-              style={{
-                flex: '1 1 auto', padding: '8px 12px', fontSize: '11px', fontWeight: 800,
-                background: 'var(--blue-bg)', border: '1px solid var(--border)', color: 'var(--blue)',
-                borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'center'
-              }}
-            >
-              🚀 Örnek Verileri Yükle
-            </button>
             <button
               type="button"
               disabled={saving}

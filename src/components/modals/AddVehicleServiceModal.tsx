@@ -25,11 +25,11 @@ export default function AddVehicleServiceModal({
   onClose,
   onSuccess
 }: AddVehicleServiceModalProps) {
-  const [km, setKm] = useState(String(currentKm || 70000));
+  const [km, setKm] = useState(currentKm > 0 ? String(currentKm) : '');
   const [serviceType, setServiceType] = useState('periyodik_bakim');
-  const [description, setDescription] = useState('Periyodik Yağ & Filtre Değişimi, Genel Kontrol');
-  const [cost, setCost] = useState('4500');
-  const [serviceProvider, setServiceProvider] = useState('Yetkili / Özel Servis');
+  const [description, setDescription] = useState('');
+  const [cost, setCost] = useState('');
+  const [serviceProvider, setServiceProvider] = useState('');
   const [serviceDate, setServiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedWalletId, setSelectedWalletId] = useState(wallets[0]?.id || '');
   const [submitting, setSubmitting] = useState(false);

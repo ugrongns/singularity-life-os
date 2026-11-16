@@ -430,14 +430,17 @@ export async function POST(req: Request) {
               const nowISO = new Date().toISOString();
               const familyId = targetUser.family_id || `fam-${targetUser.id}`;
 
-              // Bulgu 16: Dinamik Cüzdan Çözümleme
-              let walletId = 'wallet-cash';
+              // Dinamik Cüzdan Çözümleme
               const userWallets = await db.select().from(walletsAccounts).where(
                 or(eq(walletsAccounts.user_id, targetUser.id), eq(walletsAccounts.family_id, familyId))
               ).limit(1);
-              if (userWallets[0]) {
-                walletId = userWallets[0].id;
+              if (!userWallets[0]) {
+                return NextResponse.json({
+                  ok: true,
+                  replied: '⚠️ Fiş kaydedilemedi: Hesabınızda tanımlı aktif bir cüzdan/hesap bulunamadı.'
+                });
               }
+              const walletId = userWallets[0].id;
 
               await db.insert(transactions).values({
                 id: txId,

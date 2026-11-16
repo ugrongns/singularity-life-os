@@ -25,10 +25,10 @@ export default function AddFuelLogModal({
   onClose,
   onSuccess
 }: AddFuelLogModalProps) {
-  const [km, setKm] = useState(String(currentKm || 70000));
-  const [liters, setLiters] = useState('45');
-  const [pricePerLiter, setPricePerLiter] = useState('44.50');
-  const [fuelStation, setFuelStation] = useState('Opet');
+  const [km, setKm] = useState(currentKm > 0 ? String(currentKm) : '');
+  const [liters, setLiters] = useState('');
+  const [pricePerLiter, setPricePerLiter] = useState('');
+  const [fuelStation, setFuelStation] = useState('');
   const [fuelDate, setFuelDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedWalletId, setSelectedWalletId] = useState(wallets[0]?.id || '');
   const [submitting, setSubmitting] = useState(false);

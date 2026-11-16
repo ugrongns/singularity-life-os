@@ -103,8 +103,24 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
   const [manualQrUrl, setManualQrUrl] = useState('');
 
   const [fetchedAccounts, setFetchedAccounts] = useState<AccountOption[]>([]);
+  const [vehiclesList, setVehiclesList] = useState<Array<{ id: string; brand: string; model: string; plate?: string }>>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
 
   useEffect(() => {
+    if (isOpen) {
+      fetch('/api/vehicles')
+        .then(res => res.json())
+        .then(json => {
+          if (json.success && Array.isArray(json.data?.vehicles) && json.data.vehicles.length > 0) {
+            setVehiclesList(json.data.vehicles);
+            setSelectedVehicleId(prev => prev || json.data.vehicles[0].id);
+          } else if (json.success && json.data?.vehicle) {
+            setVehiclesList([json.data.vehicle]);
+            setSelectedVehicleId(prev => prev || json.data.vehicle.id);
+          }
+        })
+        .catch(err => console.warn('Failed to load vehicles in modal:', err));
+    }
     if (isOpen && accounts.length === 0) {
       fetch('/api/budget')
         .then(res => res.json())
@@ -627,9 +643,9 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
       date: d.date || new Date().toISOString().split('T')[0],
       category_id: d.category_id || 'cat-market',
       category_name: d.category_name || 'Market & Gıda',
-      vehicle_km: isFuel ? 65500 : isService ? 75000 : undefined,
+      vehicle_km: undefined,
       fuel_station: isFuel ? d.merchant : undefined,
-      parts_changed: isService ? 'Periyodik Bakım ve Yağ Değişimi' : undefined,
+      parts_changed: undefined,
       items: d.items || [],
       tax_amount: d.tax_amount,
       tax_breakdown: d.tax_breakdown,
@@ -670,7 +686,7 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
     try {
       const refText = parsedData.reference_number ? ` • Ref: ${parsedData.reference_number}` : '';
       const noteDetails = scanType === 'fuel'
-        ? `Akaryakıt (${parsedData.fuel_station || 'Shell'} • ${parsedData.vehicle_km?.toLocaleString('tr-TR')} KM)${refText}`
+        ? `Akaryakıt (${parsedData.fuel_station || parsedData.merchant || 'Akaryakıt'} • ${parsedData.vehicle_km?.toLocaleString('tr-TR')} KM)${refText}`
         : scanType === 'service'
         ? `Araç Bakımı (${parsedData.parts_changed || 'Periyodik Bakım'})${refText}`
         : parsedData.items?.length
@@ -698,21 +714,21 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
       }
 
       // Çift Yönlü Senkronizasyon (Araç Defterine KM veya Servis Kaydı)
-      if (scanType === 'fuel' && parsedData.vehicle_km) {
+      if (scanType === 'fuel' && selectedVehicleId && parsedData.vehicle_km) {
         await fetch('/api/vehicles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            vehicle_id: 'veh-1',
+            vehicle_id: selectedVehicleId,
             current_km: parsedData.vehicle_km
           })
         });
-      } else if (scanType === 'service' && parsedData.vehicle_km) {
+      } else if (scanType === 'service' && selectedVehicleId && parsedData.vehicle_km) {
         await fetch('/api/vehicles/maintenance', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            vehicle_id: 'veh-1',
+            vehicle_id: selectedVehicleId,
             km_at_service: parsedData.vehicle_km,
             service_date: parsedData.date,
             description: parsedData.parts_changed || 'Periyodik Bakım',
@@ -1150,15 +1166,16 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
             )}
 
             {/* Araç Özel Bilgileri */}
-            {(scanType === 'fuel' || scanType === 'service') && (
+            {(scanType === 'fuel' || scanType === 'service') && vehiclesList.length > 0 && (
               <div style={{ background: 'var(--indigo-bg)', border: '1px solid var(--indigo)', borderRadius: 'var(--radius-md)', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--indigo)' }}>🚗 Araç Defteri Çift Yönlü Entegrasyonu (Volvo XC60):</div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--indigo)' }}>🚗 Araç Defteri Çift Yönlü Entegrasyonu ({(() => { const v = vehiclesList.find(x => x.id === selectedVehicleId) || vehiclesList[0]; return v ? `${v.brand} ${v.model}${v.plate ? ` (${v.plate})` : ''}` : 'Araç'; })()}):</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   <div>
                     <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Sayaç Kilometresi (KM):</label>
                     <input
                       type="number"
-                      value={parsedData.vehicle_km || 65500}
+                      value={parsedData.vehicle_km || ''}
+                      placeholder="Örn: 65500"
                       onChange={e => setParsedData({ ...parsedData, vehicle_km: parseFloat(e.target.value) || 0 })}
                       style={{ width: '100%', padding: '6px 8px', fontSize: '13px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
                     />
@@ -1167,7 +1184,8 @@ export default function ReceiptScanModal({ isOpen, onClose, accounts = [], onSuc
                     <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>{scanType === 'fuel' ? 'İstasyon / Yakıt Türü:' : 'Servis Sağlayıcı:'}</label>
                     <input
                       type="text"
-                      value={scanType === 'fuel' ? (parsedData.fuel_station || 'Shell V-Power') : (parsedData.merchant || 'Bosch Car Service')}
+                      value={scanType === 'fuel' ? (parsedData.fuel_station || '') : (parsedData.merchant || '')}
+                      placeholder={scanType === 'fuel' ? 'İstasyon / Yakıt Türü' : 'Servis Sağlayıcı'}
                       onChange={e => setParsedData({ ...parsedData, fuel_station: e.target.value })}
                       style={{ width: '100%', padding: '6px 8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
                     />

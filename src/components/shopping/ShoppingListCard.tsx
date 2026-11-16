@@ -124,7 +124,6 @@ export default function ShoppingListCard({
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [presetFilter, setPresetFilter] = useState<'all' | 'diet' | 'grocery' | 'produce'>('all');
   const [scanningAI, setScanningAI] = useState(false);
-  const [addingPreset, setAddingPreset] = useState<string | null>(null);
   const [isCartExpanded, setIsCartExpanded] = useState(true);
 
   const quickInputRef = useRef<HTMLInputElement>(null);
@@ -235,25 +234,6 @@ export default function ShoppingListCard({
       if (onToast) onToast('Tüm alışveriş listesi sıfırlandı.');
     } catch {
       //
-    }
-  };
-
-  const handleAddPreset = async (preset: 'diet' | 'grocery' | 'produce') => {
-    setAddingPreset(preset);
-    try {
-      const res = await fetch('/api/shopping-list', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add_preset', preset })
-      });
-      const j = await res.json();
-      window.dispatchEvent(new CustomEvent('singularity-refresh'));
-      if (onRefresh) onRefresh();
-      if (onToast && j.message) onToast(j.message);
-    } catch {
-      //
-    } finally {
-      setAddingPreset(null);
     }
   };
 
@@ -465,25 +445,13 @@ export default function ShoppingListCard({
                 type="button"
                 onClick={() => setPresetFilter('diet')}
                 style={{
-                  fontSize: '11px', fontWeight: 800, padding: '4px 8px', borderRadius: '6px 0 0 6px', cursor: 'pointer',
+                  fontSize: '11px', fontWeight: 800, padding: '4px 8px', borderRadius: 'var(--radius-full)', cursor: 'pointer',
                   border: presetFilter === 'diet' ? '1px solid var(--emerald)' : '1px solid var(--border)',
                   background: presetFilter === 'diet' ? 'var(--emerald-bg)' : 'var(--surface-subtle)',
                   color: presetFilter === 'diet' ? 'var(--emerald)' : 'var(--text-muted)'
                 }}
               >
                 🥑 Diyet
-              </button>
-              <button
-                type="button"
-                title="Diyet Paketini Listeye Ekle"
-                disabled={Boolean(addingPreset)}
-                onClick={() => handleAddPreset('diet')}
-                style={{
-                  fontSize: '10px', fontWeight: 800, padding: '4px 6px', borderRadius: '0 6px 6px 0', cursor: 'pointer',
-                  border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--emerald)'
-                }}
-              >
-                +
               </button>
             </div>
 
@@ -492,25 +460,13 @@ export default function ShoppingListCard({
                 type="button"
                 onClick={() => setPresetFilter('grocery')}
                 style={{
-                  fontSize: '11px', fontWeight: 800, padding: '4px 8px', borderRadius: '6px 0 0 6px', cursor: 'pointer',
+                  fontSize: '11px', fontWeight: 800, padding: '4px 8px', borderRadius: 'var(--radius-full)', cursor: 'pointer',
                   border: presetFilter === 'grocery' ? '1px solid var(--amber)' : '1px solid var(--border)',
                   background: presetFilter === 'grocery' ? 'var(--amber-bg)' : 'var(--surface-subtle)',
                   color: presetFilter === 'grocery' ? 'var(--amber)' : 'var(--text-muted)'
                 }}
               >
                 🍞 Temel Gıda
-              </button>
-              <button
-                type="button"
-                title="Temel Gıda Paketini Listeye Ekle"
-                disabled={Boolean(addingPreset)}
-                onClick={() => handleAddPreset('grocery')}
-                style={{
-                  fontSize: '10px', fontWeight: 800, padding: '4px 6px', borderRadius: '0 6px 6px 0', cursor: 'pointer',
-                  border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--amber)'
-                }}
-              >
-                +
               </button>
             </div>
 
@@ -519,25 +475,13 @@ export default function ShoppingListCard({
                 type="button"
                 onClick={() => setPresetFilter('produce')}
                 style={{
-                  fontSize: '11px', fontWeight: 800, padding: '4px 8px', borderRadius: '6px 0 0 6px', cursor: 'pointer',
+                  fontSize: '11px', fontWeight: 800, padding: '4px 8px', borderRadius: 'var(--radius-full)', cursor: 'pointer',
                   border: presetFilter === 'produce' ? '1px solid var(--indigo)' : '1px solid var(--border)',
                   background: presetFilter === 'produce' ? 'var(--indigo-bg)' : 'var(--surface-subtle)',
                   color: presetFilter === 'produce' ? 'var(--indigo)' : 'var(--text-muted)'
                 }}
               >
                 🥗 Manav
-              </button>
-              <button
-                type="button"
-                title="Manav Paketini Listeye Ekle"
-                disabled={Boolean(addingPreset)}
-                onClick={() => handleAddPreset('produce')}
-                style={{
-                  fontSize: '10px', fontWeight: 800, padding: '4px 6px', borderRadius: '0 6px 6px 0', cursor: 'pointer',
-                  border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--indigo)'
-                }}
-              >
-                +
               </button>
             </div>
           </div>

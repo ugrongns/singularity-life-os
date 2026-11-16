@@ -197,35 +197,6 @@ export default function LandingPage() {
     }
   };
 
-  // 3. Demo / Örnek Verilerle Hızlı Giriş
-  const handleDemoLogin = async () => {
-    setLoading(true);
-    setErrorMsg(null);
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          identifier: 'admin',
-          password: 'Password123!'
-        })
-      });
-      const json = await res.json();
-      if (json.success) {
-        window.location.href = '/';
-      } else {
-        // Eğer admin kullanıcısı yoksa doğrudan login sayfasına yönlendir
-        setLoginIdentifier('admin');
-        setLoginPassword('Password123!');
-        setAuthMode('login');
-      }
-    } catch (e) {
-      setErrorMsg('Demo girişi sırasında bağlantı hatası.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div style={{
       minHeight: '100vh',
@@ -557,22 +528,6 @@ export default function LandingPage() {
                   }}
                 >
                   {loading ? 'Oturum Açılıyor...' : 'Oturum Aç'}
-                </button>
-
-                {/* Hızlı Demo Giriş Butonu */}
-                <button
-                  type="button"
-                  onClick={handleDemoLogin}
-                  disabled={loading}
-                  style={{
-                    padding: '12px', fontSize: '12px', fontWeight: 700,
-                    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: '12px', color: '#38BDF8', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
-                  }}
-                >
-                  <span>⚡</span>
-                  <span>Örnek Demo Verilerle Keşfet (Admin)</span>
                 </button>
               </form>
             )}

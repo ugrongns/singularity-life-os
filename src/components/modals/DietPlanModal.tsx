@@ -303,10 +303,6 @@ export default function DietPlanModal({ isOpen, onClose, onSuccess }: DietModalP
     }
   };
 
-  const handleAddSample = (sampleText: string) => {
-    setRawDietText(sampleText);
-  };
-
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
@@ -653,24 +649,6 @@ export default function DietPlanModal({ isOpen, onClose, onSuccess }: DietModalP
                     outline: 'none'
                   }}
                 />
-
-                {/* Örnek Şablon Hapları */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => handleAddSample('Sabah: 2 haşlanmış köy yumurtası, 5 zeytin, 1 dilim karakılçık ekmeği, 40g süzme peynir, 1 tatlı kaşığı zeytinyağı ve söğüş domates')}
-                    style={{ fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text-muted)', cursor: 'pointer' }}
-                  >
-                    🍳 Örnek Fit Kahvaltı
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAddSample('Öğle: 180g ızgara somon fileto, buharda brokoli ve karnabahar, 1 kase kinoa salatası ve 1 tatlı kaşığı zeytinyağı')}
-                    style={{ fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text-muted)', cursor: 'pointer' }}
-                  >
-                    🐟 Örnek Somon & Kinoa
-                  </button>
-                </div>
 
                 <button
                   type="button"

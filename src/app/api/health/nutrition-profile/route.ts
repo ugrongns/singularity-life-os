@@ -858,7 +858,10 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url);
-    const queryFood = searchParams.get('food_name') || searchParams.get('query') || 'Yumurta';
+    const queryFood = (searchParams.get('food_name') || searchParams.get('query') || '').trim();
+    if (!queryFood) {
+      return NextResponse.json({ success: false, error: 'Lütfen sorgulanacak gıda adını girin.' }, { status: 400 });
+    }
     const grams = Number(searchParams.get('grams')) || 100;
 
     // 1. HIZLI STATİK EŞLEŞME (2ms Yanıt, 0 AI Maliyeti, Kesin Doğruluk)

@@ -204,35 +204,6 @@ export default function VoiceCommandModal({ isOpen, onClose, onSuccess }: VoiceC
               />
             </div>
 
-            {/* Hızlı Örnek Komut Butonları */}
-            <div style={{ width: '100%' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'left', marginBottom: '6px' }}>
-                ⚡ HAZIR SESLİ TEST KOMUTLARI:
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <button
-                  className="btn-subtle"
-                  onClick={() => {
-                    setTranscript("Shell'den 1250 TL benzin aldım, 500 ml su içtim ve kitaptan 25 sayfa okudum.");
-                    handleAnalyzeText("Shell'den 1250 TL benzin aldım, 500 ml su içtim ve kitaptan 25 sayfa okudum.");
-                  }}
-                  style={{ textAlign: 'left', padding: '8px 12px', fontSize: '12px' }}
-                >
-                  ⚡ "Shell'den 1250 TL benzin aldım, 500 ml su içtim ve 25 sayfa kitap okudum"
-                </button>
-                <button
-                  className="btn-subtle"
-                  onClick={() => {
-                    setTranscript("Migros'ta 680 TL harcadım ve market listesine zeytinyağı ekle.");
-                    handleAnalyzeText("Migros'ta 680 TL harcadım ve market listesine zeytinyağı ekle.");
-                  }}
-                  style={{ textAlign: 'left', padding: '8px 12px', fontSize: '12px' }}
-                >
-                  ⚡ "Migros'ta 680 TL harcadım ve market listesine zeytinyağı ekle"
-                </button>
-              </div>
-            </div>
-
             {/* Ayrıştır Butonu */}
             {transcript && (
               <button

@@ -147,8 +147,8 @@ export default function VehiclesPage() {
 
       <AddFuelLogModal
         isOpen={isFuelModalOpen}
-        vehicleId={vehicleData?.vehicle?.id || 'veh-bmw-320i'}
-        currentKm={vehicleData?.vehicle?.current_km || 70000}
+        vehicleId={vehicleData?.vehicle?.id || ''}
+        currentKm={vehicleData?.vehicle?.current_km || 0}
         wallets={vehicleData?.wallets || []}
         onClose={() => setIsFuelModalOpen(false)}
         onSuccess={(msg) => handleSuccess(msg)}
@@ -156,8 +156,8 @@ export default function VehiclesPage() {
 
       <AddVehicleServiceModal
         isOpen={isServiceModalOpen}
-        vehicleId={vehicleData?.vehicle?.id || 'veh-bmw-320i'}
-        currentKm={vehicleData?.vehicle?.current_km || 70000}
+        vehicleId={vehicleData?.vehicle?.id || ''}
+        currentKm={vehicleData?.vehicle?.current_km || 0}
         wallets={vehicleData?.wallets || []}
         onClose={() => setIsServiceModalOpen(false)}
         onSuccess={(msg) => handleSuccess(msg)}

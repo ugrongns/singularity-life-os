@@ -138,12 +138,13 @@ SADECE aşağıdaki JSON formatında çıktı üret, başka hiçbir açıklama y
       data: {
         title: `${lines[0] || 'Diyetisyen Öğün Alternatifi'}`,
         meal_type: mealType,
-        description: 'Diyetisyen metninden ayrıştırıldı',
+        description: 'Diyetisyen metninden ayrıştırıldı (makro değerleri manuel girilmelidir)',
         checklist: lines.length > 0 ? lines : [rawText],
-        calories: 350,
-        protein_g: 18,
-        carbs_g: 30,
-        fat_g: 12
+        calories: 0,
+        protein_g: 0,
+        carbs_g: 0,
+        fat_g: 0,
+        requires_manual_macros: true
       }
     });
   } catch (error: any) {

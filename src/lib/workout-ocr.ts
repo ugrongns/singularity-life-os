@@ -276,12 +276,12 @@ SADECE geçerli bir JSON çıktısı üret, markdown veya açıklama yazma.`;
     }
   }
 
-  // Basit varsayılan taslak (Fallback)
+  // Boş nötr taslak (Fallback)
   return {
     sport_type: 'other',
-    title: 'Yeni Antrenman',
+    title: '',
     date: new Date().toISOString().split('T')[0],
-    duration_minutes: 30,
+    duration_minutes: 0,
     distance_km: 0,
     calories: 0,
     device_source: 'Manuel Giriş'

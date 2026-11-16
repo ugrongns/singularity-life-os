@@ -76,8 +76,11 @@ export async function POST(req: Request) {
       const today = nowISO.split('T')[0];
       const results: string[] = [];
 
-      const currentUserId = targetUserIdFromInternal || user?.id || (await db.select().from(users).where(eq(users.is_master_account, 1)).limit(1))[0]?.id || 'user-default';
-      const currentFamilyId = targetFamilyIdFromInternal || user?.family_id || (currentUserId ? `fam-${currentUserId}` : 'fam-default');
+      const currentUserId = targetUserIdFromInternal || user?.id || (await db.select().from(users).where(eq(users.is_master_account, 1)).limit(1))[0]?.id;
+      if (!currentUserId) {
+        return NextResponse.json({ success: false, error: 'Aktif kullanıcı bulunamadı.' }, { status: 401 });
+      }
+      const currentFamilyId = targetFamilyIdFromInternal || user?.family_id || `fam-${currentUserId}`;
 
       for (const act of actionsToExecute) {
         if (act.type === 'expense') {
@@ -87,16 +90,20 @@ export async function POST(req: Request) {
           let wallet = walletId ? (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, walletId)).limit(1))[0] : null;
 
           if (!wallet) {
-            // Bulgu 16: Dinamik cüzdan fallback (Hardcoded 'wallet-garanti' yerine ilk aktif cüzdan)
             const userWallets = await db.select().from(walletsAccounts).where(
               or(eq(walletsAccounts.user_id, currentUserId), eq(walletsAccounts.family_id, currentFamilyId))
-            ).limit(1);
-            if (userWallets[0]) {
-              wallet = userWallets[0];
-              walletId = wallet.id;
+            );
+            const hint = String(act.details.wallet_hint || '').toLowerCase();
+            if (hint && userWallets.length > 0) {
+              wallet = userWallets.find((w: any) => w.name.toLowerCase().includes(hint) || (hint === 'nakit' && w.type === 'cash')) || userWallets[0];
             } else {
-              walletId = 'wallet-cash';
+              wallet = userWallets[0] || null;
             }
+            if (!wallet) {
+              results.push(`⚠️ ${act.details.merchant || 'Harcama'} kaydedilemedi: Önce bir cüzdan/hesap oluşturun.`);
+              continue;
+            }
+            walletId = wallet.id;
           }
           
           await db.insert(transactions).values({
@@ -290,7 +297,7 @@ function parseVoiceCommandText(rawText: string): ParsedAction[] {
         merchant = rawMerchant.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
       }
       if (text.includes('benzin') || text.includes('yakıt') || text.includes('shell') || text.includes('opet') || text.includes('petrol')) {
-        merchant = merchant === 'Genel Harcama' ? 'Shell Petrol A.Ş.' : merchant;
+        merchant = merchant === 'Genel Harcama' ? 'Akaryakıt Harcaması' : merchant;
         categoryId = 'cat-arac';
       } else if (text.includes('fatura') || text.includes('elektrik') || text.includes('su') || text.includes('internet')) {
         categoryId = 'cat-fatura';
@@ -306,7 +313,7 @@ function parseVoiceCommandText(rawText: string): ParsedAction[] {
           merchant,
           amount,
           category_id: categoryId,
-          wallet_id: text.includes('nakit') ? 'wallet-cash' : text.includes('iş bank') ? 'wallet-isbank' : undefined
+          wallet_hint: text.includes('nakit') ? 'nakit' : text.includes('iş bank') ? 'iş bank' : undefined
         }
       });
     }

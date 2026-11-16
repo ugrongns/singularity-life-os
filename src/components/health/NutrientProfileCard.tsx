@@ -11,7 +11,7 @@ interface NutrientProfileCardProps {
 
 export default function NutrientProfileCard({ onSuccess, onRefresh }: NutrientProfileCardProps = {}) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedFood, setSelectedFood] = useState('Ceviz');
+  const [selectedFood, setSelectedFood] = useState('');
 
   const popularFoods = [
     { name: 'Ceviz', icon: '🌰', highlight: 'Omega-3 %600+, B6, Magnezyum' },
@@ -78,7 +78,7 @@ export default function NutrientProfileCard({ onSuccess, onRefresh }: NutrientPr
 
         {/* Hızlı Arama Tetikleyicisi */}
         <div
-          onClick={() => handleOpenForFood('Ceviz')}
+          onClick={() => handleOpenForFood('')}
           style={{
             cursor: 'pointer',
             padding: '12px 14px',

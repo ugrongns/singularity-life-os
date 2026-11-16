@@ -32,7 +32,7 @@ interface NutrientProfileModalProps {
 export default function NutrientProfileModal({
   isOpen,
   onClose,
-  initialFoodName = 'Ceviz',
+  initialFoodName = '',
   initialGrams = 100,
   initialProfile,
   onSuccess

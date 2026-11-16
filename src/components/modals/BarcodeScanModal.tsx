@@ -22,6 +22,18 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
   const scanIntervalRef = useRef<any>(null);
   const timeoutRef = useRef<any>(null);
   const [isDeciding, setIsDeciding] = useState(false);
+  const [macroCal, setMacroCal] = useState<string>('0');
+  const [macroPro, setMacroPro] = useState<string>('0');
+  const [macroCarb, setMacroCarb] = useState<string>('0');
+  const [macroFat, setMacroFat] = useState<string>('0');
+
+  const initMacrosFromResult = (data: any) => {
+    const m = data?.macros_per_100g;
+    setMacroCal(m && Number.isFinite(Number(m.calories)) ? String(m.calories) : '0');
+    setMacroPro(m && Number.isFinite(Number(m.protein)) ? String(m.protein) : '0');
+    setMacroCarb(m && Number.isFinite(Number(m.carbs)) ? String(m.carbs) : '0');
+    setMacroFat(m && Number.isFinite(Number(m.fat)) ? String(m.fat) : '0');
+  };
 
   useEffect(() => {
     if (!isOpen) {
@@ -158,6 +170,7 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
       const json = await res.json();
       if (json.success) {
         setResult(json.data);
+        initMacrosFromResult(json.data);
         setStep('result');
       } else {
         alert(json.error || 'Görsel analizi başarısız.');
@@ -190,6 +203,7 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
       const json = await res.json();
       if (json.success) {
         setResult(json.data);
+        initMacrosFromResult(json.data);
         setStep('result');
       } else {
         alert(json.error || 'Barkod analizi başarısız.');
@@ -213,10 +227,10 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
           body: JSON.stringify({
             name: result.product_name,
             meal_type: 'snack',
-            base_calories: result.health_score >= 70 ? 180 : 350,
-            base_protein: result.health_score >= 70 ? 8 : 3,
-            base_carbs: result.health_score >= 70 ? 25 : 48,
-            base_fat: result.health_score >= 70 ? 4 : 16,
+            base_calories: Math.max(0, Number(macroCal) || 0),
+            base_protein: Math.max(0, Number(macroPro) || 0),
+            base_carbs: Math.max(0, Number(macroCarb) || 0),
+            base_fat: Math.max(0, Number(macroFat) || 0),
             portion_multiplier: 1.0
           })
         });
@@ -301,23 +315,6 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
               />
               <button className="btn-primary" onClick={() => handleManualScan()} style={{ padding: '0 16px', fontSize: '13px', fontWeight: 800 }}>
                 🔍 Sorgula
-              </button>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '4px' }}>
-              <button
-                className="btn-secondary"
-                onClick={() => handleManualScan('869055512348')}
-                style={{ fontSize: '11px', padding: '8px' }}
-              >
-                🧪 Örnek Temiz Gıda Testi
-              </button>
-              <button
-                className="btn-secondary"
-                onClick={() => handleManualScan('869055512341')}
-                style={{ fontSize: '11px', padding: '8px' }}
-              >
-                🧪 Örnek Riskli Gıda Testi
               </button>
             </div>
           </div>
@@ -431,6 +428,31 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
               <span>🔬</span>
               <span>360° Detaylı Vitamin & Mineral Karnesini Gör ➔</span>
             </button>
+
+            {/* Beslenme Makro Onayı (100g / Porsiyon) */}
+            <div style={{ background: 'var(--surface-subtle)', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', marginBottom: '6px' }}>
+                🍽️ Günlük Beslenmeye Eklenecek Makrolar (Düzenlenebilir):
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                <div>
+                  <label style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>Kalori (kcal)</label>
+                  <input type="number" min="0" step="1" value={macroCal} onChange={e => setMacroCal(e.target.value)} style={{ width: '100%', padding: '5px 6px', fontSize: '12px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-main)' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>Protein (g)</label>
+                  <input type="number" min="0" step="0.1" value={macroPro} onChange={e => setMacroPro(e.target.value)} style={{ width: '100%', padding: '5px 6px', fontSize: '12px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-main)' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>Karb (g)</label>
+                  <input type="number" min="0" step="0.1" value={macroCarb} onChange={e => setMacroCarb(e.target.value)} style={{ width: '100%', padding: '5px 6px', fontSize: '12px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-main)' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>Yağ (g)</label>
+                  <input type="number" min="0" step="0.1" value={macroFat} onChange={e => setMacroFat(e.target.value)} style={{ width: '100%', padding: '5px 6px', fontSize: '12px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-main)' }} />
+                </div>
+              </div>
+            </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px', marginTop: '4px' }}>
               <button

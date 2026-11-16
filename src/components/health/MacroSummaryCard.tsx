@@ -82,7 +82,7 @@ export default function MacroSummaryCard({
   onDeleteMeal
 }: MacroSummaryProps) {
   const { consumed, targets, percentages } = summary;
-  const water = waterData || { consumed_ml: 1250, target_ml: 2500, percentage: 50 };
+  const water = waterData || { consumed_ml: 0, target_ml: 2500, percentage: 0 };
 
   // Akordeon açık/kapalı durumu (varsayılan olarak içinde yemek olanlar açık)
   const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({

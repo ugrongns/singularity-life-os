@@ -14,8 +14,8 @@ export default function OnboardingModal({ isOpen, onSuccess }: Props) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Form State
-  const [fullName, setFullName] = useState('John Doe');
-  const [username, setUsername] = useState('johndoe');
+  const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [avatarEmoji, setAvatarEmoji] = useState('👑');

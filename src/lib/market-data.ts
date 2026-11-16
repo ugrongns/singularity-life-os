@@ -27,7 +27,7 @@ export interface MarketRates {
   EUR_CHANGE?: string;
   GBP_CHANGE?: string;
   GOLD_CHANGE?: string;
-  source: 'truncgil' | 'tcmb' | 'er-api' | 'fallback';
+  source: 'truncgil' | 'tcmb' | 'er-api' | 'unavailable';
   lastUpdated: string;
 }
 
@@ -52,22 +52,22 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
   }
 
   const nowIso = new Date().toISOString();
-  let usd = 48.75;
-  let usdBuy = 48.60;
-  let eur = 56.00;
-  let eurBuy = 55.80;
-  let gbp = 65.20;
-  let gbpBuy = 65.00;
-  let goldGram = 6850;
-  let goldGramBuy = 6810;
-  let goldCeyrek = 11100;
-  let goldCeyrekBuy = 10950;
-  let btcTry = 3900000;
-  let usdChange = '+0.00%';
-  let eurChange = '+0.00%';
-  let gbpChange = '+0.00%';
-  let goldChange = '+0.00%';
-  let source: MarketRates['source'] = 'fallback';
+  let usd = 0;
+  let usdBuy = 0;
+  let eur = 0;
+  let eurBuy = 0;
+  let gbp = 0;
+  let gbpBuy = 0;
+  let goldGram = 0;
+  let goldGramBuy = 0;
+  let goldCeyrek = 0;
+  let goldCeyrekBuy = 0;
+  let btcTry = 0;
+  let usdChange = '';
+  let eurChange = '';
+  let gbpChange = '';
+  let goldChange = '';
+  let source: MarketRates['source'] = 'unavailable';
 
   // 1. Kademe: Truncgil (Serbest Piyasa Döviz & Kapalıçarşı Altın)
   try {
@@ -109,7 +109,7 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
   }
 
   // 2. Kademe: TCMB Resmi Gösterge Kurları (Truncgil başarısız olduysa)
-  if (source === 'fallback') {
+  if (source === 'unavailable') {
     try {
       const res = await fetch('https://www.tcmb.gov.tr/kurlar/today.xml', {
         next: { revalidate: 600 },
@@ -129,8 +129,6 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
           usd = tcmbUsd;
           if (tcmbEur > 0) eur = tcmbEur;
           if (tcmbGbp > 0) gbp = tcmbGbp;
-          goldGram = Math.round((2715 / 31.1035) * usd * 1.03);
-          goldCeyrek = Math.round(goldGram * 1.63);
           source = 'tcmb';
         }
       }
@@ -140,7 +138,7 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
   }
 
   // 3. Kademe: open.er-api.com (Global Fallback)
-  if (source === 'fallback') {
+  if (source === 'unavailable') {
     try {
       const res = await fetch('https://open.er-api.com/v6/latest/USD', {
         next: { revalidate: 600 },
@@ -156,8 +154,6 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
           if (data.rates.GBP) {
             gbp = (1 / Number(data.rates.GBP)) * usd;
           }
-          goldGram = Math.round((2715 / 31.1035) * usd * 1.03);
-          goldCeyrek = Math.round(goldGram * 1.63);
           source = 'er-api';
         }
       }
@@ -167,11 +163,11 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
   }
 
   // Eğer tüm dış API'ler başarısız olduysa ve hafızada önceki başarılı kur varsa, onu koru (Graceful Stale Cache)
-  if (source === 'fallback' && cachedRates) {
+  if (source === 'unavailable' && cachedRates) {
     return cachedRates;
   }
 
-  // Kripto BTC/TRY Fiyatı (CoinGecko veya kur oranı hesabı)
+  // Kripto BTC/TRY Fiyatı (CoinGecko)
   try {
     const cryptoRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=try', {
       next: { revalidate: 600 },
@@ -184,10 +180,10 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
       }
     }
   } catch {
-    btcTry = Math.round(80000 * usd);
+    btcTry = 0;
   }
 
-  cachedRates = {
+  const result: MarketRates = {
     USD_TRY: Math.round(usd * 100) / 100,
     USD_BUY: Math.round((usdBuy || usd * 0.997) * 100) / 100,
     USD_SELL: Math.round(usd * 100) / 100,
@@ -211,9 +207,13 @@ export async function fetchLiveExchangeRates(forceRefresh = false): Promise<Mark
     source,
     lastUpdated: nowIso
   };
-  cachedTime = now;
 
-  return cachedRates;
+  if (source !== 'unavailable') {
+    cachedRates = result;
+    cachedTime = now;
+  }
+
+  return result;
 }
 
 /**

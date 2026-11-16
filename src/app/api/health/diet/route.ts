@@ -127,10 +127,10 @@ export async function POST(req: Request) {
     const finalMealType = meal_type || 'breakfast';
 
     // Falsy 0 ezilmesini önleyen güvenli parsing
-    const cal = parseNum(calories, 380);
-    const pro = parseNum(protein_g, 20);
-    const crb = parseNum(carbs_g, 35);
-    const fat = parseNum(fat_g, 15);
+    const cal = parseNum(calories, 0);
+    const pro = parseNum(protein_g, 0);
+    const crb = parseNum(carbs_g, 0);
+    const fat = parseNum(fat_g, 0);
 
     await db.insert(nutritionMeals).values({
       id: mealId,

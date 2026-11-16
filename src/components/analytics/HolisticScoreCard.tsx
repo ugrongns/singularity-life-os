@@ -105,35 +105,7 @@ export default function HolisticScoreCard({ scoreData }: Props) {
   const weakestPillar = sortedPillars[sortedPillars.length - 1];
   const isAllZero = total === 0 || pillars.every(p => p.score === 0);
 
-  // En Yüksek Etkili 3 Aksiyon Listesi (API'den gelmezse dinamik fallback)
-  const defaultActions: TopAction[] = [
-    {
-      pillar: 'finance',
-      title: 'Bütçe & Harcama Disiplini',
-      desc: 'Bu ayki harcamalarınızı kategori limitleri içinde tutun.',
-      impact: '+8 Puan',
-      scoreGain: 8,
-      link: '/budget'
-    },
-    {
-      pillar: 'health',
-      title: '2.5L Su & Öğün Kaydı',
-      desc: 'Günlük su tüketiminizi tamamlayın ve bugün en az 1 öğün kaydedin.',
-      impact: '+6 Puan',
-      scoreGain: 6,
-      link: '/health'
-    },
-    {
-      pillar: 'wellness',
-      title: 'Uyku & Takviye Rutini',
-      desc: 'Günlük takviyelerinizi aldım olarak işaretleyin ve uyku sürenizi kaydedin.',
-      impact: '+5 Puan',
-      scoreGain: 5,
-      link: '/wellness'
-    }
-  ];
-
-  const actionsToShow = topActions && topActions.length > 0 ? topActions : defaultActions;
+  const actionsToShow = topActions && topActions.length > 0 ? topActions : [];
 
   return (
     <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '18px' }}>

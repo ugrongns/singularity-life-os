@@ -7,9 +7,9 @@ import { getAuthUser } from '@/lib/auth';
 import { fetchLiveExchangeRates, MarketRates } from '@/lib/market-data';
 
 function calcCurrentTLValue(indexType: string, indexAmount: number, rates?: MarketRates): number {
-  const usd = rates?.USD_TRY || 48.75;
-  const eur = rates?.EUR_TRY || 56.00;
-  const gold = rates?.GOLD_GRAM_TRY || 6850;
+  const usd = rates?.USD_TRY || 0;
+  const eur = rates?.EUR_TRY || 0;
+  const gold = rates?.GOLD_GRAM_TRY || 0;
   switch (indexType) {
     case 'GOLD': return indexAmount * gold;
     case 'USD':  return indexAmount * usd;

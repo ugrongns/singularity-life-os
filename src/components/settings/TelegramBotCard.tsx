@@ -186,8 +186,15 @@ export default function TelegramBotCard() {
 
   const handleSimulateMessage = async () => {
     if (!simInput.trim() || simulating) return;
-    const userText = simInput.trim();
     const nowTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    if (!chatId.trim()) {
+      setSimMessages(prev => [
+        ...prev,
+        { sender: 'bot', text: '⚠️ Simülatörü kullanmak için önce yukarıdan Chat ID girin veya "🔍 Otomatik Bul" butonunu kullanın.', time: nowTime }
+      ]);
+      return;
+    }
+    const userText = simInput.trim();
 
     setSimMessages(prev => [...prev, { sender: 'user', text: userText, time: nowTime }]);
     setSimInput('');
@@ -203,7 +210,7 @@ export default function TelegramBotCard() {
         body: JSON.stringify({
           message: {
             text: userText,
-            chat: { id: chatId || 123456789 }
+            chat: { id: chatId.trim() }
           }
         })
       });

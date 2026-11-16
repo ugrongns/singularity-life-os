@@ -79,9 +79,9 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
   const [interestType, setInterestType] = useState<string>('simple');
 
   // Kredi Kartı & KMH Faiz / Limit Parametreleri
-  const [interestRateContractual, setInterestRateContractual] = useState<number | ''>(4.25);
-  const [interestRateLate, setInterestRateLate] = useState<number | ''>(4.55);
-  const [overdraftLimit, setOverdraftLimit] = useState<number | ''>(20000);
+  const [interestRateContractual, setInterestRateContractual] = useState<number | ''>('');
+  const [interestRateLate, setInterestRateLate] = useState<number | ''>('');
+  const [overdraftLimit, setOverdraftLimit] = useState<number | ''>('');
 
   // Vadeli Kapatma Modalı
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
@@ -140,8 +140,8 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
     setMaturityDate('');
     setInterestRate('');
     setInterestType('simple');
-    setInterestRateContractual(4.25);
-    setInterestRateLate(4.55);
+    setInterestRateContractual('');
+    setInterestRateLate('');
     setOverdraftLimit(20000);
     setCurrency('TRY');
 
@@ -164,9 +164,9 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
     setMaturityDate(acc.maturity_date || '');
     setInterestRate(acc.interest_rate || '');
     setInterestType(acc.interest_type || 'simple');
-    setInterestRateContractual(acc.interest_rate_contractual || 4.25);
-    setInterestRateLate(acc.interest_rate_late || 4.55);
-    setOverdraftLimit(acc.overdraft_limit || 20000);
+    setInterestRateContractual(acc.interest_rate_contractual ?? '');
+    setInterestRateLate(acc.interest_rate_late ?? '');
+    setOverdraftLimit(acc.overdraft_limit ?? '');
     setCurrency(acc.currency || 'TRY');
 
     setOwnerUserId((acc as any).user_id || ((acc as any).is_joint ? 'joint' : ''));
@@ -206,8 +206,8 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
           maturity_date: type === 'time_deposit' ? maturityDate : undefined,
           interest_rate: type === 'time_deposit' ? (Number(interestRate) || 0) : undefined,
           interest_type: type === 'time_deposit' ? interestType : undefined,
-          interest_rate_contractual: (type === 'credit_card' || type === 'kmh') ? (Number(interestRateContractual) || 4.25) : undefined,
-          interest_rate_late: type === 'credit_card' ? (Number(interestRateLate) || 4.55) : undefined,
+          interest_rate_contractual: (type === 'credit_card' || type === 'kmh') ? (Number(interestRateContractual) || 0) : undefined,
+          interest_rate_late: type === 'credit_card' ? (Number(interestRateLate) || 0) : undefined,
           overdraft_limit: type === 'kmh' ? (Number(overdraftLimit) || 0) : undefined,
           currency,
           owner_user_id: ownerUserId === 'joint' ? 'joint' : (ownerUserId || undefined),
@@ -258,19 +258,14 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
     return `${(Number(val) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`;
   };
 
-  // Döviz Kurları Dönüştürücü
+  // Döviz Kurları Dönüştürücü (Yalnızca canlı piyasa kurları)
   const getRate = (curr: string) => {
-    if (!marketRates) {
-      if (curr === 'USD') return 38.5;
-      if (curr === 'EUR') return 41.5;
-      if (curr === 'GBP') return 48.5;
-      if (curr === 'GOLD') return 3200;
-      return 1.0;
-    }
-    if (curr === 'USD') return marketRates.USD_TRY || 38.5;
-    if (curr === 'EUR') return marketRates.EUR_TRY || 41.5;
-    if (curr === 'GBP') return marketRates.GBP_TRY || 48.5;
-    if (curr === 'GOLD') return marketRates.GOLD_GRAM_TRY || 3200;
+    if (curr === 'TRY' || !curr) return 1.0;
+    if (!marketRates) return 0;
+    if (curr === 'USD') return marketRates.USD_TRY || 0;
+    if (curr === 'EUR') return marketRates.EUR_TRY || 0;
+    if (curr === 'GBP') return marketRates.GBP_TRY || 0;
+    if (curr === 'GOLD') return marketRates.GOLD_GRAM_TRY || 0;
     return 1.0;
   };
 

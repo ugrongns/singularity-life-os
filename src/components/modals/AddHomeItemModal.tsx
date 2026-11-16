@@ -14,7 +14,7 @@ export default function AddHomeItemModal({ isOpen, onClose, onSuccess }: AddHome
   const [title, setTitle] = useState('');
   const [itemType, setItemType] = useState('water_filter');
   const [intervalMonths, setIntervalMonths] = useState('6');
-  const [costEstimate, setCostEstimate] = useState('350');
+  const [costEstimate, setCostEstimate] = useState('');
 
   // Appliance Form State
   const [applianceName, setApplianceName] = useState('');

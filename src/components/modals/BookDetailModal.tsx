@@ -51,7 +51,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
   const [category, setCategory] = useState('Kişisel Gelişim');
   const [status, setStatus] = useState('reading');
   const [format, setFormat] = useState('physical');
-  const [shelfLocation, setShelfLocation] = useState('Salon Kitaplığı');
+  const [shelfLocation, setShelfLocation] = useState('');
   const [totalPages, setTotalPages] = useState<number | ''>(200);
   const [currentPage, setCurrentPage] = useState<number | ''>(0);
   const [wordsPerPage, setWordsPerPage] = useState<number | ''>(250);
@@ -88,7 +88,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
       setCategory(book.category || 'Kişisel Gelişim');
       setStatus(book.status || 'reading');
       setFormat(book.format || 'physical');
-      setShelfLocation(book.shelf_location || 'Salon Kitaplığı');
+      setShelfLocation(book.shelf_location || '');
       setTotalPages(book.total_pages ?? 200);
       setCurrentPage(book.current_page ?? 0);
       setWordsPerPage(book.words_per_page ?? 250);
@@ -137,7 +137,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
           category,
           status,
           format,
-          shelf_location: shelfLocation.trim() || 'Salon Kitaplığı',
+          shelf_location: shelfLocation.trim() || '',
           total_pages: Number(totalPages) || 0,
           current_page: Number(currentPage) || 0,
           words_per_page: wordsPerPage !== '' ? Number(wordsPerPage) : 250,

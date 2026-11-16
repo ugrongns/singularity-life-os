@@ -11,7 +11,7 @@ export default function MarketRatesBar({ rates, onRefresh, loading = false }: Ma
   if (!rates) return null;
 
   const formatPrice = (val?: number, isDecimals = true) => {
-    if (val === undefined || val === null) return '—';
+    if (val === undefined || val === null || val <= 0) return '—';
     return new Intl.NumberFormat('tr-TR', {
       minimumFractionDigits: isDecimals ? 2 : 0,
       maximumFractionDigits: isDecimals ? 2 : 0
@@ -116,7 +116,9 @@ export default function MarketRatesBar({ rates, onRefresh, loading = false }: Ma
     ? 'Kapalıçarşı & Serbest Piyasa'
     : rates.source === 'tcmb'
     ? 'TCMB Resmi Gösterge'
-    : 'Global FX Data';
+    : rates.source === 'er-api'
+    ? 'Global FX Data'
+    : 'Canlı Kur Alınamadı';
 
   return (
     <div style={{

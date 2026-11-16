@@ -49,10 +49,10 @@ export default function HeroNetWorthBentoCard({
   const totalAssetsTRY = cashAssetsTRY + investmentsTRY + realEstateTRY;
   const debtsTRY = netWorthData?.breakdown?.debts ?? 0;
 
-  // Kur çevrimleri
-  const usdRate = marketRates?.USD_TRY || 34.5;
-  const eurRate = marketRates?.EUR_TRY || 37.8;
-  const goldRate = marketRates?.GOLD_GRAM_TRY || 3100;
+  // Kur çevrimleri (Yalnızca canlı piyasa kurları; yoksa 0)
+  const usdRate = marketRates?.USD_TRY || 0;
+  const eurRate = marketRates?.EUR_TRY || 0;
+  const goldRate = marketRates?.GOLD_GRAM_TRY || 0;
 
   let displayNetWorth = '';
   let currencySymbol = '₺';
@@ -90,14 +90,14 @@ export default function HeroNetWorthBentoCard({
   const netCashFlow = income - expense;
   const rawBudgetScore = monthlySummary?.budgetScore;
   const scoreValue = typeof rawBudgetScore === 'object' && rawBudgetScore !== null
-    ? (rawBudgetScore.score ?? 85)
-    : (typeof rawBudgetScore === 'number' ? rawBudgetScore : 85);
+    ? (rawBudgetScore.score ?? 0)
+    : (typeof rawBudgetScore === 'number' ? rawBudgetScore : 0);
 
   // Günlük Harcama Limiti (Ayın kalan günlerine göre)
   const now = new Date();
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const daysRemaining = Math.max(daysInMonth - now.getDate() + 1, 1);
-  const remainingBudget = Math.max((monthlySummary?.totalBudgetLimit || income || 45000) - expense, 0);
+  const remainingBudget = Math.max((monthlySummary?.totalBudgetLimit || income || 0) - expense, 0);
   const dailyBudgetGuideline = Math.round(remainingBudget / daysRemaining);
 
   return (
