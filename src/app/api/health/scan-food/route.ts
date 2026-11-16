@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { packagedFoodScans } from '@/db/schema';
 import { desc, eq, or, and, ilike } from 'drizzle-orm';
-import { parsePlateImage, parsePackagedFoodImage } from '@/lib/ai-vision';
+import { parsePlateImage, parsePackagedFoodImage, RESILIENT_GEMINI_MODELS } from '@/lib/ai-vision';
 import { getAuthUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -142,8 +142,7 @@ export async function POST(req: Request) {
 
           const apiKey = process.env.GEMINI_API_KEY;
           if (apiKey) {
-            const FOOD_MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview', 'gemini-flash-latest'];
-            for (const fModel of FOOD_MODELS) {
+            for (const fModel of RESILIENT_GEMINI_MODELS) {
               try {
                 const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${fModel}:generateContent?key=${apiKey}`, {
                   method: 'POST',
@@ -228,6 +227,33 @@ SADECE aşağıdaki JSON formatında yanıt ver:
     return NextResponse.json({ success: false, error: 'Geçersiz analiz tipi.' }, { status: 400 });
   } catch (error: any) {
     console.error('Scan Food API Error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    await initDatabase();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const id = typeof body?.id === 'string' ? body.id.trim() : '';
+    const decision = body?.decision === 'consumed' || body?.decision === 'rejected' ? body.decision : null;
+    if (!id || !decision) {
+      return NextResponse.json({ success: false, error: 'Geçersiz tarama kararı.' }, { status: 400 });
+    }
+
+    await db
+      .update(packagedFoodScans)
+      .set({ decision, updated_at: new Date().toISOString() })
+      .where(and(eq(packagedFoodScans.id, id), eq(packagedFoodScans.user_id, user.id)));
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Patch Food Scan API Error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

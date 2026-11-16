@@ -1,28 +1,51 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { nutritionMeals, userHealthProfile, waterIntakeLogs, familyMembers } from '@/db/schema';
+import { nutritionMeals, nutritionMealItems, userHealthProfile, waterIntakeLogs } from '@/db/schema';
 import { eq, desc, and, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { getTodayTurkeyDate } from '@/lib/date-utils';
+import { learnFromSavedMeal, resolveAuthorizedMemberId } from '@/lib/nutrition-memory';
+
+async function deleteUserMealSafely(mealId: string, userId: string) {
+  if (!mealId || !userId) return;
+  try {
+    const owned = await db
+      .select({ id: nutritionMeals.id })
+      .from(nutritionMeals)
+      .where(and(eq(nutritionMeals.id, mealId), eq(nutritionMeals.user_id, userId)))
+      .limit(1);
+
+    if (Array.isArray(owned) && owned.length > 0) {
+      await db.delete(nutritionMealItems).where(eq(nutritionMealItems.meal_id, mealId));
+    }
+  } catch (err) {
+    console.warn('Meal items cleanup notice:', err);
+  }
+
+  await db
+    .delete(nutritionMeals)
+    .where(and(eq(nutritionMeals.id, mealId), eq(nutritionMeals.user_id, userId)));
+}
 
 export async function GET(req: Request) {
   try {
     await initDatabase();
     const user = await getAuthUser();
-    const userId = user?.id;
-    const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+    }
+    const userId = user.id;
+    const familyId = user.family_id || `fam-${userId}`;
     const today = getTodayTurkeyDate();
 
     const { searchParams } = new URL(req.url);
     const memberId = searchParams.get('member_id');
 
-    let profile = userId
-      ? (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1))[0]
-      : null;
+    let profile = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1))[0] || null;
     
     if (!profile) {
       profile = {
-        id: `hp-${userId || 'guest'}`,
+        id: `hp-${userId}`,
         daily_calorie_target: 2200,
         target_protein_g: 140,
         target_carbs_g: 180,
@@ -32,36 +55,43 @@ export async function GET(req: Request) {
         active_fasting_protocol: '16:8',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        user_id: userId || null
+        user_id: userId
       } as any;
     }
 
-    let todayMeals = userId
-      ? await db.select()
-          .from(nutritionMeals)
-          .where(
-            and(
-              eq(nutritionMeals.date, today),
-              or(
-                eq(nutritionMeals.user_id, userId),
-                familyId ? and(eq(nutritionMeals.family_id, familyId), eq(nutritionMeals.is_family_shared, 1)) : undefined
-              )
-            )
+    let todayMeals = await db.select()
+      .from(nutritionMeals)
+      .where(
+        and(
+          eq(nutritionMeals.date, today),
+          or(
+            eq(nutritionMeals.user_id, userId),
+            familyId ? and(eq(nutritionMeals.family_id, familyId), eq(nutritionMeals.is_family_shared, 1)) : undefined
           )
-          .orderBy(desc(nutritionMeals.created_at))
-      : [];
+        )
+      )
+      .orderBy(desc(nutritionMeals.created_at));
 
     // Eğer belirli bir aile üyesi seçildiyse ona göre filtrele
     if (memberId) {
       todayMeals = todayMeals.filter(m => m.member_id === memberId);
     }
 
+    // PostgreSQL real(float4) kaynaklı 2.5999999 artifaktlarını 1 ondalığa normalize et
+    const sanitizedMeals = todayMeals.map(meal => ({
+      ...meal,
+      calories: Math.round(Number(meal.calories) || 0),
+      protein_g: Math.round((Number(meal.protein_g) || 0) * 10) / 10,
+      carbs_g: Math.round((Number(meal.carbs_g) || 0) * 10) / 10,
+      fat_g: Math.round((Number(meal.fat_g) || 0) * 10) / 10
+    }));
+
     let totalCalories = 0;
     let totalProtein = 0;
     let totalCarbs = 0;
     let totalFat = 0;
 
-    for (const meal of todayMeals) {
+    for (const meal of sanitizedMeals) {
       totalCalories += meal.calories;
       totalProtein += meal.protein_g;
       totalCarbs += meal.carbs_g;
@@ -71,9 +101,9 @@ export async function GET(req: Request) {
     const summary = {
       consumed: {
         calories: Math.round(totalCalories),
-        protein_g: Math.round(totalProtein),
-        carbs_g: Math.round(totalCarbs),
-        fat_g: Math.round(totalFat)
+        protein_g: Math.round(totalProtein * 10) / 10,
+        carbs_g: Math.round(totalCarbs * 10) / 10,
+        fat_g: Math.round(totalFat * 10) / 10
       },
       targets: {
         calories: profile?.daily_calorie_target || 2200,
@@ -94,7 +124,7 @@ export async function GET(req: Request) {
       data: {
         summary,
         profile,
-        meals: todayMeals
+        meals: sanitizedMeals
       }
     });
   } catch (error: any) {
@@ -159,7 +189,7 @@ export async function POST(req: Request) {
 
     // Öğün Silme
     if (action === 'delete_meal') {
-      await db.delete(nutritionMeals).where(and(eq(nutritionMeals.id, data.id), eq(nutritionMeals.user_id, user.id)));
+      await deleteUserMealSafely(data.id, user.id);
       return NextResponse.json({ success: true, message: 'Öğün silindi.' });
     }
 
@@ -167,35 +197,18 @@ export async function POST(req: Request) {
     const name = data.name || 'Öğün';
     const meal_type = data.meal_type || 'lunch';
     const multiplier = parseFloat(data.portion_multiplier) || 1.0;
-    
-    const calories = Math.round((parseFloat(data.calories || data.base_calories) || 0) * multiplier);
-    const protein_g = Math.round((parseFloat(data.protein_g || data.base_protein) || 0) * multiplier);
-    const carbs_g = Math.round((parseFloat(data.carbs_g || data.base_carbs) || 0) * multiplier);
-    const fat_g = Math.round((parseFloat(data.fat_g || data.base_fat) || 0) * multiplier);
+
+    const calories = Math.round((parseFloat(data.calories ?? data.base_calories) || 0) * multiplier);
+    const protein_g = Math.round(((parseFloat(data.protein_g ?? data.base_protein) || 0) * multiplier) * 10) / 10;
+    const carbs_g = Math.round(((parseFloat(data.carbs_g ?? data.base_carbs) || 0) * multiplier) * 10) / 10;
+    const fat_g = Math.round(((parseFloat(data.fat_g ?? data.base_fat) || 0) * multiplier) * 10) / 10;
 
     const mealId = `meal-${Date.now()}`;
 
-    // Aktif aile üyesi kimliğini bul (varsa data.member_id, yoksa üyenin kendisi)
-    let memberId: string | null = data.member_id || null;
-    if (!memberId) {
-      try {
-        const member = (await db.select().from(familyMembers).where(
-          and(
-            eq(familyMembers.is_active, 1),
-            eq(familyMembers.user_id, user.id)
-          )
-        ))[0] || (familyId ? (await db.select().from(familyMembers).where(
-          and(
-            eq(familyMembers.is_active, 1),
-            eq(familyMembers.family_id, familyId)
-          )
-        ))[0] : null);
-        if (member) {
-          memberId = member.id;
-        }
-      } catch {
-        memberId = null;
-      }
+    // Aile üyesi sahipliğini doğrula (OWASP BOLA koruması)
+    const { memberId, authorized } = await resolveAuthorizedMemberId(user.id, familyId, data.member_id);
+    if (!authorized) {
+      return NextResponse.json({ success: false, error: 'Seçilen aile üyesine erişim yetkiniz yok.' }, { status: 403 });
     }
 
     await db.insert(nutritionMeals).values({
@@ -219,6 +232,27 @@ export async function POST(req: Request) {
       user_id: user.id,
       family_id: familyId
     });
+
+    // Öğrenilen Besin Hafızası: Öğün kalemlerini ve 100g profillerini kalıcı kaydet
+    const explicitGrams =
+      data.grams !== undefined && data.grams !== null && data.grams !== '' && Number.isFinite(Number(data.grams))
+        ? Number(data.grams)
+        : undefined;
+    try {
+      await learnFromSavedMeal({
+        userId: user.id,
+        mealId,
+        mealName: name,
+        totalCalories: calories,
+        totalProteinG: protein_g,
+        totalCarbsG: carbs_g,
+        totalFatG: fat_g,
+        defaultGrams: explicitGrams,
+        items: Array.isArray(data.items) ? data.items : undefined
+      });
+    } catch (learnErr) {
+      console.warn('Nutrition memory learn notice:', learnErr);
+    }
 
     // Event Bus üzerinden beslenme olayını bildir
     try {
@@ -261,12 +295,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Öğün ID gereklidir.' }, { status: 400 });
     }
 
-    await db.delete(nutritionMeals).where(
-      and(
-        eq(nutritionMeals.id, id),
-        eq(nutritionMeals.user_id, user.id)
-      )
-    );
+    await deleteUserMealSafely(id, user.id);
 
     return NextResponse.json({
       success: true,

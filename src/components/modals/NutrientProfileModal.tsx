@@ -22,6 +22,7 @@ interface NutrientProfileData {
 
 interface NutrientProfileModalProps {
   isOpen: boolean;
+  memberId?: string | null;
   onClose: () => void;
   initialFoodName?: string;
   initialGrams?: number;
@@ -31,6 +32,7 @@ interface NutrientProfileModalProps {
 
 export default function NutrientProfileModal({
   isOpen,
+  memberId,
   onClose,
   initialFoodName = '',
   initialGrams = 100,
@@ -63,11 +65,22 @@ export default function NutrientProfileModal({
 
     if (profileData.categories?.macros) {
       profileData.categories.macros.forEach(m => {
-        const num = parseFloat(m.value);
-        if (m.label.includes('Kalori') && !isNaN(num)) cal = num;
-        else if (m.label === 'Protein' && !isNaN(num)) pro = num;
-        else if (m.label === 'Karbonhidrat' && !isNaN(num)) carb = num;
-        else if (m.label === 'Toplam Yağ' && !isNaN(num)) fat = num;
+        const lbl = String(m.label || '').toLowerCase();
+        if (lbl.startsWith('└')) return;
+        const num = parseFloat(String(m.value || '').replace(',', '.'));
+        if (isNaN(num)) return;
+        if (lbl.includes('kalori') || lbl.includes('enerji')) cal = num;
+        else if (lbl.includes('protein')) pro = num;
+        else if (lbl.includes('karbonhidrat')) carb = num;
+        else if (
+          lbl.includes('yağ') &&
+          !lbl.includes('doymuş') &&
+          !lbl.includes('tekli') &&
+          !lbl.includes('çoklu') &&
+          !lbl.includes('trans')
+        ) {
+          fat = num;
+        }
       });
     }
 
@@ -152,8 +165,10 @@ export default function NutrientProfileModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: `${data.food_name} (${grams}g)`,
+          name: data.food_name,
           meal_type: mealType,
+          member_id: memberId || undefined,
+          grams,
           base_calories: calories,
           base_protein: protein,
           base_carbs: carbs,

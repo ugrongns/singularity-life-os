@@ -5,11 +5,12 @@ import NutrientProfileModal from '@/components/modals/NutrientProfileModal';
 
 interface BarcodeScanModalProps {
   isOpen: boolean;
+  memberId?: string | null;
   onClose: () => void;
   onSuccess: (msg: string) => void;
 }
 
-export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: BarcodeScanModalProps) {
+export default function BarcodeScanModal({ isOpen, memberId, onClose, onSuccess }: BarcodeScanModalProps) {
   const [step, setStep] = useState<'upload' | 'live_camera' | 'scanning' | 'result'>('upload');
   const [barcodeInput, setBarcodeInput] = useState('');
   const [result, setResult] = useState<any | null>(null);
@@ -227,6 +228,8 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
           body: JSON.stringify({
             name: result.product_name,
             meal_type: 'snack',
+            member_id: memberId || undefined,
+            grams: 100,
             base_calories: Math.max(0, Number(macroCal) || 0),
             base_protein: Math.max(0, Number(macroPro) || 0),
             base_carbs: Math.max(0, Number(macroCarb) || 0),
@@ -234,6 +237,13 @@ export default function BarcodeScanModal({ isOpen, onClose, onSuccess }: Barcode
             portion_multiplier: 1.0
           })
         });
+        if (result?.id) {
+          await fetch('/api/health/scan-food', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: result.id, decision: 'consumed' })
+          });
+        }
       } catch (e) {}
       onSuccess(`🥗 "${result?.product_name}" günlük beslenmenize başarıyla eklendi!`);
     } else {

@@ -368,7 +368,7 @@ async function _runInit(): Promise<void> {
 
       CREATE TABLE IF NOT EXISTS nutrition_meal_items (
         id TEXT PRIMARY KEY,
-        meal_id TEXT NOT NULL REFERENCES nutrition_meals(id),
+        meal_id TEXT NOT NULL REFERENCES nutrition_meals(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
         grams DOUBLE PRECISION DEFAULT 100,
         calories DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -377,6 +377,16 @@ async function _runInit(): Promise<void> {
         fat_g DOUBLE PRECISION NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS food_nutrient_profiles (
+        id TEXT PRIMARY KEY,
+        food_name TEXT NOT NULL,
+        portion_g DOUBLE PRECISION NOT NULL DEFAULT 100,
+        categories_data TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        user_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS fasting_sessions (
@@ -808,6 +818,24 @@ async function _runInit(): Promise<void> {
       ALTER TABLE book_quotes ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE user_reading_profile ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE nutrition_meals ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE nutrition_meals ADD COLUMN IF NOT EXISTS micronutrient_data TEXT;
+      ALTER TABLE nutrition_meals ALTER COLUMN calories TYPE DOUBLE PRECISION USING calories::double precision;
+      ALTER TABLE nutrition_meals ALTER COLUMN protein_g TYPE DOUBLE PRECISION USING protein_g::double precision;
+      ALTER TABLE nutrition_meals ALTER COLUMN carbs_g TYPE DOUBLE PRECISION USING carbs_g::double precision;
+      ALTER TABLE nutrition_meals ALTER COLUMN fat_g TYPE DOUBLE PRECISION USING fat_g::double precision;
+      ALTER TABLE nutrition_meals ALTER COLUMN portion_multiplier TYPE DOUBLE PRECISION USING portion_multiplier::double precision;
+      ALTER TABLE nutrition_meal_items ALTER COLUMN grams TYPE DOUBLE PRECISION USING grams::double precision;
+      ALTER TABLE nutrition_meal_items ALTER COLUMN calories TYPE DOUBLE PRECISION USING calories::double precision;
+      ALTER TABLE nutrition_meal_items ALTER COLUMN protein_g TYPE DOUBLE PRECISION USING protein_g::double precision;
+      ALTER TABLE nutrition_meal_items ALTER COLUMN carbs_g TYPE DOUBLE PRECISION USING carbs_g::double precision;
+      ALTER TABLE nutrition_meal_items ALTER COLUMN fat_g TYPE DOUBLE PRECISION USING fat_g::double precision;
+      ALTER TABLE food_nutrient_profiles ADD COLUMN IF NOT EXISTS user_id TEXT;
+      ALTER TABLE food_nutrient_profiles ALTER COLUMN portion_g TYPE DOUBLE PRECISION USING portion_g::double precision;
+      ALTER TABLE packaged_food_scans ADD COLUMN IF NOT EXISTS micronutrient_profile TEXT;
+      ALTER TABLE nutrition_meal_items DROP CONSTRAINT IF EXISTS nutrition_meal_items_meal_id_fkey;
+      ALTER TABLE nutrition_meal_items ADD CONSTRAINT nutrition_meal_items_meal_id_fkey FOREIGN KEY (meal_id) REFERENCES nutrition_meals(id) ON DELETE CASCADE;
+      ALTER TABLE nutrition_meals DROP CONSTRAINT IF EXISTS nutrition_meals_member_id_fkey;
+      ALTER TABLE nutrition_meals ADD CONSTRAINT nutrition_meals_member_id_fkey FOREIGN KEY (member_id) REFERENCES family_members(id) ON DELETE SET NULL;
       ALTER TABLE fasting_sessions ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE user_health_profile ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE supplement_routines ADD COLUMN IF NOT EXISTS family_id TEXT;
@@ -879,6 +907,10 @@ async function _runInit(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_tasks_family_id ON tasks (family_id);
       CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks (due_date);
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks (status);
+      CREATE INDEX IF NOT EXISTS idx_nutrition_meals_user_id ON nutrition_meals (user_id);
+      CREATE INDEX IF NOT EXISTS idx_nutrition_meals_family_id ON nutrition_meals (family_id);
+      CREATE INDEX IF NOT EXISTS idx_nutrition_meal_items_meal_id ON nutrition_meal_items (meal_id);
+      CREATE INDEX IF NOT EXISTS idx_food_nutrient_profiles_user_id ON food_nutrient_profiles (user_id);
     `;
 
     await pgClient.unsafe(createTablesSQL);

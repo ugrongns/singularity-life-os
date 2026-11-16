@@ -5,11 +5,12 @@ import { Sparkles, ChevronRight, Search, ShieldCheck, Microscope } from 'lucide-
 import NutrientProfileModal from '@/components/modals/NutrientProfileModal';
 
 interface NutrientProfileCardProps {
+  memberId?: string | null;
   onSuccess?: (msg?: string) => void;
   onRefresh?: () => void;
 }
 
-export default function NutrientProfileCard({ onSuccess, onRefresh }: NutrientProfileCardProps = {}) {
+export default function NutrientProfileCard({ memberId, onSuccess, onRefresh }: NutrientProfileCardProps = {}) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedFood, setSelectedFood] = useState('');
 
@@ -161,6 +162,7 @@ export default function NutrientProfileCard({ onSuccess, onRefresh }: NutrientPr
         onClose={() => setIsModalOpen(false)}
         initialFoodName={selectedFood}
         initialGrams={100}
+        memberId={memberId}
         onSuccess={(msg) => {
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('singularity-refresh'));

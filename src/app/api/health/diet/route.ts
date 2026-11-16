@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { dietMealOptions, nutritionMeals, familyMembers } from '@/db/schema';
+import { dietMealOptions, nutritionMeals } from '@/db/schema';
 import { getAuthUser } from '@/lib/auth';
 import { eq, asc, and, or, isNull } from 'drizzle-orm';
 import { getTodayTurkeyDate } from '@/lib/date-utils';
+import { resolveAuthorizedMemberId } from '@/lib/nutrition-memory';
 
 function parseNum(v: any, fallback = 0): number {
   if (v === undefined || v === null || v === '') return fallback;
@@ -95,32 +96,17 @@ export async function POST(req: Request) {
     }
 
     // 2. Mevcut Menüyü Günlük Beslenmeye / Makrolara İşleme İşlemi (Varsayılan)
-    const { custom_title, calories, protein_g, carbs_g, fat_g, meal_type } = body;
+    const { custom_title, calories, protein_g, carbs_g, fat_g, meal_type, member_id } = body;
 
     const now = new Date().toISOString();
     const today = getTodayTurkeyDate();
 
     const userId = user.id;
 
-    // Aktif aile üyesi kimliğini bul (varsa member_id, yoksa null - FK hatasını önler)
-    let memberId: string | null = null;
-    try {
-      const member = (await db.select().from(familyMembers).where(
-        and(
-          eq(familyMembers.is_active, 1),
-          eq(familyMembers.user_id, userId)
-        )
-      ))[0] || (familyId ? (await db.select().from(familyMembers).where(
-        and(
-          eq(familyMembers.is_active, 1),
-          eq(familyMembers.family_id, familyId)
-        )
-      ))[0] : null);
-      if (member) {
-        memberId = member.id;
-      }
-    } catch {
-      memberId = null;
+    // Aile üyesi sahipliğini doğrula (OWASP BOLA koruması)
+    const { memberId, authorized } = await resolveAuthorizedMemberId(userId, familyId, member_id);
+    if (!authorized) {
+      return NextResponse.json({ success: false, error: 'Seçilen aile üyesine erişim yetkiniz yok.' }, { status: 403 });
     }
 
     const mealId = `meal-${Date.now()}`;

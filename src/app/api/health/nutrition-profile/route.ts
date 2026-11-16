@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { foodNutrientProfiles } from '@/db/schema';
 import { getAuthUser } from '@/lib/auth';
-import { eq, ilike } from 'drizzle-orm';
+import { eq, isNull, or } from 'drizzle-orm';
+import { normalizeFoodKey } from '@/lib/nutrition-memory';
 
 export const dynamic = 'force-dynamic';
 
@@ -882,11 +883,25 @@ export async function GET(req: Request) {
       await initDatabase(); 
     } catch (e) {}
 
-    // 2. VERİTABANI ÖNBELLEĞİ KONTROLÜ
+    // 2. VERİTABANI ÖNBELLEĞİ KONTROLÜ (OWASP BOLA: Yalnızca kullanıcının kendi veya genel profilleri)
     try {
-      const existing = await db.select().from(foodNutrientProfiles).where(ilike(foodNutrientProfiles.food_name, `%${queryFood}%`)).limit(1);
-      if (existing.length > 0) {
-        const profile = existing[0];
+      const targetKey = normalizeFoodKey(queryFood);
+      const candidates = await db
+        .select()
+        .from(foodNutrientProfiles)
+        .where(or(eq(foodNutrientProfiles.user_id, user.id), isNull(foodNutrientProfiles.user_id)))
+        .limit(300);
+
+      // Kullanıcının kendi kaydını ve birebir normalize edilmiş anahtar eşleşmesini öncelikle seç
+      const ownCandidates = candidates.filter((p: any) => p.user_id === user.id);
+      const publicCandidates = candidates.filter((p: any) => !p.user_id);
+      const ordered = [...ownCandidates, ...publicCandidates];
+
+      const profile =
+        ordered.find((p: any) => normalizeFoodKey(p.food_name) === targetKey) ||
+        ordered.find((p: any) => normalizeFoodKey(p.food_name).includes(targetKey));
+
+      if (profile) {
         const categoriesData = JSON.parse(profile.categories_data || '{}');
         return NextResponse.json({
           success: true,

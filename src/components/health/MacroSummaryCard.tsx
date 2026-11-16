@@ -509,10 +509,10 @@ export default function MacroSummaryCard({
         {MEAL_CATEGORIES.map(cat => {
           const catMeals = groupedMeals[cat.key] || [];
           const isOpen = openAccordions[cat.key];
-          const totalCal = catMeals.reduce((sum, m) => sum + (m.calories || 0), 0);
-          const totalProt = catMeals.reduce((sum, m) => sum + (m.protein_g || 0), 0);
-          const totalCarb = catMeals.reduce((sum, m) => sum + (m.carbs_g || 0), 0);
-          const totalF = catMeals.reduce((sum, m) => sum + (m.fat_g || 0), 0);
+          const totalCal = Math.round(catMeals.reduce((sum, m) => sum + (m.calories || 0), 0));
+          const totalProt = Math.round(catMeals.reduce((sum, m) => sum + (m.protein_g || 0), 0) * 10) / 10;
+          const totalCarb = Math.round(catMeals.reduce((sum, m) => sum + (m.carbs_g || 0), 0) * 10) / 10;
+          const totalF = Math.round(catMeals.reduce((sum, m) => sum + (m.fat_g || 0), 0) * 10) / 10;
 
           return (
             <div
@@ -615,15 +615,15 @@ export default function MacroSummaryCard({
                           <div>
                             <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{meal.name}</div>
                             <div style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'flex', gap: '6px' }}>
-                              <span style={{ color: '#6366F1' }}>P: {meal.protein_g}g</span>
-                              <span style={{ color: '#F59E0B' }}>C: {meal.carbs_g}g</span>
-                              <span style={{ color: '#10B981' }}>Y: {meal.fat_g}g</span>
+                              <span style={{ color: '#6366F1' }}>P: {Math.round((meal.protein_g || 0) * 10) / 10}g</span>
+                              <span style={{ color: '#F59E0B' }}>C: {Math.round((meal.carbs_g || 0) * 10) / 10}g</span>
+                              <span style={{ color: '#10B981' }}>Y: {Math.round((meal.fat_g || 0) * 10) / 10}g</span>
                             </div>
                           </div>
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span className="tabular-nums" style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '12px' }}>
-                              {meal.calories} kcal
+                              {Math.round(meal.calories || 0)} kcal
                             </span>
                             {onDeleteMeal && (
                               <button

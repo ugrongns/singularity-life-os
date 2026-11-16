@@ -14,12 +14,13 @@ import {
 
 interface PlateScanModalProps {
   isOpen: boolean;
+  memberId?: string | null;
   onClose: () => void;
   onSuccess: (msg: string) => void;
 }
 
 export default function PlateScanModal({
- isOpen, onClose, onSuccess }: PlateScanModalProps) {
+ isOpen, memberId, onClose, onSuccess }: PlateScanModalProps) {
   const [step, setStep] = useState<'upload' | 'scanning' | 'confirm'>('upload');
   const [multiplier, setMultiplier] = useState<number>(1.0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -146,11 +147,26 @@ export default function PlateScanModal({
           action: 'add_meal',
           name: parsedPlate.name,
           meal_type: parsedPlate.meal_type || 'lunch',
-          base_calories: Math.round(parsedPlate.base_calories * multiplier),
-          base_protein: Math.round(parsedPlate.base_protein * multiplier),
-          base_carbs: Math.round(parsedPlate.base_carbs * multiplier),
-          base_fat: Math.round(parsedPlate.base_fat * multiplier),
-          portion_multiplier: multiplier
+          member_id: memberId || undefined,
+          base_calories: parsedPlate.base_calories,
+          base_protein: parsedPlate.base_protein,
+          base_carbs: parsedPlate.base_carbs,
+          base_fat: parsedPlate.base_fat,
+          portion_multiplier: multiplier,
+          items: Array.isArray(parsedPlate.items)
+            ? parsedPlate.items.map((it: any) => {
+                const gramMatch = String(it.name || '').match(/(\d+(?:\.\d+)?)\s*(?:g|gr|gram|ml)\b/i);
+                const rawItemGrams = Number(it.grams) || (gramMatch ? parseFloat(gramMatch[1]) : 100);
+                return {
+                  name: it.name,
+                  grams: Math.max(1, Math.round(rawItemGrams * multiplier)),
+                  calories: Math.round((Number(it.calories) || 0) * multiplier),
+                  protein_g: Math.round((Number(it.protein_g ?? it.protein) || 0) * multiplier * 10) / 10,
+                  carbs_g: Math.round((Number(it.carbs_g ?? it.carbs) || 0) * multiplier * 10) / 10,
+                  fat_g: Math.round((Number(it.fat_g ?? it.fat) || 0) * multiplier * 10) / 10
+                };
+              })
+            : undefined
         })
       });
       const json = await res.json();

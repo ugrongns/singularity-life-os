@@ -33,11 +33,12 @@ interface DietOption {
 
 interface DietModalProps {
   isOpen: boolean;
+  memberId?: string | null;
   onClose: () => void;
   onSuccess: (msg: string) => void;
 }
 
-export default function DietPlanModal({ isOpen, onClose, onSuccess }: DietModalProps) {
+export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: DietModalProps) {
   const [options, setOptions] = useState<DietOption[]>([]);
   const [selectedOption, setSelectedOption] = useState<DietOption | null>(null);
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
@@ -123,6 +124,7 @@ export default function DietPlanModal({ isOpen, onClose, onSuccess }: DietModalP
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           option_id: selectedOption.id,
+          member_id: memberId || undefined,
           custom_title: selectedOption.title,
           meal_type: selectedOption.meal_type,
           calories: selectedOption.calories,

@@ -216,7 +216,7 @@ export default function HealthPage() {
 
         {/* ALT SATIR: 2 Sütunlu Analitik Paneller (360° Vitamin & Gıda Analiz Karnesi) */}
         <div className="health-bento-grid">
-          <NutrientProfileCard />
+          <NutrientProfileCard memberId={selectedMemberId} />
 
           <FoodQualityScoreCard
             scans={foodScanData}
@@ -234,24 +234,28 @@ export default function HealthPage() {
       {/* Modallar */}
       <PlateScanModal
         isOpen={isPlateScanOpen}
+        memberId={selectedMemberId}
         onClose={() => setIsPlateScanOpen(false)}
         onSuccess={(msg) => handleUpdate(msg)}
       />
 
       <BarcodeScanModal
         isOpen={isBarcodeScanOpen}
+        memberId={selectedMemberId}
         onClose={() => setIsBarcodeScanOpen(false)}
         onSuccess={(msg) => handleUpdate(msg)}
       />
 
       <DietPlanModal
         isOpen={isDietOpen}
+        memberId={selectedMemberId}
         onClose={() => setIsDietOpen(false)}
         onSuccess={(msg) => handleUpdate(msg)}
       />
 
       <AddMealModal
         isOpen={isAddMealOpen}
+        memberId={selectedMemberId}
         initialMealType={defaultMealType}
         onClose={() => {
           setIsAddMealOpen(false);
