@@ -836,6 +836,16 @@ async function _runInit(): Promise<void> {
       ALTER TABLE nutrition_meal_items ADD CONSTRAINT nutrition_meal_items_meal_id_fkey FOREIGN KEY (meal_id) REFERENCES nutrition_meals(id) ON DELETE CASCADE;
       ALTER TABLE nutrition_meals DROP CONSTRAINT IF EXISTS nutrition_meals_member_id_fkey;
       ALTER TABLE nutrition_meals ADD CONSTRAINT nutrition_meals_member_id_fkey FOREIGN KEY (member_id) REFERENCES family_members(id) ON DELETE SET NULL;
+      ALTER TABLE diet_meal_options ADD COLUMN IF NOT EXISTS user_id TEXT;
+      ALTER TABLE diet_meal_options ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE diet_meal_options ALTER COLUMN calories TYPE DOUBLE PRECISION USING calories::double precision;
+      ALTER TABLE diet_meal_options ALTER COLUMN protein_g TYPE DOUBLE PRECISION USING protein_g::double precision;
+      ALTER TABLE diet_meal_options ALTER COLUMN carbs_g TYPE DOUBLE PRECISION USING carbs_g::double precision;
+      ALTER TABLE diet_meal_options ALTER COLUMN fat_g TYPE DOUBLE PRECISION USING fat_g::double precision;
+      ALTER TABLE recurring_bills ADD COLUMN IF NOT EXISTS user_id TEXT;
+      ALTER TABLE recurring_bills ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS user_id TEXT;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE fasting_sessions ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE user_health_profile ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE supplement_routines ADD COLUMN IF NOT EXISTS family_id TEXT;
@@ -911,6 +921,8 @@ async function _runInit(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_nutrition_meals_family_id ON nutrition_meals (family_id);
       CREATE INDEX IF NOT EXISTS idx_nutrition_meal_items_meal_id ON nutrition_meal_items (meal_id);
       CREATE INDEX IF NOT EXISTS idx_food_nutrient_profiles_user_id ON food_nutrient_profiles (user_id);
+      CREATE INDEX IF NOT EXISTS idx_diet_meal_options_user_id ON diet_meal_options (user_id);
+      CREATE INDEX IF NOT EXISTS idx_diet_meal_options_family_id ON diet_meal_options (family_id);
     `;
 
     await pgClient.unsafe(createTablesSQL);
