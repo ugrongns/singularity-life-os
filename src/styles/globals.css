@@ -934,6 +934,11 @@ body {
     max-width: 760px !important;
   }
 
+  .modal-card.modal-xl,
+  .bottom-sheet.modal-xl {
+    max-width: 860px !important;
+  }
+
   .sheet-handle {
     display: none !important;
   }
@@ -1681,8 +1686,8 @@ body {
 @media (min-width: 768px) {
   .vault-modal-split {
     display: grid;
-    grid-template-columns: 310px 1fr;
-    gap: 20px;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 24px;
     align-items: start;
   }
 }

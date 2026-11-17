@@ -237,10 +237,9 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
-        className="bottom-sheet"
+        className="bottom-sheet modal-xl"
         onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: '860px',
           maxHeight: '92vh',
           overflowY: 'auto',
           padding: '24px'
@@ -470,121 +469,136 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
           </div>
 
           {/* SAĞ SÜTUN: Belge Meta Veri Formu */}
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>BELGE ADI / BAŞLIK *</label>
-              <input
-                type="text"
-                placeholder="Ör. T.C. Bordo Pasaport, Kadıköy Tapu, Samsung TV Garanti"
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                required
-                style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0 }}>
+            <fieldset
+              disabled={scanningAI}
+              style={{
+                border: 'none',
+                margin: 0,
+                padding: 0,
+                minWidth: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                opacity: scanningAI ? 0.65 : 1,
+                transition: 'opacity 0.2s ease'
+              }}
+            >
               <div>
-                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>BELGE TÜRÜ *</label>
-                <select
-                  value={type}
-                  onChange={e => setType(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
-                >
-                  <option value="passport">🛂 Pasaport</option>
-                  <option value="id_card">🪪 Kimlik Kartı</option>
-                  <option value="license">📋 Ehliyet / Ruhsat</option>
-                  <option value="warranty">🛡️ Garanti Belgesi</option>
-                  <option value="contract">📄 Sözleşme / Kontrat</option>
-                  <option value="title_deed">🏠 Tapu / Gayrimenkul</option>
-                  <option value="health">🩺 Sağlık Raporu / Aşı</option>
-                  <option value="insurance">🏥 Sigorta / Kasko / DASK</option>
-                  <option value="invoice">🧾 Fatura / Makbuz</option>
-                  <option value="other">📁 Diğer Belge</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>BELGE SAHİBİ</label>
+                <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, marginBottom: '4px' }}>BELGE ADI / BAŞLIK *</label>
                 <input
                   type="text"
-                  placeholder="Ör. Ben, Eşim, Aile"
-                  value={owner}
-                  onChange={e => setOwner(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
+                  placeholder="Ör. T.C. Bordo Pasaport, Kadıköy Tapu, Samsung TV Garanti"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  required
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-main)' }}
                 />
               </div>
-            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                <div style={{ minWidth: 0 }}>
+                  <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, marginBottom: '4px' }}>BELGE TÜRÜ *</label>
+                  <select
+                    value={type}
+                    onChange={e => setType(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', height: '38px', padding: '0 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-main)' }}
+                  >
+                    <option value="passport">🛂 Pasaport</option>
+                    <option value="id_card">🪪 Kimlik Kartı</option>
+                    <option value="license">📋 Ehliyet / Ruhsat</option>
+                    <option value="warranty">🛡️ Garanti Belgesi</option>
+                    <option value="contract">📄 Sözleşme / Kontrat</option>
+                    <option value="title_deed">🏠 Tapu / Gayrimenkul</option>
+                    <option value="health">🩺 Sağlık Raporu / Aşı</option>
+                    <option value="insurance">🏥 Sigorta / Kasko / DASK</option>
+                    <option value="invoice">🧾 Fatura / Makbuz</option>
+                    <option value="other">📁 Diğer Belge</option>
+                  </select>
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, marginBottom: '4px' }}>BELGE SAHİBİ</label>
+                  <input
+                    type="text"
+                    placeholder="Ör. Ben, Eşim, Aile"
+                    value={owner}
+                    onChange={e => setOwner(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', height: '38px', padding: '0 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-main)' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                <div style={{ minWidth: 0 }}>
+                  <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, marginBottom: '4px' }}>BELGE / SERİ NO</label>
+                  <input
+                    type="text"
+                    placeholder="Ör. U12345678, SN992-881"
+                    value={documentNumber}
+                    onChange={e => setDocumentNumber(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-main)', fontFamily: 'monospace' }}
+                  />
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, marginBottom: '4px' }}>VEREN KURUM / MARKA</label>
+                  <input
+                    type="text"
+                    placeholder="Ör. NVİ, Samsung, Aksigorta"
+                    value={issuer}
+                    onChange={e => setIssuer(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-main)' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '8px' }}>
+                <div style={{ minWidth: 0 }}>
+                  <label style={{ display: 'block', fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800, marginBottom: '4px', whiteSpace: 'nowrap' }}>VERİLİŞ TARİHİ</label>
+                  <input
+                    type="date"
+                    value={issueDate}
+                    onChange={e => setIssueDate(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-main)' }}
+                  />
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  <label style={{ display: 'block', fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800, marginBottom: '4px', whiteSpace: 'nowrap' }}>SON KULLANMA / BİTİŞ</label>
+                  <input
+                    type="date"
+                    value={expiryDate}
+                    onChange={e => setExpiryDate(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-main)' }}
+                  />
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  <label style={{ display: 'block', fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800, marginBottom: '4px', whiteSpace: 'nowrap' }}>UYARI (GÜN ÖNCE)</label>
+                  <input
+                    type="number"
+                    value={remindDaysBefore}
+                    onChange={e => setRemindDaysBefore(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-main)' }}
+                  />
+                </div>
+              </div>
+
               <div>
-                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>BELGE / SERİ NO</label>
-                <input
-                  type="text"
-                  placeholder="Ör. U12345678, SN992-881"
-                  value={documentNumber}
-                  onChange={e => setDocumentNumber(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)', fontFamily: 'monospace' }}
+                <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, marginBottom: '4px' }}>NOTLAR & SAKLAMA DETAYLARI</label>
+                <textarea
+                  rows={3}
+                  placeholder="Fiziksel saklama dolabı, poliçe detayları veya önemli şartlar..."
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', fontSize: '12px', lineHeight: '1.45', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-main)', resize: 'vertical' }}
                 />
               </div>
-
-              <div>
-                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>VEREN KURUM / MARKA</label>
-                <input
-                  type="text"
-                  placeholder="Ör. NVİ, Samsung, Aksigorta"
-                  value={issuer}
-                  onChange={e => setIssuer(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)' }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px' }}>
-              <div>
-                <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800 }}>VERİLİŞ TARİHİ</label>
-                <input
-                  type="date"
-                  value={issueDate}
-                  onChange={e => setIssueDate(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800 }}>SON KULLANMA / BİTİŞ</label>
-                <input
-                  type="date"
-                  value={expiryDate}
-                  onChange={e => setExpiryDate(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800 }}>UYARI (GÜN ÖNCE)</label>
-                <input
-                  type="number"
-                  value={remindDaysBefore}
-                  onChange={e => setRemindDaysBefore(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px', background: 'var(--surface)', color: 'var(--text-main)' }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>NOTLAR & SAKLAMA DETAYLARI</label>
-              <textarea
-                rows={2}
-                placeholder="Fiziksel saklama dolabı, poliçe detayları veya önemli şartlar..."
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px', background: 'var(--surface)', color: 'var(--text-main)', resize: 'vertical' }}
-              />
-            </div>
+            </fieldset>
 
             {/* Alt Butonlar */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginTop: '8px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
               <button
                 type="button"
                 onClick={onClose}
@@ -596,7 +610,9 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
                   color: 'var(--text-main)',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-md)',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
                 }}
               >
                 Vazgeç
@@ -612,13 +628,18 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
                   color: 'var(--surface)',
                   border: 'none',
                   borderRadius: 'var(--radius-md)',
-                  cursor: 'pointer',
+                  cursor: submitting || scanningAI ? 'not-allowed' : 'pointer',
+                  opacity: submitting || scanningAI ? 0.65 : 1,
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px'
+                  justifyContent: 'center',
+                  gap: '6px',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
                 }}
               >
-                <span>{submitting ? 'Kaydediliyor...' : isEditing ? '💾 Değişiklikleri Kaydet' : '➕ Kasaya Kaydet'}</span>
+                <span>{submitting ? '⏳' : isEditing ? '💾' : '➕'}</span>
+                <span>{submitting ? 'Kaydediliyor...' : isEditing ? 'Değişiklikleri Kaydet' : 'Kasaya Kaydet'}</span>
               </button>
             </div>
           </form>
