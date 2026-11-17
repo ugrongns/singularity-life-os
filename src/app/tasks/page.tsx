@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Calendar } from 'lucide-react';
 import SharedLayout from '@/components/layout/SharedLayout';
 import TasksClient from '@/components/tasks/TasksClient';
 import PageLoadingState from '@/components/ui/PageLoadingState';
@@ -9,6 +10,7 @@ export default function TasksPage() {
   const [data, setData] = useState<any>(null);
   const [notifData, setNotifData] = useState<any>({ notifications: [], critical: 0, warning: 0 });
   const [loading, setLoading] = useState(true);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -65,28 +67,57 @@ export default function TasksPage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={fetchData}
-          className="btn-subtle"
-          style={{
-            fontSize: '12px',
-            fontWeight: 700,
-            padding: '8px 12px',
-            borderRadius: 'var(--radius-md)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            border: '1px solid var(--border)'
-          }}
-          title="Verileri Yenile"
-        >
-          <span>🔄</span>
-          <span className="hidden-mobile">Yenile</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={() => setIsCalendarOpen(prev => !prev)}
+            className="btn-subtle"
+            aria-expanded={isCalendarOpen}
+            style={{
+              fontSize: '12px',
+              fontWeight: 700,
+              padding: '8px 12px',
+              borderRadius: 'var(--radius-md)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              border: `1px solid ${isCalendarOpen ? 'rgba(59, 130, 246, 0.45)' : 'var(--border)'}`,
+              background: isCalendarOpen ? 'rgba(59, 130, 246, 0.12)' : undefined,
+              color: isCalendarOpen ? '#3B82F6' : undefined
+            }}
+            title={isCalendarOpen ? 'Takvimi Gizle' : 'Takvimi Göster'}
+          >
+            <Calendar size={14} />
+            <span>Takvim</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={fetchData}
+            className="btn-subtle"
+            style={{
+              fontSize: '12px',
+              fontWeight: 700,
+              padding: '8px 12px',
+              borderRadius: 'var(--radius-md)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              border: '1px solid var(--border)'
+            }}
+            title="Verileri Yenile"
+          >
+            <span>🔄</span>
+            <span className="hidden-mobile">Yenile</span>
+          </button>
+        </div>
       </div>
 
-      <TasksClient initialData={data} />
+      <TasksClient
+        initialData={data}
+        isCalendarOpen={isCalendarOpen}
+        onCloseCalendar={() => setIsCalendarOpen(false)}
+      />
     </SharedLayout>
   );
 }

@@ -9,6 +9,9 @@ import {
   toTurkeyDay,
   validateMitConstraint,
   filterTasksByView,
+  filterTasksByDate,
+  projectVirtualRecurrences,
+  buildTaskCalendarMonth,
   generateCrossModuleActionItems,
   TaskItem,
   Subtask
@@ -709,6 +712,159 @@ describe('🎯 Singularity Faz 6: Görevler & Odak Motoru (/tasks) Test Paketi',
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe('7. Aylık Görev Takvimi & Sanal Rutin Önizleme Motoru', () => {
+    it('filterTasksByDate görevleri saate ve tamamlanma durumuna göre sıralamalı, tarihsiz bitenleri Türkiye gününe eşlemelidir', () => {
+      const items: TaskItem[] = [
+        {
+          id: 'done-timed', title: 'Sabah bitti', status: 'completed', priority: 'low', pillar: 'general',
+          is_mit: 0, due_date: '2026-11-18', due_time: '08:00', recurrence: 'none', is_family_shared: 0,
+          created_at: '2026-11-17T08:00:00Z', updated_at: '2026-11-18T08:00:00Z'
+        },
+        {
+          id: 'open-untimed-mit', title: 'Saatsiz MIT', status: 'pending', priority: 'high', pillar: 'work',
+          is_mit: 1, due_date: '2026-11-18', due_time: null, recurrence: 'none', is_family_shared: 0,
+          created_at: '2026-11-17T08:00:00Z', updated_at: '2026-11-17T08:00:00Z'
+        },
+        {
+          id: 'open-21', title: 'Akşam görevi', status: 'pending', priority: 'critical', pillar: 'mind',
+          is_mit: 0, due_date: '2026-11-18', due_time: '21:00', recurrence: 'none', is_family_shared: 0,
+          created_at: '2026-11-17T08:00:00Z', updated_at: '2026-11-17T08:00:00Z'
+        },
+        {
+          id: 'open-09', title: 'Sabah görevi', status: 'pending', priority: 'medium', pillar: 'health',
+          is_mit: 0, due_date: '2026-11-18', due_time: '09:00', recurrence: 'none', is_family_shared: 0,
+          created_at: '2026-11-17T08:00:00Z', updated_at: '2026-11-17T08:00:00Z'
+        },
+        {
+          id: 'undated-done-tr', title: 'Gece biten tarihsiz', status: 'completed', priority: 'low', pillar: 'general',
+          is_mit: 0, due_date: null, completed_at: '2026-11-17T22:30:00Z', recurrence: 'none', is_family_shared: 0,
+          created_at: '2026-11-17T08:00:00Z', updated_at: '2026-11-17T22:30:00Z'
+        },
+        {
+          id: 'other-day', title: 'Başka gün', status: 'pending', priority: 'low', pillar: 'general',
+          is_mit: 0, due_date: '2026-11-19', recurrence: 'none', is_family_shared: 0,
+          created_at: '2026-11-17T08:00:00Z', updated_at: '2026-11-17T08:00:00Z'
+        }
+      ];
+
+      const sorted = filterTasksByDate(items, '2026-11-18');
+      expect(sorted.map(t => t.id)).toEqual([
+        'open-09',
+        'open-21',
+        'open-untimed-mit',
+        'done-timed',
+        'undated-done-tr'
+      ]);
+    });
+
+    it('projectVirtualRecurrences günlük/haftalık/aylık rutinleri öngörmeli, tamamlananlardan ve çakışanlardan kopya üretmemelidir', () => {
+      const items: TaskItem[] = [
+        {
+          id: 'r-daily', title: 'Su iç', status: 'pending', priority: 'low', pillar: 'health',
+          is_mit: 0, due_date: '2026-11-17', recurrence: 'daily', is_family_shared: 0,
+          created_at: '2026-11-17T08:00:00Z', updated_at: '2026-11-17T08:00:00Z'
+        },
+        {
+          id: 'r-daily-real-dup', title: 'Su iç', status: 'pending', priority: 'low', pillar: 'health',
+          is_mit: 0, due_date: '2026-11-19', recurrence: 'daily', is_family_shared: 0,
+          created_at: '2026-11-17T08:00:00Z', updated_at: '2026-11-17T08:00:00Z'
+        },
+        {
+          id: 'r-weekly', title: 'Haftalık yedek', status: 'pending', priority: 'medium', pillar: 'work',
+          is_mit: 0, due_date: '2026-11-10', recurrence: 'weekly', is_family_shared: 0,
+          created_at: '2026-11-10T08:00:00Z', updated_at: '2026-11-10T08:00:00Z'
+        },
+        {
+          id: 'r-monthly-31', title: 'Ay sonu raporu', status: 'pending', priority: 'high', pillar: 'finance',
+          is_mit: 0, due_date: '2026-01-31', recurrence: 'monthly', is_family_shared: 0,
+          created_at: '2026-01-31T08:00:00Z', updated_at: '2026-01-31T08:00:00Z'
+        },
+        {
+          id: 'r-completed', title: 'Eski bitmiş rutin', status: 'completed', priority: 'low', pillar: 'general',
+          is_mit: 0, due_date: '2026-11-15', recurrence: 'daily', is_family_shared: 0,
+          created_at: '2026-11-15T08:00:00Z', updated_at: '2026-11-15T08:00:00Z'
+        }
+      ];
+
+      // 1) Kasım penceresi (2026-11-17 .. 2026-11-24)
+      const novProj = projectVirtualRecurrences(items, '2026-11-17', '2026-11-24', '2026-11-17');
+      const dailyDates = novProj.filter(v => v.title === 'Su iç').map(v => v.due_date);
+      expect(dailyDates).not.toContain('2026-11-17'); // gerçek görevin günü
+      expect(dailyDates).not.toContain('2026-11-19'); // o günde gerçek kopya zaten var
+      expect(dailyDates).toContain('2026-11-18');
+      expect(dailyDates).toContain('2026-11-20');
+
+      const weeklyDates = novProj.filter(v => v.title === 'Haftalık yedek').map(v => v.due_date);
+      expect(weeklyDates).toEqual(['2026-11-17', '2026-11-24']);
+
+      expect(novProj.filter(v => v.title === 'Eski bitmiş rutin')).toHaveLength(0);
+
+      // 2) Aylık 31. gün sabitlemesi: Şubat 28, Mart 31 olarak korunmalı
+      const febMarProj = projectVirtualRecurrences([items[3]], '2026-02-01', '2026-03-31', '2026-02-01');
+      expect(febMarProj.map(v => v.due_date)).toEqual(['2026-02-28', '2026-03-31']);
+    });
+
+    it('buildTaskCalendarMonth Pazartesi hizalamasını, hücre sayaçlarını ve Sistem Köprüsü eşleşmelerini doğru üretmelidir', () => {
+      // Şubat 2021 Pazartesi günü başlar ve 28 gündür -> tam 28 hücre
+      const feb2021 = buildTaskCalendarMonth(2021, 1, [], [], '2021-02-15');
+      expect(feb2021).toHaveLength(28);
+      expect(feb2021[0].dateStr).toBe('2021-02-01');
+      expect(feb2021[27].dateStr).toBe('2021-02-28');
+
+      // Kasım 2026 Pazar günü başlar -> 6 gün taşma (26 Eki .. 6 Ara = 42 hücre)
+      const tasksNov: TaskItem[] = [
+        {
+          id: 't-past-open', title: 'Gecikmiş', status: 'pending', priority: 'high', pillar: 'finance',
+          is_mit: 0, due_date: '2026-11-15', recurrence: 'none', is_family_shared: 0,
+          created_at: '2026-11-15T08:00:00Z', updated_at: '2026-11-15T08:00:00Z'
+        },
+        {
+          id: 't-today-mit', title: 'Bugün MIT', status: 'pending', priority: 'critical', pillar: 'work',
+          is_mit: 1, due_date: '2026-11-17', recurrence: 'weekly', is_family_shared: 0,
+          created_at: '2026-11-17T08:00:00Z', updated_at: '2026-11-17T08:00:00Z'
+        },
+        {
+          id: 't-today-done', title: 'Bugün bitti', status: 'completed', priority: 'low', pillar: 'health',
+          is_mit: 0, due_date: '2026-11-17', recurrence: 'none', is_family_shared: 0,
+          created_at: '2026-11-17T08:00:00Z', updated_at: '2026-11-17T12:00:00Z'
+        }
+      ];
+
+      const nov2026 = buildTaskCalendarMonth(
+        2026,
+        10, // Kasım
+        tasksNov,
+        [{
+          id: 'cm-1', title: 'Elektrik Faturası', subtitle: '500 ₺', pillar: 'finance',
+          priority: 'high', due_date: '2026-11-20', source_module: 'finance', source_ref_id: 'b-1', action_url: '/budget'
+        }],
+        '2026-11-17'
+      );
+
+      expect(nov2026).toHaveLength(42);
+      expect(nov2026[0].dateStr).toBe('2026-10-26');
+      expect(nov2026[0].isCurrentMonth).toBe(false);
+
+      const nov15 = nov2026.find(d => d.dateStr === '2026-11-15')!;
+      expect(nov15.overdueCount).toBe(1);
+
+      const nov17 = nov2026.find(d => d.dateStr === '2026-11-17')!;
+      expect(nov17.isToday).toBe(true);
+      expect(nov17.totalTasks).toBe(2);
+      expect(nov17.pendingCount).toBe(1);
+      expect(nov17.completedCount).toBe(1);
+      expect(nov17.mitCount).toBe(1);
+
+      const nov20 = nov2026.find(d => d.dateStr === '2026-11-20')!;
+      expect(nov20.bridgeActions).toHaveLength(1);
+
+      // 17 Kasım haftalık görevi 24 Kasım ve 1 Aralık'a sanal önizleme bırakmalı
+      const nov24 = nov2026.find(d => d.dateStr === '2026-11-24')!;
+      expect(nov24.virtualRecurrences).toHaveLength(1);
+      expect(nov24.virtualRecurrences[0].title).toBe('Bugün MIT');
     });
   });
 });

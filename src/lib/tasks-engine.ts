@@ -1,5 +1,5 @@
 // Singularity Life OS - Görevler & Odak Motoru (Faz 17)
-import { getTodayTurkeyDate } from './date-utils';
+import { getTodayTurkeyDate, shiftTurkeyDate, diffTurkeyCalendarDays } from './date-utils';
 
 /**
  * UTC ISO zaman damgasını (ör. completed_at) Türkiye yerel takvim gününe çevirir.
@@ -381,4 +381,237 @@ export function generateCrossModuleActionItems(options: {
   }
 
   return actions;
+}
+
+export interface VirtualRecurrenceItem {
+  id: string;
+  sourceTaskId: string;
+  title: string;
+  pillar: TaskPillar;
+  priority: TaskPriority;
+  recurrence: TaskRecurrence;
+  due_date: string;
+  due_time?: string | null;
+  is_mit: number;
+}
+
+export interface TaskCalendarDay {
+  dateStr: string;
+  dayNumber: number;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+  totalTasks: number;
+  pendingCount: number;
+  completedCount: number;
+  mitCount: number;
+  overdueCount: number;
+  bridgeActions: CrossModuleAction[];
+  virtualRecurrences: VirtualRecurrenceItem[];
+}
+
+/**
+ * Görevin takvimde yerleşeceği YYYY-MM-DD gününü döndürür.
+ * Vade tarihi varsa onu, tarihsiz ama tamamlanmışsa Türkiye saatine göre tamamlanma gününü baz alır.
+ */
+export function getTaskCalendarDay(task: Pick<TaskItem, 'due_date' | 'status' | 'completed_at'>): string | null {
+  if (task.due_date && /^\d{4}-\d{2}-\d{2}$/.test(task.due_date)) {
+    return task.due_date;
+  }
+  if (task.status === 'completed') {
+    return toTurkeyDay(task.completed_at);
+  }
+  return null;
+}
+
+/**
+ * Seçili günün görevlerini filtreler ve saat sırasına (tamamlananlar en altta) dizer.
+ */
+export function filterTasksByDate(tasks: TaskItem[], dateStr: string): TaskItem[] {
+  return tasks
+    .filter(t => getTaskCalendarDay(t) === dateStr)
+    .sort((a, b) => {
+      const aDone = a.status === 'completed' ? 1 : 0;
+      const bDone = b.status === 'completed' ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;
+
+      const aTime = a.due_time?.trim() || '';
+      const bTime = b.due_time?.trim() || '';
+      if (aTime && bTime && aTime !== bTime) return aTime.localeCompare(bTime);
+      if (aTime && !bTime) return -1;
+      if (!aTime && bTime) return 1;
+
+      return (b.is_mit ?? 0) - (a.is_mit ?? 0);
+    });
+}
+
+function getDaysInUtcMonth(year: number, monthIndex: number): number {
+  return new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+}
+
+/**
+ * Tamamlanmamış tekrarlayan görevlerden, görünen takvim penceresi için
+ * gelecek sanal tekrar tarihlerini O(1) atlamayla üretir.
+ */
+export function projectVirtualRecurrences(
+  tasks: TaskItem[],
+  rangeStartStr: string,
+  rangeEndStr: string,
+  todayStr: string
+): VirtualRecurrenceItem[] {
+  if (!rangeStartStr || !rangeEndStr || rangeStartStr > rangeEndStr) return [];
+
+  const existingKeys = new Set<string>();
+  for (const t of tasks) {
+    if (t.due_date && /^\d{4}-\d{2}-\d{2}$/.test(t.due_date)) {
+      existingKeys.add(`${t.due_date}|${t.title.trim().toLowerCase()}|${t.recurrence}`);
+    }
+  }
+
+  const emittedKeys = new Set<string>();
+  const results: VirtualRecurrenceItem[] = [];
+
+  const pushIfNew = (task: TaskItem, dateStr: string) => {
+    const key = `${dateStr}|${task.title.trim().toLowerCase()}|${task.recurrence}`;
+    if (existingKeys.has(key) || emittedKeys.has(key)) return;
+    emittedKeys.add(key);
+    results.push({
+      id: `vrec-${task.id}-${dateStr}`,
+      sourceTaskId: task.id,
+      title: task.title,
+      pillar: task.pillar,
+      priority: task.priority,
+      recurrence: task.recurrence,
+      due_date: dateStr,
+      due_time: task.due_time,
+      is_mit: task.is_mit
+    });
+  };
+
+  for (const task of tasks) {
+    if (task.status === 'completed') continue;
+    if (!task.recurrence || task.recurrence === 'none') continue;
+    if (!task.due_date || !/^\d{4}-\d{2}-\d{2}$/.test(task.due_date)) continue;
+
+    const afterAnchor = shiftTurkeyDate(task.due_date, 1);
+    let minDateStr = afterAnchor > todayStr ? afterAnchor : todayStr;
+    if (rangeStartStr > minDateStr) minDateStr = rangeStartStr;
+    if (minDateStr > rangeEndStr) continue;
+
+    if (task.recurrence === 'daily') {
+      let cursor = minDateStr;
+      while (cursor <= rangeEndStr) {
+        pushIfNew(task, cursor);
+        cursor = shiftTurkeyDate(cursor, 1);
+      }
+    } else if (task.recurrence === 'weekly') {
+      const diff = diffTurkeyCalendarDays(minDateStr, task.due_date);
+      if (diff === null) continue;
+      const stepDays = Math.max(7, Math.ceil(diff / 7) * 7);
+      let cursor = shiftTurkeyDate(task.due_date, stepDays);
+      while (cursor <= rangeEndStr) {
+        pushIfNew(task, cursor);
+        cursor = shiftTurkeyDate(cursor, 7);
+      }
+    } else if (task.recurrence === 'monthly') {
+      const anchorDay = Number(task.due_date.slice(8, 10));
+      let curYear = Number(minDateStr.slice(0, 4));
+      let curMonth = Number(minDateStr.slice(5, 7)) - 1;
+      const endYear = Number(rangeEndStr.slice(0, 4));
+      const endMonth = Number(rangeEndStr.slice(5, 7)) - 1;
+
+      while (curYear < endYear || (curYear === endYear && curMonth <= endMonth)) {
+        const clampedDay = Math.min(anchorDay, getDaysInUtcMonth(curYear, curMonth));
+        const candidate = `${curYear}-${String(curMonth + 1).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+        if (candidate >= minDateStr && candidate <= rangeEndStr) {
+          pushIfNew(task, candidate);
+        }
+        curMonth += 1;
+        if (curMonth > 11) {
+          curMonth = 0;
+          curYear += 1;
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Verilen yıl ve ay (0-11) için Pazartesi başlangıçlı aylık takvim ızgarasını üretir.
+ */
+export function buildTaskCalendarMonth(
+  year: number,
+  monthIndex: number,
+  tasks: TaskItem[],
+  crossModuleActions: CrossModuleAction[],
+  todayStr: string
+): TaskCalendarDay[] {
+  const monthPrefix = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+  const firstDayStr = `${monthPrefix}-01`;
+  const firstUtc = new Date(Date.UTC(year, monthIndex, 1, 12, 0, 0));
+  const leadingOffset = (firstUtc.getUTCDay() + 6) % 7; // Pazartesi = 0, Pazar = 6
+  const daysInMonth = getDaysInUtcMonth(year, monthIndex);
+  const totalCells = Math.ceil((leadingOffset + daysInMonth) / 7) * 7;
+
+  const gridStartStr = shiftTurkeyDate(firstDayStr, -leadingOffset);
+  const gridEndStr = shiftTurkeyDate(firstDayStr, totalCells - leadingOffset - 1);
+
+  const tasksByDay = new Map<string, TaskItem[]>();
+  for (const t of tasks) {
+    const dayKey = getTaskCalendarDay(t);
+    if (!dayKey || dayKey < gridStartStr || dayKey > gridEndStr) continue;
+    const list = tasksByDay.get(dayKey) || [];
+    list.push(t);
+    tasksByDay.set(dayKey, list);
+  }
+
+  const bridgeByDay = new Map<string, CrossModuleAction[]>();
+  for (const action of crossModuleActions) {
+    if (!action.due_date || action.due_date < gridStartStr || action.due_date > gridEndStr) continue;
+    const list = bridgeByDay.get(action.due_date) || [];
+    list.push(action);
+    bridgeByDay.set(action.due_date, list);
+  }
+
+  const virtualByDay = new Map<string, VirtualRecurrenceItem[]>();
+  for (const vr of projectVirtualRecurrences(tasks, gridStartStr, gridEndStr, todayStr)) {
+    const list = virtualByDay.get(vr.due_date) || [];
+    list.push(vr);
+    virtualByDay.set(vr.due_date, list);
+  }
+
+  const grid: TaskCalendarDay[] = [];
+  for (let i = 0; i < totalCells; i++) {
+    const dateStr = shiftTurkeyDate(gridStartStr, i);
+    const dayTasks = tasksByDay.get(dateStr) || [];
+    let pendingCount = 0;
+    let completedCount = 0;
+    let mitCount = 0;
+
+    for (const t of dayTasks) {
+      if (t.status === 'completed') {
+        completedCount += 1;
+      } else {
+        pendingCount += 1;
+        if (t.is_mit === 1) mitCount += 1;
+      }
+    }
+
+    grid.push({
+      dateStr,
+      dayNumber: Number(dateStr.slice(8, 10)),
+      isCurrentMonth: dateStr.slice(0, 7) === monthPrefix,
+      isToday: dateStr === todayStr,
+      totalTasks: dayTasks.length,
+      pendingCount,
+      completedCount,
+      mitCount,
+      overdueCount: dateStr < todayStr ? pendingCount : 0,
+      bridgeActions: bridgeByDay.get(dateStr) || [],
+      virtualRecurrences: virtualByDay.get(dateStr) || []
+    });
+  }
+
+  return grid;
 }

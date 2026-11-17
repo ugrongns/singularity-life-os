@@ -22,7 +22,8 @@ import {
   Sparkles,
   Inbox,
   Filter,
-  CheckSquare
+  CheckSquare,
+  X
 } from 'lucide-react';
 import {
   TaskItem,
@@ -31,16 +32,24 @@ import {
   CrossModuleAction,
   PILLAR_CONFIGS,
   PRIORITY_CONFIGS,
-  filterTasksByView
+  filterTasksByView,
+  filterTasksByDate
 } from '@/lib/tasks-engine';
-import { getTodayTurkeyDate } from '@/lib/date-utils';
+import { getTodayTurkeyDate, formatTurkishDisplayDate } from '@/lib/date-utils';
 import AddTaskModal from '@/components/modals/AddTaskModal';
+import TaskCalendarPanel from '@/components/tasks/TaskCalendarPanel';
 
 interface TasksClientProps {
   initialData?: any;
+  isCalendarOpen?: boolean;
+  onCloseCalendar?: () => void;
 }
 
-export default function TasksClient({ initialData }: TasksClientProps) {
+export default function TasksClient({
+  initialData,
+  isCalendarOpen,
+  onCloseCalendar
+}: TasksClientProps) {
   const [tasks, setTasks] = useState<TaskItem[]>(initialData?.tasks || []);
   const [mitSummary, setMitSummary] = useState(initialData?.mitSummary || { activeMitCount: 0, completedMitCount: 0, maxMit: 3 });
   const [crossModuleActions, setCrossModuleActions] = useState<CrossModuleAction[]>(initialData?.crossModuleActions || []);
@@ -50,6 +59,11 @@ export default function TasksClient({ initialData }: TasksClientProps) {
   const [filterType, setFilterType] = useState<'all' | 'personal' | 'family'>('all');
   const [selectedPillar, setSelectedPillar] = useState<string>('all');
   const [selectedMember, setSelectedMember] = useState<string>('all');
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [internalCalendarOpen, setInternalCalendarOpen] = useState(false);
+
+  const calendarOpen = isCalendarOpen ?? internalCalendarOpen;
+  const closeCalendar = onCloseCalendar ?? (() => setInternalCalendarOpen(false));
 
   const [loading, setLoading] = useState(!initialData);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -254,25 +268,34 @@ export default function TasksClient({ initialData }: TasksClientProps) {
   const todayMitTasks = tasks.filter(t => t.is_mit === 1 && (!t.due_date || t.due_date === todayStr));
   const mitPercent = Math.min(100, Math.round((mitSummary.completedMitCount / Math.max(1, (mitSummary.activeMitCount + mitSummary.completedMitCount))) * 100)) || 0;
 
-  // Görünüm Listesi Filtreleme (Tek kaynak: tasks-engine.filterTasksByView)
-  let displayedTasks = activeTab === 'bridge' ? tasks : filterTasksByView(tasks, activeTab, todayStr);
+  // Görünüm Listesi Filtreleme (Tek kaynak: tasks-engine)
+  const applyScopeFilters = (list: TaskItem[]) => {
+    let result = list;
+    if (filterType === 'personal') {
+      result = result.filter(t => t.is_family_shared === 0);
+    } else if (filterType === 'family') {
+      result = result.filter(t => t.is_family_shared === 1);
+    }
+    if (selectedPillar !== 'all') {
+      result = result.filter(t => t.pillar === selectedPillar);
+    }
+    if (selectedMember !== 'all') {
+      result = result.filter(t => t.assigned_member_id === selectedMember);
+    }
+    return result;
+  };
 
-  // Kişisel / Aile Filtresi
-  if (filterType === 'personal') {
-    displayedTasks = displayedTasks.filter(t => t.is_family_shared === 0);
-  } else if (filterType === 'family') {
-    displayedTasks = displayedTasks.filter(t => t.is_family_shared === 1);
-  }
+  const scopedTasks = applyScopeFilters(tasks);
+  const displayedTasks = selectedDate
+    ? applyScopeFilters(filterTasksByDate(tasks, selectedDate))
+    : applyScopeFilters(activeTab === 'bridge' ? tasks : filterTasksByView(tasks, activeTab, todayStr));
 
-  // Pillar Filtresi
-  if (selectedPillar !== 'all') {
-    displayedTasks = displayedTasks.filter(t => t.pillar === selectedPillar);
-  }
-
-  // Aile Üyesi Filtresi
-  if (selectedMember !== 'all') {
-    displayedTasks = displayedTasks.filter(t => t.assigned_member_id === selectedMember);
-  }
+  const handleSelectCalendarDate = (dateStr: string | null) => {
+    setSelectedDate(dateStr);
+    if (dateStr && activeTab === 'bridge') {
+      setActiveTab('today');
+    }
+  };
 
   const compactPrimaryBtnStyle: React.CSSProperties = {
     width: 'auto',
@@ -321,6 +344,23 @@ export default function TasksClient({ initialData }: TasksClientProps) {
         <div className="toast-glass" role="status" aria-live="polite">
           {toastMsg}
         </div>
+      )}
+
+      {/* 📅 AÇILIR/KAPANIR AYLIK GÖREV TAKVİMİ (Varsayılan kapalı) */}
+      {calendarOpen && (
+        <TaskCalendarPanel
+          tasks={scopedTasks}
+          crossModuleActions={crossModuleActions}
+          todayStr={todayStr}
+          selectedDate={selectedDate}
+          onSelectDate={handleSelectCalendarDate}
+          onAddTaskForDate={(dateStr) => {
+            setEditingTask({ due_date: dateStr } as any);
+            setIsModalOpen(true);
+          }}
+          onImportCrossModule={handleImportCrossModule}
+          onClose={closeCalendar}
+        />
       )}
 
       {/* 🎯 1. BENTO ODAK MERKEZİ — GÜNÜN 3 ODAĞI (MIT) */}
@@ -541,12 +581,15 @@ export default function TasksClient({ initialData }: TasksClientProps) {
               { id: 'bridge', label: '🌉 Sistem Köprüsü', count: crossModuleActions.length, color: '#EC4899', bg: 'rgba(236, 72, 153, 0.15)' },
               { id: 'completed', label: '✅ Tamamlananlar', count: filterTasksByView(tasks, 'completed', todayStr).length, color: '#10B981', bg: 'rgba(16, 185, 129, 0.15)' },
             ].map(tab => {
-              const isSelected = activeTab === tab.id;
+              const isSelected = !selectedDate && activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => {
+                    setSelectedDate(null);
+                    setActiveTab(tab.id as any);
+                  }}
                   style={{
                     padding: '6px 12px',
                     borderRadius: '999px',
@@ -617,7 +660,7 @@ export default function TasksClient({ initialData }: TasksClientProps) {
         </div>
 
         {/* Pillar & Üye Filtre Çubuğu */}
-        {activeTab !== 'bridge' && (
+        {(selectedDate || activeTab !== 'bridge') && (
           <div
             className="no-scrollbar"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', paddingBottom: '2px', width: '100%' }}
@@ -676,7 +719,7 @@ export default function TasksClient({ initialData }: TasksClientProps) {
 
       {/* 3. İÇERİK LİSTESİ */}
       {/* A. SİSTEM KÖPRÜSÜ SEKMESİ */}
-      {activeTab === 'bridge' ? (
+      {!selectedDate && activeTab === 'bridge' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', background: 'var(--surface-subtle)', padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
             🌉 <strong>Modüller Arası Otomatik Görev Köprüsü:</strong> Yaklaşan faturalar, kredi kartı ekstreleri, araç muayene/kasko tarihleri ve dijital kasa evrakları otomatik tespit edilir. Tek tıkla yapılacak görevlerinize aktarabilirsiniz.
@@ -753,11 +796,77 @@ export default function TasksClient({ initialData }: TasksClientProps) {
       ) : (
         /* B. NORMAL GÖREV LİSTESİ */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {selectedDate && !calendarOpen && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '8px',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid rgba(59, 130, 246, 0.35)',
+                background: 'rgba(59, 130, 246, 0.08)',
+                fontSize: '12px'
+              }}
+            >
+              <span style={{ fontWeight: 800, color: '#3B82F6' }}>
+                📅 Seçili Gün Filtresi: {formatTurkishDisplayDate(selectedDate, true)}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTask({ due_date: selectedDate } as any);
+                    setIsModalOpen(true);
+                  }}
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(59, 130, 246, 0.35)',
+                    background: 'var(--surface)',
+                    color: '#3B82F6',
+                    cursor: 'pointer'
+                  }}
+                >
+                  + Bu Güne Ekle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(null)}
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    color: 'var(--text-muted)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <X size={12} />
+                  <span>Temizle</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {displayedTasks.length === 0 ? (
             <div className="card" style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
               <div style={{ fontSize: '36px', marginBottom: '8px' }}>🎯</div>
               <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)' }}>
-                {activeTab === 'completed' ? 'Henüz tamamlanan görev yok' : 'Bu görünümde görev bulunmuyor'}
+                {selectedDate
+                  ? 'Bu tarihte görev bulunmuyor'
+                  : activeTab === 'completed'
+                    ? 'Henüz tamamlanan görev yok'
+                    : 'Bu görünümde görev bulunmuyor'}
               </div>
               <div style={{ fontSize: '12px', marginTop: '4px' }}>
                 Yeni bir görev veya odak hedefi belirlemek için "+ Yeni Görev Ekle" butonunu kullanın.
