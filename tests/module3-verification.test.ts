@@ -8,7 +8,7 @@ import { POST as handleVehicleMaintenancePost } from '../src/app/api/vehicles/ma
 import { GET as getWater, POST as handleWaterPost } from '../src/app/api/health/water/route';
 import { POST as handleShoppingListPost } from '../src/app/api/shopping-list/route';
 import { POST as handleScaleLogsPost } from '../src/app/api/wellness/scale-logs/route';
-import { GET as getDigitalVault } from '../src/app/api/digital-vault/route';
+import { GET as getDigitalVault, PUT as updateDigitalVault } from '../src/app/api/digital-vault/route';
 import { POST as handleDietPost } from '../src/app/api/health/diet/route';
 import { POST as handleUploadCover } from '../src/app/api/library/upload-cover/route';
 import { POST as handleScanInvoice } from '../src/app/api/home-operations/scan-invoice/route';
@@ -494,6 +494,54 @@ describe('🎯 Modül 3 Denetim Raporu Doğrulama Testleri (TDD Verification)', 
       const vaultItem = data.data.vaultItems[0];
       expect(vaultItem.document_image_url).toBe('/api/digital-vault/file?id=v-1');
       expect(vaultItem.has_file).toBe(true);
+      expect(vaultItem.is_pdf).toBe(true);
+    });
+
+    it('Kasa düzenlemesinde (PUT) /api/digital-vault/file proxy URL gönderilirse veritabanındaki dosya üzerine yazılmamalı, boş gönderilirse temizlenmelidir', async () => {
+      (getAuthUser as any).mockResolvedValue({
+        id: 'usr-1',
+        family_id: 'fam-1',
+        is_master_account: 1
+      });
+
+      const chainPreserve = createUpdateChain();
+      mockUpdate.mockReturnValueOnce(chainPreserve);
+
+      const resPreserve = await updateDigitalVault(new Request('http://localhost/api/digital-vault', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          section: 'vault',
+          id: 'v-1',
+          title: 'Güncellenmiş Tapu',
+          type: 'title_deed',
+          owner: 'Uğur',
+          remind_days_before: 0,
+          document_image_url: '/api/digital-vault/file?id=v-1'
+        })
+      }));
+      expect(resPreserve.status).toBe(200);
+      expect(chainPreserve.lastSet.title).toBe('Güncellenmiş Tapu');
+      expect(chainPreserve.lastSet.remind_days_before).toBe(0);
+      expect('document_image_url' in chainPreserve.lastSet).toBe(false);
+
+      const chainClear = createUpdateChain();
+      mockUpdate.mockReturnValueOnce(chainClear);
+
+      const resClear = await updateDigitalVault(new Request('http://localhost/api/digital-vault', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          section: 'vault',
+          id: 'v-1',
+          title: 'Dosyasız Tapu',
+          type: 'title_deed',
+          owner: 'Uğur',
+          document_image_url: ''
+        })
+      }));
+      expect(resClear.status).toBe(200);
+      expect(chainClear.lastSet.document_image_url).toBeNull();
     });
 
     it('Bugün olan doğum günlerinde sayaç 0 gün göstermeli, gelecek yıla (365 güne) atlamamalıdır', async () => {

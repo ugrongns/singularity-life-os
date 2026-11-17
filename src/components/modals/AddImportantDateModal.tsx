@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface ImportantDate {
   id?: string;
@@ -25,10 +25,22 @@ export default function AddImportantDateModal({ isOpen, item, onClose, onSuccess
   const [personName, setPersonName] = useState(item?.person_name || '');
   const [eventType, setEventType] = useState(item?.event_type || 'birthday');
   const [eventDate, setEventDate] = useState(item?.event_date || '01-01');
-  const [remindDaysBefore, setRemindDaysBefore] = useState(String(item?.remind_days_before || 7));
+  const [remindDaysBefore, setRemindDaysBefore] = useState(String(item?.remind_days_before ?? 7));
   const [giftIdeas, setGiftIdeas] = useState(item?.gift_ideas || '');
   const [notes, setNotes] = useState(item?.notes || '');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setTitle(item?.title || '');
+    setPersonName(item?.person_name || '');
+    setEventType(item?.event_type || 'birthday');
+    setEventDate(item?.event_date || '01-01');
+    setRemindDaysBefore(String(item?.remind_days_before ?? 7));
+    setGiftIdeas(item?.gift_ideas || '');
+    setNotes(item?.notes || '');
+    setSubmitting(false);
+  }, [isOpen, item]);
 
   if (!isOpen) return null;
 

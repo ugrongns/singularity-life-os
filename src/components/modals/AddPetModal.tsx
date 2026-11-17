@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface Pet {
   id?: string;
@@ -35,6 +35,21 @@ export default function AddPetModal({ isOpen, item, onClose, onSuccess }: AddPet
   const [vaccinations, setVaccinations] = useState(item?.vaccinations || '');
   const [notes, setNotes] = useState(item?.notes || '');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setName(item?.name || '');
+    setSpecies(item?.species || 'Kedi');
+    setBreed(item?.breed || '');
+    setBirthDate(item?.birth_date || '');
+    setChipNo(item?.chip_no || '');
+    setVetName(item?.vet_name || '');
+    setVetPhone(item?.vet_phone || '');
+    setVetNextDate(item?.vet_next_date || '');
+    setVaccinations(item?.vaccinations || '');
+    setNotes(item?.notes || '');
+    setSubmitting(false);
+  }, [isOpen, item]);
 
   if (!isOpen) return null;
 

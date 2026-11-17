@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 interface VaultItem {
   id?: string;
@@ -12,6 +12,7 @@ interface VaultItem {
   expiry_date?: string;
   remind_days_before?: number;
   document_image_url?: string;
+  is_pdf?: boolean;
   notes?: string;
 }
 
@@ -97,7 +98,7 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
   const [documentNumber, setDocumentNumber] = useState(item?.document_number || '');
   const [issueDate, setIssueDate] = useState(item?.issue_date || '');
   const [expiryDate, setExpiryDate] = useState(item?.expiry_date || '');
-  const [remindDaysBefore, setRemindDaysBefore] = useState(String(item?.remind_days_before || 30));
+  const [remindDaysBefore, setRemindDaysBefore] = useState(String(item?.remind_days_before ?? 30));
   const [documentImageUrl, setDocumentImageUrl] = useState(item?.document_image_url || '');
   const [notes, setNotes] = useState(item?.notes || '');
 
@@ -110,7 +111,31 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    setTitle(item?.title || '');
+    setType(item?.type || 'passport');
+    setOwner(item?.owner || 'Kullanıcı');
+    setIssuer(item?.issuer || '');
+    setDocumentNumber(item?.document_number || '');
+    setIssueDate(item?.issue_date || '');
+    setExpiryDate(item?.expiry_date || '');
+    setRemindDaysBefore(String(item?.remind_days_before ?? 30));
+    setDocumentImageUrl(item?.document_image_url || '');
+    setNotes(item?.notes || '');
+    setIsDragging(false);
+    setUploading(false);
+    setScanningAI(false);
+    setAiSuccessMsg(null);
+    setSubmitting(false);
+  }, [isOpen, item]);
+
   if (!isOpen) return null;
+
+  const isPdfPreview =
+    documentImageUrl.startsWith('data:application/pdf') ||
+    documentImageUrl.toLowerCase().endsWith('.pdf') ||
+    Boolean(item?.is_pdf && documentImageUrl === item?.document_image_url);
 
   const processAndScanFile = async (rawFile: File) => {
     setScanningAI(true);
@@ -330,7 +355,7 @@ export default function AddVaultItemModal({ isOpen, item, onClose, onSuccess }: 
               ) : documentImageUrl ? (
                 <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: '100%', height: '170px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {documentImageUrl.startsWith('data:application/pdf') || documentImageUrl.endsWith('.pdf') ? (
+                    {isPdfPreview ? (
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
                         <span style={{ fontSize: '40px' }}>📄</span>
                         <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>PDF Belgesi Yüklendi</span>

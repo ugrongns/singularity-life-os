@@ -144,37 +144,46 @@ export default function VaultPage() {
       </div>
 
       {/* Vault Modalı */}
-      <AddVaultItemModal
-        isOpen={isVaultOpen}
-        item={vaultEditItem}
-        onClose={() => {
-          setIsVaultOpen(false);
-          setVaultEditItem(null);
-        }}
-        onSuccess={(msg) => handleUpdate(msg)}
-      />
+      {isVaultOpen && (
+        <AddVaultItemModal
+          key={vaultEditItem?.id || 'new-vault'}
+          isOpen={isVaultOpen}
+          item={vaultEditItem}
+          onClose={() => {
+            setIsVaultOpen(false);
+            setVaultEditItem(null);
+          }}
+          onSuccess={(msg) => handleUpdate(msg)}
+        />
+      )}
 
       {/* Important Date Modalı */}
-      <AddImportantDateModal
-        isOpen={isDateOpen}
-        item={dateEditItem}
-        onClose={() => {
-          setIsDateOpen(false);
-          setDateEditItem(null);
-        }}
-        onSuccess={(msg) => handleUpdate(msg)}
-      />
+      {isDateOpen && (
+        <AddImportantDateModal
+          key={dateEditItem?.id || 'new-date'}
+          isOpen={isDateOpen}
+          item={dateEditItem}
+          onClose={() => {
+            setIsDateOpen(false);
+            setDateEditItem(null);
+          }}
+          onSuccess={(msg) => handleUpdate(msg)}
+        />
+      )}
 
       {/* Pet Modalı */}
-      <AddPetModal
-        isOpen={isPetOpen}
-        item={petEditItem}
-        onClose={() => {
-          setIsPetOpen(false);
-          setPetEditItem(null);
-        }}
-        onSuccess={(msg) => handleUpdate(msg)}
-      />
+      {isPetOpen && (
+        <AddPetModal
+          key={petEditItem?.id || 'new-pet'}
+          isOpen={isPetOpen}
+          item={petEditItem}
+          onClose={() => {
+            setIsPetOpen(false);
+            setPetEditItem(null);
+          }}
+          onSuccess={(msg) => handleUpdate(msg)}
+        />
+      )}
     </SharedLayout>
   );
 }

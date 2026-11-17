@@ -39,6 +39,11 @@ export async function GET() {
             WHEN ${digitalVaultItems.document_image_url} IS NOT NULL AND ${digitalVaultItems.document_image_url} != '' 
             THEN 1 
             ELSE 0 
+          END`,
+          is_pdf: sql<boolean>`CASE 
+            WHEN ${digitalVaultItems.document_image_url} LIKE 'data:application/pdf%' OR LOWER(${digitalVaultItems.document_image_url}) LIKE '%.pdf'
+            THEN 1 
+            ELSE 0 
           END`
         }).from(digitalVaultItems).where(
           familyId
@@ -75,11 +80,18 @@ export async function GET() {
       // Dev Base64 verisinin liste sorgusunda çekilip 502 vermesini önle (mock verileri için de güvenli koruma)
       const isBase64 = item.document_image_url && item.document_image_url.startsWith('data:');
       const safeDocumentUrl = isBase64 ? `/api/digital-vault/file?id=${item.id}` : item.document_image_url;
+      const isPdf = item.is_pdf !== undefined
+        ? Boolean(item.is_pdf)
+        : Boolean(
+            item.document_image_url &&
+            (item.document_image_url.startsWith('data:application/pdf') || item.document_image_url.toLowerCase().endsWith('.pdf'))
+          );
 
       return {
         ...item,
         document_image_url: safeDocumentUrl,
         has_file: item.has_file !== undefined ? Boolean(item.has_file) : !!item.document_image_url,
+        is_pdf: isPdf,
         days_left: daysLeft,
         alert_level: alertLevel,
         visa_warning: visaWarning
@@ -226,20 +238,28 @@ export async function PUT(request: Request) {
     if (!id) return NextResponse.json({ success: false, error: 'ID gerekli' }, { status: 400 });
 
     if (section === 'vault') {
-      await db.update(digitalVaultItems).set({
+      const isUnchangedFileProxy =
+        typeof data.document_image_url === 'string' &&
+        data.document_image_url.startsWith('/api/digital-vault/file');
+      const parsedRemind = parseInt(data.remind_days_before, 10);
+      const vaultUpdatePayload: Record<string, any> = {
         title: data.title,
         type: data.type,
         owner: data.owner,
-        issuer: data.issuer,
-        issue_date: data.issue_date,
-        expiry_date: data.expiry_date,
-        remind_days_before: parseInt(data.remind_days_before) || 30,
-        document_number: data.document_number,
-        document_image_url: data.document_image_url,
-        notes: data.notes,
+        issuer: data.issuer || null,
+        issue_date: data.issue_date || null,
+        expiry_date: data.expiry_date || null,
+        remind_days_before: Number.isNaN(parsedRemind) ? 30 : parsedRemind,
+        document_number: data.document_number || null,
+        notes: data.notes || null,
         is_family_shared: data.is_family_shared !== undefined ? Number(data.is_family_shared) : undefined,
         updated_at: now
-      }).where(
+      };
+      if (!isUnchangedFileProxy) {
+        vaultUpdatePayload.document_image_url = data.document_image_url || null;
+      }
+
+      await db.update(digitalVaultItems).set(vaultUpdatePayload).where(
         and(
           eq(digitalVaultItems.id, id),
           user.is_master_account === 1

@@ -11,6 +11,7 @@ interface VaultItem {
   expiry_date?: string;
   document_number?: string;
   document_image_url?: string;
+  is_pdf?: boolean;
   notes?: string;
   days_left: number | null;
   alert_level: 'ok' | 'warning' | 'critical';
@@ -985,7 +986,7 @@ export default function DigitalVaultCard({
               overflow: zoomScale > 1 ? 'auto' : 'hidden', position: 'relative', padding: '16px 0'
             }}
           >
-            {activeLightboxItem.document_image_url.startsWith('data:application/pdf') || activeLightboxItem.document_image_url.endsWith('.pdf') ? (
+            {activeLightboxItem.is_pdf || activeLightboxItem.document_image_url.startsWith('data:application/pdf') || activeLightboxItem.document_image_url.toLowerCase().endsWith('.pdf') ? (
               <iframe
                 src={activeLightboxItem.document_image_url}
                 title="PDF Belge Önizleme"
