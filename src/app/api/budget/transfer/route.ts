@@ -5,6 +5,7 @@ import { walletsAccounts, transactions } from '@/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { eventBus, EVENTS } from '@/lib/events';
 import { getAuthUser } from '@/lib/auth';
+import { localYYYYMMDD } from '@/lib/bill-schedule';
 
 export async function POST(req: Request) {
   try {
@@ -27,8 +28,9 @@ export async function POST(req: Request) {
 
     const numAmount = Number(amount);
     const userFamilyId = user.family_id || (user.id ? `fam-${user.id}` : null);
-    const now = new Date().toISOString();
-    const txDate = transaction_date || now.split('T')[0];
+    const nowDate = new Date();
+    const now = nowDate.toISOString();
+    const txDate = transaction_date || localYYYYMMDD(nowDate);
 
     let txId = `tx_trf_out_${crypto.randomUUID()}`;
     let txInId = `tx_trf_in_${crypto.randomUUID()}`;

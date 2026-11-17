@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { calculateDaysOverdue } from '@/lib/financial-utils';
+import { calculateDaysOverdue, formatDateSafe } from '@/lib/financial-utils';
 
 interface Account {
   id: string;
@@ -22,6 +22,9 @@ interface Account {
   next_due_date?: string;
   days_until_due?: number;
   current_cycle_spending?: number;
+  closed_statement_debt?: number;
+  closed_due_date?: string;
+  active_due_date?: string;
 }
 
 interface BudgetRiskCardProps {
@@ -61,13 +64,23 @@ export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({
     };
   });
 
-  // 2. Yaklaşan Son Ödemesi Olan Kartlar (Gecikmede olmayan, önümüzdeki 15 gün içinde vadesi gelen borçlu kartlar)
+  // 2. Yaklaşan Son Ödemesi Olan Kartlar (Gecikmede olmayan, kesilmiş ekstre borcu bulunan ve önümüzdeki 15 gün içinde vadesi gelen kartlar)
   const upcomingCards = accounts.filter(acc => {
     if (acc.type !== 'credit_card' || acc.balance <= 0) return false;
     // Gecikmede olanları tekrar sayma
     if (acc.is_overdue) return false;
     if (!acc.due_day) return false;
-    
+
+    if (typeof acc.closed_statement_debt === 'number') {
+      if (acc.closed_statement_debt <= 0) return false;
+      const daysDiff = typeof acc.days_until_due === 'number' ? acc.days_until_due : 999;
+      return daysDiff >= 0 && daysDiff <= 15;
+    }
+
+    if (typeof acc.days_until_due === 'number') {
+      return acc.days_until_due >= 0 && acc.days_until_due <= 15;
+    }
+
     const daysInCurrentMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
     const effectiveDueDay = Math.min(acc.due_day, daysInCurrentMonth);
     let daysDiff = effectiveDueDay - currentDay;
@@ -79,17 +92,24 @@ export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({
     }
     return daysDiff >= 0 && daysDiff <= 15;
   }).map(acc => {
-    const daysInCurrentMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    const effectiveDueDay = Math.min(acc.due_day || currentDay, daysInCurrentMonth);
-    let daysDiff = effectiveDueDay - currentDay;
-    if (daysDiff < 0) {
-      const daysInNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0).getDate();
-      const nextDueDay = Math.min(acc.due_day || 0, daysInNextMonth);
-      daysDiff = (daysInCurrentMonth - currentDay) + nextDueDay;
+    let daysDiff = typeof acc.days_until_due === 'number' ? acc.days_until_due : 0;
+    if (typeof acc.days_until_due !== 'number') {
+      const daysInCurrentMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+      const effectiveDueDay = Math.min(acc.due_day || currentDay, daysInCurrentMonth);
+      daysDiff = effectiveDueDay - currentDay;
+      if (daysDiff < 0) {
+        const daysInNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0).getDate();
+        const nextDueDay = Math.min(acc.due_day || 0, daysInNextMonth);
+        daysDiff = (daysInCurrentMonth - currentDay) + nextDueDay;
+      }
     }
+    const statementAmount = typeof acc.closed_statement_debt === 'number' && acc.closed_statement_debt > 0
+      ? acc.closed_statement_debt
+      : acc.balance;
     return {
       ...acc,
-      daysUntilDue: daysDiff
+      daysUntilDue: daysDiff,
+      statementAmount
     };
   }).sort((a, b) => a.daysUntilDue - b.daysUntilDue);
 
@@ -189,7 +209,7 @@ export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({
                     </span>
                   </div>
                   <div style={{ fontSize: '11px', color: '#7F1D1D', marginTop: '2px' }}>
-                    Son Ödeme: Ayın {card.due_day}. Günü • Gecikme Faizi: %{card.lateRatePercent}/ay
+                    Son Ödeme: {card.closed_due_date ? formatDateSafe(card.closed_due_date) : `Ayın ${card.due_day}. Günü`} • Gecikme Faizi: %{card.lateRatePercent}/ay
                   </div>
                 </div>
               </div>
@@ -278,16 +298,16 @@ export const BudgetRiskCard: React.FC<BudgetRiskCardProps> = ({
                       </span>
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      Son Ödeme Tarihi: Ayın {card.due_day}. Günü
+                      Son Ödeme: {card.next_due_date ? formatDateSafe(card.next_due_date) : `Ayın ${card.due_day}. Günü`}
                     </div>
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>Güncel Borç</div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>Ekstre Borcu</div>
                     <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: 'var(--text-main)' }}>
-                      ₺{card.balance.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                      ₺{card.statementAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                     </div>
                   </div>
 

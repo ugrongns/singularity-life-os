@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { CreditCard, X, Download, Calendar, Search } from 'lucide-react';
 import { generateCSVContent, downloadCSV, CSVColumn } from '@/lib/export-csv';
 import { formatDateSafe } from '@/lib/financial-utils';
+import { localYYYYMMDD } from '@/lib/bill-schedule';
 
 interface Props {
   isOpen: boolean;
@@ -13,20 +14,26 @@ interface Props {
 export default function CreditCardStatementModal({ isOpen, accountId, onClose }: Props) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'installments' | 'single'>('installments');
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (isOpen && accountId) {
       setData(null);
+      setErrorMsg(null);
       setLoading(true);
       fetch(`/api/budget/card-statement?account_id=${accountId}`)
         .then(res => res.json())
         .then(json => {
           if (json.success) setData(json.data);
+          else setErrorMsg(json.error || 'Ekstre verisi yüklenemedi.');
           setLoading(false);
         })
-        .catch(() => setLoading(false));
+        .catch(() => {
+          setErrorMsg('Ekstre verisi alınırken sunucu hatası oluştu.');
+          setLoading(false);
+        });
     }
   }, [isOpen, accountId]);
 
@@ -83,7 +90,7 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
     ];
 
     const csvStr = generateCSVContent(columns, rows);
-    const filename = `kredi-karti-ekstre-${(data.card?.name || 'kart').toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `kredi-karti-ekstre-${(data.card?.name || 'kart').toLowerCase().replace(/\s+/g, '-')}-${localYYYYMMDD(new Date())}.csv`;
     downloadCSV(filename, csvStr);
   };
 
@@ -134,7 +141,16 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
                 {data?.card?.name || 'Kredi Kartı Ekstre Detayı'}
               </h2>
               <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
-                Anlık harcama geçmişi, taksitler ve hesap kesim özeti
+                {data?.card?.cutoff_day || data?.card?.due_day ? (
+                  <>
+                    {data?.card?.cutoff_day ? `Kesim: Ayın ${data.card.cutoff_day}. Günü` : ''}
+                    {data?.card?.cutoff_day && data?.card?.due_day ? ' • ' : ''}
+                    {data?.card?.due_day ? `Son Ödeme: Ayın ${data.card.due_day}. Günü` : ''}
+                    {data?.card?.next_due_date ? ` • Sonraki Vade: ${formatDate(data.card.next_due_date)}` : ''}
+                  </>
+                ) : (
+                  'Anlık harcama geçmişi, taksitler ve hesap kesim özeti'
+                )}
               </p>
             </div>
           </div>
@@ -192,19 +208,44 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
           <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontSize: '13px' }}>
             Kart ekstresi yükleniyor...
           </div>
+        ) : errorMsg ? (
+          <div style={{ textAlign: 'center', padding: '30px', color: '#DC2626', fontSize: '13px', fontWeight: 700 }}>
+            {errorMsg}
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {/* Kart Özet KPI Kutuları */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
-              <div style={{ background: 'var(--rose-bg)', border: '1px solid rgba(239,68,68,0.3)', padding: '12px 14px', borderRadius: 'var(--radius-lg)' }}>
-                <div style={{ fontSize: '11px', color: 'var(--rose)', fontWeight: 800 }}>📌 BU AY ÖDENECEK GÜNCEL EKSTRE</div>
-                <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: 'var(--rose)', marginTop: '2px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px' }}>
+              <div style={{
+                background: (data?.summary?.currentStatementDebt || 0) > 0 ? 'var(--rose-bg)' : 'var(--surface-subtle)',
+                border: `1px solid ${(data?.summary?.currentStatementDebt || 0) > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-lg)'
+              }}>
+                <div style={{ fontSize: '11px', color: (data?.summary?.currentStatementDebt || 0) > 0 ? 'var(--rose)' : 'var(--text-muted)', fontWeight: 800 }}>
+                  📌 KESİLMİŞ EKSTRE BORCU
+                </div>
+                <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: (data?.summary?.currentStatementDebt || 0) > 0 ? 'var(--rose)' : 'var(--text-main)', marginTop: '2px' }}>
                   {formatTRY(data?.summary?.currentStatementDebt || 0)}
                 </div>
                 <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                  Tek Çekim + Bu Ayki Taksit Dilimi
+                  {(data?.summary?.currentStatementDebt || 0) > 0
+                    ? `Son Ödeme: ${formatDate(data?.summary?.closedDueDate)}`
+                    : `Kesilmiş borç yok (${formatDate(data?.summary?.closedCycleStartDate)} - ${formatDate(data?.summary?.closedCutoffDate)})`}
                 </div>
               </div>
+
+              {(data?.summary?.openCycleDebt || 0) > 0 && (
+                <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.28)', padding: '12px 14px', borderRadius: 'var(--radius-lg)' }}>
+                  <div style={{ fontSize: '11px', color: '#2563EB', fontWeight: 800 }}>🗓️ AÇIK DÖNEM (GELECEK EKSTRE)</div>
+                  <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: '#1D4ED8', marginTop: '2px' }}>
+                    {formatTRY(data?.summary?.openCycleDebt || 0)}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                    Kesim: {formatDate(data?.summary?.openCycleEndDate)} • Vade: {formatDate(data?.summary?.activeDueDate)}
+                  </div>
+                </div>
+              )}
 
               <div style={{ background: 'var(--emerald-bg)', border: '1px solid rgba(16,185,129,0.3)', padding: '12px 14px', borderRadius: 'var(--radius-lg)' }}>
                 <div style={{ fontSize: '11px', color: 'var(--emerald)', fontWeight: 800 }}>KALAN KULLANILABİLİR LİMİT</div>
@@ -216,11 +257,11 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
                 </div>
               </div>
 
-              {(data?.summary?.futureInstallmentDebt || 0) > 0 && (
+              {(data?.summary?.futureInstallmentsDebt || 0) > 0 && (
                 <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', padding: '12px 14px', borderRadius: 'var(--radius-lg)' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800 }}>⏳ GELECEK AYLARA SARKAN BORÇ</div>
                   <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)', marginTop: '2px' }}>
-                    {formatTRY(data?.summary?.futureInstallmentDebt || 0)}
+                    {formatTRY(data?.summary?.futureInstallmentsDebt || 0)}
                   </div>
                   <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
                     Önümüzdeki ayların taksit taahhütleri
@@ -278,9 +319,9 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
                     </thead>
                     <tbody>
                       {filteredInstallments.map((inst: any) => (
-                        <tr key={inst.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <tr key={inst.id || inst.parent_id} style={{ borderBottom: '1px solid var(--border)' }}>
                           <td className="tabular-nums" style={{ padding: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                            {formatDate(inst.first_date)}
+                            {formatDate(inst.first_date || inst.start_date)}
                           </td>
                           <td style={{ padding: '10px', fontWeight: 700, color: 'var(--text-main)' }}>
                             {inst.merchant}
@@ -292,14 +333,14 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
                           </td>
                           <td style={{ padding: '10px' }}>
                             <span style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--indigo)', padding: '2px 6px', borderRadius: '4px', fontWeight: 800, fontSize: '11px' }}>
-                              {inst.current_installment_number || 1} / {inst.total_installments}
+                              {inst.current_installment_number || inst.completed_installments || 1} / {inst.total_installments}
                             </span>
                           </td>
                           <td className="tabular-nums" style={{ padding: '10px', textAlign: 'right', fontWeight: 800, color: 'var(--rose)' }}>
                             {formatTRY(inst.monthly_amount)}
                           </td>
                           <td className="tabular-nums" style={{ padding: '10px', textAlign: 'right', fontWeight: 800, color: 'var(--text-main)' }}>
-                            {formatTRY(inst.remaining_amount)}
+                            {formatTRY(inst.remaining_amount ?? 0)}
                           </td>
                         </tr>
                       ))}
@@ -330,7 +371,21 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
                             {formatDate(tx.transaction_date)}
                           </td>
                           <td style={{ padding: '10px', fontWeight: 700, color: 'var(--text-main)' }}>
-                            {tx.merchant}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span>{tx.merchant}</span>
+                              {tx.cycle_period && (
+                                <span style={{
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  background: tx.cycle_period === 'open' ? 'rgba(59,130,246,0.1)' : 'rgba(239,68,68,0.1)',
+                                  color: tx.cycle_period === 'open' ? '#2563EB' : '#DC2626'
+                                }}>
+                                  {tx.cycle_period === 'open' ? 'Açık Dönem' : 'Kesilmiş Ekstre'}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: '10px', color: 'var(--text-muted)' }}>
                             <span style={{ background: 'var(--surface-subtle)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: '11px' }}>

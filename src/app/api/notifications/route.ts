@@ -3,11 +3,11 @@ import { db, initDatabase } from '@/db';
 import {
   digitalVaultItems, importantDates, petRecords,
   vehicleLegalReminders, homeMaintenanceRecords,
-  walletsAccounts, recurringBills, vehicles, transactions
+  walletsAccounts, recurringBills, vehicles, transactions, categories
 } from '@/db/schema';
 import { eq, sql, or, and, inArray } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
-import { calculateCreditCardSchedule } from '@/lib/bill-schedule';
+import { calculateCreditCardSchedule, localYYYYMMDD } from '@/lib/bill-schedule';
 
 interface Notification {
   id: string;
@@ -31,7 +31,6 @@ export async function GET() {
     const familyId = user.family_id || `fam-${userId}`;
 
     const today = new Date();
-    const todayISO = today.toISOString().split('T')[0];
 
     const notifications: Notification[] = [];
 
@@ -104,7 +103,7 @@ export async function GET() {
           icon: typeEmoji[d.event_type] || '📅',
           days_left: daysLeft,
           priority: daysLeft <= 1 ? 'critical' : daysLeft <= 3 ? 'warning' : 'info',
-          due_date: eventDate.toISOString().split('T')[0]
+          due_date: localYYYYMMDD(eventDate)
         });
       }
     }
@@ -183,16 +182,30 @@ export async function GET() {
 
     const creditCardAccounts = accounts.filter(a => a.type === 'credit_card' && (a.balance || 0) > 0 && a.due_day);
     const creditCardIds = creditCardAccounts.map(a => a.id);
-    const cardTransactions = creditCardIds.length > 0
-      ? await db.select({
-          wallet_id: transactions.wallet_id,
-          amount: transactions.amount,
-          transaction_date: transactions.transaction_date,
-          is_installment: transactions.is_installment
-        })
-        .from(transactions)
-        .where(inArray(transactions.wallet_id, creditCardIds))
-      : [];
+    const [cardTransactions, notifCategories] = creditCardIds.length > 0
+      ? await Promise.all([
+          db.select({
+            wallet_id: transactions.wallet_id,
+            amount: transactions.amount,
+            transaction_date: transactions.transaction_date,
+            is_installment: transactions.is_installment,
+            merchant: transactions.merchant,
+            notes: transactions.notes,
+            category_id: transactions.category_id
+          })
+          .from(transactions)
+          .where(inArray(transactions.wallet_id, creditCardIds)),
+          db.select({ id: categories.id, type: categories.type })
+            .from(categories)
+            .where(
+              familyId
+                ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
+                : or(sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
+            )
+        ])
+      : [[], []];
+
+    const categoryTypeMap = new Map(notifCategories.map(c => [c.id, c.type]));
 
     for (const acc of creditCardAccounts) {
       const txsForCard = cardTransactions
@@ -200,7 +213,10 @@ export async function GET() {
         .map(t => ({
           amount: t.amount,
           transaction_date: t.transaction_date,
-          is_installment: t.is_installment
+          is_installment: t.is_installment,
+          merchant: t.merchant,
+          notes: t.notes,
+          categoryType: t.category_id ? categoryTypeMap.get(t.category_id) || null : null
         }));
 
       const sched = calculateCreditCardSchedule(acc, txsForCard, today);
@@ -216,11 +232,11 @@ export async function GET() {
           priority: 'critical',
           due_date: sched.last_due_date
         });
-      } else if (sched.days_until_due <= 7) {
+      } else if (sched.closed_statement_debt > 0 && sched.days_until_due <= 7) {
         notifications.push({
           id: `card-${acc.id}`,
           title: `${acc.name} Ekstre Ödemesi`,
-          subtitle: `${new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(acc.balance)} — ${sched.days_until_due <= 0 ? 'Bugün!' : `${sched.days_until_due} gün kaldı`}`,
+          subtitle: `${new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(sched.closed_statement_debt)} — ${sched.days_until_due <= 0 ? 'Bugün!' : `${sched.days_until_due} gün kaldı`}`,
           module: 'Finans',
           icon: '💳',
           days_left: sched.days_until_due,
@@ -295,7 +311,7 @@ export async function GET() {
           icon,
           days_left: daysLeft,
           priority: daysLeft <= 2 ? 'critical' : 'warning',
-          due_date: billDue.toISOString().split('T')[0]
+          due_date: localYYYYMMDD(billDue)
         });
       }
     }

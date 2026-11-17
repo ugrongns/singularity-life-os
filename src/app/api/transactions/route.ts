@@ -5,7 +5,7 @@ import { db, initDatabase } from '@/db';
 import { transactions, walletsAccounts, categories, familyMembers } from '@/db/schema';
 import { eventBus, EVENTS } from '@/lib/events';
 import { eq, or, and, like } from 'drizzle-orm';
-import { addMonthsSafe } from '@/lib/bill-schedule';
+import { addMonthsSafe, parseLocalYYYYMMDD } from '@/lib/bill-schedule';
 
 export async function POST(req: Request) {
   try {
@@ -102,8 +102,8 @@ export async function POST(req: Request) {
     }
 
     // Taksit Motoru: Tutar tek seferlik ise 1 satır, taksitli ise gelecek aylara dağıtılan N adet satır
-    const baseDate = transaction_date ? new Date(transaction_date) : now;
-    const validBaseDate = isNaN(baseDate.getTime()) ? now : baseDate;
+    const parsedBaseDate = transaction_date ? parseLocalYYYYMMDD(transaction_date) : null;
+    const validBaseDate = parsedBaseDate || now;
 
     // Atomik Veritabanı Yazma İşlemi (db.transaction + FOR UPDATE satır kilitleme)
     await db.transaction(async (tx) => {

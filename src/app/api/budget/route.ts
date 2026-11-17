@@ -4,7 +4,14 @@ import { walletsAccounts, categories, transactions, vehicleLegalReminders, famil
 import { desc, asc, eq, and, sql, or, inArray } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
-import { calculateBillSchedule, calculateCreditCardSchedule } from '@/lib/bill-schedule';
+import {
+  calculateBillSchedule,
+  calculateCreditCardSchedule,
+  getCreditCardStatementDueMonth,
+  isCardNonPurchaseTx,
+  localYYYYMM,
+  localYYYYMMDD
+} from '@/lib/bill-schedule';
 import { fetchLiveExchangeRates } from '@/lib/market-data';
 
 export async function GET(req: Request) {
@@ -20,9 +27,6 @@ export async function GET(req: Request) {
     const monthParam = searchParams.get('month'); // YYYY-MM
 
     const today = new Date();
-    // ✅ Timezone-safe: yerel yıl/ay bileşenleri kullanılır (toISOString() UTC'ye kaydırır)
-    const localYYYYMM = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const localYYYYMMDD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const currentMonthStr = monthParam || localYYYYMM(today);
 
     // Canlı Piyasa & TCMB / Serbest Piyasa Kurları
@@ -82,6 +86,31 @@ export async function GET(req: Request) {
         : or(sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
     );
     const categoryMap = new Map((allCategories).map((c: any) => [c.id, c]));
+    const accountMap = new Map((accounts).map((a: any) => [a.id, a]));
+
+    const isTransferOrPaymentTx = (tx: any) => {
+      const cat = tx.category_id ? categoryMap.get(tx.category_id) : null;
+      return isCardNonPurchaseTx({
+        categoryType: cat?.type || null,
+        merchant: tx.merchant,
+        notes: tx.notes
+      }) && (
+        tx.merchant?.includes('Kart Ödemesi') ||
+        tx.merchant?.includes('Kart Ödeme Tahsilatı') ||
+        tx.merchant?.includes('Kart Ödeme') ||
+        tx.merchant?.includes('Transfer Çıkışı') ||
+        tx.merchant?.includes('Gelen Transfer') ||
+        tx.merchant?.includes('Transfer:') ||
+        tx.merchant?.toLowerCase().includes('kart borç ödemesi') ||
+        tx.notes?.includes('[from_wallet:') ||
+        tx.notes?.includes('[to_wallet:')
+      ) || Boolean(
+        tx.merchant?.includes('Vadeli Mevduat Açılışı') ||
+        tx.merchant?.includes('Vadeli Mevduat Dönüşü (Anapara)') ||
+        tx.notes?.toLowerCase().includes('borç ödemesi') ||
+        tx.notes?.toLowerCase().includes('transfer')
+      );
+    };
 
     // 3. Tüm Aile İşlemlerini Tek Sorguda Çek ve Bellekte İndeksle (15+ N+1 sorguyu 1 sorguya indirir)
     const allFamilyTxs = userId
@@ -97,9 +126,10 @@ export async function GET(req: Request) {
 
     const allRecentTx = allFamilyTxs.slice(0, 50);
 
-    // O(1) erişim için Cüzdan bazlı ve Ay (YYYY-MM) bazlı işlem indeksleri
+    // O(1) erişim için Cüzdan bazlı, Takvim Ayı (YYYY-MM) bazlı ve Tahmini Ekstre Ayı bazlı işlem indeksleri
     const cardTxByWallet = new Map<string, any[]>();
     const txByMonth = new Map<string, any[]>();
+    const forecastTxByMonth = new Map<string, any[]>();
     for (const tx of allFamilyTxs) {
       if (tx.wallet_id) {
         const wList = cardTxByWallet.get(tx.wallet_id);
@@ -111,6 +141,14 @@ export async function GET(req: Request) {
         const mList = txByMonth.get(mKey);
         if (mList) mList.push(tx);
         else txByMonth.set(mKey, [tx]);
+
+        const acc = tx.wallet_id ? accountMap.get(tx.wallet_id) : null;
+        const fKey = (acc && acc.type === 'credit_card' && acc.due_day)
+          ? (getCreditCardStatementDueMonth(tx.transaction_date, acc) || mKey)
+          : mKey;
+        const fList = forecastTxByMonth.get(fKey);
+        if (fList) fList.push(tx);
+        else forecastTxByMonth.set(fKey, [tx]);
       }
     }
 
@@ -124,15 +162,7 @@ export async function GET(req: Request) {
           tx.merchant?.toLowerCase().includes('temettü') ||
           tx.notes?.toLowerCase().includes('gelir');
 
-        const isTransfer = (
-          tx.merchant?.startsWith('💳 Kart Ödemesi:') ||
-          tx.merchant?.startsWith('🔄 Transfer:') ||
-        tx.merchant?.includes('Vadeli Mevduat Açılışı') ||
-        tx.merchant?.includes('Vadeli Mevduat Dönüşü (Anapara)') ||
-          tx.merchant?.toLowerCase().includes('kart borç ödemesi') ||
-          tx.notes?.toLowerCase().includes('borç ödemesi') ||
-          tx.notes?.toLowerCase().includes('transfer')
-        );
+        const isTransfer = isTransferOrPaymentTx(tx);
 
         return !isIncome && !isTransfer && (!tx.is_installment || tx.installment_number === 1);
       })
@@ -149,8 +179,6 @@ export async function GET(req: Request) {
       });
 
     // 4. Yaklaşan 5 Ödeme (Tarihe Göre Sıralı: Taksitler, Kredi Kartı Son Ödemeleri, Bakım/Muayene)
-    const todayISO = localYYYYMMDD(today); // ✅ Timezone-safe
-
     const upcomingList: Array<{
       id: string;
       title: string;
@@ -162,11 +190,15 @@ export async function GET(req: Request) {
       badge: string;
     }> = [];
 
-    // B. Kredi Kartı Son Ödeme & Risk Motoru
+    // B. Kredi Kartı Son Ödeme & Risk Motoru (monthParam'dan bağımsız gerçek ekstre döngüsü)
     for (const acc of accounts) {
       if (acc.type === 'credit_card') {
-        const cardTx = cardTxByWallet.get(acc.id) || [];
-        const ccSchedule = calculateCreditCardSchedule(acc, cardTx as any[], today);
+        const rawCardTx = cardTxByWallet.get(acc.id) || [];
+        const cardTx = rawCardTx.map((t: any) => ({
+          ...t,
+          categoryType: t.category_id ? categoryMap.get(t.category_id)?.type || null : null
+        }));
+        const ccSchedule = calculateCreditCardSchedule(acc, cardTx, today);
 
         // Hesaba ekstre & gecikme alanlarını ekle
         acc.is_overdue = ccSchedule.is_overdue;
@@ -176,21 +208,12 @@ export async function GET(req: Request) {
         acc.next_due_date = ccSchedule.next_due_date;
         acc.days_until_due = ccSchedule.days_until_due;
         acc.current_cycle_spending = ccSchedule.current_cycle_spending;
+        acc.closed_statement_debt = ccSchedule.closed_statement_debt;
+        acc.closed_due_date = ccSchedule.closed_due_date;
+        acc.active_due_date = ccSchedule.active_due_date;
 
-        if (acc.due_day) {
-          const singleTotal = (cardTx)
-            .filter((t: any) => (!t.is_installment || t.is_installment === 0) && t.transaction_date.startsWith(currentMonthStr))
-            .reduce((sum: number, t: any) => sum + t.amount, 0);
-
-          // Sadece bu ayın taksit dilimleri toplanır (geçmişte bitmiş veya gelecekteki taksitler filtrelenir)
-          const installmentMonthlyTotal = (cardTx)
-            .filter((t: any) => t.is_installment === 1 && t.transaction_date.startsWith(currentMonthStr))
-            .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
-
-          const computedCycleAmount = singleTotal + installmentMonthlyTotal;
-          const cardStatementAmount = computedCycleAmount > 0 ? Math.min(acc.balance, computedCycleAmount) : acc.balance;
-
-          if (ccSchedule.is_overdue) {
+        if (acc.due_day && (Number(acc.balance) || 0) > 0) {
+          if (ccSchedule.is_overdue && ccSchedule.overdue_amount > 0) {
             upcomingList.push({
               id: `cc-${acc.id}`,
               title: `${acc.name} Geciken Ekstre`,
@@ -201,16 +224,27 @@ export async function GET(req: Request) {
               type: 'card_due',
               badge: '🚨 Gecikmede'
             });
-          } else {
+          } else if (ccSchedule.closed_statement_debt > 0) {
             upcomingList.push({
               id: `cc-${acc.id}`,
               title: `${acc.name} Ekstre Borcu`,
               category: 'Kredi Kartı',
-              amount: cardStatementAmount,
-              due_date: ccSchedule.next_due_date,
+              amount: ccSchedule.closed_statement_debt,
+              due_date: ccSchedule.closed_due_date,
               days_left: ccSchedule.days_until_due,
               type: 'card_due',
               badge: '💳 Ekstre'
+            });
+          } else if (ccSchedule.open_cycle_debt > 0) {
+            upcomingList.push({
+              id: `cc-${acc.id}`,
+              title: `${acc.name} Gelecek Ekstre`,
+              category: 'Kredi Kartı',
+              amount: ccSchedule.open_cycle_debt,
+              due_date: ccSchedule.active_due_date,
+              days_left: ccSchedule.days_until_due,
+              type: 'card_due',
+              badge: '🗓️ Açık Dönem'
             });
           }
         }
@@ -298,19 +332,9 @@ export async function GET(req: Request) {
     for (const tx of monthlyTx) {
       const cat = tx.category_id ? categoryMap.get(tx.category_id) : null;
       const isIncome = cat ? cat.type === 'income' : (tx.merchant?.toLowerCase().includes('kira geliri') || tx.merchant?.toLowerCase().includes('maaş') || tx.merchant?.toLowerCase().includes('temettü'));
-      
-      // Transfer ve Kart Borç Ödemeleri (Virman) Harcama veya Gelir Sayılamaz!
-      const isTransfer = (
-        tx.merchant?.startsWith('💳 Kart Ödemesi:') ||
-        tx.merchant?.startsWith('🔄 Transfer:') ||
-        tx.merchant?.includes('Vadeli Mevduat Açılışı') ||
-        tx.merchant?.includes('Vadeli Mevduat Dönüşü (Anapara)') ||
-        tx.merchant?.toLowerCase().includes('kart borç ödemesi') ||
-        tx.notes?.toLowerCase().includes('borç ödemesi') ||
-        tx.notes?.toLowerCase().includes('transfer')
-      );
 
-      if (isTransfer) {
+      // Transfer ve Kart Borç Ödemeleri (Virman) Harcama veya Gelir Sayılamaz!
+      if (isTransferOrPaymentTx(tx)) {
         continue;
       }
 
@@ -525,9 +549,14 @@ export async function GET(req: Request) {
       const fMonthStr = localYYYYMM(fDate); // ✅ Timezone-safe
       const fMonthName = new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric' }).format(fDate);
 
-      const monthTxs = txByMonth.get(fMonthStr) || [];
+      // Kredi kartı harcamaları kesim ve son ödeme gününe göre gerçek ekstre ödeme ayına gruplanır
+      const monthTxs = forecastTxByMonth.get(fMonthStr) || [];
 
-      const installmentTxs = (monthTxs).filter((t: any) => t.is_installment === 1);
+      const installmentTxs = (monthTxs).filter((t: any) => {
+        if (t.is_installment !== 1 || isTransferOrPaymentTx(t)) return false;
+        const tCat = t.category_id ? categoryMap.get(t.category_id) : null;
+        return tCat?.type !== 'income';
+      });
       const committedAmount = (installmentTxs).reduce((sum: number, t: any) => sum + t.amount, 0);
 
       // O aya ait toplam harcama (transfer/kart ödemeleri hariç)
@@ -536,8 +565,7 @@ export async function GET(req: Request) {
       for (const t of (monthTxs)) {
         const tCat = t.category_id ? categoryMap.get(t.category_id) : null;
         const tIsIncome = tCat ? tCat.type === 'income' : (t.merchant?.toLowerCase().includes('maaş') || t.merchant?.toLowerCase().includes('kira geliri') || t.merchant?.toLowerCase().includes('temettü'));
-        const tIsTransfer = (t.merchant?.startsWith('💳 Kart Ödemesi:') || t.merchant?.startsWith('🔄 Transfer:') || t.notes?.toLowerCase().includes('borç ödemesi') || t.notes?.toLowerCase().includes('transfer'));
-        if (tIsTransfer) continue;
+        if (isTransferOrPaymentTx(t)) continue;
         if (tIsIncome) fTotalIncome += t.amount;
         else fTotalExpense += t.amount;
       }

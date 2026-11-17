@@ -12,13 +12,18 @@ vi.mock('@/db', () => ({
 
 import { 
   calculateBillSchedule, 
-  calculateCreditCardSchedule, 
+  calculateCreditCardSchedule,
+  getCreditCardStatementDueDate,
+  getCreditCardStatementDueMonth,
+  isCardNonPurchaseTx,
   localYYYYMM, 
   localYYYYMMDD, 
+  parseLocalYYYYMMDD,
   daysInMonth, 
   addMonthsDate, 
   addMonthsSafe 
 } from '../src/lib/bill-schedule';
+import { generateCrossModuleActionItems } from '../src/lib/tasks-engine';
 import { sanitizeUser } from '../src/lib/auth';
 import { eventBus, EVENTS } from '../src/lib/events';
 import { domainEventBus } from '../src/lib/event-bus';
@@ -675,6 +680,253 @@ describe('Financial Schedule, Installment & Security Calculations', () => {
 
       expect(executed).toBe(true);
       unsub();
+    });
+  });
+
+  describe('Phase 5 Credit Card Post-Cutoff Statement & Payment Isolation', () => {
+    it('post-cutoff spending with zero prior statement debt advances next_due_date to active_due_date (cutoff 10, due 20)', () => {
+      const card = {
+        balance: 1500,
+        cutoff_day: 10,
+        due_day: 20,
+        interest_rate_late: 4.55
+      };
+      const today = new Date(2026, 10, 17); // 17 Nov 2026 (after Nov 10 cutoff, before Nov 20 due)
+      const cardTx = [
+        { amount: 1500, transaction_date: '2026-11-17', merchant: 'Migros', is_installment: 0 }
+      ];
+
+      const res = calculateCreditCardSchedule(card, cardTx, today);
+
+      expect(res.closed_cycle_start_date).toBe('2026-10-11');
+      expect(res.statement_cutoff_date).toBe('2026-11-10');
+      expect(res.closed_due_date).toBe('2026-11-20');
+      expect(res.cycle_start_date).toBe('2026-11-11');
+      expect(res.cycle_end_date).toBe('2026-12-10');
+      expect(res.active_due_date).toBe('2026-12-20');
+
+      expect(res.closed_statement_debt).toBe(0);
+      expect(res.current_cycle_spending).toBe(1500);
+      expect(res.open_cycle_debt).toBe(1500);
+      expect(res.is_overdue).toBe(false);
+      expect(res.next_due_date).toBe('2026-12-20');
+      expect(res.days_until_due).toBe(33);
+
+      // Even after closed_due_date (21 Nov) passes, this spending must NOT become overdue
+      const nov21 = new Date(2026, 10, 21);
+      const resNov21 = calculateCreditCardSchedule(card, cardTx, nov21);
+      expect(resNov21.closed_statement_debt).toBe(0);
+      expect(resNov21.is_overdue).toBe(false);
+      expect(resNov21.next_due_date).toBe('2026-12-20');
+    });
+
+    it('mixed closed statement debt + post-cutoff spending separates closed_statement_debt from open cycle', () => {
+      const card = {
+        balance: 5000,
+        cutoff_day: 10,
+        due_day: 20,
+        interest_rate_late: 4.55
+      };
+      const today = new Date(2026, 10, 17); // 17 Nov 2026
+      const cardTx = [
+        { amount: 3000, transaction_date: '2026-11-05', merchant: 'Eski Dönem Market', is_installment: 0 },
+        { amount: 2000, transaction_date: '2026-11-17', merchant: 'Kesim Sonrası Harcama', is_installment: 0 }
+      ];
+
+      const res = calculateCreditCardSchedule(card, cardTx, today);
+      expect(res.closed_statement_debt).toBe(3000);
+      expect(res.current_cycle_spending).toBe(2000);
+      expect(res.open_cycle_debt).toBe(2000);
+      expect(res.next_due_date).toBe('2026-11-20');
+      expect(res.days_until_due).toBe(3);
+      expect(res.is_overdue).toBe(false);
+
+      // If 20 Nov passes unpaid, ONLY the 3000 closed statement is overdue (NOT 5000)
+      const nov21 = new Date(2026, 10, 21);
+      const resNov21 = calculateCreditCardSchedule(card, cardTx, nov21);
+      expect(resNov21.is_overdue).toBe(true);
+      expect(resNov21.overdue_amount).toBe(3000);
+      expect(resNov21.days_overdue).toBe(1);
+      expect(resNov21.next_due_date).toBe('2026-12-20');
+    });
+
+    it('Kart Ödeme Tahsilatı payment deducts closed statement debt without inflating open cycle spending', () => {
+      const card = {
+        balance: 2000, // 3000 + 2000 - 3000 payment = 2000
+        cutoff_day: 10,
+        due_day: 20
+      };
+      const today = new Date(2026, 10, 17);
+      const cardTx = [
+        { amount: 3000, transaction_date: '2026-11-05', merchant: 'Eski Dönem Market', is_installment: 0 },
+        { amount: 2000, transaction_date: '2026-11-17', merchant: 'Yeni Dönem Harcama', is_installment: 0 },
+        {
+          amount: 3000,
+          transaction_date: '2026-11-12',
+          merchant: '💳 Kart Ödeme Tahsilatı: Vadesiz Banka',
+          notes: 'Ekstre ödemesi [from_wallet:w-bank-1] [linked_tx:tx-1]',
+          is_installment: 0
+        }
+      ];
+
+      const res = calculateCreditCardSchedule(card, cardTx, today);
+      expect(res.current_cycle_spending).toBe(2000);
+      expect(res.closed_statement_debt).toBe(0);
+      expect(res.open_cycle_debt).toBe(2000);
+      expect(res.is_overdue).toBe(false);
+      expect(res.next_due_date).toBe('2026-12-20');
+    });
+
+    it('cutoff_day > due_day (cutoff 25, due 5) handles post-cutoff spending with zero prior debt', () => {
+      const card = {
+        balance: 2500,
+        cutoff_day: 25,
+        due_day: 5
+      };
+      const oct28 = new Date(2026, 9, 28); // 28 Oct 2026 (after Oct 25 cutoff, before Nov 5 due)
+      const cardTx = [
+        { amount: 2500, transaction_date: '2026-10-28', merchant: 'Teknosa', is_installment: 0 }
+      ];
+
+      const res = calculateCreditCardSchedule(card, cardTx, oct28);
+      expect(res.closed_cycle_start_date).toBe('2026-09-26');
+      expect(res.statement_cutoff_date).toBe('2026-10-25');
+      expect(res.closed_due_date).toBe('2026-11-05');
+      expect(res.cycle_start_date).toBe('2026-10-26');
+      expect(res.cycle_end_date).toBe('2026-11-25');
+      expect(res.active_due_date).toBe('2026-12-05');
+
+      expect(res.closed_statement_debt).toBe(0);
+      expect(res.current_cycle_spending).toBe(2500);
+      expect(res.next_due_date).toBe('2026-12-05');
+      expect(res.is_overdue).toBe(false);
+
+      // Nov 6 (after Nov 5 closed_due_date): still NOT overdue
+      const nov6 = new Date(2026, 10, 6);
+      const resNov6 = calculateCreditCardSchedule(card, cardTx, nov6);
+      expect(resNov6.is_overdue).toBe(false);
+      expect(resNov6.closed_statement_debt).toBe(0);
+      expect(resNov6.next_due_date).toBe('2026-12-05');
+
+      // With prior closed debt + post-cutoff spending (balance 3500) on Oct 28 -> due Nov 5 for 1000 only
+      const mixedCard = { balance: 3500, cutoff_day: 25, due_day: 5 };
+      const mixedTx = [
+        { amount: 1000, transaction_date: '2026-10-15', merchant: 'Eski Harcama', is_installment: 0 },
+        { amount: 2500, transaction_date: '2026-10-28', merchant: 'Teknosa', is_installment: 0 }
+      ];
+      const resMixed = calculateCreditCardSchedule(mixedCard, mixedTx, oct28);
+      expect(resMixed.closed_statement_debt).toBe(1000);
+      expect(resMixed.open_cycle_debt).toBe(2500);
+      expect(resMixed.next_due_date).toBe('2026-11-05');
+    });
+
+    it('installments inside active cycle (<= cycle_end_date) count toward current_cycle_spending, not future_installments', () => {
+      const card = {
+        balance: 3000, // 3 x 1000
+        cutoff_day: 10,
+        due_day: 20
+      };
+      const today = new Date(2026, 10, 17); // open cycle: 2026-11-11 .. 2026-12-10
+      const cardTx = [
+        { amount: 1000, transaction_date: '2026-11-25', merchant: 'Laptop', is_installment: 1 }, // after today, inside cycle!
+        { amount: 1000, transaction_date: '2026-12-25', merchant: 'Laptop', is_installment: 1 }, // > cycle_end_date
+        { amount: 1000, transaction_date: '2027-01-25', merchant: 'Laptop', is_installment: 1 }  // > cycle_end_date
+      ];
+
+      const res = calculateCreditCardSchedule(card, cardTx, today);
+      expect(res.current_cycle_spending).toBe(1000);
+      expect(res.future_installments_debt).toBe(2000);
+      expect(res.closed_statement_debt).toBe(0);
+      expect(res.next_due_date).toBe('2026-12-20');
+      expect(res.is_overdue).toBe(false);
+    });
+
+    it('Bakiye Mutabakatı excludes debt-reducing income reconciliations while preserving debt-increasing expense reconciliations', () => {
+      expect(isCardNonPurchaseTx({
+        merchant: 'Bakiye Mutabakatı',
+        categoryType: 'income',
+        notes: '⚖️ Bakiye Mutabakatı: Banka ile eşitleme (+500 TRY düzeltme geliri)'
+      })).toBe(true);
+
+      expect(isCardNonPurchaseTx({
+        merchant: 'Bakiye Mutabakatı',
+        categoryType: 'expense',
+        notes: '⚖️ Bakiye Mutabakatı: Banka ile eşitleme (-500 TRY düzeltme gideri)'
+      })).toBe(false);
+
+      expect(isCardNonPurchaseTx({
+        merchant: '💳 Kart Ödeme Tahsilatı: Banka',
+        notes: '[from_wallet:w-1]'
+      })).toBe(true);
+
+      const card = { balance: 1200, cutoff_day: 10, due_day: 20 };
+      const today = new Date(2026, 10, 17);
+      const cardTx = [
+        {
+          amount: 1200,
+          transaction_date: '2026-11-17',
+          merchant: 'Bakiye Mutabakatı',
+          categoryType: 'expense',
+          notes: '⚖️ Bakiye Mutabakatı: Banka ile eşitleme (-1.200 TRY düzeltme gideri)',
+          is_installment: 0
+        }
+      ];
+
+      const res = calculateCreditCardSchedule(card, cardTx, today);
+      expect(res.current_cycle_spending).toBe(1200);
+      expect(res.closed_statement_debt).toBe(0);
+      expect(res.next_due_date).toBe('2026-12-20');
+    });
+
+    it('getCreditCardStatementDueMonth & getCreditCardStatementDueDate map transactions accurately across cutoff boundaries', () => {
+      // cutoff 10, due 20
+      expect(getCreditCardStatementDueDate('2026-11-10', { cutoff_day: 10, due_day: 20 })).toBe('2026-11-20');
+      expect(getCreditCardStatementDueDate('2026-11-11', { cutoff_day: 10, due_day: 20 })).toBe('2026-12-20');
+      expect(getCreditCardStatementDueMonth('2026-11-17', { cutoff_day: 10, due_day: 20 })).toBe('2026-12');
+
+      // cutoff 25, due 5
+      expect(getCreditCardStatementDueDate('2026-10-25', { cutoff_day: 25, due_day: 5 })).toBe('2026-11-05');
+      expect(getCreditCardStatementDueDate('2026-10-26', { cutoff_day: 25, due_day: 5 })).toBe('2026-12-05');
+      expect(getCreditCardStatementDueMonth('2026-10-28', { cutoff_day: 25, due_day: 5 })).toBe('2026-12');
+
+      // month-end clamping: cutoff 31, due 10 in Feb 2026
+      expect(getCreditCardStatementDueDate('2026-02-28', { cutoff_day: 31, due_day: 10 })).toBe('2026-03-10');
+      expect(getCreditCardStatementDueDate('2026-03-01', { cutoff_day: 31, due_day: 10 })).toBe('2026-04-10');
+
+      // parseLocalYYYYMMDD preserves local calendar date without UTC shift
+      const parsed = parseLocalYYYYMMDD('2026-11-17');
+      expect(parsed).not.toBeNull();
+      expect(localYYYYMMDD(parsed!)).toBe('2026-11-17');
+    });
+
+    it('generateCrossModuleActionItems ignores cards with closed_statement_debt === 0 even if balance > 0', () => {
+      const actions = generateCrossModuleActionItems({
+        creditCards: [
+          {
+            id: 'cc-post-cutoff',
+            name: 'Garanti Bonus',
+            balance: 2500,
+            closed_statement_debt: 0,
+            days_until_due: 3, // even if someone passed <= 5, 0 closed statement debt should not generate action
+            is_overdue: false,
+            next_due_date: '2026-12-20'
+          },
+          {
+            id: 'cc-closed-due',
+            name: 'Axess',
+            balance: 5000,
+            closed_statement_debt: 1800,
+            days_until_due: 3,
+            is_overdue: false,
+            next_due_date: '2026-11-20'
+          }
+        ],
+        todayStr: '2026-11-17'
+      });
+
+      expect(actions).toHaveLength(1);
+      expect(actions[0].source_ref_id).toBe('card-cc-closed-due');
+      expect(actions[0].subtitle).toContain('1.800');
     });
   });
 });

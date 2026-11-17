@@ -215,7 +215,7 @@ export function filterTasksByView(tasks: TaskItem[], view: string, todayStr: str
  */
 export function generateCrossModuleActionItems(options: {
   bills?: Array<{ id: string; name: string; amount: number; due_day: number; due_date?: string; days_left?: number }>;
-  creditCards?: Array<{ id: string; name: string; balance: number; days_until_due?: number; next_due_date?: string; is_overdue?: boolean; days_overdue?: number }>;
+  creditCards?: Array<{ id: string; name: string; balance: number; closed_statement_debt?: number; overdue_amount?: number; days_until_due?: number; next_due_date?: string; is_overdue?: boolean; days_overdue?: number }>;
   vehicles?: Array<{ id: string; type: string; due_date: string; days_left?: number; plate?: string }>;
   homeMaintenance?: Array<{ id: string; title: string; next_due_date: string; days_left?: number; status?: string }>;
   vaultItems?: Array<{ id: string; title: string; expiry_date?: string; days_left?: number; type?: string }>;
@@ -252,19 +252,22 @@ export function generateCrossModuleActionItems(options: {
     }
   }
 
-  // 2. Kredi Kartı Ekstreleri (Gecikmiş veya <= 5 gün)
+  // 2. Kredi Kartı Ekstreleri (Gecikmiş veya kesilmiş ekstre borcu <= 5 gün içinde)
   for (const c of options.creditCards || []) {
     const key = `finance:card-${c.id}`;
     if (existingSet.has(key)) continue;
 
     const isOverdue = Boolean(c.is_overdue);
     const daysUntilDue = c.days_until_due ?? 0;
+    const statementAmount = isOverdue
+      ? (typeof c.overdue_amount === 'number' && c.overdue_amount > 0 ? c.overdue_amount : c.balance)
+      : (typeof c.closed_statement_debt === 'number' ? c.closed_statement_debt : c.balance);
 
-    if (isOverdue || daysUntilDue <= 5) {
+    if (isOverdue || (statementAmount > 0 && daysUntilDue <= 5)) {
       actions.push({
         id: `cm-card-${c.id}`,
         title: `${c.name} Kredi Kartı Ekstresini Öde`,
-        subtitle: `${Number(c.balance || 0).toLocaleString('tr-TR')} ₺ ${isOverdue ? `(🚨 ${c.days_overdue || 1} gündür gecikmede)` : `(⏳ Son ${daysUntilDue} gün)`}`,
+        subtitle: `${Number(statementAmount || 0).toLocaleString('tr-TR')} ₺ ${isOverdue ? `(🚨 ${c.days_overdue || 1} gündür gecikmede)` : `(⏳ Son ${daysUntilDue} gün)`}`,
         pillar: 'finance',
         priority: 'critical',
         due_date: c.next_due_date || todayStr,

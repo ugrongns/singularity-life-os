@@ -9,9 +9,10 @@ import {
   vehicleLegalReminders,
   homeMaintenanceRecords,
   digitalVaultItems,
-  transactions
+  transactions,
+  categories
 } from '@/db/schema';
-import { eq, and, or, inArray, desc } from 'drizzle-orm';
+import { eq, and, or, inArray, desc, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import {
   TaskItem,
@@ -23,7 +24,7 @@ import {
   filterTasksByView,
   generateCrossModuleActionItems
 } from '@/lib/tasks-engine';
-import { calculateCreditCardSchedule } from '@/lib/bill-schedule';
+import { calculateCreditCardSchedule, localYYYYMMDD } from '@/lib/bill-schedule';
 
 export async function GET(req: Request) {
   try {
@@ -35,7 +36,8 @@ export async function GET(req: Request) {
 
     const userId = user.id;
     const familyId = user.family_id || `fam-${userId}`;
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const today = new Date();
+    const todayStr = localYYYYMMDD(today);
 
     const { searchParams } = new URL(req.url);
     const view = searchParams.get('view') || 'all';
@@ -158,32 +160,57 @@ export async function GET(req: Request) {
       // Kredi Kartı Ekstre Kontrolü
       const ccAccounts = accountsData.filter(a => a.type === 'credit_card' && (a.balance || 0) > 0 && a.due_day);
       const ccIds = ccAccounts.map(a => a.id);
-      const cardTxs = ccIds.length > 0
-        ? await db.select({
-            wallet_id: transactions.wallet_id,
-            amount: transactions.amount,
-            transaction_date: transactions.transaction_date,
-            is_installment: transactions.is_installment
-          }).from(transactions).where(inArray(transactions.wallet_id, ccIds))
-        : [];
+      const [cardTxs, taskCategories] = ccIds.length > 0
+        ? await Promise.all([
+            db.select({
+              wallet_id: transactions.wallet_id,
+              amount: transactions.amount,
+              transaction_date: transactions.transaction_date,
+              is_installment: transactions.is_installment,
+              merchant: transactions.merchant,
+              notes: transactions.notes,
+              category_id: transactions.category_id
+            }).from(transactions).where(inArray(transactions.wallet_id, ccIds)),
+            db.select({ id: categories.id, type: categories.type })
+              .from(categories)
+              .where(
+                familyId
+                  ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
+                  : or(sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
+              )
+          ])
+        : [[], []];
+
+      const taskCategoryTypeMap = new Map(taskCategories.map(c => [c.id, c.type]));
 
       const parsedCC = ccAccounts.map(acc => {
-        const txsForCard = cardTxs.filter(t => t.wallet_id === acc.id);
-        const sched = calculateCreditCardSchedule(acc, txsForCard, new Date());
+        const txsForCard = cardTxs
+          .filter(t => t.wallet_id === acc.id)
+          .map(t => ({
+            amount: t.amount,
+            transaction_date: t.transaction_date,
+            is_installment: t.is_installment,
+            merchant: t.merchant,
+            notes: t.notes,
+            categoryType: t.category_id ? taskCategoryTypeMap.get(t.category_id) || null : null
+          }));
+        const sched = calculateCreditCardSchedule(acc, txsForCard, today);
         return {
           id: acc.id,
           name: acc.name,
           balance: acc.balance || 0,
+          closed_statement_debt: sched.closed_statement_debt,
+          overdue_amount: sched.overdue_amount,
           days_until_due: sched.days_until_due,
-          next_due_date: sched.next_due_date,
+          next_due_date: sched.is_overdue ? sched.last_due_date : sched.next_due_date,
           is_overdue: sched.is_overdue,
           days_overdue: sched.days_overdue
         };
       });
 
       // Fatura Tarih Kontrolü
-      const curYear = new Date().getFullYear();
-      const curMonth = new Date().getMonth();
+      const curYear = today.getFullYear();
+      const curMonth = today.getMonth();
       const currentMonthStr = `${curYear}-${String(curMonth + 1).padStart(2, '0')}`;
       const parsedBills = billsData
         .filter(b => b.last_paid_month !== currentMonthStr)
@@ -191,13 +218,13 @@ export async function GET(req: Request) {
           const maxDays = new Date(curYear, curMonth + 1, 0).getDate();
           const dueDayClamped = Math.min(b.due_day || 1, maxDays);
           const billDue = new Date(curYear, curMonth, dueDayClamped);
-          const daysLeft = Math.ceil((billDue.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          const daysLeft = Math.ceil((billDue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
           return {
             id: b.id,
             name: b.name,
             amount: b.amount || 0,
             due_day: b.due_day,
-            due_date: billDue.toISOString().slice(0, 10),
+            due_date: localYYYYMMDD(billDue),
             days_left: daysLeft
           };
         });
@@ -616,7 +643,7 @@ export async function POST(req: Request) {
         priority: body.priority || 'high',
         pillar: body.pillar || 'general',
         is_mit: body.is_mit ? 1 : 0,
-        due_date: body.due_date || new Date().toISOString().slice(0, 10),
+        due_date: body.due_date || localYYYYMMDD(new Date()),
         due_time: null,
         recurrence: 'none',
         subtasks_json: '[]',
