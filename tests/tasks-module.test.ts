@@ -5,6 +5,7 @@ import {
   parseSubtasks,
   calculateSubtaskProgress,
   calculateNextRecurrenceDate,
+  resolveSubtaskDrivenStatus,
   validateMitConstraint,
   filterTasksByView,
   generateCrossModuleActionItems,
@@ -110,6 +111,88 @@ describe('🎯 Singularity Faz 6: Görevler & Odak Motoru (/tasks) Test Paketi',
       // Boş durum testi
       expect(calculateSubtaskProgress([])).toEqual({ total: 0, completed: 0, percent: 0 });
       expect(calculateSubtaskProgress(null)).toEqual({ total: 0, completed: 0, percent: 0 });
+    });
+
+    it('resolveSubtaskDrivenStatus: tüm adımlar tamamlanınca görevi tamamlamalı, adım geri alınınca yeniden açmalıdır', () => {
+      const done: Subtask[] = [
+        { id: '1', title: 'A', is_completed: true },
+        { id: '2', title: 'B', is_completed: true },
+      ];
+      const partial: Subtask[] = [
+        { id: '1', title: 'A', is_completed: true },
+        { id: '2', title: 'B', is_completed: false },
+      ];
+
+      expect(resolveSubtaskDrivenStatus(done, 'pending')).toEqual({ nextStatus: 'completed', transition: 'completed' });
+      expect(resolveSubtaskDrivenStatus(done, 'in_progress')).toEqual({ nextStatus: 'completed', transition: 'completed' });
+      expect(resolveSubtaskDrivenStatus(done, 'completed')).toEqual({ nextStatus: 'completed', transition: 'none' });
+      expect(resolveSubtaskDrivenStatus(partial, 'completed')).toEqual({ nextStatus: 'pending', transition: 'reopened' });
+      expect(resolveSubtaskDrivenStatus(partial, 'pending')).toEqual({ nextStatus: 'pending', transition: 'none' });
+      // Boş adım listesi görevi asla otomatik tamamlamamalı ([].every === true tuzağı)
+      expect(resolveSubtaskDrivenStatus([], 'pending')).toEqual({ nextStatus: 'pending', transition: 'none' });
+      expect(resolveSubtaskDrivenStatus([], null)).toEqual({ nextStatus: 'pending', transition: 'none' });
+    });
+
+    it('toggle_subtask API: son adım işaretlenince görevi tamamlamalı ve tekrarlayan görevde mükerrer kopya üretmemelidir', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue({ id: 'user-1', family_id: 'fam-1' } as any);
+      const existingTask = {
+        id: 'task-1', title: 'Rutin', status: 'pending', recurrence: 'daily', due_date: '2026-11-17',
+        subtasks_json: JSON.stringify([
+          { id: 's1', title: 'A', is_completed: true },
+          { id: 's2', title: 'B', is_completed: false },
+        ]),
+        user_id: 'user-1', family_id: 'fam-1'
+      };
+      mockSelect
+        .mockReturnValueOnce(createSelectChain([existingTask]))      // görev sorgusu
+        .mockReturnValueOnce(createSelectChain([{ id: 'task-dup' }])); // mükerrer kontrolü → zaten var
+      const updateChain = createUpdateChain();
+      mockUpdate.mockReturnValue(updateChain);
+
+      const req = new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'toggle_subtask', task_id: 'task-1', subtask_id: 's2' })
+      });
+      const res = await postTasks(req);
+      const json = await res.json();
+
+      expect(json.success).toBe(true);
+      expect(json.data.transition).toBe('completed');
+      expect(json.data.task_status).toBe('completed');
+      expect(json.data.spawned_next_task).toEqual({ id: 'task-dup', due_date: '2026-11-18' });
+      expect(mockInsert).not.toHaveBeenCalled();
+      const setArg = updateChain.set.mock.calls[0][0];
+      expect(setArg.status).toBe('completed');
+      expect(typeof setArg.completed_at).toBe('string');
+    });
+
+    it('toggle_subtask API: tamamlanmış görevde adım geri alınınca görev yeniden açılmalıdır', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue({ id: 'user-1', family_id: 'fam-1' } as any);
+      const existingTask = {
+        id: 'task-2', title: 'Tek seferlik', status: 'completed', recurrence: 'none', due_date: '2026-11-17',
+        completed_at: '2026-11-17T10:00:00.000Z',
+        subtasks_json: JSON.stringify([
+          { id: 's1', title: 'A', is_completed: true },
+          { id: 's2', title: 'B', is_completed: true },
+        ]),
+        user_id: 'user-1', family_id: 'fam-1'
+      };
+      mockSelect.mockReturnValueOnce(createSelectChain([existingTask]));
+      const updateChain = createUpdateChain();
+      mockUpdate.mockReturnValue(updateChain);
+
+      const req = new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'toggle_subtask', task_id: 'task-2', subtask_id: 's1' })
+      });
+      const json = await (await postTasks(req)).json();
+
+      expect(json.data.transition).toBe('reopened');
+      expect(json.data.task_status).toBe('pending');
+      const setArg = updateChain.set.mock.calls[0][0];
+      expect(setArg.status).toBe('pending');
+      expect(setArg.completed_at).toBeNull();
+      expect(mockInsert).not.toHaveBeenCalled();
     });
   });
 

@@ -151,8 +151,16 @@ export default function TasksClient({ initialData }: TasksClientProps) {
             return s;
           });
           const completedCount = updatedSubtasks.filter(s => s.is_completed).length;
+          const allDone = updatedSubtasks.length > 0 && completedCount === updatedSubtasks.length;
+          const wasDone = t.status === 'completed';
+          const statusPatch = allDone && !wasDone
+            ? { status: 'completed' as const, completed_at: new Date().toISOString() }
+            : !allDone && wasDone
+              ? { status: 'pending' as const, completed_at: null }
+              : {};
           return {
             ...t,
+            ...statusPatch,
             subtasks: updatedSubtasks,
             subtasks_progress: {
               total: updatedSubtasks.length,
@@ -164,11 +172,22 @@ export default function TasksClient({ initialData }: TasksClientProps) {
         return t;
       }));
 
-      await fetch('/api/tasks', {
+      const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'toggle_subtask', task_id: taskId, subtask_id: subtaskId })
       });
+      const json = await res.json();
+      if (!json.success) {
+        showToast(json.error || 'Adım güncellenemedi.');
+        fetchTasks();
+        return;
+      }
+      if (json.data?.transition && json.data.transition !== 'none') {
+        if (json.message) showToast(json.message);
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
+        fetchTasks();
+      }
     } catch {
       fetchTasks();
     }

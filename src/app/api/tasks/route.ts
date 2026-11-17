@@ -20,11 +20,69 @@ import {
   parseSubtasks,
   calculateSubtaskProgress,
   calculateNextRecurrenceDate,
+  resolveSubtaskDrivenStatus,
   validateMitConstraint,
   filterTasksByView,
   generateCrossModuleActionItems
 } from '@/lib/tasks-engine';
 import { calculateCreditCardSchedule, localYYYYMMDD } from '@/lib/bill-schedule';
+
+type TaskRow = typeof tasks.$inferSelect;
+
+/**
+ * Tekrarlayan görev tamamlandığında bir sonraki periyot görevini üretir.
+ * Mükerrer kalkanı: aynı başlık + tekrar tipi + vade tarihine sahip bekleyen görev zaten varsa yenisi oluşturulmaz
+ * (ör. son adımın işaretlenip kaldırılıp tekrar işaretlenmesi).
+ */
+async function spawnNextRecurringTask(
+  existing: TaskRow,
+  userId: string,
+  familyId: string,
+  nowISO: string
+): Promise<{ id: string; due_date: string } | null> {
+  if (!existing.recurrence || existing.recurrence === 'none') return null;
+  const nextDueDate = calculateNextRecurrenceDate(existing.due_date, existing.recurrence as TaskRecurrence);
+  if (!nextDueDate) return null;
+
+  const duplicate = (await db.select({ id: tasks.id }).from(tasks).where(
+    and(
+      eq(tasks.title, existing.title),
+      eq(tasks.recurrence, existing.recurrence),
+      eq(tasks.due_date, nextDueDate),
+      eq(tasks.status, 'pending'),
+      or(eq(tasks.user_id, userId), eq(tasks.family_id, familyId))
+    )
+  ).limit(1))[0];
+  if (duplicate) return { id: duplicate.id, due_date: nextDueDate };
+
+  const nextTaskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  // Alt görevleri sıfırla
+  const freshSubtasks = parseSubtasks(existing.subtasks_json).map(s => ({ ...s, is_completed: false }));
+
+  await db.insert(tasks).values({
+    id: nextTaskId,
+    title: existing.title,
+    description: existing.description,
+    status: 'pending',
+    priority: existing.priority,
+    pillar: existing.pillar,
+    is_mit: existing.is_mit,
+    due_date: nextDueDate,
+    due_time: existing.due_time,
+    recurrence: existing.recurrence,
+    subtasks_json: JSON.stringify(freshSubtasks),
+    is_family_shared: existing.is_family_shared,
+    assigned_member_id: existing.assigned_member_id,
+    source_module: existing.source_module,
+    source_ref_id: existing.source_ref_id,
+    completed_at: null,
+    user_id: userId,
+    family_id: familyId,
+    created_at: nowISO,
+    updated_at: nowISO
+  });
+  return { id: nextTaskId, due_date: nextDueDate };
+}
 
 export async function GET(req: Request) {
   try {
@@ -423,40 +481,9 @@ export async function POST(req: Request) {
       }).where(eq(tasks.id, taskId));
 
       // Tekrarlayan Görev Döngüsü: Eğer görev tamamlandıysa ve recurrence varsa bir sonraki periyot görevini otomatik üret
-      let spawnedNextTask: any = null;
-      if (!isCompleted && existing.recurrence && existing.recurrence !== 'none') {
-        const nextDueDate = calculateNextRecurrenceDate(existing.due_date, existing.recurrence as TaskRecurrence);
-        if (nextDueDate) {
-          const nextTaskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-          
-          // Alt görevleri sıfırla
-          const freshSubtasks = parseSubtasks(existing.subtasks_json).map(s => ({ ...s, is_completed: false }));
-
-          await db.insert(tasks).values({
-            id: nextTaskId,
-            title: existing.title,
-            description: existing.description,
-            status: 'pending',
-            priority: existing.priority,
-            pillar: existing.pillar,
-            is_mit: existing.is_mit,
-            due_date: nextDueDate,
-            due_time: existing.due_time,
-            recurrence: existing.recurrence,
-            subtasks_json: JSON.stringify(freshSubtasks),
-            is_family_shared: existing.is_family_shared,
-            assigned_member_id: existing.assigned_member_id,
-            source_module: existing.source_module,
-            source_ref_id: existing.source_ref_id,
-            completed_at: null,
-            user_id: userId,
-            family_id: familyId,
-            created_at: nowISO,
-            updated_at: nowISO
-          });
-          spawnedNextTask = { id: nextTaskId, due_date: nextDueDate };
-        }
-      }
+      const spawnedNextTask = !isCompleted
+        ? await spawnNextRecurringTask(existing, userId, familyId, nowISO)
+        : null;
 
       return NextResponse.json({
         success: true,
@@ -497,17 +524,35 @@ export async function POST(req: Request) {
         return s;
       });
 
+      // Adım → Görev senkronu: tüm adımlar bitince görev tamamlanır, bir adım geri alınınca görev yeniden açılır
+      const { nextStatus, transition } = resolveSubtaskDrivenStatus(updatedSubtasks, existing.status);
+
       await db.update(tasks).set({
         subtasks_json: JSON.stringify(updatedSubtasks),
+        ...(transition !== 'none'
+          ? { status: nextStatus, completed_at: transition === 'completed' ? nowISO : null }
+          : {}),
         updated_at: nowISO
       }).where(eq(tasks.id, taskId));
 
+      const spawnedNextTask = transition === 'completed'
+        ? await spawnNextRecurringTask(existing, userId, familyId, nowISO)
+        : null;
+
       return NextResponse.json({
         success: true,
+        message: transition === 'completed'
+          ? 'Tüm adımlar tamamlandı, görev kapandı 🎉'
+          : transition === 'reopened'
+            ? 'Adım geri alındı, görev yeniden açıldı.'
+            : undefined,
         data: {
           task_id: taskId,
           subtasks: updatedSubtasks,
-          progress: calculateSubtaskProgress(updatedSubtasks)
+          progress: calculateSubtaskProgress(updatedSubtasks),
+          task_status: nextStatus,
+          transition,
+          spawned_next_task: spawnedNextTask
         }
       });
     }

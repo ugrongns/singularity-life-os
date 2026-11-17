@@ -105,6 +105,30 @@ export function calculateSubtaskProgress(subtasks: Subtask[] | string | null | u
 }
 
 /**
+ * Alt adım değişikliği sonrası ana görevin durum geçişini belirler.
+ * - Tüm adımlar tamamlandıysa (ve en az 1 adım varsa) görev 'completed' olur.
+ * - Görev tamamlanmışken herhangi bir adımın işareti kaldırılırsa görev 'pending' durumuna geri döner.
+ * - Diğer durumlarda mevcut durum korunur (transition: 'none').
+ */
+export function resolveSubtaskDrivenStatus(
+  subtasks: Subtask[],
+  currentStatus: string | null | undefined
+): { nextStatus: TaskStatus; transition: 'completed' | 'reopened' | 'none' } {
+  const status = (currentStatus as TaskStatus) || 'pending';
+  if (!Array.isArray(subtasks) || subtasks.length === 0) {
+    return { nextStatus: status, transition: 'none' };
+  }
+  const allDone = subtasks.every(s => s.is_completed);
+  if (allDone && status !== 'completed') {
+    return { nextStatus: 'completed', transition: 'completed' };
+  }
+  if (!allDone && status === 'completed') {
+    return { nextStatus: 'pending', transition: 'reopened' };
+  }
+  return { nextStatus: status, transition: 'none' };
+}
+
+/**
  * Tekrarlayan görevin bir sonraki vade tarihini hesaplar
  */
 export function calculateNextRecurrenceDate(
