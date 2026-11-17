@@ -9,7 +9,7 @@ import { GET as getWater, POST as handleWaterPost } from '../src/app/api/health/
 import { POST as handleShoppingListPost } from '../src/app/api/shopping-list/route';
 import { POST as handleScaleLogsPost } from '../src/app/api/wellness/scale-logs/route';
 import { GET as getDigitalVault, PUT as updateDigitalVault } from '../src/app/api/digital-vault/route';
-import { POST as handleDietPost } from '../src/app/api/health/diet/route';
+import { POST as handleDietPost, DELETE as handleDietDelete, PUT as handleDietPut } from '../src/app/api/health/diet/route';
 import { POST as handleUploadCover } from '../src/app/api/library/upload-cover/route';
 import { POST as handleScanInvoice } from '../src/app/api/home-operations/scan-invoice/route';
 import { POST as handleScanDocument } from '../src/app/api/digital-vault/scan-document/route';
@@ -647,6 +647,41 @@ describe('🎯 Modül 3 Denetim Raporu Doğrulama Testleri (TDD Verification)', 
       expect(res.status).toBe(200);
       expect(insertChain.lastValues.fat_g).toBe(0); // 15'e ezilmemeli!
       expect(insertChain.lastValues.carbs_g).toBe(0); // 35'e ezilmemeli!
+    });
+
+    it('Eski/sahipsiz (user_id NULL, family_id NULL) diyet menüleri silinebilmeli ve güncellenebilmelidir; başka kullanıcıya ait menüler reddedilmelidir', async () => {
+      (getAuthUser as any).mockResolvedValue({
+        id: 'usr-1',
+        family_id: 'fam-1'
+      });
+
+      mockSelect.mockReturnValueOnce(createSelectChain([{ id: 'legacy-opt-1', user_id: null, family_id: null }]));
+      mockDelete.mockReturnValueOnce(createDeleteChain());
+
+      const delRes = await handleDietDelete(new Request('http://localhost/api/health/diet?id=legacy-opt-1', { method: 'DELETE' }));
+      expect(delRes.status).toBe(200);
+
+      mockSelect.mockReturnValueOnce(createSelectChain([{ id: 'legacy-opt-1', user_id: null, family_id: null }]));
+      const putChain = createUpdateChain();
+      mockUpdate.mockReturnValueOnce(putChain);
+
+      const putRes = await handleDietPut(new Request('http://localhost/api/health/diet', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'legacy-opt-1',
+          title: 'Güncellenmiş Kahvaltı',
+          meal_type: 'breakfast',
+          calories: 350
+        })
+      }));
+      expect(putRes.status).toBe(200);
+      expect(putChain.lastSet.user_id).toBe('usr-1');
+      expect(putChain.lastSet.family_id).toBe('fam-1');
+
+      mockSelect.mockReturnValueOnce(createSelectChain([]));
+      const deniedRes = await handleDietDelete(new Request('http://localhost/api/health/diet?id=other-user-opt', { method: 'DELETE' }));
+      expect(deniedRes.status).toBe(403);
     });
   });
 

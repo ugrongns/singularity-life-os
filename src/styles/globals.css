@@ -885,6 +885,12 @@ body {
     flex-shrink: 0;
   }
 
+  .bottom-sheet.modal-flush,
+  .modal-card.modal-flush {
+    padding: 0 0 env(safe-area-inset-bottom, 0px) 0 !important;
+    overflow: hidden !important;
+  }
+
   .modal-sticky-footer,
   .sheet-sticky-footer,
   .modal-footer {
@@ -937,6 +943,18 @@ body {
   .modal-card.modal-xl,
   .bottom-sheet.modal-xl {
     max-width: 860px !important;
+  }
+
+  .modal-card.modal-2xl,
+  .bottom-sheet.modal-2xl {
+    max-width: 960px !important;
+  }
+
+  .modal-card.modal-flush,
+  .bottom-sheet.modal-flush {
+    padding: 0 !important;
+    gap: 0 !important;
+    overflow: hidden !important;
   }
 
   .sheet-handle {

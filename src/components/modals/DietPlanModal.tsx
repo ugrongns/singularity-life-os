@@ -169,10 +169,10 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
     setFormMealType((opt.meal_type as any) || 'breakfast');
     setFormDescription(opt.description || '');
     setFormChecklistText((opt.checklist || []).join('\n'));
-    setFormCalories(opt.calories || '');
-    setFormProtein(opt.protein_g || '');
-    setFormCarbs(opt.carbs_g || '');
-    setFormFat(opt.fat_g || '');
+    setFormCalories(opt.calories ?? '');
+    setFormProtein(opt.protein_g ?? '');
+    setFormCarbs(opt.carbs_g ?? '');
+    setFormFat(opt.fat_g ?? '');
     setRawDietText('');
     setAiError(null);
     setViewMode('edit');
@@ -219,10 +219,10 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
         setFormMealType(d.meal_type || 'breakfast');
         setFormDescription(d.description || '');
         setFormChecklistText((d.checklist || []).join('\n'));
-        setFormCalories(d.calories || 0);
-        setFormProtein(d.protein_g || 0);
-        setFormCarbs(d.carbs_g || 0);
-        setFormFat(d.fat_g || 0);
+        setFormCalories(d.calories ?? 0);
+        setFormProtein(d.protein_g ?? 0);
+        setFormCarbs(d.carbs_g ?? 0);
+        setFormFat(d.fat_g ?? 0);
       } else {
         setAiError(json.error || 'Metin çözümlenemedi.');
       }
@@ -308,20 +308,16 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
-        className="bottom-sheet"
+        className={viewMode === 'list' ? 'bottom-sheet modal-flush' : 'bottom-sheet modal-2xl modal-flush'}
         onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: viewMode === 'list' ? '600px' : '960px',
-          width: '95vw',
           maxHeight: '92vh',
           display: 'flex',
           flexDirection: 'column',
-          padding: 0,
-          overflow: 'hidden',
           transition: 'max-width 0.25s ease-in-out'
         }}
       >
-        <div className="sheet-handle" style={{ margin: '8px auto 4px' }} />
+        <div className="sheet-handle" style={{ margin: '10px auto 4px' }} />
 
         {/* Üst Bar */}
         <div
@@ -329,44 +325,47 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '10px 16px',
-            borderBottom: '1px solid var(--border)'
+            gap: '12px',
+            padding: '14px 20px',
+            borderBottom: '1px solid var(--border)',
+            flexShrink: 0
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
             <div
               style={{
-                width: '30px',
-                height: '30px',
+                width: '32px',
+                height: '32px',
                 borderRadius: '8px',
                 backgroundColor: 'rgba(99, 102, 241, 0.15)',
                 color: '#6366F1',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                flexShrink: 0
               }}
             >
               <FileText className="w-4 h-4" />
             </div>
-            <div>
-              <h3 style={{ fontSize: '14px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+            <div style={{ minWidth: 0 }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
                 {viewMode === 'list' && 'Diyetisyen Menü Planları & Alternatifler'}
                 {viewMode === 'create' && 'AI Diyetisyen Sihirbazı & Yeni Menü'}
                 {viewMode === 'edit' && 'Diyet Menüsünü Düzenle'}
               </h3>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px' }}>
                 {viewMode === 'list' ? 'Kayıtlı alternatifleri seçin veya yenisini ekleyin' : 'WhatsApp/SMS metninden otomatik ayrıştırıcı'}
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             {viewMode === 'list' ? (
               <button
                 type="button"
                 className="btn-primary"
                 onClick={handleOpenCreate}
-                style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}
+                style={{ width: 'auto', marginTop: 0, padding: '7px 14px', fontSize: '12px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Yeni Menü</span>
@@ -376,7 +375,7 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                 type="button"
                 className="btn-secondary"
                 onClick={() => setViewMode('list')}
-                style={{ padding: '6px 10px', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
+                style={{ width: 'auto', marginTop: 0, padding: '7px 12px', fontSize: '12px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Menü Listesi</span>
@@ -386,15 +385,28 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
             <button
               type="button"
               onClick={onClose}
-              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+              aria-label="Kapat"
+              style={{
+                background: 'var(--surface-subtle)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-full)',
+                width: '32px',
+                height: '32px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* Modal Gövdesi */}
-        <div style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
+        <div style={{ padding: '18px 20px', overflowY: 'auto', flex: 1 }}>
           {/* ----------------- GÖRÜNÜM 1: LİSTE MODU ----------------- */}
           {viewMode === 'list' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -564,6 +576,7 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                   <button
                     type="button"
                     className="btn-subtle"
+                    disabled={isAddingToShopping}
                     onClick={async () => {
                       const ingredients = selectedOption.checklist
                         .filter(item => checkedItems[item])
@@ -573,25 +586,38 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                           unit: 'adet',
                           category: 'Market'
                         }));
-                      const res = await fetch('/api/shopping-list', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          action: 'generate_from_diet',
-                          diet_option_id: selectedOption.id,
-                          ingredients
-                        })
-                      });
-                      const json = await res.json();
-                      if (json.success) {
-                        onSuccess(`🛒 ${ingredients.length} adet diyet malzemesi Akıllı Market Listesine başarıyla eklendi!`);
-                        onClose();
+                      if (ingredients.length === 0) {
+                        alert('Lütfen market listesine eklemek için en az bir malzeme seçin.');
+                        return;
+                      }
+                      setIsAddingToShopping(true);
+                      try {
+                        const res = await fetch('/api/shopping-list', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'generate_from_diet',
+                            diet_option_id: selectedOption.id,
+                            ingredients
+                          })
+                        });
+                        const json = await res.json();
+                        if (json.success) {
+                          onSuccess(`🛒 ${ingredients.length} adet diyet malzemesi Akıllı Market Listesine başarıyla eklendi!`);
+                          onClose();
+                        } else {
+                          alert(json.error || 'Malzemeler market listesine eklenemedi.');
+                        }
+                      } catch {
+                        alert('Market listesine ekleme sırasında bağlantı hatası oluştu.');
+                      } finally {
+                        setIsAddingToShopping(false);
                       }
                     }}
                     style={{ padding: '10px', fontSize: '12px', fontWeight: 700, width: '100%', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                   >
                     <ShoppingCart className="w-4 h-4 text-emerald-500" />
-                    <span>Seçilen Malzemeleri Market Listesine Ekle</span>
+                    <span>{isAddingToShopping ? 'Ekleniyor...' : 'Seçilen Malzemeleri Market Listesine Ekle'}</span>
                   </button>
                 </div>
               )}
@@ -605,7 +631,8 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
                 gap: '16px',
-                alignItems: 'start'
+                alignItems: 'start',
+                minWidth: 0
               }}
             >
               {/* SOL SÜTUN: WHATSAPP / SERBEST METİN VE AI PROMPT */}
@@ -617,20 +644,21 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                   padding: '16px',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '12px'
+                  gap: '12px',
+                  minWidth: 0
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 800, color: '#6366F1', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Sparkles className="w-4 h-4 text-indigo-500" />
                     <span>Diyetisyen WhatsApp Mesajı</span>
                   </span>
-                  <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--emerald)', backgroundColor: 'var(--emerald-bg)', padding: '2px 6px', borderRadius: '4px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--emerald)', backgroundColor: 'var(--emerald-bg)', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
                     Gemini AI Vision
                   </span>
                 </div>
 
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
                   Diyetisyeninizin WhatsApp, e-posta veya SMS ile ilettiği menü listesini aynen yapıştırın. Yapay zeka tüm kaloriyi, makroları ve alışveriş checklist'ini otomatik ayrıştıracaktır.
                 </p>
 
@@ -638,10 +666,12 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                   value={rawDietText}
                   onChange={e => setRawDietText(e.target.value)}
                   placeholder="Örn: 'Kahvaltı Alternatif 1: 2 adet haşlanmış yumurta, 5 adet zeytin, 1 dilim tam buğday ekmeği, 30g lor peyniri, bol roka ve maydanoz'"
-                  rows={6}
+                  rows={8}
                   style={{
                     width: '100%',
+                    boxSizing: 'border-box',
                     fontSize: '12px',
+                    lineHeight: 1.45,
                     padding: '10px',
                     borderRadius: '8px',
                     border: '1px solid var(--border)',
@@ -658,15 +688,18 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                   onClick={handleParseWithAI}
                   disabled={isParsingAI || !rawDietText.trim()}
                   style={{
-                    padding: '10px',
+                    width: '100%',
+                    marginTop: 0,
+                    padding: '10px 14px',
                     fontSize: '12px',
                     fontWeight: 800,
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '6px',
                     background: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
-                    boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)'
+                    boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   <Sparkles className="w-4 h-4" />
@@ -690,7 +723,8 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                   padding: '16px',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '12px'
+                  gap: '12px',
+                  minWidth: 0
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -714,6 +748,7 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                     placeholder="Örn: Haşlanmış Yumurtalı Fit Kahvaltı"
                     style={{
                       width: '100%',
+                      boxSizing: 'border-box',
                       padding: '8px 10px',
                       borderRadius: '6px',
                       border: '1px solid var(--border)',
@@ -726,7 +761,7 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                       Öğün Zamanı
                     </label>
@@ -735,7 +770,9 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                       onChange={e => setFormMealType(e.target.value as any)}
                       style={{
                         width: '100%',
-                        padding: '8px 10px',
+                        boxSizing: 'border-box',
+                        height: '36px',
+                        padding: '0 10px',
                         borderRadius: '6px',
                         border: '1px solid var(--border)',
                         backgroundColor: 'var(--surface-subtle)',
@@ -751,7 +788,7 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                     </select>
                   </div>
 
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                       Toplam Kalori (kcal)
                     </label>
@@ -762,7 +799,9 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                       placeholder="420"
                       style={{
                         width: '100%',
-                        padding: '8px 10px',
+                        boxSizing: 'border-box',
+                        height: '36px',
+                        padding: '0 10px',
                         borderRadius: '6px',
                         border: '1px solid var(--border)',
                         backgroundColor: 'var(--surface-subtle)',
@@ -776,8 +815,8 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
 
                 {/* 3'lü Makro Dağılımı */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                  <div style={{ backgroundColor: 'rgba(99, 102, 241, 0.08)', padding: '6px 8px', borderRadius: '6px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
-                    <label style={{ fontSize: '10px', fontWeight: 700, color: '#6366F1', display: 'block' }}>
+                  <div style={{ backgroundColor: 'rgba(99, 102, 241, 0.08)', padding: '6px 8px', borderRadius: '6px', border: '1px solid rgba(99, 102, 241, 0.2)', minWidth: 0 }}>
+                    <label style={{ fontSize: '10px', fontWeight: 700, color: '#6366F1', display: 'block', whiteSpace: 'nowrap' }}>
                       🥩 Protein (g)
                     </label>
                     <input
@@ -785,12 +824,12 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                       value={formProtein}
                       onChange={e => setFormProtein(e.target.value === '' ? '' : Number(e.target.value))}
                       placeholder="25"
-                      style={{ width: '100%', border: 'none', background: 'transparent', fontSize: '13px', fontWeight: 800, color: '#6366F1', outline: 'none' }}
+                      style={{ width: '100%', boxSizing: 'border-box', border: 'none', background: 'transparent', fontSize: '13px', fontWeight: 800, color: '#6366F1', outline: 'none' }}
                     />
                   </div>
 
-                  <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.08)', padding: '6px 8px', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                    <label style={{ fontSize: '10px', fontWeight: 700, color: '#F59E0B', display: 'block' }}>
+                  <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.08)', padding: '6px 8px', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.2)', minWidth: 0 }}>
+                    <label style={{ fontSize: '10px', fontWeight: 700, color: '#F59E0B', display: 'block', whiteSpace: 'nowrap' }}>
                       🌾 Karb (g)
                     </label>
                     <input
@@ -798,12 +837,12 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                       value={formCarbs}
                       onChange={e => setFormCarbs(e.target.value === '' ? '' : Number(e.target.value))}
                       placeholder="35"
-                      style={{ width: '100%', border: 'none', background: 'transparent', fontSize: '13px', fontWeight: 800, color: '#F59E0B', outline: 'none' }}
+                      style={{ width: '100%', boxSizing: 'border-box', border: 'none', background: 'transparent', fontSize: '13px', fontWeight: 800, color: '#F59E0B', outline: 'none' }}
                     />
                   </div>
 
-                  <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.08)', padding: '6px 8px', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                    <label style={{ fontSize: '10px', fontWeight: 700, color: '#10B981', display: 'block' }}>
+                  <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.08)', padding: '6px 8px', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.2)', minWidth: 0 }}>
+                    <label style={{ fontSize: '10px', fontWeight: 700, color: '#10B981', display: 'block', whiteSpace: 'nowrap' }}>
                       🥑 Yağ (g)
                     </label>
                     <input
@@ -811,7 +850,7 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                       value={formFat}
                       onChange={e => setFormFat(e.target.value === '' ? '' : Number(e.target.value))}
                       placeholder="14"
-                      style={{ width: '100%', border: 'none', background: 'transparent', fontSize: '13px', fontWeight: 800, color: '#10B981', outline: 'none' }}
+                      style={{ width: '100%', boxSizing: 'border-box', border: 'none', background: 'transparent', fontSize: '13px', fontWeight: 800, color: '#10B981', outline: 'none' }}
                     />
                   </div>
                 </div>
@@ -820,12 +859,12 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                   <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                     Kısa Not / Diyetisyen Önerisi
                   </label>
-                  <input
-                    type="text"
+                  <textarea
+                    rows={2}
                     value={formDescription}
                     onChange={e => setFormDescription(e.target.value)}
                     placeholder="Örn: Yüksek proteinli, tokluk süresi uzun kahvaltı alternatifi"
-                    style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface-subtle)', color: 'var(--text-main)', fontSize: '12px' }}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface-subtle)', color: 'var(--text-main)', fontSize: '12px', lineHeight: 1.45, resize: 'vertical' }}
                   />
                 </div>
 
@@ -834,28 +873,49 @@ export default function DietPlanModal({ isOpen, memberId, onClose, onSuccess }: 
                     Malzeme Kontrol Listesi (Checklist - Her satıra bir malzeme)
                   </label>
                   <textarea
-                    rows={4}
+                    rows={5}
                     value={formChecklistText}
                     onChange={e => setFormChecklistText(e.target.value)}
                     placeholder="2 adet haşlanmış yumurta&#10;5 adet zeytin&#10;1 dilim tam buğday ekmeği"
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface-subtle)', color: 'var(--text-main)', fontSize: '12px' }}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface-subtle)', color: 'var(--text-main)', fontSize: '12px', lineHeight: 1.45, resize: 'vertical' }}
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
                   <button
                     type="submit"
                     className="btn-primary"
                     disabled={isSubmitting}
-                    style={{ flex: 1, padding: '10px', fontSize: '12px', fontWeight: 800 }}
+                    style={{
+                      flex: 1,
+                      width: 'auto',
+                      marginTop: 0,
+                      padding: '10px 14px',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      whiteSpace: 'nowrap',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
                   >
-                    {isSubmitting ? 'Kaydediliyor...' : viewMode === 'create' ? '💾 Menüyü Kaydet ve Listeye Ekle' : '💾 Güncellemeleri Kaydet'}
+                    <span>{isSubmitting ? '⏳' : '💾'}</span>
+                    <span>{isSubmitting ? 'Kaydediliyor...' : viewMode === 'create' ? 'Menüyü Kaydet ve Listeye Ekle' : 'Güncellemeleri Kaydet'}</span>
                   </button>
                   <button
                     type="button"
                     className="btn-secondary"
                     onClick={() => setViewMode('list')}
-                    style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 700 }}
+                    style={{
+                      width: 'auto',
+                      marginTop: 0,
+                      padding: '10px 16px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0
+                    }}
                   >
                     İptal
                   </button>

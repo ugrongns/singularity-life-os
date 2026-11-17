@@ -165,6 +165,24 @@ export async function POST(req: Request) {
   }
 }
 
+async function findAuthorizedDietOption(id: string, userId: string, familyId: string) {
+  const rows = await db
+    .select()
+    .from(dietMealOptions)
+    .where(
+      and(
+        eq(dietMealOptions.id, id),
+        or(
+          eq(dietMealOptions.user_id, userId),
+          eq(dietMealOptions.family_id, familyId),
+          and(isNull(dietMealOptions.user_id), isNull(dietMealOptions.family_id))
+        )
+      )
+    )
+    .limit(1);
+  return rows[0] || null;
+}
+
 export async function PUT(req: Request) {
   try {
     await initDatabase();
@@ -179,12 +197,7 @@ export async function PUT(req: Request) {
     }
 
     const familyId = user.family_id || `fam-${user.id}`;
-    const target = (await db.select().from(dietMealOptions).where(
-      and(
-        eq(dietMealOptions.id, id),
-        or(eq(dietMealOptions.user_id, user.id), eq(dietMealOptions.family_id, familyId))
-      )
-    ).limit(1))[0];
+    const target = await findAuthorizedDietOption(id, user.id, familyId);
 
     if (!target) {
       return NextResponse.json({ success: false, error: 'Menü bulunamadı veya güncelleme yetkiniz yok.' }, { status: 403 });
@@ -204,6 +217,8 @@ export async function PUT(req: Request) {
         protein_g: parseNum(protein_g, 0),
         carbs_g: parseNum(carbs_g, 0),
         fat_g: parseNum(fat_g, 0),
+        user_id: target.user_id ?? user.id,
+        family_id: target.family_id ?? familyId,
         updated_at: now
       })
       .where(eq(dietMealOptions.id, id));
@@ -231,12 +246,7 @@ export async function DELETE(req: Request) {
     }
 
     const familyId = user.family_id || `fam-${user.id}`;
-    const target = (await db.select().from(dietMealOptions).where(
-      and(
-        eq(dietMealOptions.id, id),
-        or(eq(dietMealOptions.user_id, user.id), eq(dietMealOptions.family_id, familyId))
-      )
-    ).limit(1))[0];
+    const target = await findAuthorizedDietOption(id, user.id, familyId);
 
     if (!target) {
       return NextResponse.json({ success: false, error: 'Menü bulunamadı veya silme yetkiniz yok.' }, { status: 403 });
