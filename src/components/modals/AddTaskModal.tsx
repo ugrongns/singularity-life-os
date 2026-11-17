@@ -23,6 +23,7 @@ import {
   PILLAR_CONFIGS,
   PRIORITY_CONFIGS
 } from '@/lib/tasks-engine';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 interface AddTaskModalProps {
   isOpen: boolean;
@@ -78,7 +79,7 @@ export default function AddTaskModal({
         setPillar('general');
         setPriority('medium');
         setIsMit(false);
-        setDueDate(new Date().toISOString().slice(0, 10)); // Bugün
+        setDueDate(getTodayTurkeyDate()); // Bugün (Europe/Istanbul)
         setDueTime('');
         setRecurrence('none');
         setIsFamilyShared(false);

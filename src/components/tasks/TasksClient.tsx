@@ -30,8 +30,10 @@ import {
   TaskPriority,
   CrossModuleAction,
   PILLAR_CONFIGS,
-  PRIORITY_CONFIGS
+  PRIORITY_CONFIGS,
+  filterTasksByView
 } from '@/lib/tasks-engine';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 import AddTaskModal from '@/components/modals/AddTaskModal';
 
 interface TasksClientProps {
@@ -246,36 +248,14 @@ export default function TasksClient({ initialData }: TasksClientProps) {
     });
   };
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getTodayTurkeyDate();
 
   // MIT Görevleri (Günün 3 Odağı)
   const todayMitTasks = tasks.filter(t => t.is_mit === 1 && (!t.due_date || t.due_date === todayStr));
   const mitPercent = Math.min(100, Math.round((mitSummary.completedMitCount / Math.max(1, (mitSummary.activeMitCount + mitSummary.completedMitCount))) * 100)) || 0;
 
-  // Görünüm Listesi Filtreleme
-  let displayedTasks = tasks;
-  switch (activeTab) {
-    case 'today':
-      displayedTasks = tasks.filter(t => {
-        if (t.status === 'completed') {
-          return t.due_date === todayStr || (t.completed_at && t.completed_at.slice(0, 10) === todayStr);
-        }
-        return t.due_date === todayStr || (t.due_date && t.due_date < todayStr) || t.is_mit === 1;
-      });
-      break;
-    case 'upcoming':
-      displayedTasks = tasks.filter(t => t.status !== 'completed' && t.due_date && t.due_date > todayStr);
-      break;
-    case 'backlog':
-      displayedTasks = tasks.filter(t => t.status !== 'completed' && (!t.due_date || t.due_date.trim() === ''));
-      break;
-    case 'recurring':
-      displayedTasks = tasks.filter(t => t.recurrence && t.recurrence !== 'none');
-      break;
-    case 'completed':
-      displayedTasks = tasks.filter(t => t.status === 'completed');
-      break;
-  }
+  // Görünüm Listesi Filtreleme (Tek kaynak: tasks-engine.filterTasksByView)
+  let displayedTasks = activeTab === 'bridge' ? tasks : filterTasksByView(tasks, activeTab, todayStr);
 
   // Kişisel / Aile Filtresi
   if (filterType === 'personal') {
@@ -554,12 +534,12 @@ export default function TasksClient({ initialData }: TasksClientProps) {
             }}
           >
             {[
-              { id: 'today', label: '☀️ Bugün', count: tasks.filter(t => t.due_date === todayStr || (t.due_date && t.due_date < todayStr) || t.is_mit === 1).length, color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.15)' },
-              { id: 'upcoming', label: '📅 Yaklaşan', count: tasks.filter(t => t.status !== 'completed' && t.due_date && t.due_date > todayStr).length, color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.15)' },
-              { id: 'backlog', label: '📥 Backlog', count: tasks.filter(t => t.status !== 'completed' && (!t.due_date || t.due_date.trim() === '')).length, color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.15)' },
-              { id: 'recurring', label: '🔄 Rutinler', count: tasks.filter(t => t.recurrence && t.recurrence !== 'none').length, color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.15)' },
+              { id: 'today', label: '☀️ Bugün', count: filterTasksByView(tasks, 'today', todayStr).length, color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.15)' },
+              { id: 'upcoming', label: '📅 Yaklaşan', count: filterTasksByView(tasks, 'upcoming', todayStr).length, color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.15)' },
+              { id: 'backlog', label: '📥 Backlog', count: filterTasksByView(tasks, 'backlog', todayStr).length, color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.15)' },
+              { id: 'recurring', label: '🔄 Rutinler', count: filterTasksByView(tasks, 'recurring', todayStr).length, color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.15)' },
               { id: 'bridge', label: '🌉 Sistem Köprüsü', count: crossModuleActions.length, color: '#EC4899', bg: 'rgba(236, 72, 153, 0.15)' },
-              { id: 'completed', label: '✅ Tamamlananlar', count: tasks.filter(t => t.status === 'completed').length, color: '#10B981', bg: 'rgba(16, 185, 129, 0.15)' },
+              { id: 'completed', label: '✅ Tamamlananlar', count: filterTasksByView(tasks, 'completed', todayStr).length, color: '#10B981', bg: 'rgba(16, 185, 129, 0.15)' },
             ].map(tab => {
               const isSelected = activeTab === tab.id;
               return (

@@ -1,4 +1,16 @@
 // Singularity Life OS - Görevler & Odak Motoru (Faz 17)
+import { getTodayTurkeyDate } from './date-utils';
+
+/**
+ * UTC ISO zaman damgasını (ör. completed_at) Türkiye yerel takvim gününe çevirir.
+ * Geçersiz/boş girdide null döner.
+ */
+export function toTurkeyDay(isoTimestamp?: string | null): string | null {
+  if (!isoTimestamp) return null;
+  const d = new Date(isoTimestamp);
+  if (isNaN(d.getTime())) return null;
+  return getTodayTurkeyDate(d);
+}
 
 export type TaskPriority = 'critical' | 'high' | 'medium' | 'low';
 export type TaskPillar = 'general' | 'finance' | 'health' | 'wellness' | 'mind' | 'vehicle_home' | 'work' | 'family';
@@ -175,7 +187,7 @@ export function validateMitConstraint(
   targetTaskId?: string
 ): { allowed: boolean; activeMitCount: number; maxMit: number } {
   const maxMit = 3;
-  const normalizedTargetDate = targetDueDate || new Date().toISOString().slice(0, 10);
+  const normalizedTargetDate = targetDueDate || getTodayTurkeyDate();
 
   const activeMits = existingTasks.filter(t => {
     if (targetTaskId && t.id === targetTaskId) return false;
@@ -201,10 +213,12 @@ export function filterTasksByView(tasks: TaskItem[], view: string, todayStr: str
     case 'today':
       return tasks.filter(t => {
         if (t.status === 'completed') {
-          return t.due_date === todayStr || (t.completed_at && t.completed_at.slice(0, 10) === todayStr);
+          return t.due_date === todayStr || toTurkeyDay(t.completed_at) === todayStr;
         }
-        // Tamamlanmamış: Vadesi bugün olanlar, vadesi geçmişler VEYA MIT olarak işaretlenmişler
-        return t.due_date === todayStr || (t.due_date && t.due_date < todayStr) || t.is_mit === 1;
+        // Tamamlanmamış: Vadesi bugün olanlar, vadesi geçmişler VEYA tarihsiz MIT'ler.
+        // Gelecek tarihli MIT'ler bugüne sızmaz; 'upcoming' sekmesinde kalır.
+        if (t.due_date) return t.due_date <= todayStr;
+        return t.is_mit === 1;
       });
 
     case 'upcoming':

@@ -23,8 +23,10 @@ import {
   resolveSubtaskDrivenStatus,
   validateMitConstraint,
   filterTasksByView,
-  generateCrossModuleActionItems
+  generateCrossModuleActionItems,
+  toTurkeyDay
 } from '@/lib/tasks-engine';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 import { calculateCreditCardSchedule, localYYYYMMDD } from '@/lib/bill-schedule';
 
 type TaskRow = typeof tasks.$inferSelect;
@@ -95,7 +97,7 @@ export async function GET(req: Request) {
     const userId = user.id;
     const familyId = user.family_id || `fam-${userId}`;
     const today = new Date();
-    const todayStr = localYYYYMMDD(today);
+    const todayStr = getTodayTurkeyDate(today); // Vercel UTC çalışır; görev günü Europe/Istanbul'a göre belirlenir
 
     const { searchParams } = new URL(req.url);
     const view = searchParams.get('view') || 'all';
@@ -174,7 +176,7 @@ export async function GET(req: Request) {
     }).length;
 
     const completedMitCount = enrichedTasks.filter(t => {
-      const isTodayDone = t.completed_at && t.completed_at.slice(0, 10) === todayStr;
+      const isTodayDone = toTurkeyDay(t.completed_at) === todayStr;
       return t.is_mit === 1 && t.status === 'completed' && isTodayDone;
     }).length;
 
@@ -688,7 +690,7 @@ export async function POST(req: Request) {
         priority: body.priority || 'high',
         pillar: body.pillar || 'general',
         is_mit: body.is_mit ? 1 : 0,
-        due_date: body.due_date || localYYYYMMDD(new Date()),
+        due_date: body.due_date || getTodayTurkeyDate(),
         due_time: null,
         recurrence: 'none',
         subtasks_json: '[]',

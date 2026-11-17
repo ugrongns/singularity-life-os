@@ -6,6 +6,7 @@ import {
   calculateSubtaskProgress,
   calculateNextRecurrenceDate,
   resolveSubtaskDrivenStatus,
+  toTurkeyDay,
   validateMitConstraint,
   filterTasksByView,
   generateCrossModuleActionItems,
@@ -405,6 +406,33 @@ describe('🎯 Singularity Faz 6: Görevler & Odak Motoru (/tasks) Test Paketi',
       const doneList = filterTasksByView(sampleTasks, 'completed', '2026-10-20');
       expect(doneList).toHaveLength(1);
       expect(doneList[0].id).toBe('t-completed');
+    });
+
+    it('gelecek tarihli MIT görevi bugün sekmesine sızmamalı, yaklaşan sekmesinde kalmalıdır (regresyon)', () => {
+      const futureMit: TaskItem = {
+        id: 't-mit-future', title: 'Order flow notları', status: 'pending', priority: 'critical', pillar: 'work',
+        is_mit: 1, due_date: '2026-10-21', recurrence: 'none', is_family_shared: 0,
+        created_at: '2026-10-20T08:00:00Z', updated_at: '2026-10-20T08:00:00Z'
+      };
+      const list = [...sampleTasks, futureMit];
+      expect(filterTasksByView(list, 'today', '2026-10-20').map(t => t.id)).not.toContain('t-mit-future');
+      expect(filterTasksByView(list, 'upcoming', '2026-10-20').map(t => t.id)).toContain('t-mit-future');
+      // Ertesi gün bugüne geçmeli
+      expect(filterTasksByView(list, 'today', '2026-10-21').map(t => t.id)).toContain('t-mit-future');
+    });
+
+    it('bugün tamamlama kontrolü UTC değil Türkiye takvim gününe göre yapılmalıdır (gece 00:00-03:00)', () => {
+      // 2026-10-20T22:30Z = TR 2026-10-21 01:30
+      const lateNight: TaskItem = {
+        id: 't-late', title: 'Gece bitti', status: 'completed', priority: 'low', pillar: 'general',
+        is_mit: 0, due_date: '2026-10-25', completed_at: '2026-10-20T22:30:00Z', recurrence: 'none',
+        is_family_shared: 0, created_at: '2026-10-20T08:00:00Z', updated_at: '2026-10-20T22:30:00Z'
+      };
+      expect(toTurkeyDay('2026-10-20T22:30:00Z')).toBe('2026-10-21');
+      expect(toTurkeyDay(null)).toBeNull();
+      expect(toTurkeyDay('gecersiz')).toBeNull();
+      expect(filterTasksByView([lateNight], 'today', '2026-10-21').map(t => t.id)).toContain('t-late');
+      expect(filterTasksByView([lateNight], 'today', '2026-10-20')).toHaveLength(0);
     });
   });
 
