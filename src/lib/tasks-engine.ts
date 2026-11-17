@@ -267,7 +267,7 @@ export function generateCrossModuleActionItems(options: {
       .map(t => `${t.source_module}:${t.source_ref_id}`)
   );
 
-  const todayStr = options.todayStr || new Date().toISOString().slice(0, 10);
+  const todayStr = options.todayStr || getTodayTurkeyDate();
 
   // 1. Faturalar & Abonelikler (Kalan gün <= 5 veya gecikmiş)
   for (const b of options.bills || []) {

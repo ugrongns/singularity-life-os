@@ -26,8 +26,8 @@ import {
   generateCrossModuleActionItems,
   toTurkeyDay
 } from '@/lib/tasks-engine';
-import { getTodayTurkeyDate } from '@/lib/date-utils';
-import { calculateCreditCardSchedule, localYYYYMMDD } from '@/lib/bill-schedule';
+import { getTodayTurkeyDate, diffTurkeyCalendarDays, parseTurkeyCalendarDate } from '@/lib/date-utils';
+import { calculateCreditCardSchedule } from '@/lib/bill-schedule';
 
 type TaskRow = typeof tasks.$inferSelect;
 
@@ -243,6 +243,8 @@ export async function GET(req: Request) {
 
       const taskCategoryTypeMap = new Map(taskCategories.map(c => [c.id, c.type]));
 
+      const turkeyToday = parseTurkeyCalendarDate(todayStr);
+
       const parsedCC = ccAccounts.map(acc => {
         const txsForCard = cardTxs
           .filter(t => t.wallet_id === acc.id)
@@ -254,7 +256,7 @@ export async function GET(req: Request) {
             notes: t.notes,
             categoryType: t.category_id ? taskCategoryTypeMap.get(t.category_id) || null : null
           }));
-        const sched = calculateCreditCardSchedule(acc, txsForCard, today);
+        const sched = calculateCreditCardSchedule(acc, txsForCard, turkeyToday);
         return {
           id: acc.id,
           name: acc.name,
@@ -268,23 +270,23 @@ export async function GET(req: Request) {
         };
       });
 
-      // Fatura Tarih Kontrolü
-      const curYear = today.getFullYear();
-      const curMonth = today.getMonth();
-      const currentMonthStr = `${curYear}-${String(curMonth + 1).padStart(2, '0')}`;
+      // Fatura Tarih Kontrolü (Türkiye takvim gününe göre)
+      const curYear = Number(todayStr.slice(0, 4));
+      const curMonthIndex = Number(todayStr.slice(5, 7)) - 1;
+      const currentMonthStr = todayStr.slice(0, 7);
+      const maxDays = new Date(Date.UTC(curYear, curMonthIndex + 1, 0)).getUTCDate();
       const parsedBills = billsData
         .filter(b => b.last_paid_month !== currentMonthStr)
         .map(b => {
-          const maxDays = new Date(curYear, curMonth + 1, 0).getDate();
-          const dueDayClamped = Math.min(b.due_day || 1, maxDays);
-          const billDue = new Date(curYear, curMonth, dueDayClamped);
-          const daysLeft = Math.ceil((billDue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          const dueDayClamped = Math.min(Math.max(1, b.due_day || 1), maxDays);
+          const dueDateStr = `${currentMonthStr}-${String(dueDayClamped).padStart(2, '0')}`;
+          const daysLeft = diffTurkeyCalendarDays(dueDateStr, todayStr) ?? 0;
           return {
             id: b.id,
             name: b.name,
             amount: b.amount || 0,
             due_day: b.due_day,
-            due_date: localYYYYMMDD(billDue),
+            due_date: dueDateStr,
             days_left: daysLeft
           };
         });
@@ -299,43 +301,44 @@ export async function GET(req: Request) {
             )
           )
         : [];
-      const parsedVehicles = legals.map(l => {
-        const d = new Date(l.due_date);
-        const daysLeft = Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      const parsedVehicles = legals.flatMap(l => {
+        const daysLeft = diffTurkeyCalendarDays(l.due_date, todayStr);
+        if (daysLeft === null) return [];
         const matchedV = vehiclesData.find(v => v.id === l.vehicle_id);
-        return {
+        return [{
           id: l.id,
           type: l.type,
           due_date: l.due_date,
           days_left: daysLeft,
           plate: matchedV?.plate
-        };
+        }];
       });
 
       // Ev Bakımları
-      const parsedHome = homeMaintData.map(h => {
-        const d = new Date(h.next_due_date);
-        const daysLeft = Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-        return {
+      const parsedHome = homeMaintData.flatMap(h => {
+        const daysLeft = diffTurkeyCalendarDays(h.next_due_date, todayStr);
+        if (daysLeft === null && h.status !== 'warning') return [];
+        return [{
           id: h.id,
           title: h.title,
           next_due_date: h.next_due_date,
-          days_left: daysLeft,
+          days_left: daysLeft ?? 0,
           status: h.status
-        };
+        }];
       });
 
       // Kasa Evrakları
-      const parsedVault = vaultData.filter(v => Boolean(v.expiry_date)).map(v => {
-        const d = new Date(v.expiry_date!);
-        const daysLeft = Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-        return {
+      const parsedVault = vaultData.flatMap(v => {
+        if (!v.expiry_date) return [];
+        const daysLeft = diffTurkeyCalendarDays(v.expiry_date, todayStr);
+        if (daysLeft === null) return [];
+        return [{
           id: v.id,
           title: v.title,
-          expiry_date: v.expiry_date || undefined,
+          expiry_date: v.expiry_date,
           days_left: daysLeft,
           type: v.type
-        };
+        }];
       });
 
       crossModuleActions = generateCrossModuleActionItems({

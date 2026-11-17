@@ -77,3 +77,73 @@ export function getDaysRangeTurkey(count: number, endDateStr?: string): string[]
   }
   return res;
 }
+
+function toTurkeyCalendarNoonMs(dateStr?: string | null): number | null {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const trimmed = dateStr.trim();
+  if (!trimmed) return null;
+
+  let y: number | undefined;
+  let m: number | undefined;
+  let d: number | undefined;
+
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (ymd) {
+    y = Number(ymd[1]);
+    m = Number(ymd[2]);
+    d = Number(ymd[3]);
+  } else {
+    const dmy = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(trimmed);
+    if (dmy) {
+      d = Number(dmy[1]);
+      m = Number(dmy[2]);
+      y = Number(dmy[3]);
+    } else {
+      const parsed = new Date(trimmed);
+      if (isNaN(parsed.getTime())) return null;
+      const trDay = getTodayTurkeyDate(parsed);
+      const parts = trDay.split('-').map(Number);
+      y = parts[0];
+      m = parts[1];
+      d = parts[2];
+    }
+  }
+
+  const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  if (
+    isNaN(dt.getTime()) ||
+    dt.getUTCFullYear() !== y ||
+    dt.getUTCMonth() !== m - 1 ||
+    dt.getUTCDate() !== d
+  ) {
+    return null;
+  }
+  return dt.getTime();
+}
+
+/**
+ * İki takvim günü arasındaki gün farkını (target - base) saat dilimi/saat kayması olmadan hesaplar.
+ * Geçersiz tarihlerde null döner.
+ */
+export function diffTurkeyCalendarDays(
+  targetDateStr?: string | null,
+  baseDateStr: string = getTodayTurkeyDate()
+): number | null {
+  const targetMs = toTurkeyCalendarNoonMs(targetDateStr);
+  const baseMs = toTurkeyCalendarNoonMs(baseDateStr);
+  if (targetMs === null || baseMs === null) return null;
+  return Math.round((targetMs - baseMs) / 86_400_000);
+}
+
+/**
+ * YYYY-MM-DD tarih dizesini, yıl/ay/gün bileşenleri Türkiye takvim gününe sabitlenmiş Date nesnesine çevirir.
+ * calculateCreditCardSchedule gibi getFullYear/getMonth/getDate okuyan yardımcılar için UTC kaymasını önler.
+ */
+export function parseTurkeyCalendarDate(dateStr: string = getTodayTurkeyDate()): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
+  if (match) {
+    const dt = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    if (!isNaN(dt.getTime())) return dt;
+  }
+  return new Date();
+}

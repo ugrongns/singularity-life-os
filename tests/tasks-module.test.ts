@@ -13,6 +13,7 @@ import {
   TaskItem,
   Subtask
 } from '../src/lib/tasks-engine';
+import { diffTurkeyCalendarDays, parseTurkeyCalendarDate } from '../src/lib/date-utils';
 
 // Mock DB and Auth
 const mockSelect = vi.fn();
@@ -624,6 +625,90 @@ describe('🎯 Singularity Faz 6: Görevler & Odak Motoru (/tasks) Test Paketi',
       expect(res.status).toBe(400);
       expect(json.success).toBe(false);
       expect(json.error).toMatch(/en fazla 3/i);
+    });
+
+    it('diffTurkeyCalendarDays ve parseTurkeyCalendarDate kenar durumlarında doğru takvim günü hesabı yapmalıdır', () => {
+      expect(diffTurkeyCalendarDays('2026-12-01', '2026-12-01')).toBe(0);
+      expect(diffTurkeyCalendarDays('2026-12-02', '2026-12-01')).toBe(1);
+      expect(diffTurkeyCalendarDays('2026-11-30', '2026-12-01')).toBe(-1);
+      expect(diffTurkeyCalendarDays('02.12.2026', '2026-12-01')).toBe(1);
+      // 2026-11-30T22:30Z = TR 2026-12-01 01:30 -> 2026-12-01'e göre 0 gün
+      expect(diffTurkeyCalendarDays('2026-11-30T22:30:00Z', '2026-12-01')).toBe(0);
+      expect(diffTurkeyCalendarDays('2026-02-31', '2026-02-28')).toBeNull();
+      expect(diffTurkeyCalendarDays(null, '2026-12-01')).toBeNull();
+      expect(diffTurkeyCalendarDays('', '2026-12-01')).toBeNull();
+      expect(diffTurkeyCalendarDays('gecersiz', '2026-12-01')).toBeNull();
+
+      const cal = parseTurkeyCalendarDate('2026-12-01');
+      expect(cal.getFullYear()).toBe(2026);
+      expect(cal.getMonth()).toBe(11);
+      expect(cal.getDate()).toBe(1);
+    });
+
+    it('GET /api/tasks Sistem Köprüsü (fatura, kredi kartı, araç, kasa) 00:00-03:00 TR gece geçişinde UTC yerine Türkiye takvim gününü kullanmalıdır', async () => {
+      vi.useFakeTimers();
+      try {
+        // UTC 2026-11-30 22:30 = Türkiye 2026-12-01 01:30 (ay ve gün değişimi)
+        vi.setSystemTime(new Date('2026-11-30T22:30:00Z'));
+        vi.mocked(getAuthUser).mockResolvedValue({
+          id: 'user-ugur-tasks',
+          family_id: 'fam-ugur'
+        } as any);
+
+        mockSelect
+          .mockReturnValueOnce(createSelectChain([])) // 1. familyMembers
+          .mockReturnValueOnce(createSelectChain([])) // 2. tasks
+          .mockReturnValueOnce(createSelectChain([ // 3. recurringBills
+            { id: 'bill-dec2', name: 'İnternet', amount: 500, due_day: 2, last_paid_month: '2026-11', status: 'active' }
+          ]))
+          .mockReturnValueOnce(createSelectChain([ // 4. walletsAccounts
+            { id: 'cc-nov30', name: 'Maximum', type: 'credit_card', balance: 1200, cutoff_day: 20, due_day: 30, is_active: 1 }
+          ]))
+          .mockReturnValueOnce(createSelectChain([ // 5. vehicles
+            { id: 'veh-1', plate: '34 ABC 01' }
+          ]))
+          .mockReturnValueOnce(createSelectChain([])) // 6. homeMaintenanceRecords
+          .mockReturnValueOnce(createSelectChain([ // 7. digitalVaultItems
+            { id: 'vault-bad', title: 'Bozuk Tarih', expiry_date: 'gecersiz-tarih', type: 'passport' }
+          ]))
+          .mockReturnValueOnce(createSelectChain([ // 8. transactions (cc)
+            { wallet_id: 'cc-nov30', amount: 1200, transaction_date: '2026-11-10', is_installment: 0, merchant: 'Market', notes: null, category_id: 'cat-1' }
+          ]))
+          .mockReturnValueOnce(createSelectChain([ // 9. categories
+            { id: 'cat-1', type: 'expense' }
+          ]))
+          .mockReturnValueOnce(createSelectChain([ // 10. vehicleLegalReminders
+            { id: 'leg-1', vehicle_id: 'veh-1', type: 'muayene', due_date: '2026-12-01', is_completed: 0 }
+          ]));
+
+        const res = await getTasks(new Request('http://localhost/api/tasks?view=all'));
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        const actions = json.data.crossModuleActions as any[];
+
+        // 1) Kasım'da ödenmiş, vadesi ayın 2'si olan fatura TR 1 Aralık'ta 1 gün kalmış olarak görünmeli
+        const billAction = actions.find(a => a.source_ref_id === 'bill-dec2');
+        expect(billAction).toBeDefined();
+        expect(billAction.due_date).toBe('2026-12-02');
+        expect(billAction.subtitle).toContain('Son 1 gün');
+
+        // 2) Son ödeme günü 30 Kasım olan kredi kartı TR 1 Aralık'ta 1 gün gecikmiş sayılmalı
+        const cardAction = actions.find(a => a.source_ref_id === 'card-cc-nov30');
+        expect(cardAction).toBeDefined();
+        expect(cardAction.due_date).toBe('2026-11-30');
+        expect(cardAction.subtitle).toContain('1 gündür gecikmede');
+
+        // 3) Vadesi 2026-12-01 olan araç muayenesi TR 1 Aralık'ta "Son 1 gün" değil "Vadesi doldu!" olmalı
+        const vehicleAction = actions.find(a => a.source_ref_id === 'leg-1');
+        expect(vehicleAction).toBeDefined();
+        expect(vehicleAction.subtitle).toContain('Vadesi doldu!');
+
+        // 4) Geçersiz tarihli kasa evrakı yanlışlıkla gün=0 sayılmamalı
+        expect(actions.find(a => a.source_ref_id === 'vault-bad')).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });
