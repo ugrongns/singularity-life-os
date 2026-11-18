@@ -1,6 +1,8 @@
 // Singularity Life OS - Bütünsel Yaşam Takvimi & Isı Haritası Motoru (Faz 4)
 import { isIncomeTransaction, isTransferTransaction } from '@/lib/financial-habits';
 import { calculateSessionWpm } from '@/lib/reading-analytics';
+import { getTodayTurkeyDate, shiftTurkeyDate, parseTurkeyDate } from '@/lib/date-utils';
+import { toTurkeyDay } from '@/lib/tasks-engine';
 
 export interface RawHeatmapData {
   fastingSessions: Array<{
@@ -131,10 +133,10 @@ export function calculateHeatmapMatrix(
     waterByDate.set(dStr, cur + (w.amount_ml ?? 0));
   }
 
-  // 4.1 Tamamlanan Görevleri ve MIT'leri gün bazında indeksle
+  // 4.1 Tamamlanan Görevleri ve MIT'leri Türkiye takvim günü bazında indeksle
   const tasksByDate = new Map<string, { tasks: number; mits: number }>();
   for (const t of data.completedTasks || []) {
-    const dStr = t.completed_at?.slice(0, 10);
+    const dStr = toTurkeyDay(t.completed_at) ?? t.completed_at?.slice(0, 10);
     if (!dStr) continue;
     const existing = tasksByDate.get(dStr) || { tasks: 0, mits: 0 };
     existing.tasks += 1;
@@ -142,7 +144,7 @@ export function calculateHeatmapMatrix(
     tasksByDate.set(dStr, existing);
   }
 
-  // 5. Gün gün matris üretimi
+  // 5. Gün gün matris üretimi (Europe/Istanbul takvim günü bazlı)
   const cells: DayHeatmapCell[] = [];
   let totalFastingHours = 0;
   let totalAutophagyHours = 0;
@@ -152,13 +154,13 @@ export function calculateHeatmapMatrix(
   let perfectDaysCount = 0;
   let totalCompletedTasks = 0;
   let totalCompletedMits = 0;
+  const todayTr = getTodayTurkeyDate(referenceDate);
 
   for (let i = totalDays - 1; i >= 0; i--) {
-    const d = new Date(referenceDate);
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().slice(0, 10);
-    const dayOfWeek = d.getDay();
-    const dayLabel = `${d.getDate()} ${monthNames[d.getMonth()]}`;
+    const dateStr = shiftTurkeyDate(todayTr, -i);
+    const parsedDay = parseTurkeyDate(dateStr);
+    const dayOfWeek = parsedDay.getUTCDay();
+    const dayLabel = `${parsedDay.getUTCDate()} ${monthNames[parsedDay.getUTCMonth()]}`;
 
     const fast = fastingByDate.get(dateStr) || { totalHours: 0, autophagyHours: 0 };
     const read = readingByDate.get(dateStr) || { pages: 0, minutes: 0, totalWpm: 0, count: 0 };

@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
+import { describeMitFeedItem } from '@/lib/tasks-engine';
 import {
   Sun,
   Sunset,
@@ -60,6 +62,7 @@ export default function TimeContextualFeed({
 }: TimeContextualFeedProps) {
   const [period, setPeriod] = useState<'morning' | 'day' | 'evening'>('morning');
   const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
+  const [todayStr, setTodayStr] = useState<string>(() => getTodayTurkeyDate());
   const [executingId, setExecutingId] = useState<string | null>(null);
 
   const handleActionClick = (id: string, cb?: () => void) => {
@@ -82,6 +85,7 @@ export default function TimeContextualFeed({
       setCurrentTimeStr(
         now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
       );
+      setTodayStr(getTodayTurkeyDate(now));
     };
 
     updateTime();
@@ -151,14 +155,15 @@ export default function TimeContextualFeed({
   if (tasksData?.tasks) {
     const mitPending = tasksData.tasks.filter((t: any) => t.is_mit === 1 && t.status !== 'completed');
     mitPending.slice(0, 3).forEach((task: any) => {
+      const mitMeta = describeMitFeedItem(task, todayStr);
       actions.push({
         id: `mit-${task.id}`,
-        level: task.priority === 'critical' ? 'critical' : 'warning',
+        level: mitMeta.level,
         category: 'Günün Odağı (MIT)',
         title: `🎯 ${task.title}`,
-        subtitle: task.due_time ? `Saat: ${task.due_time}` : 'Bugün tamamlanması hedeflendi',
+        subtitle: mitMeta.subtitle,
         actionText: '✔ Tamamla',
-        badge: 'ODAK',
+        badge: mitMeta.badge,
         onClick: () => onQuickCompleteTask?.(task.id),
         href: '/tasks'
       });

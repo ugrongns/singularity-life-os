@@ -43,9 +43,10 @@ import {
   homeAppliances,
   shoppingListItems,
   recurringBills,
+  tasks,
   appSettings
 } from '@/db/schema';
-import { eq, or, like } from 'drizzle-orm';
+import { eq, or, like, inArray } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
@@ -129,6 +130,7 @@ export async function POST(req: Request) {
       await tx.delete(vehicles).where(isMasterAdmin ? or(eq(vehicles.user_id, userId), eq(vehicles.family_id, familyId)) : eq(vehicles.user_id, userId));
       
       if (isMasterAdmin) {
+        await tx.delete(tasks).where(or(eq(tasks.user_id, userId), eq(tasks.family_id, familyId)));
         await tx.delete(sinkingFunds).where(eq(sinkingFunds.family_id, familyId));
         await tx.delete(homeMaintenanceRecords).where(eq(homeMaintenanceRecords.family_id, familyId));
         await tx.delete(homeAppliances).where(eq(homeAppliances.family_id, familyId));
@@ -139,6 +141,12 @@ export async function POST(req: Request) {
         await tx.delete(familyInvites).where(eq(familyInvites.family_id, familyId));
         await tx.delete(familyMembers).where(eq(familyMembers.family_id, familyId));
       } else {
+        const userMemberRows = await tx.select({ id: familyMembers.id }).from(familyMembers).where(eq(familyMembers.user_id, userId));
+        const userMemberIds = userMemberRows.map(m => m.id);
+        await tx.delete(tasks).where(eq(tasks.user_id, userId));
+        if (userMemberIds.length > 0) {
+          await tx.update(tasks).set({ assigned_member_id: null }).where(inArray(tasks.assigned_member_id, userMemberIds));
+        }
         await tx.delete(digitalVaultItems).where(eq(digitalVaultItems.user_id, userId));
         await tx.delete(familyMembers).where(eq(familyMembers.user_id, userId));
       }

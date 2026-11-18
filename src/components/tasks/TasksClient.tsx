@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   Plus,
@@ -11,18 +11,17 @@ import {
   Clock,
   Repeat,
   Users,
-  Tag,
   ChevronDown,
   ChevronUp,
-  MoreVertical,
   Trash2,
   Edit2,
   ArrowRight,
-  AlertTriangle,
-  Sparkles,
-  Inbox,
   Filter,
   CheckSquare,
+  Search,
+  Play,
+  Pause,
+  Timer,
   X
 } from 'lucide-react';
 import {
@@ -30,12 +29,26 @@ import {
   TaskPillar,
   TaskPriority,
   CrossModuleAction,
+  CrossModuleFollowUp,
+  VirtualRecurrenceItem,
   PILLAR_CONFIGS,
   PRIORITY_CONFIGS,
+  ALLOWED_FOCUS_DURATIONS,
+  summarizeTodayMit,
   filterTasksByView,
-  filterTasksByDate
+  filterTasksByDate,
+  filterTasksByScope,
+  filterCrossModuleActionsByScope,
+  computeTaskTabCounts,
+  sortTasksForDisplay,
+  formatTaskScheduleLabel,
+  getOverdueTasks,
+  buildMaterializedRecurrenceDraft,
+  computeFocusCountdown,
+  formatFocusDurationSummary,
+  resolveCrossModuleFollowUp
 } from '@/lib/tasks-engine';
-import { getTodayTurkeyDate, formatTurkishDisplayDate } from '@/lib/date-utils';
+import { getTodayTurkeyDate, shiftTurkeyDate, formatTurkishDisplayDate } from '@/lib/date-utils';
 import AddTaskModal from '@/components/modals/AddTaskModal';
 import TaskCalendarPanel from '@/components/tasks/TaskCalendarPanel';
 
@@ -43,23 +56,30 @@ interface TasksClientProps {
   initialData?: any;
   isCalendarOpen?: boolean;
   onCloseCalendar?: () => void;
+  onRefresh?: () => Promise<void> | void;
 }
 
 export default function TasksClient({
   initialData,
   isCalendarOpen,
-  onCloseCalendar
+  onCloseCalendar,
+  onRefresh
 }: TasksClientProps) {
   const [tasks, setTasks] = useState<TaskItem[]>(initialData?.tasks || []);
-  const [mitSummary, setMitSummary] = useState(initialData?.mitSummary || { activeMitCount: 0, completedMitCount: 0, maxMit: 3 });
   const [crossModuleActions, setCrossModuleActions] = useState<CrossModuleAction[]>(initialData?.crossModuleActions || []);
   const [members, setMembers] = useState<Array<{ id: string; name: string; avatar: string }>>(initialData?.members || []);
+  const [importingActionId, setImportingActionId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'today' | 'upcoming' | 'backlog' | 'recurring' | 'bridge' | 'completed'>('today');
   const [filterType, setFilterType] = useState<'all' | 'personal' | 'family'>('all');
   const [selectedPillar, setSelectedPillar] = useState<string>('all');
   const [selectedMember, setSelectedMember] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const [focusDurationMinutes, setFocusDurationMinutes] = useState<number>(25);
+  const [focusSubmittingId, setFocusSubmittingId] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const [internalCalendarOpen, setInternalCalendarOpen] = useState(false);
 
   const calendarOpen = isCalendarOpen ?? internalCalendarOpen;
@@ -67,6 +87,7 @@ export default function TasksClient({
 
   const [loading, setLoading] = useState(!initialData);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [completedFollowUp, setCompletedFollowUp] = useState<(CrossModuleFollowUp & { taskTitle: string }) | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -80,6 +101,15 @@ export default function TasksClient({
     setTimeout(() => setToastMsg(null), 3000);
   };
 
+  const captureFollowUp = (taskId: string, followUp?: CrossModuleFollowUp | null) => {
+    if (!followUp) return;
+    const matched = tasks.find(t => t.id === taskId);
+    setCompletedFollowUp({
+      taskTitle: matched?.title || 'Tamamlanan Görev',
+      ...followUp
+    });
+  };
+
   const fetchTasks = async () => {
     try {
       setLoading(true);
@@ -87,7 +117,6 @@ export default function TasksClient({
       const json = await res.json();
       if (json.success && json.data) {
         setTasks(json.data.tasks || []);
-        setMitSummary(json.data.mitSummary || { activeMitCount: 0, completedMitCount: 0, maxMit: 3 });
         setCrossModuleActions(json.data.crossModuleActions || []);
         setMembers(json.data.members || []);
       }
@@ -97,6 +126,23 @@ export default function TasksClient({
       setLoading(false);
     }
   };
+
+  const syncTasks = async () => {
+    if (onRefresh) {
+      await onRefresh();
+    } else {
+      await fetchTasks();
+    }
+  };
+
+  useEffect(() => {
+    if (initialData) {
+      setTasks(initialData.tasks || []);
+      setCrossModuleActions(initialData.crossModuleActions || []);
+      setMembers(initialData.members || []);
+      setLoading(false);
+    }
+  }, [initialData]);
 
   useEffect(() => {
     if (!initialData) {
@@ -113,7 +159,8 @@ export default function TasksClient({
           return {
             ...t,
             status: isDone ? 'pending' : 'completed',
-            completed_at: isDone ? null : new Date().toISOString()
+            completed_at: isDone ? null : new Date().toISOString(),
+            ...(!isDone ? { focus_started_at: null } : {})
           };
         }
         return t;
@@ -127,14 +174,14 @@ export default function TasksClient({
       const json = await res.json();
       if (json.success) {
         showToast(json.message);
-        window.dispatchEvent(new CustomEvent('singularity-refresh'));
-        fetchTasks();
+        captureFollowUp(taskId, json.data?.follow_up_action);
+        await syncTasks();
       } else {
         showToast(json.error || 'İşlem başarısız.');
-        fetchTasks();
+        await syncTasks();
       }
     } catch {
-      fetchTasks();
+      await syncTasks();
     }
   };
 
@@ -148,7 +195,7 @@ export default function TasksClient({
       const json = await res.json();
       if (json.success) {
         showToast(json.message);
-        fetchTasks();
+        await syncTasks();
       } else {
         showToast(json.error || 'Odak görevi eklenemedi.');
       }
@@ -196,16 +243,16 @@ export default function TasksClient({
       const json = await res.json();
       if (!json.success) {
         showToast(json.error || 'Adım güncellenemedi.');
-        fetchTasks();
+        await syncTasks();
         return;
       }
       if (json.data?.transition && json.data.transition !== 'none') {
         if (json.message) showToast(json.message);
-        window.dispatchEvent(new CustomEvent('singularity-refresh'));
-        fetchTasks();
+        captureFollowUp(taskId, json.data?.follow_up_action);
+        await syncTasks();
       }
     } catch {
-      fetchTasks();
+      await syncTasks();
     }
   };
 
@@ -220,7 +267,9 @@ export default function TasksClient({
       const json = await res.json();
       if (json.success) {
         showToast('Görev silindi.');
-        fetchTasks();
+        await syncTasks();
+      } else {
+        showToast(json.error || 'Görev silinemedi.');
       }
     } catch {
       showToast('Görev silinirken hata oluştu.');
@@ -228,6 +277,8 @@ export default function TasksClient({
   };
 
   const handleImportCrossModule = async (action: CrossModuleAction) => {
+    if (importingActionId === action.id) return;
+    setImportingActionId(action.id);
     try {
       const res = await fetch('/api/tasks', {
         method: 'POST',
@@ -240,18 +291,112 @@ export default function TasksClient({
           priority: action.priority,
           due_date: action.due_date,
           source_module: action.source_module,
-          source_ref_id: action.source_ref_id
+          source_ref_id: action.source_ref_id,
+          is_family_shared: action.is_family_shared
         })
       });
       const json = await res.json();
       if (json.success) {
-        showToast('✅ Görev listesine aktarıldı!');
-        fetchTasks();
+        showToast(json.message || '✅ Görev listesine aktarıldı!');
+        await syncTasks();
+      } else {
+        showToast(json.error || 'Aktarım başarısız.');
       }
     } catch {
       showToast('Aktarım sırasında hata oluştu.');
+    } finally {
+      setImportingActionId(null);
     }
   };
+
+  const handleMaterializeRecurrence = (vr: VirtualRecurrenceItem) => {
+    setEditingTask(buildMaterializedRecurrenceDraft(vr) as any);
+    setIsModalOpen(true);
+  };
+
+  const handleRescheduleTask = async (taskId: string, dueDate: string) => {
+    if (reschedulingId) return;
+    setReschedulingId(taskId);
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reschedule', task_id: taskId, due_date: dueDate })
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast(json.message || '📅 Görev tarihi güncellendi.');
+        await syncTasks();
+      } else {
+        showToast(json.error || 'Görev ertelenemedi.');
+      }
+    } catch {
+      showToast('Erteleme sırasında hata oluştu.');
+    } finally {
+      setReschedulingId(null);
+    }
+  };
+
+  const handleRescheduleAllOverdue = async (taskIds: string[]) => {
+    if (reschedulingId || taskIds.length === 0) return;
+    setReschedulingId('all');
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reschedule_overdue', task_ids: taskIds })
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast(json.message || '☀️ Gecikmiş görevler bugüne alındı.');
+        await syncTasks();
+      } else {
+        showToast(json.error || 'Toplu erteleme başarısız.');
+      }
+    } catch {
+      showToast('Toplu erteleme sırasında hata oluştu.');
+    } finally {
+      setReschedulingId(null);
+    }
+  };
+
+  const runFocusAction = async (
+    taskId: string,
+    payload: Record<string, any>,
+    fallbackError: string
+  ) => {
+    if (focusSubmittingId) return;
+    setFocusSubmittingId(taskId);
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, task_id: taskId })
+      });
+      const json = await res.json();
+      if (json.success) {
+        if (json.message) showToast(json.message);
+        captureFollowUp(taskId, json.data?.follow_up_action);
+        setNowMs(Date.now());
+        await syncTasks();
+      } else {
+        showToast(json.error || fallbackError);
+      }
+    } catch {
+      showToast('Odak zamanlayıcısı güncellenirken hata oluştu.');
+    } finally {
+      setFocusSubmittingId(null);
+    }
+  };
+
+  const handleStartFocus = (taskId: string, durationMinutes: number = focusDurationMinutes) =>
+    runFocusAction(taskId, { action: 'start_focus', duration_minutes: durationMinutes }, 'Odak seansı başlatılamadı.');
+
+  const handlePauseFocus = (taskId: string) =>
+    runFocusAction(taskId, { action: 'pause_focus' }, 'Odak seansı duraklatılamadı.');
+
+  const handleCompleteFocus = (taskId: string, completeTask: boolean) =>
+    runFocusAction(taskId, { action: 'complete_focus', complete_task: completeTask }, 'Odak seansı kaydedilemedi.');
 
   const toggleExpand = (id: string) => {
     setExpandedTaskIds(prev => {
@@ -262,33 +407,127 @@ export default function TasksClient({
     });
   };
 
-  const todayStr = getTodayTurkeyDate();
+  const [todayStr, setTodayStr] = useState<string>(() => getTodayTurkeyDate());
+  const todayRef = useRef(todayStr);
+  todayRef.current = todayStr;
+  const syncTasksRef = useRef(syncTasks);
+  syncTasksRef.current = syncTasks;
 
-  // MIT Görevleri (Günün 3 Odağı)
-  const todayMitTasks = tasks.filter(t => t.is_mit === 1 && (!t.due_date || t.due_date === todayStr));
-  const mitPercent = Math.min(100, Math.round((mitSummary.completedMitCount / Math.max(1, (mitSummary.activeMitCount + mitSummary.completedMitCount))) * 100)) || 0;
+  // Gece yarısı (00:00 TR) veya arka plandan dönüşte tarih değişimini canlı yakala
+  useEffect(() => {
+    const checkDayRollover = () => {
+      const nextToday = getTodayTurkeyDate();
+      if (nextToday !== todayRef.current) {
+        todayRef.current = nextToday;
+        setTodayStr(nextToday);
+        void syncTasksRef.current();
+      }
+    };
 
-  // Görünüm Listesi Filtreleme (Tek kaynak: tasks-engine)
-  const applyScopeFilters = (list: TaskItem[]) => {
-    let result = list;
-    if (filterType === 'personal') {
-      result = result.filter(t => t.is_family_shared === 0);
-    } else if (filterType === 'family') {
-      result = result.filter(t => t.is_family_shared === 1);
-    }
-    if (selectedPillar !== 'all') {
-      result = result.filter(t => t.pillar === selectedPillar);
-    }
-    if (selectedMember !== 'all') {
-      result = result.filter(t => t.assigned_member_id === selectedMember);
-    }
-    return result;
-  };
+    const intervalId = window.setInterval(checkDayRollover, 60_000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkDayRollover();
+      }
+    };
 
-  const scopedTasks = applyScopeFilters(tasks);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', checkDayRollover);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', checkDayRollover);
+    };
+  }, []);
+
+  const activeFocusTask = tasks.find(t => t.status === 'in_progress' && Boolean(t.focus_started_at)) || null;
+  const activeFocusCountdown = activeFocusTask ? computeFocusCountdown(activeFocusTask, nowMs) : null;
+  const baseDocTitleRef = useRef<string | null>(null);
+
+  // Yalnızca aktif odak (Pomodoro) seansı varken 1 sn zamanlayıcı ve sekme başlığı senkronu
+  useEffect(() => {
+    if (!activeFocusTask || !activeFocusCountdown) {
+      if (baseDocTitleRef.current !== null) {
+        document.title = baseDocTitleRef.current;
+        baseDocTitleRef.current = null;
+      }
+      return;
+    }
+
+    if (baseDocTitleRef.current === null) {
+      baseDocTitleRef.current = document.title;
+    }
+
+    setNowMs(Date.now());
+    const tickId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(tickId);
+    };
+  }, [activeFocusTask?.id, activeFocusTask?.focus_started_at, activeFocusTask?.focus_planned_minutes]);
+
+  useEffect(() => {
+    if (activeFocusTask && activeFocusCountdown) {
+      const prefix = activeFocusCountdown.isFinished
+        ? '✅ Süre Doldu!'
+        : `⏱️ ${activeFocusCountdown.formattedRemaining}`;
+      document.title = `${prefix} • ${activeFocusTask.title} | Singularity`;
+    } else if (baseDocTitleRef.current !== null) {
+      document.title = baseDocTitleRef.current;
+      baseDocTitleRef.current = null;
+    }
+  }, [activeFocusTask?.id, activeFocusTask?.title, activeFocusCountdown?.formattedRemaining, activeFocusCountdown?.isFinished]);
+
+  useEffect(() => {
+    return () => {
+      if (baseDocTitleRef.current !== null) {
+        document.title = baseDocTitleRef.current;
+        baseDocTitleRef.current = null;
+      }
+    };
+  }, []);
+
+  // MIT Görevleri (Günün 3 Odağı — Tek kaynak: tasks-engine)
+  const { todayMitTasks, activeMitCount, completedMitCount } = summarizeTodayMit(tasks, todayStr);
+  const mitTargetCount = Math.max(3, todayMitTasks.length);
+  const mitSlots = Array.from({ length: mitTargetCount }, (_, i) => i);
+  const mitPercent = Math.min(100, Math.round((completedMitCount / Math.max(1, activeMitCount + completedMitCount)) * 100)) || 0;
+
+  // Görünüm ve Kapsam Filtreleme + Arama + Sıralama (Tek kaynak: tasks-engine)
+  const effectiveSelectedMember = filterType === 'personal' ? 'all' : selectedMember;
+  const scopedTasks = filterTasksByScope(tasks, {
+    filterType,
+    selectedPillar,
+    selectedMember: effectiveSelectedMember,
+    searchQuery
+  });
+  const scopedCrossModuleActions = filterCrossModuleActionsByScope(
+    crossModuleActions,
+    filterType,
+    selectedPillar,
+    searchQuery
+  );
+  const tabCounts = computeTaskTabCounts(scopedTasks, scopedCrossModuleActions, todayStr);
   const displayedTasks = selectedDate
-    ? applyScopeFilters(filterTasksByDate(tasks, selectedDate))
-    : applyScopeFilters(activeTab === 'bridge' ? tasks : filterTasksByView(tasks, activeTab, todayStr));
+    ? filterTasksByDate(scopedTasks, selectedDate)
+    : sortTasksForDisplay(
+        filterTasksByView(scopedTasks, activeTab === 'bridge' ? 'today' : activeTab, todayStr),
+        activeTab
+      );
+  const overdueTasksInView = !selectedDate && activeTab === 'today'
+    ? getOverdueTasks(displayedTasks, todayStr)
+    : [];
+  const hasActiveFilters = filterType !== 'all' || selectedPillar !== 'all' || effectiveSelectedMember !== 'all' || searchQuery.trim().length > 0;
+
+  const resetAllFilters = () => {
+    setFilterType('all');
+    setSelectedPillar('all');
+    setSelectedMember('all');
+    setSearchQuery('');
+  };
 
   const handleSelectCalendarDate = (dateStr: string | null) => {
     setSelectedDate(dateStr);
@@ -326,10 +565,12 @@ export default function TasksClient({
   const actionIconBtnStyle = (highlight?: boolean, color?: string): React.CSSProperties => ({
     background: highlight ? 'rgba(245, 158, 11, 0.15)' : 'var(--surface-subtle)',
     border: `1px solid ${highlight ? 'rgba(245, 158, 11, 0.3)' : 'var(--border)'}`,
-    borderRadius: '6px',
-    width: '30px',
-    height: '30px',
-    display: 'flex',
+    borderRadius: '8px',
+    minWidth: '44px',
+    minHeight: '44px',
+    width: '44px',
+    height: '44px',
+    display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
     color: color || 'var(--text-muted)',
@@ -346,11 +587,74 @@ export default function TasksClient({
         </div>
       )}
 
+      {/* Çift Yönlü Köprü Onay Kısayolu (Tamamlanan Köprü Görevi Sonrası) */}
+      {completedFollowUp && (
+        <div
+          className="card"
+          role="region"
+          aria-label="Bağlı modül onay kısayolu"
+          style={{
+            padding: '12px 16px',
+            borderColor: 'rgba(236, 72, 153, 0.45)',
+            background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.1), rgba(59, 130, 246, 0.06))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '10px'
+          }}
+        >
+          <div style={{ minWidth: 0, flex: '1 1 220px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+              🌉 "{completedFollowUp.taskTitle}" tamamlandı — Kaynak Modüle İşle
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+              {completedFollowUp.description}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            <Link
+              href={completedFollowUp.href}
+              className="btn-primary"
+              style={{
+                ...compactPrimaryBtnStyle,
+                fontSize: '11px',
+                padding: '6px 12px',
+                textDecoration: 'none',
+                fontWeight: 800
+              }}
+            >
+              <span>{completedFollowUp.label}</span>
+              <ArrowRight size={12} />
+            </Link>
+            <button
+              type="button"
+              onClick={() => setCompletedFollowUp(null)}
+              aria-label="Kısayolu kapat"
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '6px',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text-muted)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 📅 AÇILIR/KAPANIR AYLIK GÖREV TAKVİMİ (Varsayılan kapalı) */}
       {calendarOpen && (
         <TaskCalendarPanel
           tasks={scopedTasks}
-          crossModuleActions={crossModuleActions}
+          crossModuleActions={scopedCrossModuleActions}
           todayStr={todayStr}
           selectedDate={selectedDate}
           onSelectDate={handleSelectCalendarDate}
@@ -358,6 +662,7 @@ export default function TasksClient({
             setEditingTask({ due_date: dateStr } as any);
             setIsModalOpen(true);
           }}
+          onMaterializeRecurrence={handleMaterializeRecurrence}
           onImportCrossModule={handleImportCrossModule}
           onClose={closeCalendar}
         />
@@ -403,14 +708,14 @@ export default function TasksClient({
                     fontWeight: 800,
                     padding: '2px 8px',
                     borderRadius: '999px',
-                    background: mitSummary.completedMitCount === 3 ? 'var(--emerald-bg)' : 'rgba(245, 158, 11, 0.15)',
-                    color: mitSummary.completedMitCount === 3 ? 'var(--emerald)' : '#F59E0B',
+                    background: completedMitCount >= mitTargetCount ? 'var(--emerald-bg)' : 'rgba(245, 158, 11, 0.15)',
+                    color: completedMitCount >= mitTargetCount ? 'var(--emerald)' : '#F59E0B',
                     border: '1px solid rgba(245, 158, 11, 0.3)',
                     whiteSpace: 'nowrap',
                     flexShrink: 0
                   }}
                 >
-                  {mitSummary.completedMitCount} / {Math.min(3, Math.max(todayMitTasks.length, 3))} Tamamlandı
+                  {completedMitCount} / {mitTargetCount} Tamamlandı
                 </span>
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -419,23 +724,64 @@ export default function TasksClient({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setEditingTask(null);
-              setIsModalOpen(true);
-            }}
-            className="btn-primary"
-            style={{
-              ...compactPrimaryBtnStyle,
-              padding: '9px 14px',
-              fontSize: '12px',
-              fontWeight: 800
-            }}
-          >
-            <Plus size={16} strokeWidth={2.4} />
-            <span>Yeni Görev Ekle</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {/* Pomodoro Süre Seçici */}
+            <div
+              role="group"
+              aria-label="Odak süresi seçimi"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px',
+                padding: '3px',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                background: 'var(--surface-subtle)'
+              }}
+            >
+              <Timer size={13} style={{ marginLeft: '5px', marginRight: '2px', color: 'var(--emerald)' }} />
+              {ALLOWED_FOCUS_DURATIONS.map(mins => {
+                const isSelected = focusDurationMinutes === mins;
+                return (
+                  <button
+                    key={mins}
+                    type="button"
+                    onClick={() => setFocusDurationMinutes(mins)}
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      padding: '4px 7px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: isSelected ? 'var(--emerald)' : 'transparent',
+                      color: isSelected ? '#FFFFFF' : 'var(--text-muted)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {mins}dk
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setEditingTask(null);
+                setIsModalOpen(true);
+              }}
+              className="btn-primary"
+              style={{
+                ...compactPrimaryBtnStyle,
+                padding: '9px 14px',
+                fontSize: '12px',
+                fontWeight: 800
+              }}
+            >
+              <Plus size={16} strokeWidth={2.4} />
+              <span>Yeni Görev Ekle</span>
+            </button>
+          </div>
         </div>
 
         {/* MIT İlerleme Çubuğu */}
@@ -458,7 +804,7 @@ export default function TasksClient({
             gap: '8px'
           }}
         >
-          {[0, 1, 2].map(slotIdx => {
+          {mitSlots.map(slotIdx => {
             const task = todayMitTasks[slotIdx];
             if (!task) {
               return (
@@ -490,20 +836,33 @@ export default function TasksClient({
             }
 
             const isDone = task.status === 'completed';
+            const isInFocus = task.status === 'in_progress' && Boolean(task.focus_started_at);
+            const focusSummary = formatFocusDurationSummary(task.focus_logged_minutes);
+            const cardCountdown = isInFocus ? computeFocusCountdown(task, nowMs) : null;
             const pillarCfg = PILLAR_CONFIGS[task.pillar] || PILLAR_CONFIGS.general;
 
             return (
               <div
                 key={task.id}
                 style={{
-                  background: isDone ? 'rgba(16, 185, 129, 0.08)' : 'var(--surface)',
-                  border: `1px solid ${isDone ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.35)'}`,
+                  background: isInFocus
+                    ? 'rgba(16, 185, 129, 0.1)'
+                    : isDone
+                      ? 'rgba(16, 185, 129, 0.08)'
+                      : 'var(--surface)',
+                  border: `1px solid ${
+                    isInFocus
+                      ? '#10B981'
+                      : isDone
+                        ? 'rgba(16, 185, 129, 0.3)'
+                        : 'rgba(245, 158, 11, 0.35)'
+                  }`,
                   borderRadius: 'var(--radius-md)',
                   padding: '12px 14px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '8px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                  boxShadow: isInFocus ? '0 0 0 1px rgba(16, 185, 129, 0.25)' : '0 2px 8px rgba(0,0,0,0.04)'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
@@ -511,8 +870,21 @@ export default function TasksClient({
                     <button
                       type="button"
                       onClick={() => handleToggleComplete(task.id)}
-                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, marginTop: '2px', color: isDone ? '#10B981' : 'var(--text-muted)' }}
-                      aria-label="Görevi tamamla"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 0,
+                        width: '44px',
+                        height: '44px',
+                        margin: '-10px -6px -10px -10px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        color: isDone ? '#10B981' : 'var(--text-muted)'
+                      }}
+                      aria-label={isDone ? 'Görevi geri al' : 'Görevi tamamla'}
                     >
                       {isDone ? <CheckCircle2 size={20} color="#10B981" /> : <Circle size={20} />}
                     </button>
@@ -532,6 +904,16 @@ export default function TasksClient({
                         <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: pillarCfg.bg, color: pillarCfg.color, fontWeight: 700 }}>
                           {pillarCfg.icon} {pillarCfg.label}
                         </span>
+                        {cardCountdown && (
+                          <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--emerald-bg)', color: '#10B981', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                            ⏱️ {cardCountdown.isFinished ? 'Süre Doldu!' : cardCountdown.formattedRemaining}
+                          </span>
+                        )}
+                        {focusSummary && (
+                          <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--surface-subtle)', color: 'var(--text-muted)', fontWeight: 700 }}>
+                            {focusSummary}
+                          </span>
+                        )}
                         {task.subtasks_progress && task.subtasks_progress.total > 0 && (
                           <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>
                             {task.subtasks_progress.completed}/{task.subtasks_progress.total} Adım
@@ -541,20 +923,185 @@ export default function TasksClient({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleToggleMit(task.id)}
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#F59E0B', padding: '2px' }}
-                    title="Odak listesinden çıkar"
-                  >
-                    <Flame size={16} fill="#F59E0B" />
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+                    {!isDone && (
+                      <button
+                        type="button"
+                        disabled={focusSubmittingId !== null}
+                        onClick={() => (isInFocus ? handlePauseFocus(task.id) : handleStartFocus(task.id, focusDurationMinutes))}
+                        style={{
+                          background: isInFocus ? 'rgba(16, 185, 129, 0.16)' : 'transparent',
+                          border: isInFocus ? '1px solid rgba(16, 185, 129, 0.35)' : 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          color: isInFocus ? '#10B981' : 'var(--text-muted)',
+                          minWidth: '44px',
+                          minHeight: '44px',
+                          margin: '-8px 0 0 0',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}
+                        title={isInFocus ? 'Odak sayacını duraklat' : `${focusDurationMinutes} dk odak başlat`}
+                        aria-label={isInFocus ? `${task.title} odağını duraklat` : `${task.title} için ${focusDurationMinutes} dk odak başlat`}
+                      >
+                        {isInFocus ? <Pause size={15} /> : <Play size={15} />}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleMit(task.id)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#F59E0B',
+                        minWidth: '44px',
+                        minHeight: '44px',
+                        margin: '-8px -8px 0 0',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}
+                      title="Odak listesinden çıkar"
+                      aria-label="Odak listesinden çıkar"
+                    >
+                      <Flame size={16} fill="#F59E0B" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
       </div>
+
+      {/* 1.5 AKTİF ODAK SEANSI BANNER'I (Pomodoro) */}
+      {activeFocusTask && activeFocusCountdown && (
+        <div
+          className="card"
+          role="region"
+          aria-label="Aktif odak seansı zamanlayıcısı"
+          style={{
+            background: activeFocusCountdown.isFinished
+              ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(245, 158, 11, 0.12))'
+              : 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(59, 130, 246, 0.08))',
+            border: '1px solid rgba(16, 185, 129, 0.45)',
+            padding: '16px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: '1 1 240px' }}>
+              <div
+                style={{
+                  minWidth: '82px',
+                  padding: '8px 12px',
+                  borderRadius: '10px',
+                  background: 'rgba(16, 185, 129, 0.18)',
+                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                  color: '#10B981',
+                  fontSize: '20px',
+                  fontWeight: 900,
+                  textAlign: 'center',
+                  fontVariantNumeric: 'tabular-nums',
+                  letterSpacing: '0.5px'
+                }}
+              >
+                {activeFocusCountdown.formattedRemaining}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '10px', fontWeight: 800, color: '#10B981', letterSpacing: '0.4px' }}>
+                  {activeFocusCountdown.isFinished
+                    ? `🎉 ${activeFocusCountdown.plannedMinutes} DK ODAK SEANSI TAMAMLANDI!`
+                    : `⏱️ ODAK SEANSI AKTİF (${activeFocusCountdown.plannedMinutes} DK POMODORO)`}
+                </div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px', wordBreak: 'break-word' }}>
+                  {activeFocusTask.title}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              {!activeFocusCountdown.isFinished && (
+                <button
+                  type="button"
+                  disabled={focusSubmittingId !== null}
+                  onClick={() => handlePauseFocus(activeFocusTask.id)}
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    padding: '7px 11px',
+                    minHeight: '36px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    color: 'var(--text-main)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Pause size={13} />
+                  <span>Duraklat</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                disabled={focusSubmittingId !== null}
+                onClick={() => handleCompleteFocus(activeFocusTask.id, false)}
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  padding: '7px 11px',
+                  minHeight: '36px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(59, 130, 246, 0.4)',
+                  background: 'rgba(59, 130, 246, 0.12)',
+                  color: '#3B82F6',
+                  cursor: 'pointer'
+                }}
+              >
+                💾 Seansı Kaydet
+              </button>
+
+              <button
+                type="button"
+                disabled={focusSubmittingId !== null}
+                onClick={() => handleCompleteFocus(activeFocusTask.id, true)}
+                className="btn-primary"
+                style={{
+                  ...compactPrimaryBtnStyle,
+                  fontSize: '11px',
+                  padding: '7px 12px',
+                  minHeight: '36px',
+                  fontWeight: 800
+                }}
+              >
+                ✅ Kaydet &amp; Görevi Tamamla
+              </button>
+            </div>
+          </div>
+
+          <div style={{ width: '100%', height: '6px', background: 'var(--surface-subtle)', borderRadius: '999px', overflow: 'hidden' }}>
+            <div
+              style={{
+                width: `${activeFocusCountdown.progressPercent}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #10B981, #3B82F6)',
+                transition: 'width 0.4s ease'
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 2. GÖRÜNÜM SEÇİCİ SEKMELER & FİLTRELER */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -574,12 +1121,12 @@ export default function TasksClient({
             }}
           >
             {[
-              { id: 'today', label: '☀️ Bugün', count: filterTasksByView(tasks, 'today', todayStr).length, color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.15)' },
-              { id: 'upcoming', label: '📅 Yaklaşan', count: filterTasksByView(tasks, 'upcoming', todayStr).length, color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.15)' },
-              { id: 'backlog', label: '📥 Backlog', count: filterTasksByView(tasks, 'backlog', todayStr).length, color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.15)' },
-              { id: 'recurring', label: '🔄 Rutinler', count: filterTasksByView(tasks, 'recurring', todayStr).length, color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.15)' },
-              { id: 'bridge', label: '🌉 Sistem Köprüsü', count: crossModuleActions.length, color: '#EC4899', bg: 'rgba(236, 72, 153, 0.15)' },
-              { id: 'completed', label: '✅ Tamamlananlar', count: filterTasksByView(tasks, 'completed', todayStr).length, color: '#10B981', bg: 'rgba(16, 185, 129, 0.15)' },
+              { id: 'today', label: '☀️ Bugün', count: tabCounts.today, color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.15)' },
+              { id: 'upcoming', label: '📅 Yaklaşan', count: tabCounts.upcoming, color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.15)' },
+              { id: 'backlog', label: '📥 Backlog', count: tabCounts.backlog, color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.15)' },
+              { id: 'recurring', label: '🔄 Rutinler', count: tabCounts.recurring, color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.15)' },
+              { id: 'bridge', label: '🌉 Sistem Köprüsü', count: tabCounts.bridge, color: '#EC4899', bg: 'rgba(236, 72, 153, 0.15)' },
+              { id: 'completed', label: '✅ Tamamlananlar', count: tabCounts.completed, color: '#10B981', bg: 'rgba(16, 185, 129, 0.15)' },
             ].map(tab => {
               const isSelected = !selectedDate && activeTab === tab.id;
               return (
@@ -638,7 +1185,11 @@ export default function TasksClient({
                 <button
                   key={f.id}
                   type="button"
-                  onClick={() => setFilterType(f.id as any)}
+                  onClick={() => {
+                    const nextType = f.id as 'all' | 'personal' | 'family';
+                    setFilterType(nextType);
+                    if (nextType === 'personal') setSelectedMember('all');
+                  }}
                   style={{
                     fontSize: '11px',
                     fontWeight: 700,
@@ -659,8 +1210,54 @@ export default function TasksClient({
           </div>
         </div>
 
-        {/* Pillar & Üye Filtre Çubuğu */}
-        {(selectedDate || activeTab !== 'bridge') && (
+        {/* Pillar, Üye & Anlık Arama Çubuğu */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
+            <Search
+              size={14}
+              style={{ position: 'absolute', left: '10px', color: 'var(--text-muted)', pointerEvents: 'none' }}
+            />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Görev, not veya alt adım ara..."
+              aria-label="Görevlerde ara"
+              style={{
+                width: '100%',
+                padding: '7px 32px 7px 30px',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)',
+                background: 'var(--surface-subtle)',
+                color: 'var(--text-main)',
+                fontSize: '12px',
+                fontWeight: 600
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label="Aramayı temizle"
+                style={{
+                  position: 'absolute',
+                  right: '4px',
+                  width: '28px',
+                  height: '28px',
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
           <div
             className="no-scrollbar"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', paddingBottom: '2px', width: '100%' }}
@@ -714,7 +1311,62 @@ export default function TasksClient({
               );
             })}
           </div>
-        )}
+
+          {members.length > 0 && filterType !== 'personal' && (selectedDate || activeTab !== 'bridge') && (
+            <div
+              className="no-scrollbar"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', paddingBottom: '2px', width: '100%' }}
+            >
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                <Users size={12} /> Üye:
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedMember('all')}
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  border: `1px solid ${selectedMember === 'all' ? '#EC4899' : 'var(--border)'}`,
+                  background: selectedMember === 'all' ? 'rgba(236, 72, 153, 0.12)' : 'var(--surface-subtle)',
+                  color: selectedMember === 'all' ? '#EC4899' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                Tüm Üyeler
+              </button>
+              {members.map(m => {
+                const isSelected = selectedMember === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setSelectedMember(m.id)}
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      border: `1px solid ${isSelected ? '#EC4899' : 'var(--border)'}`,
+                      background: isSelected ? 'rgba(236, 72, 153, 0.12)' : 'var(--surface-subtle)',
+                      color: isSelected ? '#EC4899' : 'var(--text-muted)',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {m.avatar || '👤'} {m.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 3. İÇERİK LİSTESİ */}
@@ -725,18 +1377,43 @@ export default function TasksClient({
             🌉 <strong>Modüller Arası Otomatik Görev Köprüsü:</strong> Yaklaşan faturalar, kredi kartı ekstreleri, araç muayene/kasko tarihleri ve dijital kasa evrakları otomatik tespit edilir. Tek tıkla yapılacak görevlerinize aktarabilirsiniz.
           </div>
 
-          {crossModuleActions.length === 0 ? (
+          {scopedCrossModuleActions.length === 0 ? (
             <div className="card" style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎉</div>
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}>
+                {crossModuleActions.length > 0 ? '🔍' : '🎉'}
+              </div>
               <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
-                Tüm Sistem Hatırlatıcıları Güncel!
+                {crossModuleActions.length > 0
+                  ? 'Seçili Filtrelerde Sistem Uyarısı Yok'
+                  : 'Tüm Sistem Hatırlatıcıları Güncel!'}
               </div>
               <div style={{ fontSize: '12px', marginTop: '4px' }}>
-                Acil bir fatura, araç muayenesi veya evrak bitişi bulunmuyor.
+                {crossModuleActions.length > 0
+                  ? 'Farklı yaşam alanlarını görmek için kapsam veya alan filtresini sıfırlayabilirsiniz.'
+                  : 'Acil bir fatura, araç muayenesi veya evrak bitişi bulunmuyor.'}
               </div>
+              {crossModuleActions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  style={{
+                    marginTop: '12px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface-subtle)',
+                    color: 'var(--text-main)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Filtreleri Sıfırla
+                </button>
+              )}
             </div>
           ) : (
-            crossModuleActions.map(action => (
+            scopedCrossModuleActions.map(action => (
               <div
                 key={action.id}
                 className="card"
@@ -777,16 +1454,18 @@ export default function TasksClient({
                   </Link>
                   <button
                     type="button"
+                    disabled={importingActionId === action.id}
                     onClick={() => handleImportCrossModule(action)}
                     className="btn-primary"
                     style={{
                       ...compactPrimaryBtnStyle,
                       fontSize: '11px',
                       padding: '6px 12px',
-                      fontWeight: 800
+                      fontWeight: 800,
+                      opacity: importingActionId === action.id ? 0.6 : 1
                     }}
                   >
-                    <span>📥 Göreve Aktar</span>
+                    <span>{importingActionId === action.id ? '⏳ Aktarılıyor...' : '📥 Göreve Aktar'}</span>
                   </button>
                 </div>
               </div>
@@ -858,29 +1537,103 @@ export default function TasksClient({
             </div>
           )}
 
-          {displayedTasks.length === 0 ? (
+          {overdueTasksInView.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '8px',
+                padding: '9px 12px',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid rgba(244, 63, 94, 0.35)',
+                background: 'rgba(244, 63, 94, 0.08)',
+                fontSize: '12px'
+              }}
+            >
+              <span style={{ fontWeight: 800, color: 'var(--rose)' }}>
+                🚨 {overdueTasksInView.length} gecikmiş görev bulunuyor
+              </span>
+              <button
+                type="button"
+                disabled={reschedulingId !== null}
+                onClick={() => handleRescheduleAllOverdue(overdueTasksInView.map(t => t.id))}
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  padding: '5px 10px',
+                  minHeight: '32px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  background: 'var(--surface)',
+                  color: '#F59E0B',
+                  cursor: 'pointer',
+                  opacity: reschedulingId !== null ? 0.6 : 1
+                }}
+              >
+                {reschedulingId === 'all' ? '⏳ Aktarılıyor...' : '☀️ Tümünü Bugüne Al'}
+              </button>
+            </div>
+          )}
+
+          {loading && tasks.length === 0 ? (
+            <div className="card" style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '28px', marginBottom: '6px' }}>⏳</div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>
+                Görevler yükleniyor...
+              </div>
+            </div>
+          ) : displayedTasks.length === 0 ? (
             <div className="card" style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <div style={{ fontSize: '36px', marginBottom: '8px' }}>🎯</div>
+              <div style={{ fontSize: '36px', marginBottom: '8px' }}>{hasActiveFilters ? '🔍' : '🎯'}</div>
               <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)' }}>
                 {selectedDate
                   ? 'Bu tarihte görev bulunmuyor'
-                  : activeTab === 'completed'
-                    ? 'Henüz tamamlanan görev yok'
-                    : 'Bu görünümde görev bulunmuyor'}
+                  : hasActiveFilters
+                    ? 'Arama veya filtrelerle eşleşen görev yok'
+                    : activeTab === 'completed'
+                      ? 'Henüz tamamlanan görev yok'
+                      : 'Bu görünümde görev bulunmuyor'}
               </div>
               <div style={{ fontSize: '12px', marginTop: '4px' }}>
-                Yeni bir görev veya odak hedefi belirlemek için "+ Yeni Görev Ekle" butonunu kullanın.
+                {hasActiveFilters
+                  ? 'Farklı anahtar kelimeler deneyebilir veya aktif filtreleri temizleyebilirsiniz.'
+                  : 'Yeni bir görev veya odak hedefi belirlemek için "+ Yeni Görev Ekle" butonunu kullanın.'}
               </div>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  style={{
+                    marginTop: '12px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface-subtle)',
+                    color: 'var(--text-main)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Aramayı &amp; Filtreleri Temizle
+                </button>
+              )}
             </div>
           ) : (
             displayedTasks.map(task => {
               const isDone = task.status === 'completed';
+              const isInFocus = task.status === 'in_progress' && Boolean(task.focus_started_at);
+              const focusCountdown = isInFocus ? computeFocusCountdown(task, nowMs) : null;
+              const focusSummary = formatFocusDurationSummary(task.focus_logged_minutes);
               const isExpanded = expandedTaskIds.has(task.id);
               const pillarCfg = PILLAR_CONFIGS[task.pillar] || PILLAR_CONFIGS.general;
               const priorityCfg = PRIORITY_CONFIGS[task.priority] || PRIORITY_CONFIGS.medium;
 
-              const isOverdue = task.due_date && task.due_date < todayStr && !isDone;
+              const isOverdue = Boolean(task.due_date && task.due_date < todayStr && !isDone);
               const isToday = task.due_date === todayStr;
+              const scheduleLabel = formatTaskScheduleLabel(task, todayStr);
 
               return (
                 <div
@@ -893,15 +1646,20 @@ export default function TasksClient({
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '10px',
-                    background: isDone ? 'rgba(255, 255, 255, 0.01)' : 'var(--surface)',
+                    borderColor: isInFocus ? 'rgba(16, 185, 129, 0.55)' : undefined,
+                    background: isInFocus
+                      ? 'rgba(16, 185, 129, 0.05)'
+                      : isDone
+                        ? 'rgba(255, 255, 255, 0.01)'
+                        : 'var(--surface)',
                     opacity: isDone ? 0.75 : 1,
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  {renderLeftAccent(isDone ? 'var(--border)' : pillarCfg.color)}
+                  {renderLeftAccent(isDone ? 'var(--border)' : isInFocus ? '#10B981' : pillarCfg.color)}
                   {/* Üst Kısım: Checkbox + Başlık + Aksiyonlar */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: '200px', flex: '1 1 200px' }}>
                       <button
                         type="button"
                         onClick={() => handleToggleComplete(task.id)}
@@ -910,11 +1668,16 @@ export default function TasksClient({
                           border: 'none',
                           cursor: 'pointer',
                           padding: 0,
-                          marginTop: '2px',
+                          width: '44px',
+                          height: '44px',
+                          margin: '-9px -4px -9px -9px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
                           color: isDone ? '#10B981' : 'var(--text-muted)',
                           flexShrink: 0
                         }}
-                        aria-label="Görevi tamamla"
+                        aria-label={isDone ? 'Görevi geri al' : 'Görevi tamamla'}
                       >
                         {isDone ? <CheckCircle2 size={22} color="#10B981" /> : <Circle size={22} />}
                       </button>
@@ -958,8 +1721,20 @@ export default function TasksClient({
                             </span>
                           )}
 
-                          {/* Vade Tarihi */}
-                          {task.due_date && (
+                          {/* Aktif Odak / Toplam Pomodoro Rozeti */}
+                          {focusCountdown && (
+                            <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--emerald-bg)', color: '#10B981', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px', fontVariantNumeric: 'tabular-nums' }}>
+                              <Timer size={10} /> {focusCountdown.isFinished ? 'Süre Doldu!' : `Odakta • ${focusCountdown.formattedRemaining}`}
+                            </span>
+                          )}
+                          {focusSummary && (
+                            <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--surface-subtle)', color: 'var(--text-muted)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                              <Timer size={10} /> {focusSummary}
+                            </span>
+                          )}
+
+                          {/* Vade Tarihi & Saat */}
+                          {scheduleLabel && (
                             <span
                               style={{
                                 fontSize: '10px',
@@ -973,8 +1748,8 @@ export default function TasksClient({
                                 gap: '3px'
                               }}
                             >
-                              <Calendar size={10} />
-                              {isOverdue ? `🚨 ${task.due_date} (Gecikti)` : isToday ? `Bugün ${task.due_time || ''}` : task.due_date}
+                              {task.due_date ? <Calendar size={10} /> : <Clock size={10} />}
+                              {scheduleLabel}
                             </span>
                           )}
 
@@ -983,6 +1758,52 @@ export default function TasksClient({
                             <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--surface-subtle)', color: 'var(--text-muted)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                               <Repeat size={10} /> {task.recurrence === 'daily' ? 'Günlük' : task.recurrence === 'weekly' ? 'Haftalık' : 'Aylık'}
                             </span>
+                          )}
+
+                          {/* Geciken görevlere hızlı erteleme */}
+                          {isOverdue && (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                disabled={reschedulingId !== null}
+                                onClick={() => handleRescheduleTask(task.id, todayStr)}
+                                aria-label={`${task.title} görevini bugüne al`}
+                                style={{
+                                  fontSize: '10px',
+                                  fontWeight: 800,
+                                  padding: '2px 7px',
+                                  minHeight: '26px',
+                                  borderRadius: '4px',
+                                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                                  background: 'rgba(245, 158, 11, 0.12)',
+                                  color: '#F59E0B',
+                                  cursor: 'pointer',
+                                  opacity: reschedulingId === task.id ? 0.6 : 1
+                                }}
+                              >
+                                ☀️ Bugüne Al
+                              </button>
+                              <button
+                                type="button"
+                                disabled={reschedulingId !== null}
+                                onClick={() => handleRescheduleTask(task.id, shiftTurkeyDate(todayStr, 1))}
+                                aria-label={`${task.title} görevini yarına ertele`}
+                                style={{
+                                  fontSize: '10px',
+                                  fontWeight: 800,
+                                  padding: '2px 7px',
+                                  minHeight: '26px',
+                                  borderRadius: '4px',
+                                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                                  background: 'rgba(59, 130, 246, 0.1)',
+                                  color: '#3B82F6',
+                                  cursor: 'pointer',
+                                  opacity: reschedulingId === task.id ? 0.6 : 1
+                                }}
+                              >
+                                📅 Yarına Ertele
+                              </button>
+                            </div>
                           )}
 
                           {/* Aile Paylaşımı / Üye */}
@@ -1016,12 +1837,57 @@ export default function TasksClient({
                               {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                             </button>
                           )}
+
+                          {/* Tamamlanmış Köprü Görevinde Kaynak Modüle Geri-Yazım Kısayolu */}
+                          {isDone && (() => {
+                            const followUp = resolveCrossModuleFollowUp(task);
+                            if (!followUp) return null;
+                            return (
+                              <Link
+                                href={followUp.href}
+                                style={{
+                                  fontSize: '10px',
+                                  fontWeight: 800,
+                                  padding: '2px 7px',
+                                  borderRadius: '4px',
+                                  border: '1px solid rgba(236, 72, 153, 0.35)',
+                                  background: 'rgba(236, 72, 153, 0.1)',
+                                  color: '#EC4899',
+                                  textDecoration: 'none',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px'
+                                }}
+                              >
+                                <span>{followUp.label}</span>
+                                <ArrowRight size={10} />
+                              </Link>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
 
                     {/* Sağ Aksiyon Butonları */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: 'auto' }}>
+                      {/* Odaklan / Duraklat (Pomodoro) Butonu */}
+                      {!isDone && (
+                        <button
+                          type="button"
+                          disabled={focusSubmittingId !== null}
+                          onClick={() => (isInFocus ? handlePauseFocus(task.id) : handleStartFocus(task.id, focusDurationMinutes))}
+                          style={{
+                            ...actionIconBtnStyle(false, isInFocus ? '#10B981' : 'var(--text-muted)'),
+                            background: isInFocus ? 'rgba(16, 185, 129, 0.15)' : 'var(--surface-subtle)',
+                            border: `1px solid ${isInFocus ? 'rgba(16, 185, 129, 0.45)' : 'var(--border)'}`
+                          }}
+                          title={isInFocus ? 'Odak sayacını duraklat' : `Odaklan (${focusDurationMinutes} dk)`}
+                          aria-label={isInFocus ? `${task.title} odağını duraklat` : `${task.title} için odak başlat`}
+                        >
+                          {isInFocus ? <Pause size={15} /> : <Play size={15} />}
+                        </button>
+                      )}
+
                       {/* MIT Toggle Butonu */}
                       {!isDone && (
                         <button
@@ -1029,8 +1895,9 @@ export default function TasksClient({
                           onClick={() => handleToggleMit(task.id)}
                           style={actionIconBtnStyle(task.is_mit === 1, task.is_mit === 1 ? '#F59E0B' : 'var(--text-muted)')}
                           title={task.is_mit === 1 ? 'Odak listesinden çıkar' : 'Günün odağına (MIT) al'}
+                          aria-label={task.is_mit === 1 ? 'Odak listesinden çıkar' : 'Günün odağına al'}
                         >
-                          <Flame size={14} fill={task.is_mit === 1 ? '#F59E0B' : 'none'} />
+                          <Flame size={15} fill={task.is_mit === 1 ? '#F59E0B' : 'none'} />
                         </button>
                       )}
 
@@ -1043,8 +1910,9 @@ export default function TasksClient({
                         }}
                         style={actionIconBtnStyle(false, 'var(--text-muted)')}
                         title="Görevi Düzenle"
+                        aria-label="Görevi Düzenle"
                       >
-                        <Edit2 size={13} />
+                        <Edit2 size={15} />
                       </button>
 
                       {/* Sil */}
@@ -1053,8 +1921,9 @@ export default function TasksClient({
                         onClick={() => handleDeleteTask(task.id)}
                         style={actionIconBtnStyle(false, 'var(--rose)')}
                         title="Görevi Sil"
+                        aria-label="Görevi Sil"
                       >
-                        <Trash2 size={13} />
+                        <Trash2 size={15} />
                       </button>
                     </div>
                   </div>
@@ -1070,7 +1939,7 @@ export default function TasksClient({
                         border: '1px solid var(--border)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '6px'
+                        gap: '4px'
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
@@ -1083,8 +1952,9 @@ export default function TasksClient({
                       </div>
 
                       {task.subtasks.map(st => (
-                        <div
+                        <button
                           key={st.id}
+                          type="button"
                           onClick={() => handleToggleSubtask(task.id, st.id)}
                           style={{
                             display: 'flex',
@@ -1094,16 +1964,21 @@ export default function TasksClient({
                             fontSize: '12px',
                             color: st.is_completed ? 'var(--text-muted)' : 'var(--text-main)',
                             textDecoration: st.is_completed ? 'line-through' : 'none',
-                            padding: '3px 0'
+                            padding: '6px 0',
+                            minHeight: '36px',
+                            width: '100%',
+                            background: 'transparent',
+                            border: 'none',
+                            textAlign: 'left'
                           }}
                         >
                           {st.is_completed ? (
-                            <CheckCircle2 size={16} color="#10B981" />
+                            <CheckCircle2 size={16} color="#10B981" style={{ flexShrink: 0 }} />
                           ) : (
-                            <Circle size={16} color="var(--text-muted)" />
+                            <Circle size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />
                           )}
                           <span>{st.title}</span>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -1123,7 +1998,7 @@ export default function TasksClient({
         }}
         onSuccess={(msg) => {
           showToast(msg || 'Görev kaydedildi.');
-          fetchTasks();
+          syncTasks();
         }}
         members={members}
         initialData={editingTask}

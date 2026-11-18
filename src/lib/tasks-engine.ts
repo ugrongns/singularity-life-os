@@ -44,6 +44,9 @@ export interface TaskItem {
   source_module?: string | null;
   source_ref_id?: string | null;
   completed_at?: string | null;
+  focus_started_at?: string | null;
+  focus_planned_minutes?: number | null;
+  focus_logged_minutes?: number | null;
   user_id?: string | null;
   family_id?: string | null;
   created_at: string;
@@ -60,6 +63,7 @@ export interface CrossModuleAction {
   source_module: 'finance' | 'vehicle' | 'home' | 'vault';
   source_ref_id: string;
   action_url: string;
+  is_family_shared?: number;
 }
 
 export const PILLAR_CONFIGS: Record<TaskPillar, { label: string; icon: string; color: string; bg: string }> = {
@@ -155,7 +159,10 @@ export function calculateNextRecurrenceDate(
     const [y, m, d] = currentDueDate.split('-').map(Number);
     baseDate = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
   } else {
-    baseDate = new Date(Date.UTC(referenceDate.getUTCFullYear(), referenceDate.getUTCMonth(), referenceDate.getUTCDate(), 12, 0, 0));
+    // Vercel UTC çalışır; tarihsiz rutin tamamlamada Türkiye takvim günü baz alınır
+    const trDay = getTodayTurkeyDate(referenceDate);
+    const [y, m, d] = trDay.split('-').map(Number);
+    baseDate = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
   }
 
   if (recurrence === 'daily') {
@@ -176,6 +183,53 @@ export function calculateNextRecurrenceDate(
   }
 
   return baseDate.toISOString().slice(0, 10);
+}
+
+/**
+ * Görevin bugünkü MIT (Günün 3 Odağı) vitrininde yer alıp almadığını belirler.
+ * Tamamlanan MIT'lerde (tarihsiz olanlar dahil) yalnızca Türkiye takvim gününe göre bugün tamamlananlar sayılır.
+ */
+export interface TodayMitCandidate {
+  is_mit?: number | null;
+  status?: string | null;
+  due_date?: string | null;
+  completed_at?: string | null;
+}
+
+export function isTodayMitTask(
+  task: TodayMitCandidate,
+  todayStr: string
+): boolean {
+  if (Number(task.is_mit) !== 1) return false;
+  if (task.status === 'completed') {
+    const completedDay = toTurkeyDay(task.completed_at);
+    if (completedDay) return completedDay === todayStr;
+    return task.due_date === todayStr;
+  }
+  return !task.due_date || task.due_date === todayStr;
+}
+
+/**
+ * Bugünün MIT özetini ve listesini tek kaynak olarak hesaplar (UI + API senkronu).
+ */
+export function summarizeTodayMit<T extends TodayMitCandidate>(
+  tasks: T[],
+  todayStr: string
+): {
+  todayMitTasks: T[];
+  activeMitCount: number;
+  completedMitCount: number;
+  maxMit: number;
+} {
+  const todayMitTasks = tasks.filter(t => isTodayMitTask(t, todayStr));
+  const completedMitCount = todayMitTasks.filter(t => t.status === 'completed').length;
+  const activeMitCount = todayMitTasks.length - completedMitCount;
+  return {
+    todayMitTasks,
+    activeMitCount,
+    completedMitCount,
+    maxMit: 3
+  };
 }
 
 /**
@@ -247,32 +301,540 @@ export function filterTasksByView(tasks: TaskItem[], view: string, todayStr: str
   }
 }
 
+export type TaskScopeFilterType = 'all' | 'personal' | 'family';
+
+export const PRIORITY_SORT_WEIGHT: Record<TaskPriority, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3
+};
+
+function matchesTurkishQuery(query: string | undefined, fields: Array<string | null | undefined>): boolean {
+  const normalized = query?.trim().toLocaleLowerCase('tr-TR');
+  if (!normalized) return true;
+  return fields.some(field => Boolean(field && field.toLocaleLowerCase('tr-TR').includes(normalized)));
+}
+
+/**
+ * Görev listesini kapsam (kişisel/aile), yaşam sütunu, atanan aile üyesi ve arama metnine göre filtreler.
+ */
+export function filterTasksByScope(
+  tasks: TaskItem[],
+  options: {
+    filterType: TaskScopeFilterType;
+    selectedPillar: string;
+    selectedMember: string;
+    searchQuery?: string;
+  }
+): TaskItem[] {
+  const { filterType, selectedPillar, selectedMember, searchQuery } = options;
+  return tasks.filter(t => {
+    if (filterType === 'personal' && t.is_family_shared !== 0) return false;
+    if (filterType === 'family' && t.is_family_shared !== 1) return false;
+    if (selectedPillar !== 'all' && t.pillar !== selectedPillar) return false;
+    if (filterType !== 'personal' && selectedMember !== 'all' && t.assigned_member_id !== selectedMember) return false;
+    if (
+      !matchesTurkishQuery(searchQuery, [
+        t.title,
+        t.description,
+        t.assigned_member_name,
+        ...(t.subtasks || []).map(s => s.title)
+      ])
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * Sistem Köprüsü aksiyonlarını kapsam (kişisel/aile), yaşam sütunu ve arama metnine göre filtreler.
+ */
+export function filterCrossModuleActionsByScope(
+  actions: CrossModuleAction[],
+  filterType: TaskScopeFilterType,
+  selectedPillar: string,
+  searchQuery?: string
+): CrossModuleAction[] {
+  return actions.filter(action => {
+    const sharedFlag = action.is_family_shared ?? 1;
+    if (filterType === 'personal' && sharedFlag !== 0) return false;
+    if (filterType === 'family' && sharedFlag !== 1) return false;
+    if (selectedPillar !== 'all' && action.pillar !== selectedPillar) return false;
+    if (!matchesTurkishQuery(searchQuery, [action.title, action.subtitle])) return false;
+    return true;
+  });
+}
+
+/**
+ * Gecikmiş (tamamlanmamış ve vadesi todayStr öncesi) görevleri döndürür.
+ */
+export function getOverdueTasks<T extends Pick<TaskItem, 'status' | 'due_date'>>(
+  tasks: T[],
+  todayStr: string
+): T[] {
+  return tasks.filter(t => t.status !== 'completed' && Boolean(t.due_date && t.due_date < todayStr));
+}
+
+/**
+ * Sanal tekrarlayan rutin önizlemesini tekil görev taslağına dönüştürür (AddTaskModal ön-dolumu için).
+ */
+export function buildMaterializedRecurrenceDraft(vr: VirtualRecurrenceItem): Partial<TaskItem> {
+  return {
+    title: vr.title,
+    pillar: vr.pillar,
+    priority: vr.priority,
+    due_date: vr.due_date,
+    due_time: vr.due_time || null,
+    is_mit: vr.is_mit,
+    recurrence: 'none'
+  };
+}
+
+/**
+ * Aktif kapsam filtreleri altındaki tüm görev sekmelerinin sayaçlarını tek kaynaktan hesaplar.
+ */
+export function computeTaskTabCounts(
+  scopedTasks: TaskItem[],
+  scopedCrossModuleActions: CrossModuleAction[],
+  todayStr: string
+): {
+  today: number;
+  upcoming: number;
+  backlog: number;
+  recurring: number;
+  bridge: number;
+  completed: number;
+} {
+  return {
+    today: filterTasksByView(scopedTasks, 'today', todayStr).length,
+    upcoming: filterTasksByView(scopedTasks, 'upcoming', todayStr).length,
+    backlog: filterTasksByView(scopedTasks, 'backlog', todayStr).length,
+    recurring: filterTasksByView(scopedTasks, 'recurring', todayStr).length,
+    bridge: scopedCrossModuleActions.length,
+    completed: filterTasksByView(scopedTasks, 'completed', todayStr).length
+  };
+}
+
+function compareOptionalAsc(aVal?: string | null, bVal?: string | null): number {
+  const a = aVal?.trim() || '';
+  const b = bVal?.trim() || '';
+  if (a && b && a !== b) return a.localeCompare(b);
+  if (a && !b) return -1;
+  if (!a && b) return 1;
+  return 0;
+}
+
+/**
+ * Görev listesini deterministik kullanıcı önceliğine göre sıralar:
+ * - Tamamlanmamışlar üstte, tamamlananlar (en yeni tamamlanan üstte) altta
+ * - `upcoming` görünümünde vade tarihi kronolojik olarak önce gelir
+ * - Diğer görünümlerde MIT odak > öncelik > vade tarihi > saat > oluşturulma zamanı
+ */
+export function sortTasksForDisplay(tasks: TaskItem[], view?: string): TaskItem[] {
+  return [...tasks].sort((a, b) => {
+    const aDone = a.status === 'completed' ? 1 : 0;
+    const bDone = b.status === 'completed' ? 1 : 0;
+    if (aDone !== bDone) return aDone - bDone;
+
+    if (aDone === 1) {
+      const aStamp = a.completed_at || a.updated_at || a.created_at || '';
+      const bStamp = b.completed_at || b.updated_at || b.created_at || '';
+      if (aStamp !== bStamp) return bStamp.localeCompare(aStamp);
+    } else {
+      const aActive = a.status === 'in_progress' ? 1 : 0;
+      const bActive = b.status === 'in_progress' ? 1 : 0;
+      if (aActive !== bActive) return bActive - aActive;
+    }
+
+    if (view === 'upcoming') {
+      const dateCmp = compareOptionalAsc(a.due_date, b.due_date);
+      if (dateCmp !== 0) return dateCmp;
+    }
+
+    const mitDiff = Number(b.is_mit ?? 0) - Number(a.is_mit ?? 0);
+    if (mitDiff !== 0) return mitDiff;
+
+    const prioDiff = (PRIORITY_SORT_WEIGHT[a.priority] ?? 99) - (PRIORITY_SORT_WEIGHT[b.priority] ?? 99);
+    if (prioDiff !== 0) return prioDiff;
+
+    if (view !== 'upcoming') {
+      const dateCmp = compareOptionalAsc(a.due_date, b.due_date);
+      if (dateCmp !== 0) return dateCmp;
+    }
+
+    const timeCmp = compareOptionalAsc(a.due_time, b.due_time);
+    if (timeCmp !== 0) return timeCmp;
+
+    return (b.created_at || '').localeCompare(a.created_at || '');
+  });
+}
+
+/**
+ * Görev kartlarındaki vade tarihi & saat rozet metnini üretir (gecikmiş ve gelecek saatler dahil).
+ */
+export function formatTaskScheduleLabel(
+  task: Pick<TaskItem, 'status' | 'due_date' | 'due_time'>,
+  todayStr: string
+): string | null {
+  const timeSuffix = task.due_time?.trim() ? ` • ${task.due_time.trim()}` : '';
+  if (task.due_date) {
+    const isOverdue = task.due_date < todayStr && task.status !== 'completed';
+    if (isOverdue) {
+      return `🚨 ${task.due_date}${timeSuffix} (Gecikti)`;
+    }
+    if (task.due_date === todayStr) {
+      return `Bugün${timeSuffix}`;
+    }
+    return `${task.due_date}${timeSuffix}`;
+  }
+  return task.due_time?.trim() || null;
+}
+
+/**
+ * Ana sayfa bağlamsal akışındaki (TimeContextualFeed) MIT görevlerinin durum/alt başlık bilgisini üretir.
+ */
+export function describeMitFeedItem(
+  task: Pick<TaskItem, 'status' | 'priority' | 'due_date' | 'due_time'> & {
+    pillar?: TaskPillar | string | null;
+    subtasks_progress?: { total: number; completed: number; percent: number } | null;
+  },
+  todayStr: string
+): {
+  isOverdue: boolean;
+  level: 'critical' | 'warning';
+  badge: string;
+  subtitle: string;
+} {
+  const timeStr = task.due_time?.trim() || '';
+  const timeSuffix = timeStr ? ` • ${timeStr}` : '';
+  const pillarCfg = task.pillar ? PILLAR_CONFIGS[task.pillar as TaskPillar] : undefined;
+  const extraParts: string[] = [];
+  if (pillarCfg) {
+    extraParts.push(`${pillarCfg.icon} ${pillarCfg.label}`);
+  }
+  if (task.subtasks_progress && task.subtasks_progress.total > 0) {
+    extraParts.push(`${task.subtasks_progress.completed}/${task.subtasks_progress.total} Adım`);
+  }
+  const extraSuffix = extraParts.length > 0 ? ` • ${extraParts.join(' • ')}` : '';
+
+  if (task.due_date && task.due_date < todayStr && task.status !== 'completed') {
+    return {
+      isOverdue: true,
+      level: 'critical',
+      badge: task.status === 'in_progress' ? 'ODAKTA' : 'GECİKTİ',
+      subtitle: `🚨 Gecikmiş (${task.due_date})${timeSuffix}${extraSuffix}`
+    };
+  }
+  if (task.due_date && task.due_date > todayStr) {
+    return {
+      isOverdue: false,
+      level: task.priority === 'critical' ? 'critical' : 'warning',
+      badge: task.status === 'in_progress' ? 'ODAKTA' : 'ODAK',
+      subtitle: `📅 ${task.due_date}${timeSuffix}${extraSuffix}`
+    };
+  }
+  const baseTodayText = task.status === 'in_progress'
+    ? `⏱️ Odak seansı aktif${timeStr ? ` (${timeStr})` : ''}`
+    : timeStr
+      ? `Saat: ${timeStr}`
+      : 'Bugün tamamlanması hedeflendi';
+  return {
+    isOverdue: false,
+    level: task.priority === 'critical' ? 'critical' : 'warning',
+    badge: task.status === 'in_progress' ? 'ODAKTA' : 'ODAK',
+    subtitle: `${baseTodayText}${extraSuffix}`
+  };
+}
+
+export const ALLOWED_FOCUS_DURATIONS = [15, 25, 50] as const;
+
+/**
+ * Odak (Pomodoro) süresini dakika olarak normalize eder (1..180 arası, varsayılan 25 dk).
+ */
+export function normalizeFocusDurationMinutes(raw?: unknown): number {
+  const num = Number(raw);
+  if (!Number.isFinite(num) || num <= 0) return 25;
+  return Math.min(180, Math.max(1, Math.round(num)));
+}
+
+/**
+ * Başlangıç zaman damgasından itibaren geçen odak süresini dakikaya yuvarlar (planlanan süreyle üstten sınırlı).
+ * 30 saniyeden kısa yanlışlıkla başlat-durdur işlemleri 0 dk sayılır.
+ */
+export function computeFocusElapsedMinutes(
+  startedAt?: string | null,
+  plannedMinutes?: number | null,
+  nowDate: Date = new Date()
+): number {
+  if (!startedAt) return 0;
+  const startMs = new Date(startedAt).getTime();
+  if (!Number.isFinite(startMs)) return 0;
+  const elapsedSeconds = Math.max(0, Math.floor((nowDate.getTime() - startMs) / 1000));
+  if (elapsedSeconds < 30) return 0;
+  const maxCap = normalizeFocusDurationMinutes(plannedMinutes);
+  return Math.min(maxCap, Math.max(1, Math.round(elapsedSeconds / 60)));
+}
+
+/**
+ * Aktif `in_progress` görev için canlı Pomodoro geri sayım durumunu hesaplar.
+ */
+export function computeFocusCountdown(
+  task: Pick<TaskItem, 'status' | 'focus_started_at' | 'focus_planned_minutes'>,
+  nowMs: number = Date.now()
+): {
+  isRunning: boolean;
+  plannedMinutes: number;
+  plannedSeconds: number;
+  elapsedSeconds: number;
+  remainingSeconds: number;
+  progressPercent: number;
+  isFinished: boolean;
+  formattedRemaining: string;
+} {
+  const plannedMinutes = normalizeFocusDurationMinutes(task.focus_planned_minutes);
+  const plannedSeconds = plannedMinutes * 60;
+  const startMs = task.focus_started_at ? new Date(task.focus_started_at).getTime() : NaN;
+  const isRunning = task.status === 'in_progress' && Number.isFinite(startMs);
+
+  if (!isRunning) {
+    const mins = String(plannedMinutes).padStart(2, '0');
+    return {
+      isRunning: false,
+      plannedMinutes,
+      plannedSeconds,
+      elapsedSeconds: 0,
+      remainingSeconds: plannedSeconds,
+      progressPercent: 0,
+      isFinished: false,
+      formattedRemaining: `${mins}:00`
+    };
+  }
+
+  const elapsedSeconds = Math.max(0, Math.min(plannedSeconds, Math.floor((nowMs - startMs) / 1000)));
+  const remainingSeconds = Math.max(0, plannedSeconds - elapsedSeconds);
+  const mm = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
+  const ss = String(remainingSeconds % 60).padStart(2, '0');
+
+  return {
+    isRunning: true,
+    plannedMinutes,
+    plannedSeconds,
+    elapsedSeconds,
+    remainingSeconds,
+    progressPercent: Math.min(100, Math.round((elapsedSeconds / Math.max(1, plannedSeconds)) * 100)),
+    isFinished: remainingSeconds === 0,
+    formattedRemaining: `${mm}:${ss}`
+  };
+}
+
+/**
+ * Görev üzerinde biriken toplam odak dakikasını kart rozeti için biçimlendirir.
+ */
+export function formatFocusDurationSummary(loggedMinutes?: number | null): string | null {
+  const mins = Number(loggedMinutes || 0);
+  if (!Number.isFinite(mins) || mins <= 0) return null;
+  if (mins >= 60) {
+    const h = Math.floor(mins / 60);
+    const rem = mins % 60;
+    return rem > 0 ? `${h}s ${rem}dk odak` : `${h} saat odak`;
+  }
+  return `${Math.round(mins)} dk odak`;
+}
+
+export interface CrossModuleFollowUp {
+  sourceModule: 'finance' | 'vehicle' | 'home' | 'vault';
+  label: string;
+  href: string;
+  description: string;
+}
+
+/**
+ * Sistem Köprüsü üzerinden gelmiş bir görev tamamlandığında kaynak modülde onaylı geri-yazım
+ * yapmak için bağlamsal derin bağlantı bilgisini döndürür (sessiz mali/bakım mutasyonu yapmaz).
+ */
+export function resolveCrossModuleFollowUp(
+  task: Pick<TaskItem, 'source_module' | 'source_ref_id' | 'title'>
+): CrossModuleFollowUp | null {
+  const mod = task.source_module?.trim();
+  const ref = task.source_ref_id?.trim() || '';
+  if (mod === 'finance') {
+    const isCard = ref.startsWith('card-');
+    return {
+      sourceModule: 'finance',
+      label: isCard ? '💳 Kart Ödemesini İşle' : '💸 Fatura Ödemesini İşle',
+      href: '/budget',
+      description: isCard
+        ? 'Kredi kartı ödemesini onaylayıp hesap bakiyesinden düşmek için Finans modülüne geçin.'
+        : 'Ödenen faturayı bütçe işlemlerinize kaydetmek için Finans modülüne geçin.'
+    };
+  }
+  if (mod === 'vehicle') {
+    return {
+      sourceModule: 'vehicle',
+      label: '🚗 Araç Kaydını Güncelle',
+      href: '/vehicles',
+      description: 'Yeni geçerlilik tarihini ve bakım/sigorta tutarını işlemek için Araçlar modülüne geçin.'
+    };
+  }
+  if (mod === 'home') {
+    return {
+      sourceModule: 'home',
+      label: '🏠 Ev Bakımını İşle',
+      href: '/vehicles',
+      description: 'Ev bakım tarihini ve tutarını onaylamak için Ev & Araç Operasyonlarına geçin.'
+    };
+  }
+  if (mod === 'vault') {
+    return {
+      sourceModule: 'vault',
+      label: '🔒 Evrak Tarihini Yenile',
+      href: '/vault',
+      description: 'Dijital Kasa üzerinde evrakın yeni bitiş tarihini güncellemek için Kasaya geçin.'
+    };
+  }
+  return null;
+}
+
+/**
+ * Mevcut 25 puanlık yaşam ekseni skorunu 5x20 Bütünsel Yaşam Skoru ölçeğine dönüştürür.
+ */
+export function scalePillarTo20(rawOutOf25: number): number {
+  if (!Number.isFinite(rawOutOf25)) return 0;
+  return Math.min(20, Math.max(0, Math.round((rawOutOf25 / 25) * 20)));
+}
+
+/**
+ * Görev tamamlama, MIT odak disiplini ve Pomodoro süresinden 0-20 arası 5. Yaşam Ekseni skorunu hesaplar.
+ */
+export function calculateTasksFocusScoreBreakdown(
+  tasksList: Array<{
+    status?: string | null;
+    is_mit?: number | null;
+    due_date?: string | null;
+    completed_at?: string | null;
+    recurrence?: string | null;
+    focus_logged_minutes?: number | null;
+  }>,
+  todayStr: string,
+  last7DaysStr: string
+): {
+  score: number;
+  max: 20;
+  completedLast7Days: number;
+  completedToday: number;
+  todayMitCompleted: number;
+  todayMitTotal: number;
+  focusMinutesLogged: number;
+} {
+  let completedLast7Days = 0;
+  let completedToday = 0;
+  let completedRecurringRecent = 0;
+  let focusMinutesLogged = 0;
+  let hasActiveTasks = false;
+
+  for (const t of tasksList) {
+    focusMinutesLogged += Math.max(0, Number(t.focus_logged_minutes || 0));
+    if (t.status === 'completed') {
+      const doneDay = toTurkeyDay(t.completed_at) || t.due_date || null;
+      if (doneDay === todayStr) completedToday += 1;
+      if (doneDay && doneDay >= last7DaysStr && doneDay <= todayStr) {
+        completedLast7Days += 1;
+        if (t.recurrence && t.recurrence !== 'none') {
+          completedRecurringRecent += 1;
+        }
+      }
+    } else {
+      hasActiveTasks = true;
+    }
+  }
+
+  const mitSummary = summarizeTodayMit(tasksList, todayStr);
+  const todayMitTotal = mitSummary.todayMitTasks.length;
+  const todayMitCompleted = mitSummary.completedMitCount;
+
+  let score = 0;
+  // 1. Haftalık tamamlama veya aktif planlama disiplini (0..5)
+  if (completedLast7Days > 0) score += 5;
+  else if (hasActiveTasks) score += 2;
+
+  // 2. Bugünkü tamamlama ritmi (0..5)
+  if (completedToday >= 2) score += 5;
+  else if (completedToday === 1) score += 3;
+
+  // 3. Günün 3 Odağı (MIT) tamamlama oranı (0..6)
+  if (todayMitTotal > 0) {
+    score += Math.round((todayMitCompleted / todayMitTotal) * 6);
+  } else if (completedToday > 0) {
+    score += 2;
+  }
+
+  // 4. Pomodoro odak süresi & rutin istikrarı (0..4)
+  if (focusMinutesLogged >= 25) score += 3;
+  else if (focusMinutesLogged > 0) score += 2;
+  if (completedRecurringRecent > 0) score += 1;
+
+  return {
+    score: Math.min(20, score),
+    max: 20,
+    completedLast7Days,
+    completedToday,
+    todayMitCompleted,
+    todayMitTotal,
+    focusMinutesLogged
+  };
+}
+
 /**
  * Diğer modüllerden (Finans, Araç, Ev, Dijital Kasa) gelen yaklaşan ve geciken
  * bildirimleri otomatik olarak Görev Köprüsü aksiyonlarına çevirir.
  */
 export function generateCrossModuleActionItems(options: {
   bills?: Array<{ id: string; name: string; amount: number; due_day: number; due_date?: string; days_left?: number }>;
-  creditCards?: Array<{ id: string; name: string; balance: number; closed_statement_debt?: number; overdue_amount?: number; days_until_due?: number; next_due_date?: string; is_overdue?: boolean; days_overdue?: number }>;
-  vehicles?: Array<{ id: string; type: string; due_date: string; days_left?: number; plate?: string }>;
+  creditCards?: Array<{ id: string; name: string; balance: number; closed_statement_debt?: number; overdue_amount?: number; days_until_due?: number; next_due_date?: string; is_overdue?: boolean; days_overdue?: number; is_family_shared?: number | null }>;
+  vehicles?: Array<{ id: string; type: string; due_date: string; days_left?: number; plate?: string; is_family_shared?: number | null }>;
   homeMaintenance?: Array<{ id: string; title: string; next_due_date: string; days_left?: number; status?: string }>;
-  vaultItems?: Array<{ id: string; title: string; expiry_date?: string; days_left?: number; type?: string }>;
-  existingTasks?: Array<{ source_module?: string | null; source_ref_id?: string | null }>;
+  vaultItems?: Array<{ id: string; title: string; expiry_date?: string; days_left?: number; type?: string; is_family_shared?: number | null }>;
+  existingTasks?: Array<{
+    source_module?: string | null;
+    source_ref_id?: string | null;
+    status?: string | null;
+    due_date?: string | null;
+  }>;
   todayStr?: string;
 }): CrossModuleAction[] {
   const actions: CrossModuleAction[] = [];
-  const existingSet = new Set(
-    (options.existingTasks || [])
-      .filter(t => t.source_module && t.source_ref_id)
-      .map(t => `${t.source_module}:${t.source_ref_id}`)
-  );
+  const activeSourceKeys = new Set<string>();
+  const completedWithoutDateKeys = new Set<string>();
+  const completedCycleDates = new Map<string, Set<string>>();
+
+  for (const t of options.existingTasks || []) {
+    if (!t.source_module || !t.source_ref_id) continue;
+    const key = `${t.source_module}:${t.source_ref_id}`;
+    if (t.status !== 'completed') {
+      activeSourceKeys.add(key);
+    } else if (!t.due_date) {
+      completedWithoutDateKeys.add(key);
+    } else {
+      const dates = completedCycleDates.get(key) || new Set<string>();
+      dates.add(t.due_date);
+      completedCycleDates.set(key, dates);
+    }
+  }
+
+  const isAlreadyHandled = (key: string, candidateDueDate: string) => {
+    if (activeSourceKeys.has(key) || completedWithoutDateKeys.has(key)) return true;
+    return Boolean(completedCycleDates.get(key)?.has(candidateDueDate));
+  };
 
   const todayStr = options.todayStr || getTodayTurkeyDate();
 
   // 1. Faturalar & Abonelikler (Kalan gün <= 5 veya gecikmiş)
   for (const b of options.bills || []) {
     const key = `finance:${b.id}`;
-    if (existingSet.has(key)) continue;
+    const candidateDueDate = b.due_date || todayStr;
+    if (isAlreadyHandled(key, candidateDueDate)) continue;
 
     const daysLeft = b.days_left ?? 0;
     if (daysLeft <= 5) {
@@ -282,10 +844,11 @@ export function generateCrossModuleActionItems(options: {
         subtitle: `${Number(b.amount || 0).toLocaleString('tr-TR')} ₺ ${daysLeft <= 0 ? '(🚨 Gecikmede / Bugün)' : `(⏳ Son ${daysLeft} gün)`}`,
         pillar: 'finance',
         priority: daysLeft <= 2 ? 'critical' : 'high',
-        due_date: b.due_date || todayStr,
+        due_date: candidateDueDate,
         source_module: 'finance',
         source_ref_id: b.id,
-        action_url: '/budget'
+        action_url: '/budget',
+        is_family_shared: 1
       });
     }
   }
@@ -293,7 +856,8 @@ export function generateCrossModuleActionItems(options: {
   // 2. Kredi Kartı Ekstreleri (Gecikmiş veya kesilmiş ekstre borcu <= 5 gün içinde)
   for (const c of options.creditCards || []) {
     const key = `finance:card-${c.id}`;
-    if (existingSet.has(key)) continue;
+    const candidateDueDate = c.next_due_date || todayStr;
+    if (isAlreadyHandled(key, candidateDueDate)) continue;
 
     const isOverdue = Boolean(c.is_overdue);
     const daysUntilDue = c.days_until_due ?? 0;
@@ -308,10 +872,11 @@ export function generateCrossModuleActionItems(options: {
         subtitle: `${Number(statementAmount || 0).toLocaleString('tr-TR')} ₺ ${isOverdue ? `(🚨 ${c.days_overdue || 1} gündür gecikmede)` : `(⏳ Son ${daysUntilDue} gün)`}`,
         pillar: 'finance',
         priority: 'critical',
-        due_date: c.next_due_date || todayStr,
+        due_date: candidateDueDate,
         source_module: 'finance',
         source_ref_id: `card-${c.id}`,
-        action_url: '/budget'
+        action_url: '/budget',
+        is_family_shared: c.is_family_shared === 1 ? 1 : 0
       });
     }
   }
@@ -319,7 +884,8 @@ export function generateCrossModuleActionItems(options: {
   // 3. Araç Yasal Hatırlatıcılar (Muayene / Sigorta / Kasko <= 14 gün)
   for (const v of options.vehicles || []) {
     const key = `vehicle:${v.id}`;
-    if (existingSet.has(key)) continue;
+    const candidateDueDate = v.due_date || todayStr;
+    if (isAlreadyHandled(key, candidateDueDate)) continue;
 
     const daysLeft = v.days_left ?? 0;
     if (daysLeft <= 14) {
@@ -330,10 +896,11 @@ export function generateCrossModuleActionItems(options: {
         subtitle: daysLeft <= 0 ? '🚨 Vadesi doldu!' : `⏳ Son ${daysLeft} gün kaldı`,
         pillar: 'vehicle_home',
         priority: daysLeft <= 3 ? 'critical' : 'high',
-        due_date: v.due_date || todayStr,
+        due_date: candidateDueDate,
         source_module: 'vehicle',
         source_ref_id: v.id,
-        action_url: '/vehicles'
+        action_url: '/vehicles',
+        is_family_shared: v.is_family_shared === 0 ? 0 : 1
       });
     }
   }
@@ -341,7 +908,8 @@ export function generateCrossModuleActionItems(options: {
   // 4. Ev Bakım Uyarıları (Durum warning veya <= 14 gün)
   for (const h of options.homeMaintenance || []) {
     const key = `home:${h.id}`;
-    if (existingSet.has(key)) continue;
+    const candidateDueDate = h.next_due_date || todayStr;
+    if (isAlreadyHandled(key, candidateDueDate)) continue;
 
     const daysLeft = h.days_left ?? 0;
     if (h.status === 'warning' || daysLeft <= 14) {
@@ -351,10 +919,11 @@ export function generateCrossModuleActionItems(options: {
         subtitle: daysLeft <= 0 ? '🚨 Vadesi geçti!' : `⏳ Son ${daysLeft} gün`,
         pillar: 'vehicle_home',
         priority: daysLeft <= 3 ? 'critical' : 'medium',
-        due_date: h.next_due_date || todayStr,
+        due_date: candidateDueDate,
         source_module: 'home',
         source_ref_id: h.id,
-        action_url: '/vehicles'
+        action_url: '/vehicles',
+        is_family_shared: 1
       });
     }
   }
@@ -362,10 +931,10 @@ export function generateCrossModuleActionItems(options: {
   // 5. Dijital Kasa Evrak Bitişleri (<= 14 gün)
   for (const doc of options.vaultItems || []) {
     const key = `vault:${doc.id}`;
-    if (existingSet.has(key)) continue;
+    if (!doc.expiry_date || isAlreadyHandled(key, doc.expiry_date)) continue;
 
     const daysLeft = doc.days_left ?? 0;
-    if (daysLeft <= 14 && doc.expiry_date) {
+    if (daysLeft <= 14) {
       actions.push({
         id: `cm-vault-${doc.id}`,
         title: `${doc.title} Evrakını Yenile`,
@@ -375,7 +944,8 @@ export function generateCrossModuleActionItems(options: {
         due_date: doc.expiry_date,
         source_module: 'vault',
         source_ref_id: doc.id,
-        action_url: '/vault'
+        action_url: '/vault',
+        is_family_shared: doc.is_family_shared === 1 ? 1 : 0
       });
     }
   }

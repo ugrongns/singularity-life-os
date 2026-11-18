@@ -41,9 +41,10 @@ import {
   sinkingFunds,
   transactions,
   walletsAccounts,
-  recurringBills
+  recurringBills,
+  tasks
 } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, or } from 'drizzle-orm';
 
 export async function POST(req: Request) {
   try {
@@ -145,9 +146,10 @@ export async function POST(req: Request) {
         await tx.delete(importantDates).where(eq(importantDates.family_id, familyId));
         await tx.delete(petRecords).where(eq(petRecords.family_id, familyId));
 
-        // Market listesi & Kumbaralar
+        // Market listesi, Kumbaralar & Görevler
         await tx.delete(shoppingListItems).where(eq(shoppingListItems.family_id, familyId));
         await tx.delete(sinkingFunds).where(eq(sinkingFunds.family_id, familyId));
+        await tx.delete(tasks).where(or(eq(tasks.user_id, userId), eq(tasks.family_id, familyId)));
 
         // Bütçe işlemleri, Periyodik Faturalar ve Cüzdanlar (Önce transactions, sonra cüzdanlar)
         await tx.delete(transactions).where(eq(transactions.family_id, familyId));
@@ -177,6 +179,7 @@ export async function POST(req: Request) {
         await tx.delete(recurringBills).where(eq(recurringBills.user_id, userId));
         await tx.delete(walletsAccounts).where(and(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.is_family_shared, 0)));
         await tx.delete(digitalVaultItems).where(and(eq(digitalVaultItems.user_id, userId), eq(digitalVaultItems.is_family_shared, 0)));
+        await tx.delete(tasks).where(and(eq(tasks.user_id, userId), eq(tasks.is_family_shared, 0)));
       }
     });
 

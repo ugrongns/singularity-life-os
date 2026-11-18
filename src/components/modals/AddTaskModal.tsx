@@ -5,14 +5,8 @@ import {
   X,
   Plus,
   Trash2,
-  Calendar,
-  Clock,
   Flame,
-  Users,
-  Repeat,
-  Tag,
-  AlertCircle,
-  CheckCircle2
+  AlertCircle
 } from 'lucide-react';
 import {
   TaskItem,
@@ -118,6 +112,22 @@ export default function AddTaskModal({
     setLoading(true);
     setError(null);
 
+    const trimmedDraftSubtask = newSubtaskTitle.trim();
+    const finalSubtasks: Subtask[] = trimmedDraftSubtask
+      ? [
+          ...subtasks,
+          {
+            id: `sub-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+            title: trimmedDraftSubtask,
+            is_completed: false
+          }
+        ]
+      : subtasks;
+    if (trimmedDraftSubtask) {
+      setSubtasks(finalSubtasks);
+      setNewSubtaskTitle('');
+    }
+
     try {
       const isEditing = Boolean(initialData?.id);
       const payload: any = {
@@ -132,7 +142,7 @@ export default function AddTaskModal({
         recurrence,
         is_family_shared: isFamilyShared ? 1 : 0,
         assigned_member_id: isFamilyShared && assignedMemberId ? assignedMemberId : null,
-        subtasks
+        subtasks: finalSubtasks
       };
 
       if (isEditing) {

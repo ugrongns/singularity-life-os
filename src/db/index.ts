@@ -759,12 +759,15 @@ async function _runInit(): Promise<void> {
         recurrence TEXT NOT NULL DEFAULT 'none',
         subtasks_json TEXT DEFAULT '[]',
         is_family_shared INTEGER NOT NULL DEFAULT 0,
-        assigned_member_id TEXT,
+        assigned_member_id TEXT REFERENCES family_members(id) ON DELETE SET NULL,
         source_module TEXT DEFAULT 'manual',
         source_ref_id TEXT,
         completed_at TEXT,
-        user_id TEXT,
-        family_id TEXT,
+        focus_started_at TEXT,
+        focus_planned_minutes INTEGER DEFAULT 25,
+        focus_logged_minutes INTEGER NOT NULL DEFAULT 0,
+        user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+        family_id TEXT REFERENCES families(id) ON DELETE CASCADE,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -846,6 +849,9 @@ async function _runInit(): Promise<void> {
       ALTER TABLE recurring_bills ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS user_id TEXT;
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS focus_started_at TEXT;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS focus_planned_minutes INTEGER DEFAULT 25;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS focus_logged_minutes INTEGER NOT NULL DEFAULT 0;
       ALTER TABLE fasting_sessions ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE user_health_profile ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE supplement_routines ADD COLUMN IF NOT EXISTS family_id TEXT;

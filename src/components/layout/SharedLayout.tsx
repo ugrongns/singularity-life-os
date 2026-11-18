@@ -73,8 +73,12 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
   });
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
-  // Hızlı işlem modalları için hesap + kategori verisi (lazy yüklenir)
-  const [quickData, setQuickData] = useState<{ accounts: any[]; categories: any[] }>({ accounts: [], categories: [] });
+  // Hızlı işlem modalları için hesap + kategori + aile üyesi verisi (lazy yüklenir)
+  const [quickData, setQuickData] = useState<{
+    accounts: any[];
+    categories: any[];
+    members: Array<{ id: string; name: string; avatar: string }>;
+  }>({ accounts: [], categories: [], members: [] });
   const [quickDataLoaded, setQuickDataLoaded] = useState(false);
 
   const loadQuickData = async () => {
@@ -86,6 +90,7 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
         setQuickData({
           accounts: json.data.accounts || [],
           categories: json.data.categories || [],
+          members: json.data.monthlySummary?.familyMembers || [],
         });
         setQuickDataLoaded(true);
       }
@@ -534,7 +539,11 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
 
             {/* Yeni Görev / Odak Belirle Hızlı Butonu */}
             <button
-              onClick={() => { setIsQuickMenuOpen(false); setActiveModal('task'); }}
+              onClick={() => {
+                loadQuickData();
+                setIsQuickMenuOpen(false);
+                setActiveModal('task');
+              }}
               style={{
                 width: '100%',
                 padding: '12px 16px',
@@ -910,6 +919,7 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
       <AddTaskModal
         isOpen={activeModal === 'task'}
         onClose={() => setActiveModal(null)}
+        members={quickData.members}
         onSuccess={(msg) => {
           showToast(msg || '🎯 Görev kaydedildi!');
           window.dispatchEvent(new CustomEvent('singularity-refresh'));

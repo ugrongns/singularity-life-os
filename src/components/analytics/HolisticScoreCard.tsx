@@ -27,6 +27,7 @@ interface Props {
       health?: PillarData;
       wellness?: PillarData;
       mind?: PillarData;
+      focus?: PillarData;
     };
     topActions?: TopAction[];
     recommendation?: string;
@@ -34,10 +35,11 @@ interface Props {
 }
 
 const defaultBreakdown = {
-  finance: { score: 0, max: 25, label: 'Finansal Disiplin' },
-  health: { score: 0, max: 25, label: 'Biyometri & Beslenme' },
-  wellness: { score: 0, max: 25, label: 'Uyku & Wellness' },
-  mind: { score: 0, max: 25, label: 'Zihin & İkinci Beyin' }
+  finance: { score: 0, max: 20, label: 'Finansal Disiplin' },
+  health: { score: 0, max: 20, label: 'Biyometri & Beslenme' },
+  wellness: { score: 0, max: 20, label: 'Uyku & Wellness' },
+  mind: { score: 0, max: 20, label: 'Zihin & İkinci Beyin' },
+  focus: { score: 0, max: 20, label: 'Odak & Görevler' }
 };
 
 export default function HolisticScoreCard({ scoreData }: Props) {
@@ -64,6 +66,11 @@ export default function HolisticScoreCard({ scoreData }: Props) {
       score: typeof rawBreakdown?.mind?.score === 'number' && Number.isFinite(rawBreakdown.mind.score) ? rawBreakdown.mind.score : defaultBreakdown.mind.score,
       max: typeof rawBreakdown?.mind?.max === 'number' && Number.isFinite(rawBreakdown.mind.max) ? rawBreakdown.mind.max : defaultBreakdown.mind.max,
       label: rawBreakdown?.mind?.label || defaultBreakdown.mind.label
+    },
+    focus: {
+      score: typeof rawBreakdown?.focus?.score === 'number' && Number.isFinite(rawBreakdown.focus.score) ? rawBreakdown.focus.score : defaultBreakdown.focus.score,
+      max: typeof rawBreakdown?.focus?.max === 'number' && Number.isFinite(rawBreakdown.focus.max) ? rawBreakdown.focus.max : defaultBreakdown.focus.max,
+      label: rawBreakdown?.focus?.label || defaultBreakdown.focus.label
     }
   };
   const topActions = scoreData?.topActions;
@@ -87,12 +94,13 @@ export default function HolisticScoreCard({ scoreData }: Props) {
     ? circumference - (circumference * Math.min(100, Math.max(0, total))) / 100
     : circumference;
 
-  // 4 Ana Yaşam Sütunu
+  // 5 Ana Yaşam Sütunu (5 x 20 Puan = 100)
   const pillars = [
     { key: 'finance', icon: '💰', color: '#10B981', sublabel: 'Bütçe & Pozitif Varlık', link: '/budget', ...breakdown.finance },
     { key: 'health', icon: '🧬', color: '#3B82F6', sublabel: 'Su, Öğün & Tartı', link: '/health', ...breakdown.health },
     { key: 'wellness', icon: '💊', color: '#8B5CF6', sublabel: 'Uyku, Ruh Hali & Takviye', link: '/wellness', ...breakdown.wellness },
     { key: 'mind', icon: '📚', color: '#EC4899', sublabel: 'Kitap & Seanslar', link: '/library', ...breakdown.mind },
+    { key: 'focus', icon: '🎯', color: '#F59E0B', sublabel: 'MIT, Tamamlama & Pomodoro', link: '/tasks', ...breakdown.focus },
   ];
 
   // En Güçlü ve En Zayıf Sütun Tespiti
@@ -115,7 +123,7 @@ export default function HolisticScoreCard({ scoreData }: Props) {
           <span style={{ fontSize: '20px' }}>🌌</span>
           <div>
             <div style={{ fontWeight: 800, fontSize: '15px' }}>Bütünsel Yaşam Skoru</div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Holistic Life Score • 4 Temel Yaşam Ekseni</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Holistic Life Score • 5 Temel Yaşam Ekseni</div>
           </div>
         </div>
         <span style={{
@@ -256,23 +264,23 @@ export default function HolisticScoreCard({ scoreData }: Props) {
           )}
 
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4', marginTop: '2px' }}>
-            ⚡ 4 eksendeki günlük veri girişleri skoru anlık optimize eder.
+            ⚡ 5 eksendeki günlük veri girişleri skoru anlık optimize eder.
           </div>
         </div>
       </div>
 
-      {/* 2. DÖRT EKSENLİ DENGE MATRİSİ (4 SÜTUN) */}
+      {/* 2. BEŞ EKSENLİ DENGE MATRİSİ (5 SÜTUN) */}
       <div>
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           marginBottom: '10px', fontSize: '12px', fontWeight: 800, color: 'var(--text-muted)'
         }}>
-          <span>4 EKSENLİ YAŞAM MATRİSİ</span>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Maksimum 25 Puan / Eksen</span>
+          <span>5 EKSENLİ YAŞAM MATRİSİ</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Maksimum 20 Puan / Eksen</span>
         </div>
 
         <div className="analytics-pillars-grid">
-          {pillars.map(p => {
+          {pillars.map((p, idx) => {
             const pct = calculateHolisticPillarPercentage(p.score, p.max);
             const statusLabel = pct >= 100 ? 'Mükemmel' : pct >= 75 ? 'Güçlü' : pct >= 50 ? 'Dengeli' : pct > 0 ? 'Gelişmeli' : 'Kayıt Yok';
             return (
@@ -281,7 +289,8 @@ export default function HolisticScoreCard({ scoreData }: Props) {
                 style={{
                   background: 'var(--surface-subtle)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-md)', padding: '12px', display: 'flex',
-                  flexDirection: 'column', gap: '8px'
+                  flexDirection: 'column', gap: '8px',
+                  ...(idx === 4 ? { gridColumn: '1 / -1' } : {})
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -294,7 +303,7 @@ export default function HolisticScoreCard({ scoreData }: Props) {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '13px', fontWeight: 900, color: p.color, fontVariantNumeric: 'tabular-nums' }}>
-                      {p.score ?? 0} <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>/ {p.max ?? 25}</span>
+                      {p.score ?? 0} <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>/ {p.max ?? 20}</span>
                     </div>
                     <span style={{
                       fontSize: '9px', fontWeight: 800, padding: '1px 6px', borderRadius: '4px',

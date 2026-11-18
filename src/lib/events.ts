@@ -63,6 +63,21 @@ export type DomainEvent =
       };
     }
   | {
+      type: 'TASK_COMPLETED';
+      payload: {
+        taskId: string;
+        title: string;
+        pillar: string;
+        isMit: boolean;
+        sourceModule?: string | null;
+        sourceRefId?: string | null;
+        focusLoggedMinutes?: number;
+        completedAt: string;
+        userId: string;
+        familyId?: string | null;
+      };
+    }
+  | {
       type: string;
       payload?: any;
     };
@@ -149,6 +164,7 @@ export const EVENTS = {
   FUEL_RECEIPT_RECORDED: 'vehicle:fuel_recorded',
   VEHICLE_MAINTENANCE_RECORDED: 'vehicle:maintenance_recorded',
   DIET_MEAL_RECORDED: 'health:meal_recorded',
+  TASK_COMPLETED: 'task:completed',
   BACKUP_REQUESTED: 'system:backup_requested',
 };
 
@@ -274,5 +290,20 @@ eventBus.subscribe(EVENTS.DIET_MEAL_RECORDED, async (data: any) => {
     console.log(`[EventBus] 🥗 Günlük beslenme güncellendi: ${totalCal}/${targetCal} kcal (%${calPercent}) - Protein: ${totalPro}g`);
   } catch (err) {
     console.error('[EventBus Error - DIET_MEAL_RECORDED]:', err);
+  }
+});
+
+// 4. Görev Tamamlandığında: Çift Yönlü Sistem Köprüsü Takibi & Odak Özeti (Onaysız mali/bakım yazımı yapmaz)
+eventBus.subscribe(EVENTS.TASK_COMPLETED, async (data: any) => {
+  try {
+    const title = String(data?.title || '').trim();
+    if (!title) return;
+    const sourceMod = data?.sourceModule || data?.source_module || 'manual';
+    const focusMins = Number(data?.focusLoggedMinutes ?? data?.focus_logged_minutes ?? 0) || 0;
+    const focusSuffix = focusMins > 0 ? ` (${focusMins} dk odak)` : '';
+    const bridgeSuffix = sourceMod && sourceMod !== 'manual' ? ` • Köprü Kaynağı: ${sourceMod}` : '';
+    console.log(`[EventBus] 🎯 Görev tamamlandı: "${title}"${focusSuffix}${bridgeSuffix}`);
+  } catch (err) {
+    console.error('[EventBus Error - TASK_COMPLETED]:', err);
   }
 });

@@ -162,5 +162,24 @@ describe('🌌 Singularity Faz 4: Bütünsel Yaşam Takvimi & Isı Haritası (TD
       expect(summary.days).toHaveLength(365);
       expect(summary.totalDays).toBe(365);
     });
+
+    it('00:00-02:59 TR gece tamamlanan görevler UTC önceki gününe değil Türkiye takvim gününe işlenmelidir', () => {
+      const refDate = new Date('2026-11-18T12:00:00.000Z');
+      const summary = calculateHeatmapMatrix({
+        fastingSessions: [],
+        readingSessions: [],
+        transactions: [],
+        waterLogs: [],
+        completedTasks: [
+          { completed_at: '2026-11-17T22:30:00Z', is_mit: 1 } // TR 2026-11-18 01:30
+        ]
+      }, 2, refDate);
+
+      const nov17 = summary.days.find(d => d.date === '2026-11-17')!;
+      const nov18 = summary.days.find(d => d.date === '2026-11-18')!;
+      expect(nov17.completedTasksCount).toBe(0);
+      expect(nov18.completedTasksCount).toBe(1);
+      expect(nov18.completedMitsCount).toBe(1);
+    });
   });
 });

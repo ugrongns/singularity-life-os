@@ -4,6 +4,8 @@ import { transactions, walletsAccounts, userHealthProfile, books, shoppingListIt
 import { eq, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { parseTurkishNumber } from '@/lib/ebelge-parser';
+import { getTodayTurkeyDate, shiftTurkeyDate } from '@/lib/date-utils';
+import { validateMitConstraint } from '@/lib/tasks-engine';
 
 interface ParsedAction {
   type: 'expense' | 'water' | 'reading' | 'shopping' | 'supplement' | 'mood' | 'fasting' | 'task';
@@ -73,7 +75,7 @@ export async function POST(req: Request) {
     if (isExecution) {
       const now = new Date();
       const nowISO = now.toISOString();
-      const today = nowISO.split('T')[0];
+      const today = getTodayTurkeyDate(now);
       const results: string[] = [];
 
       const currentUserId = targetUserIdFromInternal || user?.id || (await db.select().from(users).where(eq(users.is_master_account, 1)).limit(1))[0]?.id;
@@ -233,6 +235,29 @@ export async function POST(req: Request) {
           }
         } else if (act.type === 'task') {
           const taskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          const taskDueDate = act.details.due_date || today;
+          let finalIsMit = act.details.is_mit ? 1 : 0;
+          let mitNotice = '';
+
+          if (finalIsMit === 1) {
+            const visibleTasks = await db.select({
+              id: tasks.id,
+              is_mit: tasks.is_mit,
+              status: tasks.status,
+              due_date: tasks.due_date
+            }).from(tasks).where(
+              or(
+                eq(tasks.user_id, currentUserId),
+                and(eq(tasks.family_id, currentFamilyId), eq(tasks.is_family_shared, 1))
+              )
+            );
+            const mitCheck = validateMitConstraint(visibleTasks, taskDueDate);
+            if (!mitCheck.allowed) {
+              finalIsMit = 0;
+              mitNotice = ' (3 MIT limiti dolu olduğu için normal görev olarak eklendi)';
+            }
+          }
+
           await db.insert(tasks).values({
             id: taskId,
             title: act.details.title || act.title,
@@ -240,8 +265,8 @@ export async function POST(req: Request) {
             status: 'pending',
             priority: act.details.priority || 'medium',
             pillar: act.details.pillar || 'general',
-            is_mit: act.details.is_mit ? 1 : 0,
-            due_date: act.details.due_date || today,
+            is_mit: finalIsMit,
+            due_date: taskDueDate,
             recurrence: act.details.recurrence || 'none',
             subtasks_json: '[]',
             is_family_shared: 0,
@@ -251,7 +276,7 @@ export async function POST(req: Request) {
             created_at: nowISO,
             updated_at: nowISO
           });
-          results.push(`🎯 Görev: ${act.details.title || act.title}`);
+          results.push(`🎯 Görev: ${act.details.title || act.title}${mitNotice}`);
         }
       }
 
@@ -280,7 +305,7 @@ export async function POST(req: Request) {
 // Akıllı Doğal Dil Ayrıştırıcısı (NLP & Rule Engine)
 function parseVoiceCommandText(rawText: string): ParsedAction[] {
   const actions: ParsedAction[] = [];
-  const text = rawText.toLowerCase();
+  const text = rawText.toLocaleLowerCase('tr-TR');
 
   // 1. Harcama / Fatura Tespiti
   // Örn: "Migros'ta 450 TL harcadım", "Benzin aldım 1500 lira", "120 TL kahve içtim"
@@ -382,24 +407,26 @@ function parseVoiceCommandText(rawText: string): ParsedAction[] {
 
   // 6. Görev / To-Do Tespiti
   // Örn: "Görev ekle: muhasebeciyi ara", "Yarın için kasko yenileme görevi ekle", "Yapılacaklara rapor hazırla yaz"
-  const taskMatch = text.match(/(?:görev(?:lere|e)?|yapılacaklara?|hatırlatıcı|to-?do)\s*(?:olarak)?\s*(?:ekle|yaz|koy)?\s*[:\s-]?\s*([a-zçğıöşü0-9\s]+?)(?:\sgörevi|\syapılacak)?\s*(?:ekle|yaz|koy)?$/i)
-    || text.match(/(?:yarın|bugün)?\s*([a-zçğıöşü0-9\s]+?)\s*(?:görevi|işi)\s*(?:ekle|yaz|koy)/i);
+  const taskMatch =
+    text.match(/(?:^|,|\sve\s)\s*(?:(?:yarın|bugün)(?:\s+için)?\s+)?([a-zçğıöşü0-9\s]+?)\s+(?:görevi|işi)\s+(?:ekle|yaz|koy)(?=$|[.,!]|\s+ve\s)(?!\s*[:\-])/i)
+    || text.match(/(?:görev(?:lere|e|i)?|yapılacaklara?|hatırlatıcı|to-?do)(?![a-zçğıöşü])\s*(?:olarak)?\s*(?:ekle|yaz|koy)?\s*[:\s-]\s*([a-zçğıöşü0-9\s]+?)(?:\s+görevi|\s+yapılacak)?\s*(?:ekle|yaz|koy)?$/i);
 
   if (taskMatch && taskMatch[1]) {
     const taskTitle = taskMatch[1].trim();
     if (taskTitle.length > 2 && !taskTitle.includes('market') && !taskTitle.includes('alışveriş')) {
       const isTomorrow = text.includes('yarın');
-      const targetDate = new Date();
-      if (isTomorrow) targetDate.setDate(targetDate.getDate() + 1);
-      const isMitCandidate = text.includes('odak') || text.includes('önemli') || text.includes('mit');
+      const todayTr = getTodayTurkeyDate();
+      const targetDueDate = isTomorrow ? shiftTurkeyDate(todayTr, 1) : todayTr;
+      const isMitCandidate = text.includes('odak') || text.includes('önemli') || /(?:^|[^a-zçğıöşü])mit(?=$|[^a-zçğıöşü])/i.test(text);
+      const formattedTitle = taskTitle.charAt(0).toLocaleUpperCase('tr-TR') + taskTitle.slice(1);
 
       actions.push({
         type: 'task',
-        title: `${taskTitle.charAt(0).toUpperCase() + taskTitle.slice(1)} (Görev)`,
+        title: `${formattedTitle} (Görev)`,
         icon: '🎯',
         details: {
-          title: taskTitle.charAt(0).toUpperCase() + taskTitle.slice(1),
-          due_date: targetDate.toISOString().slice(0, 10),
+          title: formattedTitle,
+          due_date: targetDueDate,
           is_mit: isMitCandidate ? 1 : 0,
           pillar: text.includes('fatura') || text.includes('vergi') || text.includes('para') || text.includes('kart') ? 'finance' : 'general',
           priority: isMitCandidate ? 'high' : 'medium'

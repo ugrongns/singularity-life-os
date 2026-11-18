@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db, initDatabase } from '@/db';
 import { users, transactions, userHealthProfile, books, walletsAccounts, importantDates, digitalVaultItems, tasks } from '@/db/schema';
-import { eq, sql, or, and } from 'drizzle-orm';
+import { eq, sql, or, and, ne } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
+import { summarizeTodayMit } from '@/lib/tasks-engine';
 
 const isNumericChatId = (val: unknown): boolean =>
   typeof val === 'string' && /^-?\d+$/.test(val.trim());
@@ -337,9 +339,18 @@ export async function POST(req: Request) {
         || { consumed_water_ml: 1250, daily_water_target_ml: 2500 };
       const activeBook = (await db.select().from(books).where(and(eq(books.user_id, user.id), eq(books.status, 'reading'))).limit(1))[0]
         || (await db.select().from(books).where(eq(books.user_id, user.id)).limit(1))[0];
-      const pendingTasks = await db.select().from(tasks).where(and(eq(tasks.user_id, user.id), eq(tasks.status, 'pending')));
-      const mitTasks = pendingTasks.filter(t => t.is_mit === 1);
-      const today = new Date().toISOString().split('T')[0];
+      const userFamilyId = user.family_id || `fam-${user.id}`;
+      const pendingTasks = await db.select().from(tasks).where(
+        and(
+          ne(tasks.status, 'completed'),
+          or(
+            eq(tasks.user_id, user.id),
+            and(eq(tasks.family_id, userFamilyId), eq(tasks.is_family_shared, 1))
+          )
+        )
+      );
+      const today = getTodayTurkeyDate();
+      const mitTasks = summarizeTodayMit(pendingTasks, today).todayMitTasks;
 
       const briefing = `🌌 *Singularity Günlük Yaşam Bülteni* (${today})\n\n` +
         `🎯 *Görevler:* ${pendingTasks.length} bekleyen (${mitTasks.length} Günün Odağı / MIT)\n` +
@@ -489,9 +500,19 @@ export async function POST(req: Request) {
         const health = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, targetUser.id)).limit(1))[0]
           || { consumed_water_ml: 1250, daily_water_target_ml: 2500 };
         const activeBook = (await db.select().from(books).where(and(eq(books.user_id, targetUser.id), eq(books.status, 'reading'))).limit(1))[0];
-        const pendingTasks = await db.select().from(tasks).where(and(eq(tasks.user_id, targetUser.id), eq(tasks.status, 'pending')));
-        const mitTasks = pendingTasks.filter(t => t.is_mit === 1);
-        replyText = `📊 *GÜNLÜK YAŞAM ÖZETİ (${targetUser.full_name || targetUser.username})*\n\n` +
+        const targetFamilyId = targetUser.family_id || `fam-${targetUser.id}`;
+        const pendingTasks = await db.select().from(tasks).where(
+          and(
+            ne(tasks.status, 'completed'),
+            or(
+              eq(tasks.user_id, targetUser.id),
+              and(eq(tasks.family_id, targetFamilyId), eq(tasks.is_family_shared, 1))
+            )
+          )
+        );
+        const today = getTodayTurkeyDate();
+        const mitTasks = summarizeTodayMit(pendingTasks, today).todayMitTasks;
+        replyText = `📊 *GÜNLÜK YAŞAM ÖZETİ (${targetUser.full_name || targetUser.username} • ${today})*\n\n` +
           `🎯 Görevler: ${pendingTasks.length} bekleyen (${mitTasks.length} Günün Odağı)\n` +
           `💧 Su: ${health.consumed_water_ml} / ${health.daily_water_target_ml} ml\n` +
           (activeBook ? `📚 Aktif Kitap: ${activeBook.title} (${activeBook.current_page}/${activeBook.total_pages} sayfa)\n` : '') +
@@ -503,7 +524,7 @@ export async function POST(req: Request) {
         } else {
           const taskId = `task-${Date.now()}`;
           const nowISO = new Date().toISOString();
-          const todayDate = nowISO.split('T')[0];
+          const todayDate = getTodayTurkeyDate();
           await db.insert(tasks).values({
             id: taskId,
             user_id: targetUser.id,
@@ -556,7 +577,7 @@ export async function POST(req: Request) {
         }
       } else if (text.length > 0) {
         // Doğal Dil / Sesli Komut Motoruna Taslak Hazırlat ve Hedef Kullanıcı Bağlamında Çalıştır
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+        const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || resolveWebhookOrigin(req)).replace(/\/+$/, '');
         const internalKey = process.env.INTERNAL_SERVICE_KEY || '';
         try {
           const voiceRes = await fetch(`${baseUrl}/api/voice-command`, {

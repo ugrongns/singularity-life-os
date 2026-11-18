@@ -12,6 +12,7 @@ import {
 import { eq, and, gte, desc, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { calculateHeatmapMatrix, RawHeatmapData } from '@/lib/calendar-heatmap';
+import { getTodayTurkeyDate, shiftTurkeyDate } from '@/lib/date-utils';
 
 export async function GET(req: Request) {
   try {
@@ -26,9 +27,9 @@ export async function GET(req: Request) {
     const daysCount = Math.min(365, Math.max(30, isNaN(requestedDays) ? 365 : requestedDays));
 
     const today = new Date();
-    const startDate = new Date(today);
-    startDate.setDate(startDate.getDate() - daysCount);
-    const startDateStr = startDate.toISOString().slice(0, 10);
+    const todayTr = getTodayTurkeyDate(today);
+    const startDateStr = shiftTurkeyDate(todayTr, -daysCount);
+    const timestampStartStr = shiftTurkeyDate(startDateStr, -1); // 00:00-02:59 TR/UTC sınır tamponu
 
     const familyId = user.family_id || `fam-${user.id}`;
 
@@ -117,7 +118,7 @@ export async function GET(req: Request) {
             eq(tasks.user_id, user.id),
             and(eq(tasks.family_id, familyId), eq(tasks.is_family_shared, 1))
           ),
-          gte(tasks.completed_at, startDateStr)
+          gte(tasks.completed_at, timestampStartStr)
         )
       )
       .limit(1000);

@@ -12,24 +12,140 @@ import {
   transactions,
   categories
 } from '@/db/schema';
-import { eq, and, or, inArray, desc, sql } from 'drizzle-orm';
+import { eq, and, or, ne, inArray, desc, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import {
   TaskItem,
   TaskRecurrence,
+  PILLAR_CONFIGS,
+  PRIORITY_CONFIGS,
   parseSubtasks,
   calculateSubtaskProgress,
   calculateNextRecurrenceDate,
   resolveSubtaskDrivenStatus,
+  summarizeTodayMit,
   validateMitConstraint,
   filterTasksByView,
-  generateCrossModuleActionItems,
-  toTurkeyDay
+  sortTasksForDisplay,
+  computeFocusElapsedMinutes,
+  normalizeFocusDurationMinutes,
+  resolveCrossModuleFollowUp,
+  CrossModuleFollowUp,
+  generateCrossModuleActionItems
 } from '@/lib/tasks-engine';
-import { getTodayTurkeyDate, diffTurkeyCalendarDays, parseTurkeyCalendarDate } from '@/lib/date-utils';
-import { calculateCreditCardSchedule } from '@/lib/bill-schedule';
+import { eventBus, EVENTS } from '@/lib/events';
+import { getTodayTurkeyDate, shiftTurkeyDate, diffTurkeyCalendarDays, parseTurkeyCalendarDate } from '@/lib/date-utils';
+import { calculateBillSchedule, calculateCreditCardSchedule } from '@/lib/bill-schedule';
 
 type TaskRow = typeof tasks.$inferSelect;
+
+const VALID_RECURRENCES = new Set(['none', 'daily', 'weekly', 'monthly']);
+
+function getVisibleTasksWhere(userId: string, familyId?: string | null) {
+  return familyId
+    ? or(
+        eq(tasks.user_id, userId),
+        and(eq(tasks.family_id, familyId), eq(tasks.is_family_shared, 1))
+      )
+    : eq(tasks.user_id, userId);
+}
+
+async function notifyTaskCompleted(
+  existing: TaskRow,
+  nextLoggedMinutes: number,
+  completedAt: string,
+  userId: string,
+  familyId?: string | null
+): Promise<CrossModuleFollowUp | null> {
+  await eventBus.emit(EVENTS.TASK_COMPLETED, {
+    taskId: existing.id,
+    title: existing.title,
+    pillar: existing.pillar,
+    isMit: Number(existing.is_mit) === 1,
+    sourceModule: existing.source_module,
+    sourceRefId: existing.source_ref_id,
+    focusLoggedMinutes: nextLoggedMinutes,
+    completedAt,
+    userId,
+    familyId
+  });
+  return resolveCrossModuleFollowUp(existing);
+}
+
+async function validateAssignedMemberInFamily(memberId: string | null, familyId: string): Promise<boolean> {
+  if (!memberId) return true;
+  const found = (await db.select({ id: familyMembers.id }).from(familyMembers).where(
+    and(eq(familyMembers.id, memberId), eq(familyMembers.family_id, familyId))
+  ).limit(1))[0];
+  return Boolean(found);
+}
+
+function normalizeValidatedTaskFields(body: any): {
+  error?: string;
+  priority?: string;
+  pillar?: string;
+  recurrence?: string;
+  dueDate?: string | null;
+  dueTime?: string | null;
+} {
+  let priority: string | undefined;
+  if (body.priority !== undefined) {
+    const p = String(body.priority).trim();
+    if (!(p in PRIORITY_CONFIGS)) {
+      return { error: 'Geçersiz öncelik seviyesi.' };
+    }
+    priority = p;
+  }
+
+  let pillar: string | undefined;
+  if (body.pillar !== undefined) {
+    const pl = String(body.pillar).trim();
+    if (!(pl in PILLAR_CONFIGS)) {
+      return { error: 'Geçersiz yaşam sütunu.' };
+    }
+    pillar = pl;
+  }
+
+  let recurrence: string | undefined;
+  if (body.recurrence !== undefined) {
+    const r = String(body.recurrence).trim();
+    if (!VALID_RECURRENCES.has(r)) {
+      return { error: 'Geçersiz tekrarlama sıklığı.' };
+    }
+    recurrence = r;
+  }
+
+  let dueDate: string | null | undefined;
+  if (body.due_date !== undefined) {
+    const d = body.due_date ? String(body.due_date).trim() : '';
+    if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      return { error: 'Geçersiz tarih formatı (YYYY-AA-GG bekleniyor).' };
+    }
+    dueDate = d || null;
+  }
+
+  let dueTime: string | null | undefined;
+  if (body.due_time !== undefined) {
+    const tm = body.due_time ? String(body.due_time).trim() : '';
+    if (tm && !/^\d{2}:\d{2}$/.test(tm)) {
+      return { error: 'Geçersiz saat formatı (SS:DD bekleniyor).' };
+    }
+    dueTime = tm || null;
+  }
+
+  return { priority, pillar, recurrence, dueDate, dueTime };
+}
+
+function resolveRescheduleTargetDate(rawDueDate: unknown, todayStr: string): string | null {
+  const raw = typeof rawDueDate === 'string' ? rawDueDate.trim() : '';
+  if (!raw) return null;
+  if (raw === 'today') return todayStr;
+  if (raw === 'tomorrow') return shiftTurkeyDate(todayStr, 1);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw) && diffTurkeyCalendarDays(raw, raw) !== null) {
+    return raw;
+  }
+  return null;
+}
 
 /**
  * Tekrarlayan görev tamamlandığında bir sonraki periyot görevini üretir.
@@ -46,16 +162,36 @@ async function spawnNextRecurringTask(
   const nextDueDate = calculateNextRecurrenceDate(existing.due_date, existing.recurrence as TaskRecurrence);
   if (!nextDueDate) return null;
 
+  const ownerId = existing.user_id || userId;
+  const visibilityScope = existing.is_family_shared === 1
+    ? getVisibleTasksWhere(ownerId, familyId)
+    : eq(tasks.user_id, ownerId);
+
   const duplicate = (await db.select({ id: tasks.id }).from(tasks).where(
     and(
       eq(tasks.title, existing.title),
       eq(tasks.recurrence, existing.recurrence),
       eq(tasks.due_date, nextDueDate),
       eq(tasks.status, 'pending'),
-      or(eq(tasks.user_id, userId), eq(tasks.family_id, familyId))
+      visibilityScope
     )
   ).limit(1))[0];
   if (duplicate) return { id: duplicate.id, due_date: nextDueDate };
+
+  let nextIsMit = existing.is_mit;
+  if (Number(existing.is_mit) === 1) {
+    const visibleTasks = await db.select({
+      id: tasks.id,
+      is_mit: tasks.is_mit,
+      status: tasks.status,
+      due_date: tasks.due_date
+    }).from(tasks).where(getVisibleTasksWhere(ownerId, familyId));
+
+    const mitCheck = validateMitConstraint(visibleTasks, nextDueDate);
+    if (!mitCheck.allowed) {
+      nextIsMit = 0;
+    }
+  }
 
   const nextTaskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   // Alt görevleri sıfırla
@@ -68,7 +204,7 @@ async function spawnNextRecurringTask(
     status: 'pending',
     priority: existing.priority,
     pillar: existing.pillar,
-    is_mit: existing.is_mit,
+    is_mit: nextIsMit,
     due_date: nextDueDate,
     due_time: existing.due_time,
     recurrence: existing.recurrence,
@@ -78,7 +214,10 @@ async function spawnNextRecurringTask(
     source_module: existing.source_module,
     source_ref_id: existing.source_ref_id,
     completed_at: null,
-    user_id: userId,
+    focus_started_at: null,
+    focus_planned_minutes: existing.focus_planned_minutes ?? 25,
+    focus_logged_minutes: 0,
+    user_id: ownerId,
     family_id: familyId,
     created_at: nowISO,
     updated_at: nowISO
@@ -110,14 +249,9 @@ export async function GET(req: Request) {
     const membersMap = new Map(membersList.map(m => [m.id, { name: m.name, avatar: m.avatar || '👤' }]));
 
     // 2. Görevleri Çek (OWASP BOLA)
-    const rawTasks = await db.select().from(tasks).where(
-      familyId
-        ? or(
-            eq(tasks.user_id, userId),
-            and(eq(tasks.family_id, familyId), eq(tasks.is_family_shared, 1))
-          )
-        : eq(tasks.user_id, userId)
-    ).orderBy(desc(tasks.is_mit), desc(tasks.created_at));
+    const rawTasks = await db.select().from(tasks)
+      .where(getVisibleTasksWhere(userId, familyId))
+      .orderBy(desc(tasks.is_mit), desc(tasks.created_at));
 
     // 3. Görevleri Zenginleştir
     const enrichedTasks: TaskItem[] = rawTasks.map(t => {
@@ -146,6 +280,9 @@ export async function GET(req: Request) {
         source_module: t.source_module,
         source_ref_id: t.source_ref_id,
         completed_at: t.completed_at,
+        focus_started_at: t.focus_started_at || null,
+        focus_planned_minutes: t.focus_planned_minutes ?? 25,
+        focus_logged_minutes: t.focus_logged_minutes ?? 0,
         user_id: t.user_id,
         family_id: t.family_id,
         created_at: t.created_at,
@@ -170,15 +307,8 @@ export async function GET(req: Request) {
       filteredList = filteredList.filter(t => t.assigned_member_id === memberParam);
     }
 
-    // 5. Günlük MIT Özeti Hesapla
-    const activeMitCount = enrichedTasks.filter(t => {
-      return t.is_mit === 1 && t.status !== 'completed' && (!t.due_date || t.due_date === todayStr);
-    }).length;
-
-    const completedMitCount = enrichedTasks.filter(t => {
-      const isTodayDone = toTurkeyDay(t.completed_at) === todayStr;
-      return t.is_mit === 1 && t.status === 'completed' && isTodayDone;
-    }).length;
+    // 5. Günlük MIT Özeti Hesapla (Tek kaynak: tasks-engine)
+    const { activeMitCount, completedMitCount, maxMit } = summarizeTodayMit(enrichedTasks, todayStr);
 
     // 6. Modüller Arası Aksiyon Köprüsü (Cross-Module Action Bridge)
     let crossModuleActions: any[] = [];
@@ -196,14 +326,24 @@ export async function GET(req: Request) {
           and(
             eq(walletsAccounts.is_active, 1),
             familyId
-              ? or(eq(walletsAccounts.user_id, userId), eq(walletsAccounts.family_id, familyId))
+              ? or(
+                  eq(walletsAccounts.user_id, userId),
+                  and(eq(walletsAccounts.family_id, familyId), eq(walletsAccounts.is_family_shared, 1)),
+                  and(eq(walletsAccounts.family_id, familyId), sql`${walletsAccounts.user_id} IS NULL`)
+                )
               : eq(walletsAccounts.user_id, userId)
           )
         ),
         db.select().from(vehicles).where(
-          familyId
-            ? or(eq(vehicles.user_id, userId), eq(vehicles.family_id, familyId))
-            : eq(vehicles.user_id, userId)
+          and(
+            eq(vehicles.is_active, 1),
+            familyId
+              ? or(
+                  eq(vehicles.user_id, userId),
+                  and(eq(vehicles.family_id, familyId), eq(vehicles.is_family_shared, 1))
+                )
+              : eq(vehicles.user_id, userId)
+          )
         ),
         db.select().from(homeMaintenanceRecords).where(
           familyId
@@ -212,7 +352,10 @@ export async function GET(req: Request) {
         ),
         db.select().from(digitalVaultItems).where(
           familyId
-            ? or(eq(digitalVaultItems.user_id, userId), eq(digitalVaultItems.family_id, familyId))
+            ? or(
+                eq(digitalVaultItems.user_id, userId),
+                and(eq(digitalVaultItems.family_id, familyId), eq(digitalVaultItems.is_family_shared, 1))
+              )
             : eq(digitalVaultItems.user_id, userId)
         )
       ]);
@@ -266,30 +409,27 @@ export async function GET(req: Request) {
           days_until_due: sched.days_until_due,
           next_due_date: sched.is_overdue ? sched.last_due_date : sched.next_due_date,
           is_overdue: sched.is_overdue,
-          days_overdue: sched.days_overdue
+          days_overdue: sched.days_overdue,
+          is_family_shared: acc.is_family_shared ?? 0
         };
       });
 
-      // Fatura Tarih Kontrolü (Türkiye takvim gününe göre)
-      const curYear = Number(todayStr.slice(0, 4));
-      const curMonthIndex = Number(todayStr.slice(5, 7)) - 1;
-      const currentMonthStr = todayStr.slice(0, 7);
-      const maxDays = new Date(Date.UTC(curYear, curMonthIndex + 1, 0)).getUTCDate();
-      const parsedBills = billsData
-        .filter(b => b.last_paid_month !== currentMonthStr)
-        .map(b => {
-          const dueDayClamped = Math.min(Math.max(1, b.due_day || 1), maxDays);
-          const dueDateStr = `${currentMonthStr}-${String(dueDayClamped).padStart(2, '0')}`;
-          const daysLeft = diffTurkeyCalendarDays(dueDateStr, todayStr) ?? 0;
-          return {
-            id: b.id,
-            name: b.name,
-            amount: b.amount || 0,
-            due_day: b.due_day,
-            due_date: dueDateStr,
-            days_left: daysLeft
-          };
-        });
+      // Fatura Tarih Kontrolü (monthly/quarterly/yearly periyotlarına göre Türkiye takvim günü)
+      const parsedBills = billsData.flatMap(b => {
+        const sched = calculateBillSchedule(b, turkeyToday);
+        const dueMonth = sched.next_due_date.slice(0, 7);
+        if (b.last_paid_month && b.last_paid_month >= dueMonth) {
+          return [];
+        }
+        return [{
+          id: b.id,
+          name: b.name,
+          amount: b.amount || 0,
+          due_day: b.due_day,
+          due_date: sched.next_due_date,
+          days_left: sched.days_left
+        }];
+      });
 
       // Araç Yasal Hatırlatıcılar
       const vIds = vehiclesData.map(v => v.id);
@@ -310,7 +450,8 @@ export async function GET(req: Request) {
           type: l.type,
           due_date: l.due_date,
           days_left: daysLeft,
-          plate: matchedV?.plate
+          plate: matchedV?.plate,
+          is_family_shared: matchedV?.is_family_shared ?? 1
         }];
       });
 
@@ -337,7 +478,8 @@ export async function GET(req: Request) {
           title: v.title,
           expiry_date: v.expiry_date,
           days_left: daysLeft,
-          type: v.type
+          type: v.type,
+          is_family_shared: v.is_family_shared ?? 0
         }];
       });
 
@@ -362,7 +504,7 @@ export async function GET(req: Request) {
         mitSummary: {
           activeMitCount,
           completedMitCount,
-          maxMit: 3
+          maxMit
         },
         crossModuleActions,
         members: membersList.map(m => ({ id: m.id, name: m.name, avatar: m.avatar || '👤' }))
@@ -397,8 +539,18 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: 'Görev başlığı boş bırakılamaz.' }, { status: 400 });
       }
 
+      const validated = normalizeValidatedTaskFields(body);
+      if (validated.error) {
+        return NextResponse.json({ success: false, error: validated.error }, { status: 400 });
+      }
+
+      const assignedMemberId = body.assigned_member_id ? String(body.assigned_member_id).trim() : null;
+      if (!(await validateAssignedMemberInFamily(assignedMemberId, familyId))) {
+        return NextResponse.json({ success: false, error: 'Seçilen aile üyesi bu hanede bulunamadı.' }, { status: 400 });
+      }
+
       const isMit = body.is_mit ? 1 : 0;
-      const dueDate = body.due_date ? String(body.due_date).trim() : null;
+      const dueDate = validated.dueDate ?? null;
 
       // MIT Kalkanı: Aynı günde en fazla 3 aktif odak görevi olabilir
       if (isMit === 1) {
@@ -407,7 +559,7 @@ export async function POST(req: Request) {
           is_mit: tasks.is_mit,
           status: tasks.status,
           due_date: tasks.due_date
-        }).from(tasks).where(eq(tasks.user_id, userId));
+        }).from(tasks).where(getVisibleTasksWhere(userId, familyId));
 
         const mitCheck = validateMitConstraint(existingTasks, dueDate);
         if (!mitCheck.allowed) {
@@ -427,16 +579,16 @@ export async function POST(req: Request) {
         id: taskId,
         title,
         description: body.description ? String(body.description).trim() : null,
-        status: body.status || 'pending',
-        priority: body.priority || 'medium',
-        pillar: body.pillar || 'general',
+        status: body.status === 'in_progress' || body.status === 'completed' ? body.status : 'pending',
+        priority: validated.priority || 'medium',
+        pillar: validated.pillar || 'general',
         is_mit: isMit,
         due_date: dueDate,
-        due_time: body.due_time ? String(body.due_time).trim() : null,
-        recurrence: body.recurrence || 'none',
+        due_time: validated.dueTime ?? null,
+        recurrence: validated.recurrence || 'none',
         subtasks_json: subtasksJson,
         is_family_shared: body.is_family_shared ? 1 : 0,
-        assigned_member_id: body.assigned_member_id || null,
+        assigned_member_id: assignedMemberId,
         source_module: body.source_module || 'manual',
         source_ref_id: body.source_ref_id || null,
         completed_at: null,
@@ -465,9 +617,7 @@ export async function POST(req: Request) {
       const existing = (await db.select().from(tasks).where(
         and(
           eq(tasks.id, taskId),
-          familyId
-            ? or(eq(tasks.user_id, userId), eq(tasks.family_id, familyId))
-            : eq(tasks.user_id, userId)
+          getVisibleTasksWhere(userId, familyId)
         )
       ).limit(1))[0];
 
@@ -478,16 +628,52 @@ export async function POST(req: Request) {
       const isCompleted = existing.status === 'completed';
       const nextStatus = isCompleted ? 'pending' : 'completed';
       const completedAt = isCompleted ? null : nowISO;
+      const nowDate = new Date(nowISO);
+      const focusSettlement = !isCompleted && existing.focus_started_at
+        ? {
+            focus_started_at: null,
+            focus_logged_minutes:
+              (existing.focus_logged_minutes ?? 0) +
+              computeFocusElapsedMinutes(existing.focus_started_at, existing.focus_planned_minutes, nowDate)
+          }
+        : {};
+
+      if (isCompleted && Number(existing.is_mit) === 1) {
+        const visibleTasks = await db.select({
+          id: tasks.id,
+          is_mit: tasks.is_mit,
+          status: tasks.status,
+          due_date: tasks.due_date
+        }).from(tasks).where(getVisibleTasksWhere(userId, familyId));
+
+        const mitCheck = validateMitConstraint(visibleTasks, existing.due_date, taskId);
+        if (!mitCheck.allowed) {
+          return NextResponse.json({
+            success: false,
+            error: 'Bu gün için 3 aktif odak görevi (MIT) zaten dolu. Görevi yeniden açmadan önce bir odağı tamamlayın veya çıkarın.'
+          }, { status: 400 });
+        }
+      }
 
       await db.update(tasks).set({
         status: nextStatus,
         completed_at: completedAt,
+        ...focusSettlement,
         updated_at: nowISO
-      }).where(eq(tasks.id, taskId));
+      }).where(and(eq(tasks.id, taskId), getVisibleTasksWhere(userId, familyId)));
 
       // Tekrarlayan Görev Döngüsü: Eğer görev tamamlandıysa ve recurrence varsa bir sonraki periyot görevini otomatik üret
       const spawnedNextTask = !isCompleted
         ? await spawnNextRecurringTask(existing, userId, familyId, nowISO)
+        : null;
+      const followUpAction = !isCompleted
+        ? await notifyTaskCompleted(
+            existing,
+            focusSettlement.focus_logged_minutes ?? (existing.focus_logged_minutes ?? 0),
+            nowISO,
+            userId,
+            familyId
+          )
         : null;
 
       return NextResponse.json({
@@ -496,7 +682,8 @@ export async function POST(req: Request) {
         data: {
           task_id: taskId,
           status: nextStatus,
-          spawned_next_task: spawnedNextTask
+          spawned_next_task: spawnedNextTask,
+          ...(followUpAction ? { follow_up_action: followUpAction } : {})
         }
       });
     }
@@ -511,9 +698,7 @@ export async function POST(req: Request) {
       const existing = (await db.select().from(tasks).where(
         and(
           eq(tasks.id, taskId),
-          familyId
-            ? or(eq(tasks.user_id, userId), eq(tasks.family_id, familyId))
-            : eq(tasks.user_id, userId)
+          getVisibleTasksWhere(userId, familyId)
         )
       ).limit(1))[0];
 
@@ -532,16 +717,52 @@ export async function POST(req: Request) {
       // Adım → Görev senkronu: tüm adımlar bitince görev tamamlanır, bir adım geri alınınca görev yeniden açılır
       const { nextStatus, transition } = resolveSubtaskDrivenStatus(updatedSubtasks, existing.status);
 
+      if (transition === 'reopened' && Number(existing.is_mit) === 1) {
+        const visibleTasks = await db.select({
+          id: tasks.id,
+          is_mit: tasks.is_mit,
+          status: tasks.status,
+          due_date: tasks.due_date
+        }).from(tasks).where(getVisibleTasksWhere(userId, familyId));
+
+        const mitCheck = validateMitConstraint(visibleTasks, existing.due_date, taskId);
+        if (!mitCheck.allowed) {
+          return NextResponse.json({
+            success: false,
+            error: 'Bu gün için 3 aktif odak görevi (MIT) zaten dolu. Adımı geri almadan önce bir odağı tamamlayın veya çıkarın.'
+          }, { status: 400 });
+        }
+      }
+
+      const subtaskFocusSettlement = transition === 'completed' && existing.focus_started_at
+        ? {
+            focus_started_at: null,
+            focus_logged_minutes:
+              (existing.focus_logged_minutes ?? 0) +
+              computeFocusElapsedMinutes(existing.focus_started_at, existing.focus_planned_minutes, new Date(nowISO))
+          }
+        : {};
+
       await db.update(tasks).set({
         subtasks_json: JSON.stringify(updatedSubtasks),
         ...(transition !== 'none'
           ? { status: nextStatus, completed_at: transition === 'completed' ? nowISO : null }
           : {}),
+        ...subtaskFocusSettlement,
         updated_at: nowISO
-      }).where(eq(tasks.id, taskId));
+      }).where(and(eq(tasks.id, taskId), getVisibleTasksWhere(userId, familyId)));
 
       const spawnedNextTask = transition === 'completed'
         ? await spawnNextRecurringTask(existing, userId, familyId, nowISO)
+        : null;
+      const followUpAction = transition === 'completed'
+        ? await notifyTaskCompleted(
+            existing,
+            subtaskFocusSettlement.focus_logged_minutes ?? (existing.focus_logged_minutes ?? 0),
+            nowISO,
+            userId,
+            familyId
+          )
         : null;
 
       return NextResponse.json({
@@ -557,7 +778,8 @@ export async function POST(req: Request) {
           progress: calculateSubtaskProgress(updatedSubtasks),
           task_status: nextStatus,
           transition,
-          spawned_next_task: spawnedNextTask
+          spawned_next_task: spawnedNextTask,
+          ...(followUpAction ? { follow_up_action: followUpAction } : {})
         }
       });
     }
@@ -571,9 +793,7 @@ export async function POST(req: Request) {
       const existing = (await db.select().from(tasks).where(
         and(
           eq(tasks.id, taskId),
-          familyId
-            ? or(eq(tasks.user_id, userId), eq(tasks.family_id, familyId))
-            : eq(tasks.user_id, userId)
+          getVisibleTasksWhere(userId, familyId)
         )
       ).limit(1))[0];
 
@@ -589,7 +809,7 @@ export async function POST(req: Request) {
           is_mit: tasks.is_mit,
           status: tasks.status,
           due_date: tasks.due_date
-        }).from(tasks).where(eq(tasks.user_id, userId));
+        }).from(tasks).where(getVisibleTasksWhere(userId, familyId));
 
         const mitCheck = validateMitConstraint(allUserTasks, existing.due_date, taskId);
         if (!mitCheck.allowed) {
@@ -603,12 +823,312 @@ export async function POST(req: Request) {
       await db.update(tasks).set({
         is_mit: nextMit,
         updated_at: nowISO
-      }).where(eq(tasks.id, taskId));
+      }).where(and(eq(tasks.id, taskId), getVisibleTasksWhere(userId, familyId)));
 
       return NextResponse.json({
         success: true,
         message: nextMit === 1 ? '🔥 Günün odak görevi (MIT) olarak eklendi!' : 'Odak görevi işareti kaldırıldı.',
         data: { task_id: taskId, is_mit: nextMit }
+      });
+    }
+
+    // ==========================================
+    // 4.5 TEKLİ & TOPLU HIZLI ERTELEME (reschedule / reschedule_overdue)
+    // ==========================================
+    if (action === 'reschedule') {
+      const taskId = String(body.task_id || '').trim();
+      if (!taskId) {
+        return NextResponse.json({ success: false, error: 'Görev ID girilmedi.' }, { status: 400 });
+      }
+
+      const todayStr = getTodayTurkeyDate();
+      const targetDueDate = resolveRescheduleTargetDate(body.due_date, todayStr);
+      if (!targetDueDate) {
+        return NextResponse.json({ success: false, error: 'Geçersiz hedef erteleme tarihi.' }, { status: 400 });
+      }
+
+      const existing = (await db.select().from(tasks).where(
+        and(
+          eq(tasks.id, taskId),
+          getVisibleTasksWhere(userId, familyId)
+        )
+      ).limit(1))[0];
+
+      if (!existing) {
+        return NextResponse.json({ success: false, error: 'Görev bulunamadı.' }, { status: 404 });
+      }
+
+      if (existing.status === 'completed') {
+        return NextResponse.json({ success: false, error: 'Tamamlanmış görev ertelenemez.' }, { status: 400 });
+      }
+
+      let nextIsMit = Number(existing.is_mit) === 1 ? 1 : 0;
+      let mitDowngraded = false;
+
+      if (nextIsMit === 1 && targetDueDate !== existing.due_date) {
+        const visibleTasks = await db.select({
+          id: tasks.id,
+          is_mit: tasks.is_mit,
+          status: tasks.status,
+          due_date: tasks.due_date
+        }).from(tasks).where(getVisibleTasksWhere(userId, familyId));
+
+        const mitCheck = validateMitConstraint(visibleTasks, targetDueDate, taskId);
+        if (!mitCheck.allowed) {
+          nextIsMit = 0;
+          mitDowngraded = true;
+        }
+      }
+
+      await db.update(tasks).set({
+        due_date: targetDueDate,
+        is_mit: nextIsMit,
+        updated_at: nowISO
+      }).where(and(eq(tasks.id, taskId), getVisibleTasksWhere(userId, familyId)));
+
+      const baseMsg = targetDueDate === todayStr
+        ? '☀️ Görev bugüne alındı.'
+        : targetDueDate === shiftTurkeyDate(todayStr, 1)
+          ? '📅 Görev yarına ertelendi.'
+          : `📅 Görev ${targetDueDate} tarihine taşındı.`;
+
+      return NextResponse.json({
+        success: true,
+        message: mitDowngraded
+          ? `${baseMsg} (Hedef günde 3 MIT kotası dolu olduğu için odak işareti kaldırıldı.)`
+          : baseMsg,
+        data: {
+          task_id: taskId,
+          due_date: targetDueDate,
+          is_mit: nextIsMit,
+          mit_downgraded: mitDowngraded
+        }
+      });
+    }
+
+    if (action === 'reschedule_overdue') {
+      const todayStr = getTodayTurkeyDate();
+      const targetDate = body.target_date !== undefined
+        ? resolveRescheduleTargetDate(body.target_date, todayStr)
+        : todayStr;
+
+      if (!targetDate) {
+        return NextResponse.json({ success: false, error: 'Geçersiz hedef erteleme tarihi.' }, { status: 400 });
+      }
+
+      const visibleTasks = await db.select().from(tasks).where(getVisibleTasksWhere(userId, familyId));
+      const requestedIds = Array.isArray(body.task_ids)
+        ? new Set(body.task_ids.map((id: unknown) => String(id || '').trim()).filter(Boolean))
+        : null;
+
+      const overdueCandidates = visibleTasks.filter(t => {
+        if (t.status === 'completed' || !t.due_date || t.due_date >= todayStr) return false;
+        if (requestedIds && !requestedIds.has(t.id)) return false;
+        return true;
+      });
+
+      if (overdueCandidates.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'Ertelenecek gecikmiş görev bulunamadı.',
+          data: { updated_count: 0, downgraded_mit_count: 0, target_date: targetDate }
+        });
+      }
+
+      const candidateIdSet = new Set(overdueCandidates.map(t => t.id));
+      const existingTargetMitCount = visibleTasks.filter(t =>
+        !candidateIdSet.has(t.id)
+        && t.status !== 'completed'
+        && Number(t.is_mit) === 1
+        && (!t.due_date || t.due_date === targetDate)
+      ).length;
+
+      let remainingMitSlots = Math.max(0, 3 - existingTargetMitCount);
+      const sortedCandidates = sortTasksForDisplay(overdueCandidates as any[], 'today');
+      const keepMitIds: string[] = [];
+      const downgradeMitIds: string[] = [];
+
+      for (const cand of sortedCandidates) {
+        if (Number(cand.is_mit) === 1) {
+          if (remainingMitSlots > 0) {
+            keepMitIds.push(cand.id);
+            remainingMitSlots -= 1;
+          } else {
+            downgradeMitIds.push(cand.id);
+          }
+        } else {
+          keepMitIds.push(cand.id);
+        }
+      }
+
+      if (keepMitIds.length > 0) {
+        await db.update(tasks).set({
+          due_date: targetDate,
+          updated_at: nowISO
+        }).where(and(inArray(tasks.id, keepMitIds), getVisibleTasksWhere(userId, familyId)));
+      }
+
+      if (downgradeMitIds.length > 0) {
+        await db.update(tasks).set({
+          due_date: targetDate,
+          is_mit: 0,
+          updated_at: nowISO
+        }).where(and(inArray(tasks.id, downgradeMitIds), getVisibleTasksWhere(userId, familyId)));
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: downgradeMitIds.length > 0
+          ? `☀️ ${overdueCandidates.length} gecikmiş görev bugüne alındı (${downgradeMitIds.length} görevde MIT kotası nedeniyle odak kaldırıldı).`
+          : `☀️ ${overdueCandidates.length} gecikmiş görev bugüne alındı!`,
+        data: {
+          updated_count: overdueCandidates.length,
+          downgraded_mit_count: downgradeMitIds.length,
+          target_date: targetDate
+        }
+      });
+    }
+
+    // ==========================================
+    // 4.6 ODAK ZAMANLAYICISI / POMODORO (start_focus / pause_focus / complete_focus)
+    // ==========================================
+    if (action === 'start_focus') {
+      const taskId = String(body.task_id || '').trim();
+      if (!taskId) {
+        return NextResponse.json({ success: false, error: 'Görev ID girilmedi.' }, { status: 400 });
+      }
+
+      const existing = (await db.select().from(tasks).where(
+        and(
+          eq(tasks.id, taskId),
+          getVisibleTasksWhere(userId, familyId)
+        )
+      ).limit(1))[0];
+
+      if (!existing) {
+        return NextResponse.json({ success: false, error: 'Görev bulunamadı.' }, { status: 404 });
+      }
+
+      if (existing.status === 'completed') {
+        return NextResponse.json({ success: false, error: 'Tamamlanmış görevde odak sayacı başlatılamaz.' }, { status: 400 });
+      }
+
+      const plannedMinutes = normalizeFocusDurationMinutes(
+        body.duration_minutes ?? existing.focus_planned_minutes ?? 25
+      );
+      const nowDate = new Date(nowISO);
+
+      // Kullanıcının başka açık in_progress görevi varsa kısmi süresini kaydedip beklemeye al
+      const otherRunningTasks = await db.select().from(tasks).where(
+        and(
+          eq(tasks.user_id, userId),
+          eq(tasks.status, 'in_progress'),
+          ne(tasks.id, taskId)
+        )
+      );
+
+      for (const other of otherRunningTasks) {
+        const added = computeFocusElapsedMinutes(other.focus_started_at, other.focus_planned_minutes, nowDate);
+        await db.update(tasks).set({
+          status: 'pending',
+          focus_started_at: null,
+          focus_logged_minutes: (other.focus_logged_minutes ?? 0) + added,
+          updated_at: nowISO
+        }).where(eq(tasks.id, other.id));
+      }
+
+      // Aynı görev zaten odaktaysa önceki kısmi süreyi biriktirip yeniden başlat
+      const currentSelfAdded = existing.status === 'in_progress'
+        ? computeFocusElapsedMinutes(existing.focus_started_at, existing.focus_planned_minutes, nowDate)
+        : 0;
+      const nextSelfLogged = (existing.focus_logged_minutes ?? 0) + currentSelfAdded;
+
+      await db.update(tasks).set({
+        status: 'in_progress',
+        focus_started_at: nowISO,
+        focus_planned_minutes: plannedMinutes,
+        focus_logged_minutes: nextSelfLogged,
+        updated_at: nowISO
+      }).where(and(eq(tasks.id, taskId), getVisibleTasksWhere(userId, familyId)));
+
+      return NextResponse.json({
+        success: true,
+        message: `⏱️ ${plannedMinutes} dakikalık odak seansı başladı!`,
+        data: {
+          task_id: taskId,
+          status: 'in_progress',
+          focus_started_at: nowISO,
+          focus_planned_minutes: plannedMinutes,
+          focus_logged_minutes: nextSelfLogged
+        }
+      });
+    }
+
+    if (action === 'pause_focus' || action === 'complete_focus') {
+      const taskId = String(body.task_id || '').trim();
+      if (!taskId) {
+        return NextResponse.json({ success: false, error: 'Görev ID girilmedi.' }, { status: 400 });
+      }
+
+      const existing = (await db.select().from(tasks).where(
+        and(
+          eq(tasks.id, taskId),
+          getVisibleTasksWhere(userId, familyId)
+        )
+      ).limit(1))[0];
+
+      if (!existing) {
+        return NextResponse.json({ success: false, error: 'Görev bulunamadı.' }, { status: 404 });
+      }
+
+      const addedMinutes = computeFocusElapsedMinutes(
+        existing.focus_started_at,
+        existing.focus_planned_minutes,
+        new Date(nowISO)
+      );
+      const nextLoggedMinutes = (existing.focus_logged_minutes ?? 0) + addedMinutes;
+      const shouldCompleteTask = action === 'complete_focus' && Boolean(body.complete_task);
+      const nextStatus = existing.status === 'completed' || shouldCompleteTask ? 'completed' : 'pending';
+
+      await db.update(tasks).set({
+        status: nextStatus,
+        ...(shouldCompleteTask && existing.status !== 'completed' ? { completed_at: nowISO } : {}),
+        focus_started_at: null,
+        focus_logged_minutes: nextLoggedMinutes,
+        updated_at: nowISO
+      }).where(and(eq(tasks.id, taskId), getVisibleTasksWhere(userId, familyId)));
+
+      const spawnedNextTask = shouldCompleteTask && existing.status !== 'completed'
+        ? await spawnNextRecurringTask(existing, userId, familyId, nowISO)
+        : null;
+      const followUpAction = shouldCompleteTask && existing.status !== 'completed'
+        ? await notifyTaskCompleted(existing, nextLoggedMinutes, nowISO, userId, familyId)
+        : null;
+
+      let message = '⏸️ Odak sayacı duraklatıldı.';
+      if (shouldCompleteTask) {
+        message = addedMinutes > 0
+          ? `🎉 Görev ve +${addedMinutes} dk odak seansı tamamlandı!`
+          : '🎉 Görev tamamlandı!';
+      } else if (action === 'complete_focus') {
+        message = addedMinutes > 0
+          ? `✅ Odak seansı kaydedildi (+${addedMinutes} dk).`
+          : '✅ Odak seansı kapatıldı.';
+      } else if (addedMinutes > 0) {
+        message = `⏸️ Odak duraklatıldı (+${addedMinutes} dk kaydedildi).`;
+      }
+
+      return NextResponse.json({
+        success: true,
+        message,
+        data: {
+          task_id: taskId,
+          status: nextStatus,
+          added_minutes: addedMinutes,
+          focus_logged_minutes: nextLoggedMinutes,
+          spawned_next_task: spawnedNextTask,
+          ...(followUpAction ? { follow_up_action: followUpAction } : {})
+        }
       });
     }
 
@@ -620,9 +1140,7 @@ export async function POST(req: Request) {
       const existing = (await db.select().from(tasks).where(
         and(
           eq(tasks.id, taskId),
-          familyId
-            ? or(eq(tasks.user_id, userId), eq(tasks.family_id, familyId))
-            : eq(tasks.user_id, userId)
+          getVisibleTasksWhere(userId, familyId)
         )
       ).limit(1))[0];
 
@@ -630,43 +1148,74 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: 'Görev bulunamadı.' }, { status: 404 });
       }
 
+      const validated = normalizeValidatedTaskFields(body);
+      if (validated.error) {
+        return NextResponse.json({ success: false, error: validated.error }, { status: 400 });
+      }
+
       const updateData: Record<string, any> = {
         updated_at: nowISO
       };
 
-      if (body.title !== undefined) updateData.title = String(body.title).trim();
+      if (body.title !== undefined) {
+        const trimmedTitle = String(body.title).trim();
+        if (!trimmedTitle) {
+          return NextResponse.json({ success: false, error: 'Görev başlığı boş bırakılamaz.' }, { status: 400 });
+        }
+        updateData.title = trimmedTitle;
+      }
       if (body.description !== undefined) updateData.description = body.description ? String(body.description).trim() : null;
-      if (body.priority !== undefined) updateData.priority = body.priority;
-      if (body.pillar !== undefined) updateData.pillar = body.pillar;
-      if (body.due_date !== undefined) updateData.due_date = body.due_date || null;
-      if (body.due_time !== undefined) updateData.due_time = body.due_time || null;
-      if (body.recurrence !== undefined) updateData.recurrence = body.recurrence;
-      if (body.is_family_shared !== undefined) updateData.is_family_shared = body.is_family_shared ? 1 : 0;
-      if (body.assigned_member_id !== undefined) updateData.assigned_member_id = body.assigned_member_id || null;
+      if (validated.priority !== undefined) updateData.priority = validated.priority;
+      if (validated.pillar !== undefined) updateData.pillar = validated.pillar;
+      if (validated.dueDate !== undefined) updateData.due_date = validated.dueDate;
+      if (validated.dueTime !== undefined) updateData.due_time = validated.dueTime;
+      if (validated.recurrence !== undefined) updateData.recurrence = validated.recurrence;
+      if (body.is_family_shared !== undefined) {
+        const nextShared = body.is_family_shared ? 1 : 0;
+        if (nextShared === 0 && existing.user_id && existing.user_id !== userId) {
+          return NextResponse.json({
+            success: false,
+            error: 'Başka bir aile üyesinin paylaştığı görevi gizleyemezsiniz.'
+          }, { status: 403 });
+        }
+        updateData.is_family_shared = nextShared;
+      }
+      if (body.assigned_member_id !== undefined) {
+        const assignedMemberId = body.assigned_member_id ? String(body.assigned_member_id).trim() : null;
+        if (!(await validateAssignedMemberInFamily(assignedMemberId, familyId))) {
+          return NextResponse.json({ success: false, error: 'Seçilen aile üyesi bu hanede bulunamadı.' }, { status: 400 });
+        }
+        updateData.assigned_member_id = assignedMemberId;
+      }
       if (body.subtasks !== undefined) updateData.subtasks_json = JSON.stringify(body.subtasks);
 
-      if (body.is_mit !== undefined) {
-        const nextMit = body.is_mit ? 1 : 0;
-        if (nextMit === 1 && existing.is_mit !== 1) {
-          const allUserTasks = await db.select({
-            id: tasks.id,
-            is_mit: tasks.is_mit,
-            status: tasks.status,
-            due_date: tasks.due_date
-          }).from(tasks).where(eq(tasks.user_id, userId));
+      const effectiveIsMit = body.is_mit !== undefined ? (body.is_mit ? 1 : 0) : Number(existing.is_mit);
+      const effectiveDueDate = validated.dueDate !== undefined ? validated.dueDate : existing.due_date;
+      const shouldCheckMit = effectiveIsMit === 1 && existing.status !== 'completed' && (
+        existing.is_mit !== 1 || (validated.dueDate !== undefined && validated.dueDate !== existing.due_date)
+      );
 
-          const mitCheck = validateMitConstraint(allUserTasks, body.due_date ?? existing.due_date, taskId);
-          if (!mitCheck.allowed) {
-            return NextResponse.json({
-              success: false,
-              error: 'Günde en fazla 3 odak görevi (MIT) belirleyebilirsiniz.'
-            }, { status: 400 });
-          }
+      if (shouldCheckMit) {
+        const allUserTasks = await db.select({
+          id: tasks.id,
+          is_mit: tasks.is_mit,
+          status: tasks.status,
+          due_date: tasks.due_date
+        }).from(tasks).where(getVisibleTasksWhere(userId, familyId));
+
+        const mitCheck = validateMitConstraint(allUserTasks, effectiveDueDate, taskId);
+        if (!mitCheck.allowed) {
+          return NextResponse.json({
+            success: false,
+            error: 'Günde en fazla 3 odak görevi (MIT) belirleyebilirsiniz.'
+          }, { status: 400 });
         }
-        updateData.is_mit = nextMit;
+      }
+      if (body.is_mit !== undefined) {
+        updateData.is_mit = effectiveIsMit;
       }
 
-      await db.update(tasks).set(updateData).where(eq(tasks.id, taskId));
+      await db.update(tasks).set(updateData).where(and(eq(tasks.id, taskId), getVisibleTasksWhere(userId, familyId)));
 
       return NextResponse.json({
         success: true,
@@ -684,23 +1233,122 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: 'Başlık gereklidir.' }, { status: 400 });
       }
 
+      const targetDueDate = body.due_date ? String(body.due_date).trim() : getTodayTurkeyDate();
+      const sourceModule = body.source_module ? String(body.source_module).trim() : 'manual';
+      const sourceRefId = body.source_ref_id ? String(body.source_ref_id).trim() : null;
+
+      // Kaynak mahremiyet ve sahiplik doğrulaması (kişisel kasa/kart/araç kayıtları aileye sızmamalı)
+      let resolvedFamilyShared = body.is_family_shared !== undefined ? (body.is_family_shared ? 1 : 0) : 1;
+      if (sourceModule === 'vault' && sourceRefId) {
+        const vaultRow = (await db.select({
+          user_id: digitalVaultItems.user_id,
+          family_id: digitalVaultItems.family_id,
+          is_family_shared: digitalVaultItems.is_family_shared
+        }).from(digitalVaultItems).where(eq(digitalVaultItems.id, sourceRefId)).limit(1))[0];
+        if (vaultRow) {
+          const canAccess = vaultRow.user_id === userId || (vaultRow.family_id === familyId && vaultRow.is_family_shared === 1);
+          if (!canAccess) {
+            return NextResponse.json({ success: false, error: 'Bu kaynağa erişim yetkiniz yok.' }, { status: 403 });
+          }
+          resolvedFamilyShared = vaultRow.is_family_shared === 1 ? 1 : 0;
+        } else {
+          resolvedFamilyShared = 0;
+        }
+      } else if (sourceModule === 'finance' && sourceRefId?.startsWith('card-')) {
+        const cardId = sourceRefId.slice(5);
+        const cardRow = (await db.select({
+          user_id: walletsAccounts.user_id,
+          family_id: walletsAccounts.family_id,
+          is_family_shared: walletsAccounts.is_family_shared
+        }).from(walletsAccounts).where(eq(walletsAccounts.id, cardId)).limit(1))[0];
+        if (cardRow) {
+          const canAccess = cardRow.user_id === userId || !cardRow.user_id || (cardRow.family_id === familyId && cardRow.is_family_shared === 1);
+          if (!canAccess) {
+            return NextResponse.json({ success: false, error: 'Bu kaynağa erişim yetkiniz yok.' }, { status: 403 });
+          }
+          resolvedFamilyShared = (cardRow.is_family_shared === 1 || !cardRow.user_id) ? 1 : 0;
+        } else {
+          resolvedFamilyShared = 0;
+        }
+      } else if (sourceModule === 'vehicle' && sourceRefId) {
+        const vehRow = (await db.select({
+          user_id: vehicles.user_id,
+          family_id: vehicles.family_id,
+          is_family_shared: vehicles.is_family_shared
+        })
+          .from(vehicleLegalReminders)
+          .leftJoin(vehicles, eq(vehicleLegalReminders.vehicle_id, vehicles.id))
+          .where(eq(vehicleLegalReminders.id, sourceRefId))
+          .limit(1))[0];
+        if (vehRow && (vehRow.user_id || vehRow.family_id)) {
+          const canAccess = vehRow.user_id === userId || (vehRow.family_id === familyId && vehRow.is_family_shared === 1);
+          if (!canAccess) {
+            return NextResponse.json({ success: false, error: 'Bu kaynağa erişim yetkiniz yok.' }, { status: 403 });
+          }
+          resolvedFamilyShared = vehRow.is_family_shared === 1 ? 1 : 0;
+        }
+      }
+
+      if (sourceRefId) {
+        const existingBridgeTasks = await db.select({
+          id: tasks.id,
+          status: tasks.status,
+          due_date: tasks.due_date
+        }).from(tasks).where(
+          and(
+            eq(tasks.source_module, sourceModule),
+            eq(tasks.source_ref_id, sourceRefId),
+            getVisibleTasksWhere(userId, familyId)
+          )
+        );
+
+        const duplicateMatch = existingBridgeTasks.find(
+          t => t.status !== 'completed' || !t.due_date || t.due_date === targetDueDate
+        );
+        if (duplicateMatch) {
+          return NextResponse.json({
+            success: true,
+            message: 'Bu sistem uyarısı zaten görevlerinizde mevcut.',
+            data: { id: duplicateMatch.id, duplicate: true }
+          });
+        }
+      }
+
+      const isMit = body.is_mit ? 1 : 0;
+      if (isMit === 1) {
+        const visibleTasks = await db.select({
+          id: tasks.id,
+          is_mit: tasks.is_mit,
+          status: tasks.status,
+          due_date: tasks.due_date
+        }).from(tasks).where(getVisibleTasksWhere(userId, familyId));
+
+        const mitCheck = validateMitConstraint(visibleTasks, targetDueDate);
+        if (!mitCheck.allowed) {
+          return NextResponse.json({
+            success: false,
+            error: 'Günde en fazla 3 odak görevi (MIT) belirleyebilirsiniz.'
+          }, { status: 400 });
+        }
+      }
+
       const taskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       await db.insert(tasks).values({
         id: taskId,
         title,
         description: body.subtitle || null,
         status: 'pending',
-        priority: body.priority || 'high',
-        pillar: body.pillar || 'general',
-        is_mit: body.is_mit ? 1 : 0,
-        due_date: body.due_date || getTodayTurkeyDate(),
+        priority: body.priority && (String(body.priority) in PRIORITY_CONFIGS) ? body.priority : 'high',
+        pillar: body.pillar && (String(body.pillar) in PILLAR_CONFIGS) ? body.pillar : 'general',
+        is_mit: isMit,
+        due_date: targetDueDate,
         due_time: null,
         recurrence: 'none',
         subtasks_json: '[]',
-        is_family_shared: 1, // Sistem aksiyonları haneyi ilgilendirir
+        is_family_shared: resolvedFamilyShared,
         assigned_member_id: null,
-        source_module: body.source_module || 'manual',
-        source_ref_id: body.source_ref_id || null,
+        source_module: sourceModule,
+        source_ref_id: sourceRefId,
         completed_at: null,
         user_id: userId,
         family_id: familyId,
@@ -724,12 +1372,21 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: 'Görev ID girilmedi.' }, { status: 400 });
       }
 
+      const existing = (await db.select({ id: tasks.id }).from(tasks).where(
+        and(
+          eq(tasks.id, taskId),
+          getVisibleTasksWhere(userId, familyId)
+        )
+      ).limit(1))[0];
+
+      if (!existing) {
+        return NextResponse.json({ success: false, error: 'Görev bulunamadı veya yetkisiz erişim.' }, { status: 404 });
+      }
+
       await db.delete(tasks).where(
         and(
           eq(tasks.id, taskId),
-          familyId
-            ? or(eq(tasks.user_id, userId), eq(tasks.family_id, familyId))
-            : eq(tasks.user_id, userId)
+          getVisibleTasksWhere(userId, familyId)
         )
       );
 

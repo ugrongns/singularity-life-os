@@ -130,6 +130,8 @@ export default function HomePage() {
       if (json.success) {
         showToast(json.message || '🎯 Görev tamamlandı!');
         handleUpdate();
+      } else {
+        showToast(json.error || 'Görev güncellenemedi.');
       }
     } catch (e) {
       console.error('Task complete error:', e);

@@ -16,6 +16,7 @@ import {
   TaskItem,
   CrossModuleAction,
   TaskCalendarDay,
+  VirtualRecurrenceItem,
   PILLAR_CONFIGS,
   buildTaskCalendarMonth
 } from '@/lib/tasks-engine';
@@ -28,6 +29,7 @@ interface TaskCalendarPanelProps {
   selectedDate: string | null;
   onSelectDate: (dateStr: string | null) => void;
   onAddTaskForDate: (dateStr: string) => void;
+  onMaterializeRecurrence?: (vr: VirtualRecurrenceItem) => void;
   onImportCrossModule: (action: CrossModuleAction) => void;
   onClose: () => void;
 }
@@ -45,6 +47,7 @@ export default function TaskCalendarPanel({
   selectedDate,
   onSelectDate,
   onAddTaskForDate,
+  onMaterializeRecurrence,
   onImportCrossModule,
   onClose
 }: TaskCalendarPanelProps) {
@@ -468,26 +471,32 @@ export default function TaskCalendarPanel({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <div style={{ fontSize: '10px', fontWeight: 800, color: '#06B6D4', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <Repeat size={11} />
-                <span>PLANLI RUTİN ÖNİZLEMESİ (Mevcut rutin tamamlanınca otomatik oluşur)</span>
+                <span>PLANLI RUTİN ÖNİZLEMESİ (Tıklayarak bu güne özel görev olarak somutlaştırabilirsiniz)</span>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {selectedDayData.virtualRecurrences.map(vr => {
                   const pillarCfg = PILLAR_CONFIGS[vr.pillar] || PILLAR_CONFIGS.general;
                   const recLabel = vr.recurrence === 'daily' ? 'Günlük' : vr.recurrence === 'weekly' ? 'Haftalık' : 'Aylık';
                   return (
-                    <div
+                    <button
                       key={vr.id}
+                      type="button"
+                      onClick={() => (onMaterializeRecurrence ? onMaterializeRecurrence(vr) : onAddTaskForDate(vr.due_date))}
+                      title="Bu planlı rutini seçili tarihe özel görev olarak aç"
+                      aria-label={`${vr.title} rutinini ${vr.due_date} tarihine görev olarak ekle`}
                       style={{
                         fontSize: '11px',
-                        padding: '4px 9px',
+                        padding: '5px 10px',
+                        minHeight: '34px',
                         borderRadius: '6px',
-                        border: '1px dashed rgba(6, 182, 212, 0.4)',
-                        background: 'rgba(6, 182, 212, 0.06)',
+                        border: '1px dashed rgba(6, 182, 212, 0.5)',
+                        background: 'rgba(6, 182, 212, 0.08)',
                         color: 'var(--text-main)',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '6px',
-                        fontWeight: 700
+                        fontWeight: 700,
+                        cursor: 'pointer'
                       }}
                     >
                       <span>{pillarCfg.icon}</span>
@@ -499,7 +508,8 @@ export default function TaskCalendarPanel({
                       <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(6, 182, 212, 0.16)', color: '#06B6D4', fontWeight: 800 }}>
                         {recLabel}
                       </span>
-                    </div>
+                      <Plus size={12} color="#06B6D4" />
+                    </button>
                   );
                 })}
               </div>

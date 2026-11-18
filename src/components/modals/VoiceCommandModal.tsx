@@ -247,6 +247,7 @@ export default function VoiceCommandModal({ isOpen, onClose, onSuccess }: VoiceC
                         {act.type === 'reading' && `İlerleme: +${act.details.pages} sayfa • WPM ve bitiş tarihi güncellenir`}
                         {act.type === 'shopping' && `Market Listesine: ${act.details.name}`}
                         {act.type === 'supplement' && 'Günlük vitamin & takviyeler tamamlandı'}
+                        {act.type === 'task' && `Görevler & Odak • Vade: ${act.details.due_date || 'Bugün'}${act.details.is_mit ? ' • 🔥 MIT Odak' : ''}`}
                       </div>
                     </div>
                   </div>

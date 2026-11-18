@@ -10,10 +10,12 @@ export default function TasksPage() {
   const [data, setData] = useState<any>(null);
   const [notifData, setNotifData] = useState<any>({ notifications: [], critical: 0, warning: 0 });
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const fetchData = async () => {
     try {
+      setFetchError(null);
       const [tasksRes, notifRes] = await Promise.all([
         fetch('/api/tasks'),
         fetch('/api/notifications')
@@ -24,10 +26,15 @@ export default function TasksPage() {
         notifRes.json()
       ]);
 
-      if (tasksJ.success) setData(tasksJ.data);
+      if (tasksJ.success) {
+        setData(tasksJ.data);
+      } else {
+        setFetchError(tasksJ.error || 'Görevler yüklenirken bir hata oluştu.');
+      }
       if (notifJ.success) setNotifData(notifJ.data);
     } catch (err) {
       console.error('Tasks page fetch error:', err);
+      setFetchError('Görev verilerine ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.');
     } finally {
       setLoading(false);
     }
@@ -113,11 +120,49 @@ export default function TasksPage() {
         </div>
       </div>
 
-      <TasksClient
-        initialData={data}
-        isCalendarOpen={isCalendarOpen}
-        onCloseCalendar={() => setIsCalendarOpen(false)}
-      />
+      {fetchError && !data ? (
+        <div className="error-card" style={{ margin: '12px 0' }}>
+          <div className="error-icon">⚠️</div>
+          <div className="error-title">Görevler Yüklenemedi</div>
+          <div className="error-desc">{fetchError}</div>
+          <button
+            type="button"
+            className="btn-retry"
+            onClick={() => {
+              setLoading(true);
+              fetchData();
+            }}
+          >
+            🔄 Yeniden Dene
+          </button>
+        </div>
+      ) : (
+        <>
+          {fetchError && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: '12px',
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--rose-bg)',
+                border: '1px solid rgba(244, 63, 94, 0.3)',
+                color: 'var(--rose)',
+                fontSize: '12px',
+                fontWeight: 700
+              }}
+            >
+              ⚠️ {fetchError}
+            </div>
+          )}
+          <TasksClient
+            initialData={data}
+            isCalendarOpen={isCalendarOpen}
+            onCloseCalendar={() => setIsCalendarOpen(false)}
+            onRefresh={fetchData}
+          />
+        </>
+      )}
     </SharedLayout>
   );
 }

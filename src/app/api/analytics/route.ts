@@ -16,11 +16,14 @@ import {
   moodLogs,
   books,
   readingSessions,
-  bookQuotes
+  bookQuotes,
+  tasks
 } from '@/db/schema';
 import { eq, and, or, desc, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { fetchLiveExchangeRates } from '@/lib/market-data';
+import { getTodayTurkeyDate, shiftTurkeyDate } from '@/lib/date-utils';
+import { calculateTasksFocusScoreBreakdown, scalePillarTo20 } from '@/lib/tasks-engine';
 import {
   calculateNormalizedMonthlyExpense,
   calculateFireProgress
@@ -36,9 +39,9 @@ export async function GET() {
     }
 
     const familyId = user?.family_id || `fam-${userId}`;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayTurkeyDate();
     const currentMonth = today.slice(0, 7);
-    const last7Days = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+    const last7Days = shiftTurkeyDate(today, -6);
 
     // ==========================================
     // 1. 💰 FİNANSAL SAĞLIK SKORU (0 - 25 Puan)
@@ -243,56 +246,97 @@ export async function GET() {
       if (quotes.length > 0) mindScore += 5; // Alıntı kaydedilmiş
     } catch (e) {}
 
+    // ==========================================
+    // 5. 🎯 GÖREV & ODAK DİSİPLİNİ SKORU (0 - 20 Puan)
+    // ==========================================
+    let focusStats = {
+      score: 0,
+      max: 20 as const,
+      completedLast7Days: 0,
+      completedToday: 0,
+      todayMitCompleted: 0,
+      todayMitTotal: 0,
+      focusMinutesLogged: 0
+    };
+    try {
+      const visibleTasks = await db.select().from(tasks).where(
+        familyId
+          ? or(eq(tasks.user_id, userId), and(eq(tasks.family_id, familyId), eq(tasks.is_family_shared, 1)))
+          : eq(tasks.user_id, userId)
+      );
+      focusStats = calculateTasksFocusScoreBreakdown(visibleTasks, today, last7Days);
+    } catch (e) {}
+
+    // 5 x 20 = 100 Bütünsel Ölçekleme
+    const finance20 = scalePillarTo20(financeScore);
+    const health20 = scalePillarTo20(healthScore);
+    const wellness20 = scalePillarTo20(wellnessScore);
+    const mind20 = scalePillarTo20(mindScore);
+    const focus20 = focusStats.score;
+
     // TOPLAM BÜTÜNSEL YAŞAM SKORU
-    const totalLifeScore = financeScore + healthScore + wellnessScore + mindScore;
+    const totalLifeScore = finance20 + health20 + wellness20 + mind20 + focus20;
 
     // Aksiyon Önerileri Hesaplama (En Yüksek Etkili 3 Aksiyon)
     const actionCandidates = [
       {
         pillar: 'finance',
-        score: financeScore,
-        max: 25,
-        gap: 25 - financeScore,
+        score: finance20,
+        max: 20,
+        gap: 20 - finance20,
         title: 'Bütçe & Harcama Disiplini',
         desc: totalSpentThisMonth > totalBudgetLimit && totalBudgetLimit > 0
           ? 'Bu ayki harcamaları bütçe limiti altına çekerek disiplin puanını yükseltin.'
           : 'Harcamalarınızı kategorilere dağıtarak aylık bütçe disiplinini koruyun.',
-        impact: '+8 Puan',
-        scoreGain: 8,
+        impact: '+6 Puan',
+        scoreGain: 6,
         link: '/budget'
       },
       {
         pillar: 'health',
-        score: healthScore,
-        max: 25,
-        gap: 25 - healthScore,
+        score: health20,
+        max: 20,
+        gap: 20 - health20,
         title: 'Su & Beslenme Kaydı',
         desc: 'Günlük 2.5L su hedefini tamamlayın ve bugün en az 1 öğün veya oruç kaydı girin.',
-        impact: '+6 Puan',
-        scoreGain: 6,
+        impact: '+5 Puan',
+        scoreGain: 5,
         link: '/health'
       },
       {
         pillar: 'wellness',
-        score: wellnessScore,
-        max: 25,
-        gap: 25 - wellnessScore,
+        score: wellness20,
+        max: 20,
+        gap: 20 - wellness20,
         title: 'Uyku & Takviye Rutini',
         desc: 'Günlük takviyelerinizi aldım olarak işaretleyin ve 7-8 saatlik uyku seansını kaydedin.',
-        impact: '+5 Puan',
-        scoreGain: 5,
+        impact: '+4 Puan',
+        scoreGain: 4,
         link: '/wellness'
       },
       {
         pillar: 'mind',
-        score: mindScore,
-        max: 25,
-        gap: 25 - mindScore,
+        score: mind20,
+        max: 20,
+        gap: 20 - mind20,
         title: 'Okuma Seansı & Alıntı',
         desc: 'Aktif kitabınızdan 15 dakikalık okuma seansı başlatın veya 1 yeni alıntı kaydedin.',
-        impact: '+7 Puan',
-        scoreGain: 7,
+        impact: '+6 Puan',
+        scoreGain: 6,
         link: '/library'
+      },
+      {
+        pillar: 'focus',
+        score: focus20,
+        max: 20,
+        gap: 20 - focus20,
+        title: 'Günlük Odak (MIT) & Görev Disiplini',
+        desc: focusStats.todayMitTotal > 0 && focusStats.todayMitCompleted < focusStats.todayMitTotal
+          ? `Bugünkü ${focusStats.todayMitTotal} odak görevinizden kalanları veya bir Pomodoro seansını tamamlayın.`
+          : 'Günün 3 Odağını (MIT) belirleyip Pomodoro sayacıyla tamamlayarak yürütme puanınızı yükseltin.',
+        impact: '+6 Puan',
+        scoreGain: 6,
+        link: '/tasks'
       }
     ];
 
@@ -377,24 +421,28 @@ export async function GET() {
           total: totalLifeScore,
           badge: totalLifeScore === 0 ? '🌱 Başlangıç Aşaması' : totalLifeScore >= 90 ? '🏆 Üst Düzey Performans' : totalLifeScore >= 75 ? '⭐ Harika Denge' : totalLifeScore >= 50 ? '🌿 Sağlıklı İlerleme' : '⚡ Gelişim Yolunda',
           breakdown: {
-            finance: { score: financeScore, max: 25, label: 'Finansal Disiplin' },
-            health: { score: healthScore, max: 25, label: 'Biyometri & Beslenme' },
-            wellness: { score: wellnessScore, max: 25, label: 'Uyku & Wellness' },
-            mind: { score: mindScore, max: 25, label: 'Zihin & İkinci Beyin' }
+            finance: { score: finance20, max: 20, label: 'Finansal Disiplin' },
+            health: { score: health20, max: 20, label: 'Biyometri & Beslenme' },
+            wellness: { score: wellness20, max: 20, label: 'Uyku & Wellness' },
+            mind: { score: mind20, max: 20, label: 'Zihin & İkinci Beyin' },
+            focus: { score: focus20, max: 20, label: 'Odak & Görevler' }
           },
+          focusMetrics: focusStats,
           topActions,
           recommendation: (() => {
-            if (totalLifeScore === 0) return '💡 Singularity OS\'e hoş geldiniz! İlk harcamanızı, su tüketiminizi veya okuduğunuz bir kitabı kaydederek yaşam skorunuzu oluşturmaya başlayın.';
-            if (totalLifeScore >= 95) return '🌟 Mükemmel ritim! Tüm sistemleriniz hedef doğrultusunda kusursuz çalışıyor.';
-            const lowest = Math.min(financeScore, healthScore, wellnessScore, mindScore);
-            if (lowest === financeScore) {
-              return '💡 Aylık harcamalarınızı kategori limitleri içinde tutarak finansal disiplin puanınızı 25\'e yükseltebilirsiniz.';
-            } else if (lowest === wellnessScore) {
-              return '💡 Günlük takviye rutininizi tamamlayarak ve 8 saatlik uyku ritmini koruyarak wellness puanınızı 25\'e çıkarabilirsiniz.';
-            } else if (lowest === healthScore) {
-              return '💡 Günlük su hedefinizi tamamlayarak ve beslenme/biyometri kaydı girerek sağlık puanınızı 25\'e taşıyabilirsiniz.';
+            if (totalLifeScore === 0) return '💡 Singularity OS\'e hoş geldiniz! İlk harcamanızı, su tüketiminizi, okumanızı veya odak görevinizi kaydederek yaşam skorunuzu oluşturmaya başlayın.';
+            if (totalLifeScore >= 95) return '🌟 Mükemmel ritim! Tüm 5 yaşam sisteminiz hedef doğrultusunda kusursuz çalışıyor.';
+            const lowest = Math.min(finance20, health20, wellness20, mind20, focus20);
+            if (lowest === focus20) {
+              return '💡 Günün 3 Odağı (MIT) görevlerinizi ve 25 dakikalık Pomodoro odak seanslarını tamamlayarak Odak puanınızı 20\'ye çıkarabilirsiniz.';
+            } else if (lowest === finance20) {
+              return '💡 Aylık harcamalarınızı kategori limitleri içinde tutarak finansal disiplin puanınızı 20\'ye yükseltebilirsiniz.';
+            } else if (lowest === wellness20) {
+              return '💡 Günlük takviye rutininizi tamamlayarak ve 8 saatlik uyku ritmini koruyarak wellness puanınızı 20\'ye çıkarabilirsiniz.';
+            } else if (lowest === health20) {
+              return '💡 Günlük su hedefinizi tamamlayarak ve beslenme/biyometri kaydı girerek sağlık puanınızı 20\'ye taşıyabilirsiniz.';
             } else {
-              return '💡 Kütüphanenize kitap ekleyip günlük okuma seansı başlatarak zihinsel gelişim puanınızı 25\'e çıkarabilirsiniz.';
+              return '💡 Kütüphanenize kitap ekleyip günlük okuma seansı başlatarak zihinsel gelişim puanınızı 20\'ye çıkarabilirsiniz.';
             }
           })()
         },
