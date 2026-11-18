@@ -420,6 +420,11 @@ export default function TimeContextualFeed({
                       onClick={() => handleActionClick(act.id, act.onClick)}
                       className="btn-primary"
                       style={{
+                        width: 'auto',
+                        marginTop: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                         padding: '6px 12px',
                         fontSize: '11px',
                         fontWeight: 700,

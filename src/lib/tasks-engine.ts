@@ -1050,7 +1050,7 @@ export function projectVirtualRecurrences(
   const existingKeys = new Set<string>();
   for (const t of tasks) {
     if (t.due_date && /^\d{4}-\d{2}-\d{2}$/.test(t.due_date)) {
-      existingKeys.add(`${t.due_date}|${t.title.trim().toLowerCase()}|${t.recurrence}`);
+      existingKeys.add(`${t.due_date}|${t.title.trim().toLocaleLowerCase('tr-TR')}`);
     }
   }
 
@@ -1058,9 +1058,10 @@ export function projectVirtualRecurrences(
   const results: VirtualRecurrenceItem[] = [];
 
   const pushIfNew = (task: TaskItem, dateStr: string) => {
-    const key = `${dateStr}|${task.title.trim().toLowerCase()}|${task.recurrence}`;
-    if (existingKeys.has(key) || emittedKeys.has(key)) return;
-    emittedKeys.add(key);
+    const dayTitleKey = `${dateStr}|${task.title.trim().toLocaleLowerCase('tr-TR')}`;
+    const emittedKey = `${dayTitleKey}|${task.recurrence}`;
+    if (existingKeys.has(dayTitleKey) || emittedKeys.has(emittedKey)) return;
+    emittedKeys.add(emittedKey);
     results.push({
       id: `vrec-${task.id}-${dateStr}`,
       sourceTaskId: task.id,

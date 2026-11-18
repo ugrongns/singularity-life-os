@@ -599,6 +599,7 @@ export default function TasksClient({
             borderColor: 'rgba(236, 72, 153, 0.45)',
             background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.1), rgba(59, 130, 246, 0.06))',
             display: 'flex',
+            flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
@@ -613,7 +614,7 @@ export default function TasksClient({
               {completedFollowUp.description}
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, flexWrap: 'wrap', maxWidth: '100%' }}>
             <Link
               href={completedFollowUp.href}
               className="btn-primary"
@@ -635,6 +636,7 @@ export default function TasksClient({
               style={{
                 width: '32px',
                 height: '32px',
+                flexShrink: 0,
                 borderRadius: '6px',
                 border: '1px solid var(--border)',
                 background: 'var(--surface)',
@@ -1106,20 +1108,12 @@ export default function TasksClient({
 
       {/* 2. GÖRÜNÜM SEÇİCİ SEKMELER & FİLTRELER */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          {/* 6 Akıllı Sekme — Mobilde tek satır kaydırılabilir hap barı */}
+        <div className="tasks-view-toolbar">
+          {/* 6 Akıllı Sekme — Mobilde tek satır kaydırılabilir hap barı, masaüstünde eksiksiz görünür */}
           <div
-            className="no-scrollbar"
-            style={{
-              display: 'flex',
-              flexWrap: 'nowrap',
-              gap: '6px',
-              overflowX: 'auto',
-              flex: '1 1 540px',
-              minWidth: 0,
-              maxWidth: '100%',
-              paddingBottom: '2px'
-            }}
+            className="tasks-view-tabs no-scrollbar"
+            role="tablist"
+            aria-label="Görev görünümleri"
           >
             {[
               { id: 'today', label: '☀️ Bugün', count: tabCounts.today, color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.15)' },
@@ -1128,15 +1122,37 @@ export default function TasksClient({
               { id: 'recurring', label: '🔄 Rutinler', count: tabCounts.recurring, color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.15)' },
               { id: 'bridge', label: '🌉 Sistem Köprüsü', count: tabCounts.bridge, color: '#EC4899', bg: 'rgba(236, 72, 153, 0.15)' },
               { id: 'completed', label: '✅ Tamamlananlar', count: tabCounts.completed, color: '#10B981', bg: 'rgba(16, 185, 129, 0.15)' },
-            ].map(tab => {
+            ].map((tab, tabIdx, allTabs) => {
               const isSelected = !selectedDate && activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
+                  id={`tasks-tab-${tab.id}`}
                   type="button"
-                  onClick={() => {
+                  role="tab"
+                  aria-selected={isSelected}
+                  tabIndex={activeTab === tab.id ? 0 : -1}
+                  className="tasks-view-tab"
+                  onClick={(e) => {
                     setSelectedDate(null);
                     setActiveTab(tab.id as any);
+                    e.currentTarget.scrollIntoView?.({ behavior: 'smooth', block: 'nearest', inline: 'nearest', container: 'nearest' } as ScrollIntoViewOptions);
+                  }}
+                  onKeyDown={(e) => {
+                    let nextIdx: number | null = null;
+                    if (e.key === 'ArrowRight') nextIdx = (tabIdx + 1) % allTabs.length;
+                    else if (e.key === 'ArrowLeft') nextIdx = (tabIdx - 1 + allTabs.length) % allTabs.length;
+                    else if (e.key === 'Home') nextIdx = 0;
+                    else if (e.key === 'End') nextIdx = allTabs.length - 1;
+                    if (nextIdx === null) return;
+                    e.preventDefault();
+                    const nextTab = allTabs[nextIdx];
+                    setSelectedDate(null);
+                    setActiveTab(nextTab.id as any);
+                    const buttons = e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+                    const targetBtn = buttons?.[nextIdx];
+                    targetBtn?.focus();
+                    targetBtn?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest', inline: 'nearest', container: 'nearest' } as ScrollIntoViewOptions);
                   }}
                   style={{
                     padding: '6px 12px',
@@ -1152,7 +1168,7 @@ export default function TasksClient({
                     gap: '6px',
                     flexShrink: 0,
                     whiteSpace: 'nowrap',
-                    transition: 'all 0.15s ease'
+                    transition: 'background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease'
                   }}
                 >
                   <span>{tab.label}</span>
@@ -1175,7 +1191,7 @@ export default function TasksClient({
           </div>
 
           {/* Kişisel / Aile Filtre Hapları */}
-          <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+          <div className="tasks-scope-pills" role="group" aria-label="Görev kapsamı">
             {[
               { id: 'all', label: 'Tümü' },
               { id: 'personal', label: '🔒 Kişisel' },
@@ -1373,7 +1389,11 @@ export default function TasksClient({
       {/* 3. İÇERİK LİSTESİ */}
       {/* A. SİSTEM KÖPRÜSÜ SEKMESİ */}
       {!selectedDate && activeTab === 'bridge' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div
+          role="tabpanel"
+          aria-labelledby="tasks-tab-bridge"
+          style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
+        >
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', background: 'var(--surface-subtle)', padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
             🌉 <strong>Modüller Arası Otomatik Görev Köprüsü:</strong> Yaklaşan faturalar, kredi kartı ekstreleri, araç muayene/kasko tarihleri ve dijital kasa evrakları otomatik tespit edilir. Tek tıkla yapılacak görevlerinize aktarabilirsiniz.
           </div>
@@ -1423,6 +1443,7 @@ export default function TasksClient({
                   overflow: 'hidden',
                   padding: '14px 16px 14px 18px',
                   display: 'flex',
+                  flexDirection: 'row',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   flexWrap: 'wrap',
@@ -1475,7 +1496,12 @@ export default function TasksClient({
         </div>
       ) : (
         /* B. NORMAL GÖREV LİSTESİ */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div
+          role={selectedDate ? 'region' : 'tabpanel'}
+          aria-labelledby={!selectedDate ? `tasks-tab-${activeTab}` : undefined}
+          aria-label={selectedDate ? 'Seçili gün görev listesi' : undefined}
+          style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+        >
           {selectedDate && !calendarOpen && (
             <div
               style={{
@@ -2002,8 +2028,11 @@ export default function TasksClient({
           setIsModalOpen(false);
           setEditingTask(null);
         }}
-        onSuccess={(msg) => {
+        onSuccess={(msg, data) => {
           showToast(msg || 'Görev kaydedildi.');
+          if (data?.task_id && data?.follow_up_action) {
+            captureFollowUp(data.task_id, data.follow_up_action);
+          }
           syncTasks();
         }}
         members={members}

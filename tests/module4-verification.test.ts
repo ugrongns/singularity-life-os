@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import crypto from 'crypto';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import * as schema from '../src/db/schema';
 
 // Modules under test
 import { parseTurkishNumber, parseGibKarekodText, parseEBelgeHtml, parseUblTrXml, isSafeEBelgeUrl } from '../src/lib/ebelge-parser';
@@ -223,6 +225,100 @@ describe('🎯 Modül 4 Denetim Raporu Bulguları Doğrulama Testleri (TDD Verif
       expect(spouseWallet?.user_id).toBe('user-spouse');
       // user_id null olan ise admin id'sini almalı
       expect(legacyWallet?.user_id).toBe('admin-1');
+    });
+
+    it('Bulgu 2: fetchSafeData (GET/POST export) is_family_shared kolonu olan tablolarda özel (is_family_shared=0) aile kayıtlarını sızdırmamalıdır', async () => {
+      (getAuthUser as any).mockResolvedValue({
+        id: 'user-1',
+        role: 'member',
+        family_id: 'fam-1',
+        full_name: 'Üye 1'
+      });
+
+      const pgDialect = new PgDialect();
+      const recordedQueries: Array<{ table: any; sql: string; params: any[] }> = [];
+
+      mockSelect.mockImplementation(() => {
+        let currentTable: any = null;
+        const chain: any = {
+          from: vi.fn((tbl: any) => {
+            currentTable = tbl;
+            return chain;
+          }),
+          where: vi.fn((expr: any) => {
+            const compiled = pgDialect.sqlToQuery(expr);
+            recordedQueries.push({ table: currentTable, sql: compiled.sql, params: compiled.params });
+            if (currentTable === schema.vehicles) {
+              return createSelectChain([{ id: 'veh-own-or-shared' }]);
+            }
+            if (currentTable === schema.nutritionMeals) {
+              return createSelectChain([{ id: 'meal-own-or-shared' }]);
+            }
+            return createSelectChain([]);
+          }),
+          orderBy: vi.fn(() => chain),
+          limit: vi.fn(() => Promise.resolve([])),
+          then: (onFulfilled: any, onRejected?: any) => Promise.resolve([]).then(onFulfilled, onRejected)
+        };
+        return chain;
+      });
+
+      const res = await handleBackupPost(new Request('http://localhost:3000/api/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'export_json' })
+      }));
+      const json = await res.json();
+      expect(res.status).toBe(200);
+      expect(json.success).toBe(true);
+
+      // 1) userVehicles & userMeals ön-sorguları + tablo sorguları is_family_shared=1 koşulunu içermeli
+      const vehicleQueries = recordedQueries.filter(q => q.table === schema.vehicles);
+      expect(vehicleQueries.length).toBeGreaterThanOrEqual(2);
+      for (const q of vehicleQueries) {
+        expect(q.sql).toContain('"vehicles"."is_family_shared" =');
+        expect(q.params).toContain(1);
+      }
+
+      const mealQueries = recordedQueries.filter(q => q.table === schema.nutritionMeals);
+      expect(mealQueries.length).toBeGreaterThanOrEqual(2);
+      for (const q of mealQueries) {
+        expect(q.sql).toContain('"nutrition_meals"."is_family_shared" =');
+        expect(q.params).toContain(1);
+      }
+
+      // 2) Alt tablolar (vehicle_maintenance_records, nutrition_meal_items) yalnızca filtrelenmiş id'leri sorgulamalı
+      const maintQuery = recordedQueries.find(q => q.table === schema.vehicleMaintenanceRecords);
+      expect(maintQuery?.params).toEqual(['veh-own-or-shared']);
+      const mealItemQuery = recordedQueries.find(q => q.table === schema.nutritionMealItems);
+      expect(mealItemQuery?.params).toEqual(['meal-own-or-shared']);
+
+      // 3) tasks, digital_vault_items, books, transactions, wallets_accounts hepsi user_id = $1 or (family_id = $2 and is_family_shared = $3) filtrelemeli
+      for (const [tbl, tableName] of [
+        [schema.tasks, 'tasks'],
+        [schema.digitalVaultItems, 'digital_vault_items'],
+        [schema.books, 'books'],
+        [schema.transactions, 'transactions'],
+        [schema.walletsAccounts, 'wallets_accounts']
+      ] as const) {
+        const q = recordedQueries.find(r => r.table === tbl);
+        expect(q, `${tableName} sorgusu bulunamadı`).toBeDefined();
+        expect(q!.sql).toMatch(new RegExp(`"${tableName}"\\."family_id" = \\$\\d+ and "${tableName}"\\."is_family_shared" = \\$\\d+`));
+        expect(q!.params).toContain('user-1');
+        expect(q!.params).toContain('fam-1');
+        expect(q!.params).toContain(1);
+      }
+
+      // 4) wallets_accounts ayrıca aile içi ortak hesapları (user_id IS NULL) korumalı
+      const walletQuery = recordedQueries.find(r => r.table === schema.walletsAccounts)!;
+      expect(walletQuery.sql.toLowerCase()).toContain('"wallets_accounts"."user_id" is null');
+
+      // 5) GET /api/backup?download=true da aynı fetchSafeData korumasını çalıştırmalı
+      recordedQueries.length = 0;
+      const getRes = await handleBackupGet(new Request('http://localhost:3000/api/backup?download=true'));
+      expect(getRes.status).toBe(200);
+      const getTasksQ = recordedQueries.find(r => r.table === schema.tasks);
+      expect(getTasksQ?.sql).toContain('"tasks"."is_family_shared" =');
     });
   });
 

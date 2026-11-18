@@ -12,7 +12,7 @@ import { POST as postDeleteAccount } from '../src/app/api/auth/delete-account/ro
 import { middleware, config as middlewareConfig } from '../src/middleware';
 import { getAuthUser } from '../src/lib/auth';
 import { eventBus, EVENTS } from '../src/lib/events';
-import { tasks, walletsAccounts, vehicles, digitalVaultItems, transactions } from '../src/db/schema';
+import { tasks, walletsAccounts, vehicles, digitalVaultItems, transactions, familyMembers } from '../src/db/schema';
 import {
   parseSubtasks,
   calculateSubtaskProgress,
@@ -2503,6 +2503,570 @@ describe('🎯 Singularity Faz 6: Görevler & Odak Motoru (/tasks) Test Paketi',
         vi.useRealTimers();
         mockSelect.mockReset();
       }
+    });
+  });
+
+  describe('15. Tur 1 Denetim Bulguları Regresyon Testleri', () => {
+    const localPgDialect = new PgDialect();
+
+    it('Bulgu 1: import_cross_module ortak kredi kartlarında (user_id IS NULL) farklı aile ve sahipsiz kayıtları 403 ile reddetmelidir', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue({ id: 'user-1', family_id: 'fam-1' } as any);
+
+      // 1) Başka aileye ait ortak kredi kartı (user_id: null, family_id: 'fam-other') -> 403
+      mockSelect.mockReturnValueOnce(createSelectChain([{
+        user_id: null,
+        family_id: 'fam-other',
+        is_family_shared: 1
+      }]));
+      const otherFamJointRes = await postTasks(new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'import_cross_module',
+          title: 'Başka Aile Ortak Kartı',
+          source_module: 'finance',
+          source_ref_id: 'card-joint-other'
+        })
+      }));
+      expect(otherFamJointRes.status).toBe(403);
+      expect(mockInsert).not.toHaveBeenCalled();
+
+      // 2) Sahipsiz ve ailesiz kart (user_id: null, family_id: null) -> 403
+      mockSelect.mockReturnValueOnce(createSelectChain([{
+        user_id: null,
+        family_id: null,
+        is_family_shared: 0
+      }]));
+      const orphanRes = await postTasks(new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'import_cross_module',
+          title: 'Sahipsiz Kart',
+          source_module: 'finance',
+          source_ref_id: 'card-orphan'
+        })
+      }));
+      expect(orphanRes.status).toBe(403);
+      expect(mockInsert).not.toHaveBeenCalled();
+
+      // 3) Aynı ailedeki başka üyenin özel kartı (is_family_shared: 0) -> 403
+      mockSelect.mockReturnValueOnce(createSelectChain([{
+        user_id: 'user-2',
+        family_id: 'fam-1',
+        is_family_shared: 0
+      }]));
+      const sameFamPrivRes = await postTasks(new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'import_cross_module',
+          title: 'Özel Kart',
+          source_module: 'finance',
+          source_ref_id: 'card-priv-member'
+        })
+      }));
+      expect(sameFamPrivRes.status).toBe(403);
+      expect(mockInsert).not.toHaveBeenCalled();
+
+      // 4) Kendi ailesine ait ortak kredi kartı (user_id: null, family_id: 'fam-1') -> 200 & is_family_shared: 1
+      mockSelect
+        .mockReturnValueOnce(createSelectChain([{
+          user_id: null,
+          family_id: 'fam-1',
+          is_family_shared: 0
+        }]))
+        .mockReturnValueOnce(createSelectChain([]));
+      const insertChain = createInsertChain();
+      mockInsert.mockReturnValueOnce(insertChain);
+
+      const ownFamJointRes = await postTasks(new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'import_cross_module',
+          title: 'Aile Ortak Kart Ekstresi',
+          source_module: 'finance',
+          source_ref_id: 'card-joint-own'
+        })
+      }));
+      expect(ownFamJointRes.status).toBe(200);
+      expect(insertChain.values).toHaveBeenCalledWith(expect.objectContaining({
+        is_family_shared: 1,
+        source_ref_id: 'card-joint-own'
+      }));
+    });
+
+    it('Bulgu 3: action=update subtasks dizisini doğrulayıp normalize etmeli, durum geçişi + odak kapanışı + rutin üretimi + EventBus çalıştırmalı ve MIT açılış limitini korumalıdır', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date('2026-11-18T10:30:00Z'));
+        vi.mocked(getAuthUser).mockResolvedValue({ id: 'user-1', family_id: 'fam-1' } as any);
+
+        // 1) Geçersiz subtasks tipi (dizi değil / geçersiz öğe) -> 400
+        mockSelect.mockReturnValueOnce(createSelectChain([{
+          id: 't-upd-bad', title: 'Test', status: 'pending', is_mit: 0, user_id: 'user-1', family_id: 'fam-1'
+        }]));
+        const badTypeRes = await postTasks(new Request('http://localhost/api/tasks', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'update', task_id: 't-upd-bad', subtasks: 'not-an-array' })
+        }));
+        expect(badTypeRes.status).toBe(400);
+        expect(mockUpdate).not.toHaveBeenCalled();
+
+        mockSelect.mockReturnValueOnce(createSelectChain([{
+          id: 't-upd-bad-item', title: 'Test', status: 'pending', is_mit: 0, user_id: 'user-1', family_id: 'fam-1'
+        }]));
+        const badItemRes = await postTasks(new Request('http://localhost/api/tasks', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'update', task_id: 't-upd-bad-item', subtasks: [null] })
+        }));
+        expect(badItemRes.status).toBe(400);
+        expect(mockUpdate).not.toHaveBeenCalled();
+
+        // 1.b) Eksik/metin olmayan title alanı mevcut alt görevleri sessizce silmemeli -> 400
+        mockSelect.mockReturnValueOnce(createSelectChain([{
+          id: 't-upd-missing-title', title: 'Test', status: 'pending', is_mit: 0, user_id: 'user-1', family_id: 'fam-1'
+        }]));
+        const missingTitleRes = await postTasks(new Request('http://localhost/api/tasks', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'update', task_id: 't-upd-missing-title', subtasks: [{ text: 'Yanlış alan' }] })
+        }));
+        expect(missingTitleRes.status).toBe(400);
+        expect(mockUpdate).not.toHaveBeenCalled();
+
+        // 1.c) Çakışan ID'ler (ör. iki kez 'sub-2-2') sonsuz döngüye girmemeli ve benzersiz ID üretmeli
+        mockSelect.mockReturnValueOnce(createSelectChain([{
+          id: 't-upd-dup-id', title: 'Test', status: 'pending', is_mit: 0, user_id: 'user-1', family_id: 'fam-1'
+        }]));
+        const dupIdUpdateChain = createUpdateChain();
+        mockUpdate.mockReturnValueOnce(dupIdUpdateChain);
+        const dupIdRes = await postTasks(new Request('http://localhost/api/tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'update',
+            task_id: 't-upd-dup-id',
+            subtasks: [
+              { id: 'sub-2-2', title: 'İlk Adım', is_completed: false },
+              { id: 'sub-2-2', title: 'İkinci Adım', is_completed: false }
+            ]
+          })
+        }));
+        const dupIdJson = await dupIdRes.json();
+        expect(dupIdRes.status).toBe(200);
+        expect(dupIdJson.data.subtasks).toEqual([
+          { id: 'sub-2-2', title: 'İlk Adım', is_completed: false },
+          { id: 'sub-2-2-2', title: 'İkinci Adım', is_completed: false }
+        ]);
+
+        // 2) Tüm alt adımlar tamamlanınca in_progress + tekrarlayan + köprü görevi tamamlama
+        const emittedPayloads: any[] = [];
+        const unsub = eventBus.subscribe(EVENTS.TASK_COMPLETED, (p) => { emittedPayloads.push(p); });
+        try {
+          mockSelect
+            .mockReturnValueOnce(createSelectChain([{
+              id: 't-upd-complete',
+              title: 'Eski Başlık',
+              description: null,
+              status: 'in_progress',
+              priority: 'high',
+              pillar: 'finance',
+              is_mit: 0,
+              due_date: '2026-11-18',
+              due_time: '09:00',
+              recurrence: 'daily',
+              subtasks_json: '[]',
+              is_family_shared: 1,
+              assigned_member_id: null,
+              source_module: 'finance',
+              source_ref_id: 'bill-42',
+              focus_started_at: '2026-11-18T10:15:00Z',
+              focus_planned_minutes: 25,
+              focus_logged_minutes: 10,
+              user_id: 'user-1',
+              family_id: 'fam-1'
+            }]))
+            .mockReturnValueOnce(createSelectChain([])); // spawnNextRecurringTask duplicate check
+
+          const updateChain = createUpdateChain();
+          mockUpdate.mockReturnValueOnce(updateChain);
+          const spawnInsertChain = createInsertChain();
+          mockInsert.mockReturnValueOnce(spawnInsertChain);
+
+          const completeRes = await postTasks(new Request('http://localhost/api/tasks', {
+            method: 'POST',
+            body: JSON.stringify({
+              action: 'update',
+              task_id: 't-upd-complete',
+              title: 'Güncel Fatura Görevi',
+              subtasks: [
+                { title: '  Makbuz indir  ', is_completed: 1 },
+                { id: 's-2', title: 'Ödemeyi onayla', is_completed: true },
+                { id: 's-empty', title: '   ', is_completed: false } // filtrelenmeli
+              ]
+            })
+          }));
+          const completeJson = await completeRes.json();
+
+          expect(completeRes.status).toBe(200);
+          expect(completeJson.data.status).toBe('completed');
+          expect(completeJson.data.transition).toBe('completed');
+          expect(completeJson.data.subtasks).toEqual([
+            { id: 'sub-1', title: 'Makbuz indir', is_completed: true },
+            { id: 's-2', title: 'Ödemeyi onayla', is_completed: true }
+          ]);
+          expect(completeJson.data.progress).toEqual({ total: 2, completed: 2, percent: 100 });
+          expect(completeJson.data.spawned_next_task?.due_date).toBe('2026-11-19');
+          expect(completeJson.data.follow_up_action).toMatchObject({
+            sourceModule: 'finance',
+            href: '/budget'
+          });
+
+          expect(updateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Güncel Fatura Görevi',
+            status: 'completed',
+            completed_at: '2026-11-18T10:30:00.000Z',
+            focus_started_at: null,
+            focus_logged_minutes: 25
+          }));
+          expect(spawnInsertChain.values).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Güncel Fatura Görevi',
+            due_date: '2026-11-19',
+            subtasks_json: JSON.stringify([
+              { id: 'sub-1', title: 'Makbuz indir', is_completed: false },
+              { id: 's-2', title: 'Ödemeyi onayla', is_completed: false }
+            ])
+          }));
+          expect(emittedPayloads).toHaveLength(1);
+          expect(emittedPayloads[0]).toMatchObject({
+            taskId: 't-upd-complete',
+            title: 'Güncel Fatura Görevi',
+            focusLoggedMinutes: 25
+          });
+        } finally {
+          unsub();
+        }
+
+        // 3) Tamamlanmış MIT görevini alt adımla yeniden açarken hedef günde 3 aktif MIT varsa -> 400
+        mockUpdate.mockClear();
+        mockSelect
+          .mockReturnValueOnce(createSelectChain([{
+            id: 't-mit-done',
+            title: 'Bitmiş MIT',
+            status: 'completed',
+            is_mit: 1,
+            due_date: '2026-11-18',
+            completed_at: '2026-11-18T09:00:00Z',
+            subtasks_json: JSON.stringify([{ id: 's1', title: 'Adım 1', is_completed: true }]),
+            user_id: 'user-1',
+            family_id: 'fam-1'
+          }]))
+          .mockReturnValueOnce(createSelectChain([
+            { id: 'm1', is_mit: 1, status: 'pending', due_date: '2026-11-18' },
+            { id: 'm2', is_mit: 1, status: 'pending', due_date: '2026-11-18' },
+            { id: 'm3', is_mit: 1, status: 'pending', due_date: '2026-11-18' }
+          ]));
+
+        const reopenBlockedRes = await postTasks(new Request('http://localhost/api/tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'update',
+            task_id: 't-mit-done',
+            subtasks: [
+              { id: 's1', title: 'Adım 1', is_completed: true },
+              { id: 's2', title: 'Yeni eksik adım', is_completed: false }
+            ]
+          })
+        }));
+        expect(reopenBlockedRes.status).toBe(400);
+        expect(mockUpdate).not.toHaveBeenCalled();
+
+        // 4) MIT kotası uygunken tamamlanmış görevi alt adımla yeniden açma -> pending & completed_at: null
+        mockSelect
+          .mockReturnValueOnce(createSelectChain([{
+            id: 't-mit-reopen-ok',
+            title: 'Yeniden Açılabilir MIT',
+            status: 'completed',
+            is_mit: 1,
+            due_date: '2026-11-18',
+            completed_at: '2026-11-18T09:00:00Z',
+            user_id: 'user-1',
+            family_id: 'fam-1'
+          }]))
+          .mockReturnValueOnce(createSelectChain([
+            { id: 'm1', is_mit: 1, status: 'pending', due_date: '2026-11-18' }
+          ]));
+        const reopenUpdateChain = createUpdateChain();
+        mockUpdate.mockReturnValueOnce(reopenUpdateChain);
+
+        const reopenOkRes = await postTasks(new Request('http://localhost/api/tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'update',
+            task_id: 't-mit-reopen-ok',
+            subtasks: [{ id: 's1', title: 'Adım 1', is_completed: false }]
+          })
+        }));
+        const reopenOkJson = await reopenOkRes.json();
+        expect(reopenOkRes.status).toBe(200);
+        expect(reopenOkJson.data.status).toBe('pending');
+        expect(reopenOkJson.data.transition).toBe('reopened');
+        expect(reopenUpdateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+          status: 'pending',
+          completed_at: null
+        }));
+
+        // 5) Boş subtasks ([]) güncellemesi mevcut pending durumu completed yapmamalı
+        mockSelect.mockReturnValueOnce(createSelectChain([{
+          id: 't-empty-sub',
+          title: 'Boş Alt Görev',
+          status: 'pending',
+          is_mit: 0,
+          due_date: '2026-11-18',
+          user_id: 'user-1',
+          family_id: 'fam-1'
+        }]));
+        const emptySubUpdateChain = createUpdateChain();
+        mockUpdate.mockReturnValueOnce(emptySubUpdateChain);
+
+        const emptySubRes = await postTasks(new Request('http://localhost/api/tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'update',
+            task_id: 't-empty-sub',
+            subtasks: []
+          })
+        }));
+        const emptySubJson = await emptySubRes.json();
+        expect(emptySubRes.status).toBe(200);
+        expect(emptySubJson.data.status).toBe('pending');
+        expect(emptySubJson.data.transition).toBe('none');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('Bulgu 4: projectVirtualRecurrences somutlaştırılmış (recurrence=none) tekrar günlerinde sanal kopya üretmemelidir', () => {
+      const template: TaskItem = {
+        id: 'tpl-weekly',
+        title: 'İlaç İç',
+        status: 'pending',
+        priority: 'high',
+        pillar: 'health',
+        is_mit: 0,
+        due_date: '2026-11-17',
+        due_time: '09:00',
+        recurrence: 'weekly',
+        is_family_shared: 0,
+        created_at: '2026-11-17T08:00:00Z',
+        updated_at: '2026-11-17T08:00:00Z'
+      };
+
+      const initialVirtual = projectVirtualRecurrences([template], '2026-11-17', '2026-12-02', '2026-11-17');
+      expect(initialVirtual.map(v => v.due_date)).toEqual(['2026-11-24', '2026-12-01']);
+
+      // 2026-11-24 gününü buildMaterializedRecurrenceDraft ile somutlaştırıp (recurrence: 'none') ekle
+      const draft = buildMaterializedRecurrenceDraft(initialVirtual[0], template);
+      expect(draft.recurrence).toBe('none');
+
+      const materializedTask: TaskItem = {
+        id: 'real-nov24',
+        title: draft.title!.toLocaleLowerCase('tr-TR'), // Türkçe büyük/küçük harf duyarsız eşleşme de doğrulanmalı
+        status: 'pending',
+        priority: draft.priority!,
+        pillar: draft.pillar!,
+        is_mit: draft.is_mit!,
+        due_date: draft.due_date,
+        due_time: draft.due_time,
+        recurrence: 'none',
+        is_family_shared: 0,
+        created_at: '2026-11-18T08:00:00Z',
+        updated_at: '2026-11-18T08:00:00Z'
+      };
+
+      const afterMaterialize = projectVirtualRecurrences(
+        [template, materializedTask],
+        '2026-11-17',
+        '2026-12-02',
+        '2026-11-17'
+      );
+      expect(afterMaterialize.map(v => v.due_date)).toEqual(['2026-12-01']);
+    });
+
+    it('Bulgu 5: pasif aile üyeleri (is_active=0) data.members listesinde gizlenmeli, atamada reddedilmeli, ancak eski görev adları korunmalıdır', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue({ id: 'user-1', family_id: 'fam-1' } as any);
+
+      // 1) GET /api/tasks: pasif üye data.members'da olmamalı, eski görevde assigned_member_name korunmalı
+      mockSelect
+        .mockReturnValueOnce(createSelectChain([
+          { id: 'mem-active', name: 'Hande', avatar: '👩', is_active: 1 },
+          { id: 'mem-inactive', name: 'Eski Üye', avatar: '🧑', is_active: 0 }
+        ]))
+        .mockReturnValueOnce(createSelectChain([
+          {
+            id: 't-hist',
+            title: 'Geçmiş Atama',
+            status: 'pending',
+            priority: 'medium',
+            pillar: 'family',
+            is_mit: 0,
+            due_date: '2026-11-18',
+            recurrence: 'none',
+            subtasks_json: '[]',
+            is_family_shared: 1,
+            assigned_member_id: 'mem-inactive',
+            user_id: 'user-1',
+            family_id: 'fam-1',
+            created_at: '2026-11-10T08:00:00Z',
+            updated_at: '2026-11-10T08:00:00Z'
+          }
+        ]))
+        .mockReturnValueOnce(createSelectChain([]))
+        .mockReturnValueOnce(createSelectChain([]))
+        .mockReturnValueOnce(createSelectChain([]))
+        .mockReturnValueOnce(createSelectChain([]))
+        .mockReturnValueOnce(createSelectChain([]));
+
+      const getRes = await getTasks(new Request('http://localhost/api/tasks?view=all'));
+      const getJson = await getRes.json();
+
+      expect(getRes.status).toBe(200);
+      expect(getJson.data.members).toEqual([
+        { id: 'mem-active', name: 'Hande', avatar: '👩' }
+      ]);
+      expect(getJson.data.tasks[0].assigned_member_id).toBe('mem-inactive');
+      expect(getJson.data.tasks[0].assigned_member_name).toBe('Eski Üye');
+      expect(getJson.data.tasks[0].assigned_member_avatar).toBe('🧑');
+
+      // 2) POST create: pasif üye ataması is_active = 1 filtresi nedeniyle 400 dönmeli
+      const memberSelectChain = createSelectChain([]);
+      memberSelectChain.from = vi.fn(() => memberSelectChain);
+      mockSelect.mockReturnValueOnce(memberSelectChain);
+
+      const createRes = await postTasks(new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'create',
+          title: 'Pasif Üye Testi',
+          assigned_member_id: 'mem-inactive'
+        })
+      }));
+      expect(createRes.status).toBe(400);
+      const memberSql = localPgDialect.sqlToQuery(memberSelectChain.where.mock.calls[0][0]);
+      expect(memberSql.sql).toContain('"family_members"."is_active" =');
+      expect(memberSql.params).toContain(1);
+      expect(familyMembers.is_active).toBeDefined();
+
+      // 3) POST update: yeni bir pasif üye ataması reddedilmeli (400)
+      mockSelect
+        .mockReturnValueOnce(createSelectChain([{
+          id: 't-reassign', title: 'Mevcut', status: 'pending', is_mit: 0, assigned_member_id: null, user_id: 'user-1', family_id: 'fam-1'
+        }]))
+        .mockReturnValueOnce(createSelectChain([])); // validateAssignedMemberInFamily -> not found (inactive)
+
+      const reassignRes = await postTasks(new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'update',
+          task_id: 't-reassign',
+          assigned_member_id: 'mem-inactive'
+        })
+      }));
+      expect(reassignRes.status).toBe(400);
+
+      // 4) POST update: zaten pasif üyeye atanmış tarihsel görevin başlığını düzenlerken aynı assigned_member_id korunabilmeli (200)
+      mockSelect.mockReturnValueOnce(createSelectChain([{
+        id: 't-hist-edit', title: 'Eski Başlık', status: 'pending', is_mit: 0, assigned_member_id: 'mem-inactive', user_id: 'user-1', family_id: 'fam-1'
+      }]));
+      mockUpdate.mockReturnValueOnce(createUpdateChain());
+
+      const histEditRes = await postTasks(new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'update',
+          task_id: 't-hist-edit',
+          title: 'Güncellenmiş Başlık',
+          assigned_member_id: 'mem-inactive'
+        })
+      }));
+      expect(histEditRes.status).toBe(200);
+    });
+
+    it('Bulgu 6: Ana sayfa takip bannerı, TasksClient ve TimeContextualFeed aksiyon butonları .card / .btn-primary hizalama çakışmalarını geçersiz kılmalıdır', () => {
+      const homeSrc = fs.readFileSync(path.resolve(__dirname, '../src/app/page.tsx'), 'utf8');
+      const feedSrc = fs.readFileSync(path.resolve(__dirname, '../src/components/home/TimeContextualFeed.tsx'), 'utf8');
+      const tasksClientSrc = fs.readFileSync(path.resolve(__dirname, '../src/components/tasks/TasksClient.tsx'), 'utf8');
+      const addModalSrc = fs.readFileSync(path.resolve(__dirname, '../src/components/modals/AddTaskModal.tsx'), 'utf8');
+
+      // Home page banner: .card flex-direction:column ezilmeli, Link ve kapat butonu kontrolü
+      const bannerStart = homeSrc.indexOf('completedTaskFollowUp &&');
+      const bannerEnd = homeSrc.indexOf('Executive Bento Command Center');
+      const bannerBlock = homeSrc.slice(bannerStart, bannerEnd);
+      expect(bannerBlock).toContain("flexDirection: 'row'");
+      expect(bannerBlock).toContain("width: 'auto'");
+      expect(bannerBlock).toContain('marginTop: 0');
+      expect(bannerBlock).toContain('flexShrink: 0');
+
+      // TasksClient banner & bridge action cards
+      const tcBannerStart = tasksClientSrc.indexOf('completedFollowUp &&');
+      const tcBannerEnd = tasksClientSrc.indexOf('AÇILIR/KAPANIR AYLIK GÖREV TAKVİMİ');
+      const tcBannerBlock = tasksClientSrc.slice(tcBannerStart, tcBannerEnd);
+      expect(tcBannerBlock).toContain("flexDirection: 'row'");
+      expect(tcBannerBlock).toContain('flexShrink: 0');
+
+      // TimeContextualFeed action button
+      const feedBtnStart = feedSrc.indexOf('act.onClick ?');
+      const feedBtnEnd = feedSrc.indexOf(') : act.href ?');
+      const feedBtnBlock = feedSrc.slice(feedBtnStart, feedBtnEnd);
+      expect(feedBtnBlock).toContain("width: 'auto'");
+      expect(feedBtnBlock).toContain('marginTop: 0');
+      expect(feedBtnBlock).toContain("display: 'inline-flex'");
+
+      // AddTaskModal pasif üye uyumu ve API mesajı aktarımı
+      expect(addModalSrc).toContain('(Pasif)');
+      expect(addModalSrc).toContain('json.message ||');
+    });
+
+    it('Bulgu 7: /tasks görünüm sekme şeridi masaüstünde (>= 640px) tüm 6 sekmeyi kırpmadan göstermeli, mobilde tek satır kaydırılabilir hap barını korumalıdır', () => {
+      const tasksClientSrc = fs.readFileSync(path.resolve(__dirname, '../src/components/tasks/TasksClient.tsx'), 'utf8');
+      const globalsCssSrc = fs.readFileSync(path.resolve(__dirname, '../src/styles/globals.css'), 'utf8');
+
+      const tabBlockStart = tasksClientSrc.indexOf('GÖRÜNÜM SEÇİCİ SEKMELER & FİLTRELER');
+      const tabBlockEnd = tasksClientSrc.indexOf('Pillar, Üye & Anlık Arama Çubuğu');
+      expect(tabBlockStart).toBeGreaterThan(-1);
+      expect(tabBlockEnd).toBeGreaterThan(tabBlockStart);
+      const tabBlock = tasksClientSrc.slice(tabBlockStart, tabBlockEnd);
+
+      // CSS sınıfları kullanılmalı; masaüstü @media kuralını ezen eski inline layout stilleri olmamalı
+      expect(tabBlock).toContain('className="tasks-view-toolbar"');
+      expect(tabBlock).toContain('className="tasks-view-tabs no-scrollbar"');
+      expect(tabBlock).toContain('className="tasks-view-tab"');
+      expect(tabBlock).toContain('className="tasks-scope-pills"');
+      expect(tabBlock).not.toContain("flexWrap: 'nowrap'");
+      expect(tabBlock).not.toContain("overflowX: 'auto'");
+      expect(tabBlock).not.toContain("flex: '1 1 540px'");
+
+      // Tüm 6 sekme ve ARIA tablist/tab/tabpanel semantiği korunmalı
+      for (const label of ['Bugün', 'Yaklaşan', 'Backlog', 'Rutinler', 'Sistem Köprüsü', 'Tamamlananlar']) {
+        expect(tabBlock).toContain(label);
+      }
+      expect(tabBlock).toContain('role="tablist"');
+      expect(tabBlock).toContain('role="tab"');
+      expect(tabBlock).toContain('aria-selected={isSelected}');
+      expect(tabBlock).toContain('tabIndex={activeTab === tab.id ? 0 : -1}');
+      expect(tabBlock).toContain('scrollIntoView');
+      expect(tasksClientSrc).toContain('role="tabpanel"');
+
+      // globals.css: mobil tek satır yatay kaydırma + masaüstü (>= 640px) kırpmasız wrap
+      const cssStart = globalsCssSrc.indexOf('.tasks-view-toolbar');
+      expect(cssStart).toBeGreaterThan(-1);
+      const tasksCss = globalsCssSrc.slice(cssStart);
+
+      expect(tasksCss).toContain('flex-wrap: nowrap;');
+      expect(tasksCss).toContain('overflow-x: auto;');
+      expect(tasksCss).toContain('@media (min-width: 640px)');
+      expect(tasksCss).toContain('flex: 1 1 max-content;');
+      expect(tasksCss).toContain('flex-wrap: wrap;');
+      expect(tasksCss).toContain('overflow-x: visible;');
+      expect(tasksCss).toContain('.tasks-view-tab[aria-selected="true"]::after');
+      expect(tasksCss).toContain('border-block-end:');
+      expect(tasksCss).toContain('animation-range: 0px var(--tasks-fade-size)');
     });
   });
 });

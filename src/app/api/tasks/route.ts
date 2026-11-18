@@ -16,7 +16,9 @@ import { eq, and, or, ne, inArray, desc, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import {
   TaskItem,
+  TaskStatus,
   TaskRecurrence,
+  Subtask,
   PILLAR_CONFIGS,
   PRIORITY_CONFIGS,
   parseSubtasks,
@@ -75,9 +77,48 @@ async function notifyTaskCompleted(
 async function validateAssignedMemberInFamily(memberId: string | null, familyId: string): Promise<boolean> {
   if (!memberId) return true;
   const found = (await db.select({ id: familyMembers.id }).from(familyMembers).where(
-    and(eq(familyMembers.id, memberId), eq(familyMembers.family_id, familyId))
+    and(
+      eq(familyMembers.id, memberId),
+      eq(familyMembers.family_id, familyId),
+      eq(familyMembers.is_active, 1)
+    )
   ).limit(1))[0];
   return Boolean(found);
+}
+
+function normalizeSubtasksInput(raw: unknown): { error?: string; subtasks?: Subtask[] } {
+  if (!Array.isArray(raw)) {
+    return { error: 'Alt görev listesi geçerli bir dizi olmalıdır.' };
+  }
+  const normalized: Subtask[] = [];
+  const usedIds = new Set<string>();
+  for (let idx = 0; idx < raw.length; idx++) {
+    const item = raw[idx];
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return { error: 'Alt görev öğeleri geçerli nesne formatında olmalıdır.' };
+    }
+    const record = item as Record<string, unknown>;
+    if (typeof record.title !== 'string') {
+      return { error: 'Alt görev öğelerinin başlık alanı metin olmalıdır.' };
+    }
+    const title = record.title.trim();
+    if (!title) continue;
+    const rawId = typeof record.id === 'string' ? record.id.trim() : '';
+    const baseId = rawId || `sub-${idx + 1}`;
+    let id = baseId;
+    let suffix = 2;
+    while (usedIds.has(id)) {
+      id = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+    usedIds.add(id);
+    normalized.push({
+      id,
+      title,
+      is_completed: Boolean(record.is_completed)
+    });
+  }
+  return { subtasks: normalized };
 }
 
 function normalizeValidatedTaskFields(body: any): {
@@ -244,9 +285,10 @@ export async function GET(req: Request) {
     const pillarParam = searchParams.get('pillar');
     const memberParam = searchParams.get('member_id');
 
-    // 1. Aile Üyelerini Haritala (Avatar ve İsim Eşleştirmesi için)
+    // 1. Aile Üyelerini Haritala (Avatar ve İsim Eşleştirmesi için; tarihsel görevlerde pasif üyelerin adı korunur)
     const membersList = await db.select().from(familyMembers).where(eq(familyMembers.family_id, familyId));
     const membersMap = new Map(membersList.map(m => [m.id, { name: m.name, avatar: m.avatar || '👤' }]));
+    const activeMembers = membersList.filter(m => Number(m.is_active ?? 1) === 1);
 
     // 2. Görevleri Çek (OWASP BOLA)
     const rawTasks = await db.select().from(tasks)
@@ -507,7 +549,7 @@ export async function GET(req: Request) {
           maxMit
         },
         crossModuleActions,
-        members: membersList.map(m => ({ id: m.id, name: m.name, avatar: m.avatar || '👤' }))
+        members: activeMembers.map(m => ({ id: m.id, name: m.name, avatar: m.avatar || '👤' }))
       }
     });
   } catch (error: any) {
@@ -1192,17 +1234,49 @@ export async function POST(req: Request) {
       }
       if (body.assigned_member_id !== undefined) {
         const assignedMemberId = body.assigned_member_id ? String(body.assigned_member_id).trim() : null;
-        if (!(await validateAssignedMemberInFamily(assignedMemberId, familyId))) {
+        if (assignedMemberId !== existing.assigned_member_id && !(await validateAssignedMemberInFamily(assignedMemberId, familyId))) {
           return NextResponse.json({ success: false, error: 'Seçilen aile üyesi bu hanede bulunamadı.' }, { status: 400 });
         }
         updateData.assigned_member_id = assignedMemberId;
       }
-      if (body.subtasks !== undefined) updateData.subtasks_json = JSON.stringify(body.subtasks);
+
+      let normalizedSubtasks: Subtask[] | undefined;
+      let subtaskTransition: 'completed' | 'reopened' | 'none' = 'none';
+      let nextStatus: TaskStatus = (existing.status as TaskStatus) || 'pending';
+
+      if (body.subtasks !== undefined) {
+        const parsedSubtasks = normalizeSubtasksInput(body.subtasks);
+        if (parsedSubtasks.error || !parsedSubtasks.subtasks) {
+          return NextResponse.json({ success: false, error: parsedSubtasks.error || 'Geçersiz alt görev listesi.' }, { status: 400 });
+        }
+        normalizedSubtasks = parsedSubtasks.subtasks;
+        updateData.subtasks_json = JSON.stringify(normalizedSubtasks);
+
+        const resolved = resolveSubtaskDrivenStatus(normalizedSubtasks, existing.status);
+        nextStatus = resolved.nextStatus;
+        subtaskTransition = resolved.transition;
+
+        if (subtaskTransition === 'completed') {
+          updateData.status = 'completed';
+          updateData.completed_at = nowISO;
+          if (existing.focus_started_at) {
+            updateData.focus_started_at = null;
+            updateData.focus_logged_minutes =
+              (existing.focus_logged_minutes ?? 0) +
+              computeFocusElapsedMinutes(existing.focus_started_at, existing.focus_planned_minutes, new Date(nowISO));
+          }
+        } else if (subtaskTransition === 'reopened') {
+          updateData.status = 'pending';
+          updateData.completed_at = null;
+        }
+      }
 
       const effectiveIsMit = body.is_mit !== undefined ? (body.is_mit ? 1 : 0) : Number(existing.is_mit);
       const effectiveDueDate = validated.dueDate !== undefined ? validated.dueDate : existing.due_date;
-      const shouldCheckMit = effectiveIsMit === 1 && existing.status !== 'completed' && (
-        existing.is_mit !== 1 || (validated.dueDate !== undefined && validated.dueDate !== existing.due_date)
+      const shouldCheckMit = effectiveIsMit === 1 && nextStatus !== 'completed' && (
+        existing.status === 'completed' ||
+        Number(existing.is_mit) !== 1 ||
+        (validated.dueDate !== undefined && validated.dueDate !== existing.due_date)
       );
 
       if (shouldCheckMit) {
@@ -1217,7 +1291,9 @@ export async function POST(req: Request) {
         if (!mitCheck.allowed) {
           return NextResponse.json({
             success: false,
-            error: 'Günde en fazla 3 odak görevi (MIT) belirleyebilirsiniz.'
+            error: subtaskTransition === 'reopened'
+              ? 'Bu gün için 3 aktif odak görevi (MIT) zaten dolu. Görevi yeniden açmadan önce bir odağı tamamlayın veya çıkarın.'
+              : 'Günde en fazla 3 odak görevi (MIT) belirleyebilirsiniz.'
           }, { status: 400 });
         }
       }
@@ -1227,10 +1303,43 @@ export async function POST(req: Request) {
 
       await db.update(tasks).set(updateData).where(and(eq(tasks.id, taskId), getVisibleTasksWhere(userId, familyId)));
 
+      const updatedTaskRow: TaskRow = { ...existing, ...updateData } as TaskRow;
+      const spawnedNextTask = subtaskTransition === 'completed'
+        ? await spawnNextRecurringTask(updatedTaskRow, userId, familyId, nowISO)
+        : null;
+      const followUpAction = subtaskTransition === 'completed'
+        ? await notifyTaskCompleted(
+            updatedTaskRow,
+            updateData.focus_logged_minutes ?? (existing.focus_logged_minutes ?? 0),
+            nowISO,
+            userId,
+            familyId
+          )
+        : null;
+
+      let message = 'Görev güncellendi.';
+      if (subtaskTransition === 'completed') {
+        message = 'Tüm adımlar tamamlandı, görev kapandı 🎉';
+      } else if (subtaskTransition === 'reopened') {
+        message = 'Adım geri alındı, görev yeniden açıldı.';
+      }
+
       return NextResponse.json({
         success: true,
-        message: 'Görev güncellendi.',
-        data: { task_id: taskId }
+        message,
+        data: {
+          task_id: taskId,
+          status: nextStatus,
+          transition: subtaskTransition,
+          ...(normalizedSubtasks !== undefined
+            ? {
+                subtasks: normalizedSubtasks,
+                progress: calculateSubtaskProgress(normalizedSubtasks)
+              }
+            : {}),
+          ...(spawnedNextTask ? { spawned_next_task: spawnedNextTask } : {}),
+          ...(followUpAction ? { follow_up_action: followUpAction } : {})
+        }
       });
     }
 
@@ -1272,7 +1381,9 @@ export async function POST(req: Request) {
           is_family_shared: walletsAccounts.is_family_shared
         }).from(walletsAccounts).where(eq(walletsAccounts.id, cardId)).limit(1))[0];
         if (cardRow) {
-          const canAccess = cardRow.user_id === userId || !cardRow.user_id || (cardRow.family_id === familyId && cardRow.is_family_shared === 1);
+          const canAccess =
+            cardRow.user_id === userId ||
+            (Boolean(cardRow.family_id) && cardRow.family_id === familyId && (!cardRow.user_id || cardRow.is_family_shared === 1));
           if (!canAccess) {
             return NextResponse.json({ success: false, error: 'Bu kaynağa erişim yetkiniz yok.' }, { status: 403 });
           }

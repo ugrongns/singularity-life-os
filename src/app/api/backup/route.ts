@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import * as schema from '@/db/schema';
-import { eq, or, and, inArray } from 'drizzle-orm';
+import { eq, or, and, inArray, isNull } from 'drizzle-orm';
 import crypto from 'crypto';
 import { getAuthUser } from '@/lib/auth';
 
@@ -11,13 +11,19 @@ import { SAFE_EXPORT_TABLES } from '@/lib/backup-tables';
 async function fetchSafeData(userId: string, familyId: string) {
   const exportData: Record<string, any[]> = {};
 
-  // İlgili ailenin araçlarını ve kullanıcının öğünlerini tespit et (İlişkisel filtreleme için)
+  // İlgili ailenin paylaşılan/kişisel araçlarını ve öğünlerini tespit et (İlişkisel filtreleme & mahremiyet için)
   const userVehicles = await db.select({ id: schema.vehicles.id }).from(schema.vehicles)
-    .where(or(eq(schema.vehicles.user_id, userId), eq(schema.vehicles.family_id, familyId)));
+    .where(or(
+      eq(schema.vehicles.user_id, userId),
+      and(eq(schema.vehicles.family_id, familyId), eq(schema.vehicles.is_family_shared, 1))
+    ));
   const vIds = userVehicles.map(v => v.id);
 
   const userMeals = await db.select({ id: schema.nutritionMeals.id }).from(schema.nutritionMeals)
-    .where(or(eq(schema.nutritionMeals.user_id, userId), eq(schema.nutritionMeals.family_id, familyId)));
+    .where(or(
+      eq(schema.nutritionMeals.user_id, userId),
+      and(eq(schema.nutritionMeals.family_id, familyId), eq(schema.nutritionMeals.is_family_shared, 1))
+    ));
   const mIds = userMeals.map(m => m.id);
 
   // 1. Güvenli genel tablolar (Kullanıcı ve Aile İzolasyonlu)
@@ -45,11 +51,22 @@ async function fetchSafeData(userId: string, familyId: string) {
           exportData[name] = [];
         }
       }
-      // Hem family_id hem user_id içeren tablolar
+      // Hem family_id hem user_id içeren tablolar (is_family_shared varsa özel kayıtlar diğer üyelere sızmaz)
       else if (t.family_id && t.user_id) {
-        exportData[name] = await db.select().from(t).where(
-          or(eq(t.user_id, userId), eq(t.family_id, familyId))
-        );
+        const whereExpr = t.is_family_shared
+          ? name === 'wallets_accounts'
+            ? or(
+                eq(t.user_id, userId),
+                and(eq(t.family_id, familyId), eq(t.is_family_shared, 1)),
+                and(eq(t.family_id, familyId), isNull(t.user_id))
+              )
+            : or(
+                eq(t.user_id, userId),
+                and(eq(t.family_id, familyId), eq(t.is_family_shared, 1))
+              )
+          : or(eq(t.user_id, userId), eq(t.family_id, familyId));
+
+        exportData[name] = await db.select().from(t).where(whereExpr);
       }
       // Yalnızca family_id içeren tablolar
       else if (t.family_id) {

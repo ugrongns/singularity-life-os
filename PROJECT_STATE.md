@@ -1,7 +1,7 @@
 # Singularity Life OS — Canlı Proje Durumu (`PROJECT_STATE.md`)
 
 > **Son Güncelleme:** 2026-11-18  
-> **Aktif Dal / Son Commit:** `main` @ `ac3cfe8` (Görevler, Analitik ve Güvenlik sertleştirmeleri sonrası)  
+> **Aktif Dal:** `main` (`!denetle görevler` denetim, güvenlik ve arayüz düzeltmeleri)  
 > **Canlı Ortam:** Vercel (`https://singularity-life-os.vercel.app`) + Supabase PostgreSQL (`eu-central-1`)
 
 ---
@@ -14,12 +14,13 @@
 - **Doğrulama Durumu (`2026-11-18` itibarıyla):**
   - `npm run typecheck` (`tsc --noEmit`): Geçiyor (`exit 0`).
   - `npm run lint` (`eslint .` — `eslint.config.mjs`): Sıfır hata (`exit 0`).
-  - `npm run test` (`vitest run`): 20 dosya / 317 test geçiyor (`exit 0`).
+  - `npm run test` (`vitest run`): 20 dosya / 324 test geçiyor (`exit 0`).
   - `npm run verify` / `npm run verify:full`: Geçiyor (`exit 0`).
 
 ---
 
 ## 2. Son Tamamlanan İşler
+- **[2026-11-18]** `!denetle görevler` modül denetimi & kapanış düzeltmeleri: `import_cross_module` ortak kart BOLA kontrolü, `/api/backup` `is_family_shared = 0` mahremiyet koruması, `update` alt-görev doğrulama ve durum senkronu, `projectVirtualRecurrences` sanal rutin tekilleştirme, pasif (`is_active = 0`) üye filtrelemesi, Ana Sayfa/`TasksClient`/`TimeContextualFeed` banner-buton hizalamaları ve `/tasks` masaüstü/mobil sekme şeridi duyarlılığı (`324/324` test, canlı oturumlu CRUD/yenileme doğrulandı).
 - **[2026-11-18]** Tasks modülü BOLA/güvenlik, `Europe/Istanbul` takvim hizalaması, Pomodoro odak zamanlayıcı, aylık görev takvimi ve 5x20 holistik skor geliştirmeleri (`fd0e0a5`, `ac3cfe8`).
 - **[2026-11-18]** **Skill / Kural Temizliği & Doğrulama Kapısı (Adım 1):**
   - Çift kopya `.agent/skills/` ve mimariyle çelişen 8 jenerik kurumsal skill temizlendi.

@@ -205,6 +205,7 @@ export default function HomePage() {
             borderColor: 'rgba(236, 72, 153, 0.45)',
             background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.1), rgba(59, 130, 246, 0.06))',
             display: 'flex',
+            flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
@@ -219,18 +220,23 @@ export default function HomePage() {
               {completedTaskFollowUp.description}
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, flexWrap: 'wrap', maxWidth: '100%' }}>
             <Link
               href={completedTaskFollowUp.href}
               className="btn-primary"
               style={{
+                width: 'auto',
+                marginTop: 0,
+                flexShrink: 0,
                 fontSize: '11px',
                 padding: '6px 12px',
                 textDecoration: 'none',
                 fontWeight: 800,
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px'
+                justifyContent: 'center',
+                gap: '6px',
+                whiteSpace: 'nowrap'
               }}
             >
               <span>{completedTaskFollowUp.label}</span>
@@ -243,6 +249,7 @@ export default function HomePage() {
               style={{
                 width: '32px',
                 height: '32px',
+                flexShrink: 0,
                 borderRadius: '6px',
                 border: '1px solid var(--border)',
                 background: 'var(--surface)',

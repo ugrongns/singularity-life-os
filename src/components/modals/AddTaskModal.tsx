@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Plus,
@@ -22,7 +22,7 @@ import { getTodayTurkeyDate } from '@/lib/date-utils';
 interface AddTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (msg?: string) => void;
+  onSuccess: (msg?: string, data?: any) => void;
   members?: Array<{ id: string; name: string; avatar: string }>;
   initialData?: Partial<TaskItem> | null;
 }
@@ -51,6 +51,8 @@ export default function AddTaskModal({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const membersRef = useRef(members);
+  membersRef.current = members;
 
   useEffect(() => {
     if (isOpen) {
@@ -64,7 +66,11 @@ export default function AddTaskModal({
         setDueTime(initialData.due_time || '');
         setRecurrence((initialData.recurrence as TaskRecurrence) || 'none');
         setIsFamilyShared(Boolean(initialData.is_family_shared));
-        setAssignedMemberId(initialData.assigned_member_id || '');
+        const rawMemberId = initialData.assigned_member_id || '';
+        const isActiveMember = !rawMemberId || membersRef.current.some(m => m.id === rawMemberId);
+        // Yeni görev taslaklarında (ör. rutin somutlaştırma) pasif/silinmiş üye atamasını temizle;
+        // mevcut görevi düzenlerken tarihsel atamayı koru ki dropdown gerçek durumu göstersin.
+        setAssignedMemberId(!initialData.id && !isActiveMember ? '' : rawMemberId);
         setSubtasks(initialData.subtasks || []);
       } else {
         // Sıfırdan ekleme
@@ -161,7 +167,7 @@ export default function AddTaskModal({
         return;
       }
 
-      onSuccess(isEditing ? 'Görev güncellendi.' : 'Yeni görev eklendi! 🎯');
+      onSuccess(json.message || (isEditing ? 'Görev güncellendi.' : 'Yeni görev eklendi! 🎯'), json.data);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Bağlantı hatası.');
@@ -531,7 +537,7 @@ export default function AddTaskModal({
               <span>👨‍👩‍👧 Aile Üyeleriyle Paylaş (Hane Görevi)</span>
             </label>
 
-            {isFamilyShared && members.length > 0 && (
+            {isFamilyShared && (members.length > 0 || (Boolean(initialData?.id) && Boolean(initialData?.assigned_member_id))) && (
               <div style={{ paddingLeft: '24px' }}>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
                   GÖREVLİ AİLE ÜYESİ (OPSİYONEL)
@@ -550,6 +556,13 @@ export default function AddTaskModal({
                   }}
                 >
                   <option value="">Atama Yapılmadı (Tüm Aile)</option>
+                  {Boolean(initialData?.id) &&
+                    initialData?.assigned_member_id &&
+                    !members.some(m => m.id === initialData.assigned_member_id) && (
+                      <option value={initialData.assigned_member_id}>
+                        {initialData.assigned_member_avatar || '👤'} {initialData.assigned_member_name || 'Pasif Üye'} (Pasif)
+                      </option>
+                    )}
                   {members.map(m => (
                     <option key={m.id} value={m.id}>
                       {m.avatar} {m.name}

@@ -2078,3 +2078,99 @@ body {
   border-color: var(--primary);
   box-shadow: var(--shadow-sm);
 }
+
+/* ===== 🎯 Görevler & Odak (/tasks) Sekme & Kapsam Şeridi ===== */
+@property --tasks-fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --tasks-fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes tasks-reveal-fade-start {
+  to {
+    --tasks-fade-start: var(--tasks-fade-size);
+  }
+}
+
+@keyframes tasks-hide-fade-end {
+  from {
+    --tasks-fade-end: var(--tasks-fade-size);
+  }
+}
+
+.tasks-view-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.tasks-view-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  flex: 1 1 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 2px 0 7px;
+  scroll-snap-type: inline proximity;
+}
+
+.tasks-view-tab {
+  position: relative;
+  scroll-snap-align: start;
+}
+
+.tasks-view-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 16px -5px;
+  border-block-end: 2px solid currentColor;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.tasks-scope-pills {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+@media (max-width: 639px) {
+  @supports (animation-timeline: scroll(self inline)) and (mask-clip: no-clip) {
+    .tasks-view-tabs {
+      --tasks-fade-size: 28px;
+      scroll-padding-inline: var(--tasks-fade-size);
+      mask:
+        linear-gradient(black, black) no-clip subtract,
+        linear-gradient(to right, black, transparent) 0 0 / var(--tasks-fade-start) 100% no-repeat no-clip,
+        linear-gradient(to right, transparent, black) 100% 0 / var(--tasks-fade-end) 100% no-repeat no-clip;
+      animation: tasks-reveal-fade-start linear both, tasks-hide-fade-end linear both;
+      animation-timeline: scroll(self inline);
+      animation-range: 0px var(--tasks-fade-size), calc(100% - var(--tasks-fade-size)) 100%;
+    }
+  }
+}
+
+@media (min-width: 640px) {
+  .tasks-view-tabs {
+    flex: 1 1 max-content;
+    flex-wrap: wrap;
+    row-gap: 10px;
+    overflow-x: visible;
+    padding: 0 0 6px;
+    scroll-snap-type: none;
+  }
+}
