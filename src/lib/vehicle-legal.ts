@@ -63,7 +63,7 @@ export function calculateUpcomingMtvDates(): { type: 'mtv_1' | 'mtv_2'; title: s
   const installments: { type: 'mtv_1' | 'mtv_2'; title: string; due_date: string; cost_estimate: number }[] = [];
 
   // Mevcut yıl ve sonraki yıl için kontrol et
-  for (let yr of [currentYear, currentYear + 1]) {
+  for (const yr of [currentYear, currentYear + 1]) {
     const mtv1Date = `${yr}-01-31`;
     const mtv2Date = `${yr}-07-31`;
 

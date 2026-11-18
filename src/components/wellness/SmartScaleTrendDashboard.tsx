@@ -98,8 +98,8 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
 
   // Y Eksen Skala Hesaplamaları (Tekli Grafik İçin)
   const rawNumbers = metricValues.map(m => Number(m.value));
-  let minRaw = rawNumbers.length > 0 ? Math.min(...rawNumbers) : 0;
-  let maxRaw = rawNumbers.length > 0 ? Math.max(...rawNumbers) : 100;
+  const minRaw = rawNumbers.length > 0 ? Math.min(...rawNumbers) : 0;
+  const maxRaw = rawNumbers.length > 0 ? Math.max(...rawNumbers) : 100;
 
   let deltaRaw = maxRaw - minRaw;
   if (deltaRaw === 0) {

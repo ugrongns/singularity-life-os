@@ -70,6 +70,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
   
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const categoriesList = useMemo(() => {
@@ -170,8 +171,6 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
       setSaving(false);
     }
   };
-
-  const [uploadingCover, setUploadingCover] = useState(false);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

@@ -179,7 +179,7 @@ describe('🎯 Modül 4 Denetim Raporu Bulguları Doğrulama Testleri (TDD Verif
         full_name: 'Admin User'
       });
 
-      let capturedRows: any[] = [];
+      const capturedRows: any[] = [];
       mockTransaction.mockImplementation(async (cb: any) => {
         const tx = {
           insert: vi.fn(() => ({

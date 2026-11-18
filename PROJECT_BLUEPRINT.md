@@ -1,3 +1,6 @@
+> **[TARİHSEL ARŞİV — GÜNCEL MİMARİ DEĞİLDİR]**  
+> Bu doküman `08.08.2026` tarihli erken beyin fırtınası taslağıdır (Windows ev sunucusu, offline-first vb. eski fikirleri içerir). Canlı sistem Vercel + Supabase PostgreSQL üzerinde online-only çalışmaktadır. Güncel kurallar için `AGENTS.md`, `PROJECT_STATE.md` ve `.agents/skills/singularity-lifeos-dev/SKILL.md` dosyalarını baz alın.
+
 # 🌌 SINGULARITY - KİŞİSEL & AİLE YAŞAM İŞLETİM SİSTEMİ (LIFE OS)
 ## Master Proje Beyin Fırtınası, Mimari Taslak, Karar Kayıtları & Yol Haritası (Blueprint) — v2.1
 

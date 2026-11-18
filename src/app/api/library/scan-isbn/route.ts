@@ -485,9 +485,9 @@ async function fetchFromTurkishBookstores(cleanIsbn: string): Promise<BookSearch
     const storePattern = /[\s\-_|–·•]*(BKM\s*Kitap|Bkmkitap|Kitapyurdu|D&R|İdefix|Idefix|Amazon|Hepsiburada|Trendyol|Nadir\s*Kitap|Nadirkitap|Palme\s*Kitabevi|Destek\s*Dükkan|Scala\s*Kitapçı|Kitapbulan|Kırmızı\s*Kedi|Pandora|Eganba|Pelikan\s*Kitabevi|Kidega|OdaKitap|Kitap365|Hugendubel[\s\S]*)[\s\S]*/gi;
 
     for (const match of headings) {
-      let rawTitle = decodeHtmlEntities(match[1].replace(/<[^>]+>/g, '').trim());
+      const rawTitle = decodeHtmlEntities(match[1].replace(/<[^>]+>/g, '').trim());
       if (rawTitle && !rawTitle.toLowerCase().includes('duckduckgo') && rawTitle.length > 3) {
-        let cleaned = rawTitle
+        const cleaned = rawTitle
           .replace(/^Amazon\.[a-z.]+\s*:\s*/i, '')
           .replace(/:\s*Books$/i, '')
           .replace(/:\s*Kitaplar$/i, '')

@@ -355,7 +355,7 @@ export async function GET(req: Request) {
     const memberBreakdown = Object.entries(memberSpending).map(([key, spent]) => {
       let name = 'Ortak / Diğer';
       let avatar = '👥';
-      let memberId = key;
+      const memberId = key;
 
       if (key.startsWith('user-')) {
         const uId = key.replace('user-', '');

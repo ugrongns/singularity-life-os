@@ -544,7 +544,7 @@ export async function POST(req: Request) {
       } else if (text.startsWith('/su')) {
         const parts = text.split(' ');
         const ml = parseInt(parts[1], 10) || 250;
-        let profile = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, targetUser.id)).limit(1))[0];
+        const profile = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, targetUser.id)).limit(1))[0];
         const current = (profile?.consumed_water_ml || 0) + ml;
         if (profile?.id) {
           await db.update(userHealthProfile)

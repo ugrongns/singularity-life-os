@@ -215,7 +215,7 @@ SADECE geçerli bir JSON çıktısı üret, markdown veya açıklama yazma.`;
           const durationCentiseconds = parsed.duration_centiseconds !== undefined ? Math.round(Number(parsed.duration_centiseconds)) : Math.round(Number(durationSeconds) * 100);
           const durationMinutes = Math.round(durationSeconds / 60) || 30;
 
-          let distanceKm = Number(parsed.distance_km) || 0;
+          const distanceKm = Number(parsed.distance_km) || 0;
           let distanceMeters = parsed.distance_meters !== undefined ? Number(parsed.distance_meters) : undefined;
           let distanceCm = parsed.distance_cm !== undefined ? Number(parsed.distance_cm) : undefined;
           let formattedDistance = parsed.distance_text || undefined;

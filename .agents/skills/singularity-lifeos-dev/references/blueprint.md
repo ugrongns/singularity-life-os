@@ -1,3 +1,6 @@
+> **[TARİHSEL ALAN REFERANSI — ALTYAPI VARSAYIMLARI ESKİDİR]**  
+> Bu dosya `08.08.2026` tarihli v2.1 taslağıdır. Yalnızca alan iş kuralları (MTV takvimi, TÜFE kira artışı, WPM hesabı vb.) için referans alınmalıdır; Windows self-hosting veya offline-sync bölümleri geçersizdir. Güncel mimari için `AGENTS.md` ve `../SKILL.md` geçerlidir.
+
 # 🌌 SINGULARITY - KİŞİSEL & AİLE YAŞAM İŞLETİM SİSTEMİ (LIFE OS)
 ## Master Proje Beyin Fırtınası, Mimari Taslak, Karar Kayıtları & Yol Haritası (Blueprint) — v2 (Uzman Değerlendirmesi Entegre Edildi)
 

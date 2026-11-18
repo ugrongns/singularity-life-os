@@ -1,3 +1,6 @@
+> **[TARİHSEL ARŞİV — GÜNCEL ŞARTNAME DEĞİLDİR]**  
+> Bu doküman `31 Ağustos 2026` tarihli erken sürüm referansıdır (`28 tablo` dönemine aittir). Canlı sistemde şema `src/db/schema.ts` altında **44 tabloya** çıkmış, `Tasks/Odak` vb. modüller eklenmiştir. Güncel mimari ve kurallar için `AGENTS.md`, `PROJECT_STATE.md` ve `.agents/skills/singularity-lifeos-dev/SKILL.md` dosyalarını baz alın.
+
 # 🌌 SINGULARITY LIFE OS — KAPSAMLI SİSTEM & MİMARİ MASTER RAPORU
 > **Doküman Türü:** Master Sistem Mimarisi, Veritabanı Şeması, API Kataloğu & Taşınabilirlik (Porting) Rehberi  
 > **Versiyon:** v3.0 Production Ready  

@@ -32,8 +32,8 @@ export async function POST(req: Request) {
     const now = nowDate.toISOString();
     const txDate = transaction_date || localYYYYMMDD(nowDate);
 
-    let txId = `tx_trf_out_${crypto.randomUUID()}`;
-    let txInId = `tx_trf_in_${crypto.randomUUID()}`;
+    const txId = `tx_trf_out_${crypto.randomUUID()}`;
+    const txInId = `tx_trf_in_${crypto.randomUUID()}`;
     let isCardPayment = false;
     let fromAccName = '';
     let toAccName = '';

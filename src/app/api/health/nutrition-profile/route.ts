@@ -1075,7 +1075,7 @@ function scaleNutrientData(data: any, targetGrams: number) {
     if (Array.isArray(scaled[catKey])) {
       scaled[catKey] = scaled[catKey].map((item: any) => {
         let valStr = item.value || '';
-        let numMatch = valStr.match(/([\d.]+)/);
+        const numMatch = valStr.match(/([\d.]+)/);
         if (numMatch) {
           const num = parseFloat(numMatch[1]);
           const newNum = Math.round(num * ratio * 10) / 10;
