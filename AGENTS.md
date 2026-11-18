@@ -35,6 +35,7 @@ Bir modül veya değişiklik denetlenirken sonsuz düzeltme döngüsüne girmeme
 
 ## 5. Proje Bağlamı ve Doküman Haritası
 - **Domain ve Modül Kuralları:** `.agents/skills/singularity-lifeos-dev/SKILL.md`
+- **Tek Komutlu Denetim (`!denetle`, `!denetle güvenlik`, `!denetle görsel`, `!denetle <modül>`, `!denetle hepsi`):** `.agents/skills/singularity-audit/SKILL.md`
 - **Genel Çalışma Anayasası (`!durum`, `!plan`, `!bitti`):** `.agents/skills/ugur-core-constitution/SKILL.md`
 - **Canlı Proje Durumu (yalnızca büyük kilometre taşlarında güncellenir):** `PROJECT_STATE.md`
 - **Tarihsel Arşiv (Güncel Şartname Değildir):** `PROJECT_BLUEPRINT.md` ve `SINGULARITY_MASTER_SPECIFICATION.md`

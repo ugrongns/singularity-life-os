@@ -32,6 +32,7 @@
   - `eslint`, `eslint-config-next@15.5.23` ve `@eslint/eslintrc` kuruldu; `eslint.config.mjs` oluşturuldu.
   - Tespit edilen 1 adet gerçek `react-hooks/rules-of-hooks` hatası (`BookDetailModal.tsx`) ve 12 adet `prefer-const` hatası düzeltildi; `npm run lint` artık `npm run verify` ve `npm run verify:full` içinde zorunlu kapıdır.
   - `AGENTS.md` ve `singularity-lifeos-dev/SKILL.md` hibrit onay, Kritik/Bloker + en fazla 3 salt-okunur opsiyonel not, UI'da canlı tarayıcı doğrulaması ve onaysız commit/push yasağı kurallarına göre hizalandı.
+  - Dinamik keşifli tek komut denetim rehberi `.agents/skills/singularity-audit/SKILL.md` (`!denetle`) eklendi.
 
 ---
 
