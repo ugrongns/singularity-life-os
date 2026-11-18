@@ -574,12 +574,15 @@ export async function POST(req: Request) {
       const subtasksJson = Array.isArray(body.subtasks)
         ? JSON.stringify(body.subtasks)
         : (body.subtasks_json || '[]');
+      const initialStatus = body.status === 'in_progress' || body.status === 'completed' ? body.status : 'pending';
+      const initialCompletedAt = initialStatus === 'completed' ? nowISO : null;
+      const initialFocusStartedAt = initialStatus === 'in_progress' ? nowISO : null;
 
-      await db.insert(tasks).values({
+      const newTaskValues = {
         id: taskId,
         title,
         description: body.description ? String(body.description).trim() : null,
-        status: body.status === 'in_progress' || body.status === 'completed' ? body.status : 'pending',
+        status: initialStatus,
         priority: validated.priority || 'medium',
         pillar: validated.pillar || 'general',
         is_mit: isMit,
@@ -591,12 +594,19 @@ export async function POST(req: Request) {
         assigned_member_id: assignedMemberId,
         source_module: body.source_module || 'manual',
         source_ref_id: body.source_ref_id || null,
-        completed_at: null,
+        completed_at: initialCompletedAt,
+        focus_started_at: initialFocusStartedAt,
         user_id: userId,
         family_id: familyId,
         created_at: nowISO,
         updated_at: nowISO
-      });
+      };
+
+      await db.insert(tasks).values(newTaskValues);
+
+      if (initialStatus === 'completed') {
+        await notifyTaskCompleted(newTaskValues as unknown as TaskRow, 0, nowISO, userId, familyId);
+      }
 
       return NextResponse.json({
         success: true,
@@ -1018,10 +1028,10 @@ export async function POST(req: Request) {
       );
       const nowDate = new Date(nowISO);
 
-      // Kullanıcının başka açık in_progress görevi varsa kısmi süresini kaydedip beklemeye al
+      // Görünür diğer in_progress görevi varsa kısmi süresini kaydedip beklemeye al (aynı anda tek aktif sayaç)
       const otherRunningTasks = await db.select().from(tasks).where(
         and(
-          eq(tasks.user_id, userId),
+          getVisibleTasksWhere(userId, familyId),
           eq(tasks.status, 'in_progress'),
           ne(tasks.id, taskId)
         )
@@ -1237,7 +1247,7 @@ export async function POST(req: Request) {
       const sourceModule = body.source_module ? String(body.source_module).trim() : 'manual';
       const sourceRefId = body.source_ref_id ? String(body.source_ref_id).trim() : null;
 
-      // Kaynak mahremiyet ve sahiplik doğrulaması (kişisel kasa/kart/araç kayıtları aileye sızmamalı)
+      // Kaynak mahremiyet ve sahiplik doğrulaması (kişisel kasa/kart/fatura/araç/ev kayıtları aile dışına sızmamalı)
       let resolvedFamilyShared = body.is_family_shared !== undefined ? (body.is_family_shared ? 1 : 0) : 1;
       if (sourceModule === 'vault' && sourceRefId) {
         const vaultRow = (await db.select({
@@ -1269,6 +1279,30 @@ export async function POST(req: Request) {
           resolvedFamilyShared = (cardRow.is_family_shared === 1 || !cardRow.user_id) ? 1 : 0;
         } else {
           resolvedFamilyShared = 0;
+        }
+      } else if (sourceModule === 'finance' && sourceRefId) {
+        const billRow = (await db.select({
+          user_id: recurringBills.user_id,
+          family_id: recurringBills.family_id
+        }).from(recurringBills).where(eq(recurringBills.id, sourceRefId)).limit(1))[0];
+        if (billRow) {
+          const canAccess = billRow.user_id === userId || (Boolean(billRow.family_id) && billRow.family_id === familyId);
+          if (!canAccess) {
+            return NextResponse.json({ success: false, error: 'Bu kaynağa erişim yetkiniz yok.' }, { status: 403 });
+          }
+          resolvedFamilyShared = 1;
+        }
+      } else if (sourceModule === 'home' && sourceRefId) {
+        const homeRow = (await db.select({
+          user_id: homeMaintenanceRecords.user_id,
+          family_id: homeMaintenanceRecords.family_id
+        }).from(homeMaintenanceRecords).where(eq(homeMaintenanceRecords.id, sourceRefId)).limit(1))[0];
+        if (homeRow) {
+          const canAccess = homeRow.user_id === userId || (Boolean(homeRow.family_id) && homeRow.family_id === familyId);
+          if (!canAccess) {
+            return NextResponse.json({ success: false, error: 'Bu kaynağa erişim yetkiniz yok.' }, { status: 403 });
+          }
+          resolvedFamilyShared = 1;
         }
       } else if (sourceModule === 'vehicle' && sourceRefId) {
         const vehRow = (await db.select({

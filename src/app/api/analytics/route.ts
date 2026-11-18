@@ -44,7 +44,7 @@ export async function GET() {
     const last7Days = shiftTurkeyDate(today, -6);
 
     // ==========================================
-    // 1. 💰 FİNANSAL SAĞLIK SKORU (0 - 25 Puan)
+    // 1. 💰 FİNANSAL SAĞLIK SKORU (Ham: 0 - 25, Bütünsel Matris: 0 - 20)
     // ==========================================
     let liquidBalance = 0;
     let ccDebt = 0;
@@ -154,7 +154,7 @@ export async function GET() {
     }
 
     // ==========================================
-    // 2. 🩺 SAĞLIK & BESLENME SKORU (0 - 25 Puan)
+    // 2. 🩺 SAĞLIK & BESLENME SKORU (Ham: 0 - 25, Bütünsel Matris: 0 - 20)
     // ==========================================
     let healthScore = 0;
     try {
@@ -191,7 +191,7 @@ export async function GET() {
     } catch (e) {}
 
     // ==========================================
-    // 3. 🧘 WELLNESS & RUH HALİ SKORU (0 - 25 Puan)
+    // 3. 🧘 WELLNESS & RUH HALİ SKORU (Ham: 0 - 25, Bütünsel Matris: 0 - 20)
     // ==========================================
     let wellnessScore = 0;
     try {
@@ -229,7 +229,7 @@ export async function GET() {
     } catch (e) {}
 
     // ==========================================
-    // 4. 📚 ZİHİN & İKİNCİ BEYİN SKORU (0 - 25 Puan)
+    // 4. 📚 ZİHİN & İKİNCİ BEYİN SKORU (Ham: 0 - 25, Bütünsel Matris: 0 - 20)
     // ==========================================
     let mindScore = 0;
     try {
@@ -283,59 +283,49 @@ export async function GET() {
         pillar: 'finance',
         score: finance20,
         max: 20,
-        gap: 20 - finance20,
+        gap: Math.max(0, 20 - finance20),
         title: 'Bütçe & Harcama Disiplini',
         desc: totalSpentThisMonth > totalBudgetLimit && totalBudgetLimit > 0
           ? 'Bu ayki harcamaları bütçe limiti altına çekerek disiplin puanını yükseltin.'
           : 'Harcamalarınızı kategorilere dağıtarak aylık bütçe disiplinini koruyun.',
-        impact: '+6 Puan',
-        scoreGain: 6,
         link: '/budget'
       },
       {
         pillar: 'health',
         score: health20,
         max: 20,
-        gap: 20 - health20,
+        gap: Math.max(0, 20 - health20),
         title: 'Su & Beslenme Kaydı',
         desc: 'Günlük 2.5L su hedefini tamamlayın ve bugün en az 1 öğün veya oruç kaydı girin.',
-        impact: '+5 Puan',
-        scoreGain: 5,
         link: '/health'
       },
       {
         pillar: 'wellness',
         score: wellness20,
         max: 20,
-        gap: 20 - wellness20,
+        gap: Math.max(0, 20 - wellness20),
         title: 'Uyku & Takviye Rutini',
         desc: 'Günlük takviyelerinizi aldım olarak işaretleyin ve 7-8 saatlik uyku seansını kaydedin.',
-        impact: '+4 Puan',
-        scoreGain: 4,
         link: '/wellness'
       },
       {
         pillar: 'mind',
         score: mind20,
         max: 20,
-        gap: 20 - mind20,
+        gap: Math.max(0, 20 - mind20),
         title: 'Okuma Seansı & Alıntı',
         desc: 'Aktif kitabınızdan 15 dakikalık okuma seansı başlatın veya 1 yeni alıntı kaydedin.',
-        impact: '+6 Puan',
-        scoreGain: 6,
         link: '/library'
       },
       {
         pillar: 'focus',
         score: focus20,
         max: 20,
-        gap: 20 - focus20,
+        gap: Math.max(0, 20 - focus20),
         title: 'Günlük Odak (MIT) & Görev Disiplini',
         desc: focusStats.todayMitTotal > 0 && focusStats.todayMitCompleted < focusStats.todayMitTotal
           ? `Bugünkü ${focusStats.todayMitTotal} odak görevinizden kalanları veya bir Pomodoro seansını tamamlayın.`
           : 'Günün 3 Odağını (MIT) belirleyip Pomodoro sayacıyla tamamlayarak yürütme puanınızı yükseltin.',
-        impact: '+6 Puan',
-        scoreGain: 6,
         link: '/tasks'
       }
     ];
@@ -346,8 +336,8 @@ export async function GET() {
       .map(a => ({
         title: a.title,
         desc: a.desc,
-        impact: a.impact,
-        scoreGain: a.scoreGain,
+        impact: a.gap > 0 ? `+${a.gap} Puan` : 'Tamamlandı',
+        scoreGain: a.gap,
         pillar: a.pillar,
         link: a.link,
         isCompleted: a.gap <= 0
@@ -356,7 +346,7 @@ export async function GET() {
     // ==========================================
     // 5. 🎯 FIRE (FİNANSAL ÖZGÜRLÜK) ANALİTİĞİ
     // ==========================================
-    const currentDayOfMonth = Math.max(1, new Date().getDate());
+    const currentDayOfMonth = Math.max(1, Number(today.slice(8, 10)) || 1);
     const monthlyLivingExpenseEst = calculateNormalizedMonthlyExpense(
       totalSpentThisMonth,
       currentDayOfMonth,
@@ -398,10 +388,9 @@ export async function GET() {
     // ==========================================
     // 6. 📈 KİŞİSEL ENFLASYON ENDEKSİ (Geçen aya göre harcama sepeti değişimi)
     // ==========================================
-    const prevMonthDate = new Date(today);
-    prevMonthDate.setDate(1);
-    prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
-    const prevMonthStr = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
+    const [curYear, curMonth] = today.split('-').map(Number);
+    const prevMonthDate = new Date(Date.UTC(curYear, curMonth - 2, 1, 12, 0, 0));
+    const prevMonthStr = `${prevMonthDate.getUTCFullYear()}-${String(prevMonthDate.getUTCMonth() + 1).padStart(2, '0')}`;
     const prevMonthExpense = txsList
       .filter((t: any) => t.transaction_date && t.transaction_date.startsWith(prevMonthStr) && !(t.category_id && incomeCatIds.has(t.category_id)) && !t.merchant?.startsWith('🔄 Transfer') && !t.merchant?.startsWith('💳 Kart Ödemesi'))
       .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);

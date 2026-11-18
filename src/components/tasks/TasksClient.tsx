@@ -217,7 +217,7 @@ export default function TasksClient({
           const allDone = updatedSubtasks.length > 0 && completedCount === updatedSubtasks.length;
           const wasDone = t.status === 'completed';
           const statusPatch = allDone && !wasDone
-            ? { status: 'completed' as const, completed_at: new Date().toISOString() }
+            ? { status: 'completed' as const, completed_at: new Date().toISOString(), focus_started_at: null }
             : !allDone && wasDone
               ? { status: 'pending' as const, completed_at: null }
               : {};
@@ -310,7 +310,8 @@ export default function TasksClient({
   };
 
   const handleMaterializeRecurrence = (vr: VirtualRecurrenceItem) => {
-    setEditingTask(buildMaterializedRecurrenceDraft(vr) as any);
+    const templateTask = tasks.find(t => t.id === vr.sourceTaskId) || null;
+    setEditingTask(buildMaterializedRecurrenceDraft(vr, templateTask) as any);
     setIsModalOpen(true);
   };
 
@@ -1725,6 +1726,11 @@ export default function TasksClient({
                           {focusCountdown && (
                             <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--emerald-bg)', color: '#10B981', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px', fontVariantNumeric: 'tabular-nums' }}>
                               <Timer size={10} /> {focusCountdown.isFinished ? 'Süre Doldu!' : `Odakta • ${focusCountdown.formattedRemaining}`}
+                            </span>
+                          )}
+                          {!focusCountdown && task.status === 'in_progress' && (
+                            <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.14)', color: '#F59E0B', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                              <Timer size={10} /> Devam Ediyor
                             </span>
                           )}
                           {focusSummary && (

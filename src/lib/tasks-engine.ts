@@ -379,9 +379,13 @@ export function getOverdueTasks<T extends Pick<TaskItem, 'status' | 'due_date'>>
 
 /**
  * Sanal tekrarlayan rutin önizlemesini tekil görev taslağına dönüştürür (AddTaskModal ön-dolumu için).
+ * Kaynak şablon görev verilirse açıklama, sıfırlanmış alt adımlar ve aile paylaşımı bilgilerini de kalıtır.
  */
-export function buildMaterializedRecurrenceDraft(vr: VirtualRecurrenceItem): Partial<TaskItem> {
-  return {
+export function buildMaterializedRecurrenceDraft(
+  vr: VirtualRecurrenceItem,
+  templateTask?: Pick<TaskItem, 'description' | 'subtasks' | 'subtasks_json' | 'is_family_shared' | 'assigned_member_id'> | null
+): Partial<TaskItem> {
+  const base: Partial<TaskItem> = {
     title: vr.title,
     pillar: vr.pillar,
     priority: vr.priority,
@@ -389,6 +393,19 @@ export function buildMaterializedRecurrenceDraft(vr: VirtualRecurrenceItem): Par
     due_time: vr.due_time || null,
     is_mit: vr.is_mit,
     recurrence: 'none'
+  };
+  if (!templateTask) return base;
+  const sourceSubtasks = templateTask.subtasks && templateTask.subtasks.length > 0
+    ? templateTask.subtasks
+    : parseSubtasks(templateTask.subtasks_json);
+  return {
+    ...base,
+    ...(templateTask.description ? { description: templateTask.description } : {}),
+    ...(sourceSubtasks.length > 0
+      ? { subtasks: sourceSubtasks.map(s => ({ ...s, is_completed: false })) }
+      : {}),
+    is_family_shared: templateTask.is_family_shared,
+    assigned_member_id: templateTask.assigned_member_id ?? null
   };
 }
 

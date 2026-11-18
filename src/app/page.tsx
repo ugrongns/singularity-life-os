@@ -1,5 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { ArrowRight, X } from 'lucide-react';
+import type { CrossModuleFollowUp } from '@/lib/tasks-engine';
 import SharedLayout from '@/components/layout/SharedLayout';
 import LandingPage from '@/components/landing/LandingPage';
 
@@ -29,6 +32,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [completedTaskFollowUp, setCompletedTaskFollowUp] = useState<(CrossModuleFollowUp & { taskTitle: string }) | null>(null);
 
   // Modaller
   const [isSessionOpen, setIsSessionOpen] = useState(false);
@@ -129,6 +133,15 @@ export default function HomePage() {
       const json = await res.json();
       if (json.success) {
         showToast(json.message || '🎯 Görev tamamlandı!');
+        if (json.data?.follow_up_action) {
+          const matchedTitle = Array.isArray(tasksData?.tasks)
+            ? tasksData.tasks.find((t: any) => t.id === taskId)?.title
+            : undefined;
+          setCompletedTaskFollowUp({
+            taskTitle: matchedTitle || 'Tamamlanan Görev',
+            ...json.data.follow_up_action
+          });
+        }
         handleUpdate();
       } else {
         showToast(json.error || 'Görev güncellenemedi.');
@@ -177,6 +190,72 @@ export default function HomePage() {
       {toastMsg && (
         <div className="toast-glass" role="status" aria-live="polite">
           {toastMsg}
+        </div>
+      )}
+
+      {/* Çift Yönlü Köprü Onay Kısayolu (Ana Sayfa Hızlı Tamamlama Sonrası) */}
+      {completedTaskFollowUp && (
+        <div
+          className="card"
+          role="region"
+          aria-label="Bağlı modül onay kısayolu"
+          style={{
+            marginBottom: '12px',
+            padding: '12px 16px',
+            borderColor: 'rgba(236, 72, 153, 0.45)',
+            background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.1), rgba(59, 130, 246, 0.06))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '10px'
+          }}
+        >
+          <div style={{ minWidth: 0, flex: '1 1 220px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+              🌉 &ldquo;{completedTaskFollowUp.taskTitle}&rdquo; tamamlandı — Kaynak Modüle İşle
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+              {completedTaskFollowUp.description}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            <Link
+              href={completedTaskFollowUp.href}
+              className="btn-primary"
+              style={{
+                fontSize: '11px',
+                padding: '6px 12px',
+                textDecoration: 'none',
+                fontWeight: 800,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <span>{completedTaskFollowUp.label}</span>
+              <ArrowRight size={12} />
+            </Link>
+            <button
+              type="button"
+              onClick={() => setCompletedTaskFollowUp(null)}
+              aria-label="Kısayolu kapat"
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '6px',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text-muted)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+            >
+              <X size={14} />
+            </button>
+          </div>
         </div>
       )}
 

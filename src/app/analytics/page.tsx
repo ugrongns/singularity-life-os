@@ -95,7 +95,7 @@ export default function AnalyticsPage() {
             Analitik Verileri Henüz Hazır Değil
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '420px', margin: '0 auto 20px', lineHeight: 1.5 }}>
-            Bütünsel Yaşam Skoru ve FIRE projeksiyonunuzun hesaplanabilmesi için finans, sağlık, wellness veya kütüphane modüllerine ilk kayıtlarınızı ekleyin.
+            Bütünsel Yaşam Skoru ve FIRE projeksiyonunuzun hesaplanabilmesi için finans, sağlık, wellness, kütüphane veya görev &amp; odak modüllerine ilk kayıtlarınızı ekleyin.
           </p>
           <button
             onClick={fetchData}
