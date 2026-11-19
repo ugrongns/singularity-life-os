@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { homeMaintenanceRecords, homeAppliances } from '@/db/schema';
-import { desc, eq, and, or } from 'drizzle-orm';
+import { eq, and, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { getTodayTurkeyDate } from '@/lib/date-utils';
 
@@ -155,6 +155,10 @@ export async function POST(req: Request) {
 
       const purchaseDate = getTodayTurkeyDate(basePurchaseDate);
       const expiryDate = addMonthsSafe(basePurchaseDate, warrantyMonths);
+      const rawReceipt = typeof data.receipt_url === 'string' ? data.receipt_url.trim() : '';
+      const safeReceiptUrl = /^(data:(image\/|application\/pdf)|https:\/\/|\/uploads\/)/i.test(rawReceipt)
+        ? rawReceipt
+        : null;
 
       await db.insert(homeAppliances).values({
         id,
@@ -165,6 +169,7 @@ export async function POST(req: Request) {
         warranty_months: warrantyMonths,
         warranty_expiry_date: expiryDate,
         service_phone: data.service_phone || '',
+        receipt_url: safeReceiptUrl,
         notes: data.notes || '',
         user_id: user.id,
         family_id: familyId,

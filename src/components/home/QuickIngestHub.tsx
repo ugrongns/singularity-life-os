@@ -75,40 +75,19 @@ export default function QuickIngestHub({
       </div>
 
       {/* 2x2 Dokunsal Grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: '10px',
-          width: '100%'
-        }}
-      >
+      <div className="quick-ingest-grid">
         {/* 1. Sesli Komut */}
         <button
           type="button"
           onClick={onOpenVoiceCommand}
-          className="touch-target"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '12px 14px',
-            background: 'var(--surface-subtle)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            color: 'var(--text-main)',
-            cursor: 'pointer',
-            textAlign: 'left',
-            transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-            minHeight: '52px'
-          }}
+          className="touch-target quick-ingest-tile"
         >
-          <div className="icon-badge icon-badge-indigo" style={{ width: '32px', height: '32px', borderRadius: '8px' }}>
+          <div className="icon-badge icon-badge-indigo" style={{ width: '32px', height: '32px', minWidth: '32px', minHeight: '32px', borderRadius: '8px' }}>
             <Mic size={16} strokeWidth={1.75} />
           </div>
-          <div>
-            <div style={{ fontSize: '12px', fontWeight: 700 }}>Sesli Komut</div>
-            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Yapay Zeka</div>
+          <div style={{ minWidth: 0, width: '100%' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, lineHeight: 1.25 }}>Sesli Komut</div>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.25 }}>Yapay Zeka</div>
           </div>
         </button>
 
@@ -116,28 +95,14 @@ export default function QuickIngestHub({
         <button
           type="button"
           onClick={onOpenReceiptScan}
-          className="touch-target"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '12px 14px',
-            background: 'var(--surface-subtle)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            color: 'var(--text-main)',
-            cursor: 'pointer',
-            textAlign: 'left',
-            transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-            minHeight: '52px'
-          }}
+          className="touch-target quick-ingest-tile"
         >
-          <div className="icon-badge icon-badge-emerald" style={{ width: '32px', height: '32px', borderRadius: '8px' }}>
+          <div className="icon-badge icon-badge-emerald" style={{ width: '32px', height: '32px', minWidth: '32px', minHeight: '32px', borderRadius: '8px' }}>
             <ReceiptText size={16} strokeWidth={1.75} />
           </div>
-          <div>
-            <div style={{ fontSize: '12px', fontWeight: 700 }}>Fiş / QR Tara</div>
-            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Otomatik Gider</div>
+          <div style={{ minWidth: 0, width: '100%' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, lineHeight: 1.25 }}>Fiş / QR Tara</div>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.25 }}>Otomatik Gider</div>
           </div>
         </button>
 
@@ -145,28 +110,14 @@ export default function QuickIngestHub({
         <button
           type="button"
           onClick={onOpenFoodScan}
-          className="touch-target"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '12px 14px',
-            background: 'var(--surface-subtle)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            color: 'var(--text-main)',
-            cursor: 'pointer',
-            textAlign: 'left',
-            transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-            minHeight: '52px'
-          }}
+          className="touch-target quick-ingest-tile"
         >
-          <div className="icon-badge icon-badge-amber" style={{ width: '32px', height: '32px', borderRadius: '8px' }}>
+          <div className="icon-badge icon-badge-amber" style={{ width: '32px', height: '32px', minWidth: '32px', minHeight: '32px', borderRadius: '8px' }}>
             <Camera size={16} strokeWidth={1.75} />
           </div>
-          <div>
-            <div style={{ fontSize: '12px', fontWeight: 700 }}>Tabak Tara</div>
-            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Makro & Kalori</div>
+          <div style={{ minWidth: 0, width: '100%' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, lineHeight: 1.25 }}>Tabak Tara</div>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.25 }}>Makro & Kalori</div>
           </div>
         </button>
 
@@ -174,28 +125,14 @@ export default function QuickIngestHub({
         <button
           type="button"
           onClick={onOpenBarcodeScan || onOpenReceiptScan}
-          className="touch-target"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '12px 14px',
-            background: 'var(--surface-subtle)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            color: 'var(--text-main)',
-            cursor: 'pointer',
-            textAlign: 'left',
-            transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-            minHeight: '52px'
-          }}
+          className="touch-target quick-ingest-tile"
         >
-          <div className="icon-badge icon-badge-blue" style={{ width: '32px', height: '32px', borderRadius: '8px' }}>
+          <div className="icon-badge icon-badge-blue" style={{ width: '32px', height: '32px', minWidth: '32px', minHeight: '32px', borderRadius: '8px' }}>
             <ScanLine size={16} strokeWidth={1.75} />
           </div>
-          <div>
-            <div style={{ fontSize: '12px', fontWeight: 700 }}>Barkod Tara</div>
-            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Gıda / Kitap / QR</div>
+          <div style={{ minWidth: 0, width: '100%' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, lineHeight: 1.25 }}>Barkod Tara</div>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.25 }}>Gıda / Kitap / QR</div>
           </div>
         </button>
       </div>

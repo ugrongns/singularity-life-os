@@ -132,18 +132,33 @@ export default function AddHomeItemModal({ isOpen, onClose, onSuccess }: AddHome
           <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-main)' }}>
             🏠 Ev Operasyonu & Garanti Kaydı
           </div>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✕</button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Kapat"
+            style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-main)' }}
+          >
+            ✕
+          </button>
         </div>
 
         {/* Sekme Butonları */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', background: 'var(--surface-subtle)', padding: '4px', borderRadius: 'var(--radius-md)' }}>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', background: 'var(--surface-subtle)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
           <button
             type="button"
             onClick={() => setTab('appliance')}
             style={{
-              flex: 1, padding: '8px', fontSize: '12px', fontWeight: 800, borderRadius: '6px', border: 'none',
-              background: tab === 'appliance' ? 'white' : 'transparent',
-              color: tab === 'appliance' ? 'var(--text-main)' : 'var(--text-muted)', cursor: 'pointer', boxShadow: tab === 'appliance' ? 'var(--shadow-sm)' : 'none'
+              flex: 1,
+              padding: '8px',
+              fontSize: '12px',
+              fontWeight: 800,
+              borderRadius: '6px',
+              border: 'none',
+              background: tab === 'appliance' ? 'var(--blue)' : 'transparent',
+              color: tab === 'appliance' ? '#FFFFFF' : 'var(--text-muted)',
+              cursor: 'pointer',
+              boxShadow: tab === 'appliance' ? 'var(--shadow-sm)' : 'none',
+              transition: 'all 0.15s ease'
             }}
           >
             📺 Demirbaş / Garanti
@@ -152,9 +167,17 @@ export default function AddHomeItemModal({ isOpen, onClose, onSuccess }: AddHome
             type="button"
             onClick={() => setTab('maintenance')}
             style={{
-              flex: 1, padding: '8px', fontSize: '12px', fontWeight: 800, borderRadius: '6px', border: 'none',
-              background: tab === 'maintenance' ? 'white' : 'transparent',
-              color: tab === 'maintenance' ? 'var(--text-main)' : 'var(--text-muted)', cursor: 'pointer', boxShadow: tab === 'maintenance' ? 'var(--shadow-sm)' : 'none'
+              flex: 1,
+              padding: '8px',
+              fontSize: '12px',
+              fontWeight: 800,
+              borderRadius: '6px',
+              border: 'none',
+              background: tab === 'maintenance' ? 'var(--blue)' : 'transparent',
+              color: tab === 'maintenance' ? '#FFFFFF' : 'var(--text-muted)',
+              cursor: 'pointer',
+              boxShadow: tab === 'maintenance' ? 'var(--shadow-sm)' : 'none',
+              transition: 'all 0.15s ease'
             }}
           >
             💧 Periyodik Bakım Görevi
@@ -165,15 +188,26 @@ export default function AddHomeItemModal({ isOpen, onClose, onSuccess }: AddHome
           {tab === 'appliance' ? (
             <>
               {/* AI Fatura Okuyucu Banner */}
-              <div style={{ background: '#EEF2FF', border: '1px border #C7D2FE', padding: '10px 12px', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 800, color: '#3730A3' }}>📸 Fatura Fotoğrafı Okut (AI)</div>
-                  <div style={{ fontSize: '10px', color: '#4338CA', marginTop: '2px' }}>Fatura veya garanti belgesini çekin, tüm alanlar otomatik dolsun.</div>
+              <div
+                style={{
+                  background: 'var(--indigo-bg)',
+                  border: '1px solid rgba(99, 102, 241, 0.35)',
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}
+              >
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--indigo)' }}>📸 Fatura Fotoğrafı Okut (AI)</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Fatura veya garanti belgesini çekin, tüm alanlar otomatik dolsun.</div>
                 </div>
 
                 <label style={{
-                  background: '#4F46E5', color: 'white', padding: '6px 12px', borderRadius: '6px',
-                  fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center'
+                  background: 'var(--indigo)', color: '#FFFFFF', padding: '6px 12px', borderRadius: '6px',
+                  fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', flexShrink: 0, whiteSpace: 'nowrap'
                 }}>
                   <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleScanInvoice} disabled={scanningAI} />
                   <span>{scanningAI ? 'Okunuyor...' : 'Görsel Seç'}</span>
@@ -181,9 +215,9 @@ export default function AddHomeItemModal({ isOpen, onClose, onSuccess }: AddHome
               </div>
 
               {receiptUrl && (
-                <div style={{ fontSize: '11px', color: '#059669', fontWeight: 700, background: '#ECFDF5', padding: '6px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: '11px', color: 'var(--emerald)', fontWeight: 700, background: 'var(--emerald-bg)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '6px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>✓ Fatura Görseli Yüklendi</span>
-                  <a href={receiptUrl} target="_blank" rel="noreferrer" style={{ color: '#059669', textDecoration: 'underline' }}>Görüntüle</a>
+                  <a href={receiptUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--emerald)', textDecoration: 'underline' }}>Görüntüle</a>
                 </div>
               )}
 

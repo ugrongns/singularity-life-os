@@ -184,14 +184,17 @@ export default function TimeContextualFeed({
     });
   }
 
-  // Su Tüketimi Kontrolü
-  const waterConsumed = wellnessData?.todayWater?.amount_ml ?? 0;
-  if (waterConsumed < 1500) {
+  // Su Tüketimi Kontrolü (Kullanıcının gerçek günlük su hedefi baz alınır)
+  const waterConsumed = Number(wellnessData?.todayWater?.amount_ml ?? 0);
+  const waterGoal = Number(wellnessData?.todayWater?.goal_ml) > 0
+    ? Number(wellnessData.todayWater.goal_ml)
+    : 2500;
+  if (waterConsumed < waterGoal) {
     actions.push({
       id: 'water-alert',
       level: 'warning',
       category: 'Hidrasyon',
-      title: `Su Hedefi: ${waterConsumed} / 2500 ml`,
+      title: `Su Hedefi: ${waterConsumed} / ${waterGoal} ml`,
       subtitle: 'Günün hidrasyon hedefine ulaşmak için su için',
       actionText: '+500ml Ekle',
       badge: 'HEDEF',
@@ -292,8 +295,18 @@ export default function TimeContextualFeed({
       }}
     >
       {/* Üst Karşılama Başlığı */}
-      <div className="card-header-block" style={{ marginBottom: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '12px',
+          width: '100%',
+          minWidth: 0
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
           <div
             className="icon-badge"
             style={{
@@ -303,8 +316,8 @@ export default function TimeContextualFeed({
           >
             {greetings[period].icon}
           </div>
-          <div>
-            <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h2 style={{ fontSize: 'clamp(14px, 3.8vw, 16px)', fontWeight: 800, color: 'var(--text-main)', margin: 0, lineHeight: 1.25 }}>
               {greetings[period].title}
             </h2>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -313,7 +326,7 @@ export default function TimeContextualFeed({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           <span
             className="tabular-nums"
             style={{
@@ -323,7 +336,8 @@ export default function TimeContextualFeed({
               background: 'var(--surface-subtle)',
               padding: '4px 8px',
               borderRadius: 'var(--radius-full)',
-              border: '1px solid var(--border)'
+              border: '1px solid var(--border)',
+              whiteSpace: 'nowrap'
             }}
           >
             🕒 {currentTimeStr}
@@ -402,7 +416,20 @@ export default function TimeContextualFeed({
                       {act.category}
                     </span>
                   </div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: 'var(--text-main)',
+                      marginTop: '2px',
+                      lineHeight: 1.3,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      wordBreak: 'break-word'
+                    }}
+                  >
                     {act.title}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px' }}>

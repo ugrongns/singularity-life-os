@@ -11,6 +11,7 @@ import { POST as handleTelegramPost, GET as handleTelegramGet } from '../src/app
 import { POST as handleVoiceCommandPost } from '../src/app/api/voice-command/route';
 import { POST as handleScanReceiptPost } from '../src/app/api/scan-receipt/route';
 import { POST as handleScanInvoicePost } from '../src/app/api/home-operations/scan-invoice/route';
+import { POST as handleHomeOperationsPost } from '../src/app/api/home-operations/route';
 import { POST as handleShoppingListScanReceipt } from '../src/app/api/shopping-list/scan-receipt/route';
 import { RESILIENT_GEMINI_MODELS, parseReceiptImage, parseVaultDocumentImage } from '../src/lib/ai-vision';
 import { parseTimeToCentiseconds, parseTimeToSeconds } from '../src/lib/workout-ocr';
@@ -690,6 +691,51 @@ describe('🎯 Modül 4 Denetim Raporu Bulguları Doğrulama Testleri (TDD Verif
       // public/uploads yoluna yazılmamalı, Data URI formatında dönmeli
       expect(json.receiptUrl).toMatch(/^data:image\/jpeg;base64,/);
       expect(json.receiptUrl).not.toContain('/uploads/');
+    });
+
+    it('POST /api/home-operations add_appliance güvenli receipt_url (data URI) alanını kaydetmeli, güvensiz (javascript:) şemaları null yapmalıdır', async () => {
+      (getAuthUser as any).mockResolvedValue({ id: 'user-1', family_id: 'fam-1' });
+
+      const insertedValues: any[] = [];
+      mockInsert.mockImplementation(() => ({
+        values: vi.fn((val: any) => {
+          insertedValues.push(val);
+          return Promise.resolve({ rowCount: 1 });
+        })
+      }));
+
+      // 1. Geçerli Data URI
+      const validDataUri = 'data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+      const reqValid = new Request('http://localhost:3000/api/home-operations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add_appliance',
+          name: 'Çamaşır Makinesi',
+          brand: 'Bosch',
+          warranty_months: 24,
+          receipt_url: validDataUri
+        })
+      });
+      const resValid = await handleHomeOperationsPost(reqValid);
+      const jsonValid = await resValid.json();
+      expect(jsonValid.success).toBe(true);
+      expect(insertedValues[0]?.receipt_url).toBe(validDataUri);
+
+      // 2. Güvensiz javascript: URI
+      const reqUnsafe = new Request('http://localhost:3000/api/home-operations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add_appliance',
+          name: 'Buzdolabı',
+          receipt_url: 'javascript:alert(1)'
+        })
+      });
+      const resUnsafe = await handleHomeOperationsPost(reqUnsafe);
+      const jsonUnsafe = await resUnsafe.json();
+      expect(jsonUnsafe.success).toBe(true);
+      expect(insertedValues[1]?.receipt_url).toBeNull();
     });
   });
 

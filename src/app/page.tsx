@@ -20,7 +20,6 @@ import AddHomeItemModal from '@/components/modals/AddHomeItemModal';
 export default function HomePage() {
   const [session, setSession] = useState<any>(null);
   const [budgetData, setBudgetData] = useState<any>(null);
-  const [vehicleData, setVehicleData] = useState<any>(null);
   const [libraryData, setLibraryData] = useState<any>(null);
   const [fastingData, setFastingData] = useState<any>(null);
   const [wellnessData, setWellnessData] = useState<any>(null);
@@ -61,7 +60,6 @@ export default function HomePage() {
 
       setSession(json.data.session);
       setBudgetData(json.data.budget);
-      setVehicleData(json.data.vehicles);
       setLibraryData(json.data.library);
       setFastingData(json.data.fasting);
       setWellnessData(json.data.wellness);

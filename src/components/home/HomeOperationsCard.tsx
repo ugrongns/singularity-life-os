@@ -123,6 +123,10 @@ export default function HomeOperationsCard({
           type="button"
           className="btn-primary"
           style={{
+            width: 'auto',
+            marginTop: 0,
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
             display: 'inline-flex',
             alignItems: 'center',
             gap: '4px',
