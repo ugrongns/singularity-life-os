@@ -110,12 +110,14 @@ export default function PlateScanModal({
           throw new Error('Görsel boyutu çok yüksek. Lütfen tekrar deneyin.');
         }
         const text = await res.text();
+        let parsedErr: string | null = null;
         try {
           const errJson = JSON.parse(text);
-          throw new Error(errJson.error || `Sunucu hatası (${res.status})`);
+          parsedErr = errJson.error || `Sunucu hatası (${res.status})`;
         } catch {
-          throw new Error(`Sunucu yanıt vermedi (${res.status}). Lütfen tekrar deneyin.`);
+          parsedErr = null;
         }
+        throw new Error(parsedErr || `Sunucu yanıt vermedi (${res.status}). Lütfen tekrar deneyin.`);
       }
 
       const json = await res.json();
@@ -139,6 +141,7 @@ export default function PlateScanModal({
   const handleSaveMeal = async () => {
     if (!parsedPlate) return;
     setIsSubmitting(true);
+    setErrorMsg(null);
     try {
       const res = await fetch('/api/health/nutrition', {
         method: 'POST',
@@ -170,11 +173,13 @@ export default function PlateScanModal({
         })
       });
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         onSuccess(json.message || `✅ ${parsedPlate.name} beslenmeye eklendi!`);
         handleClose();
+      } else {
+        setErrorMsg(json.error || 'Öğün kaydedilemedi. Lütfen değerleri kontrol edin.');
       }
-    } catch (err) {
+    } catch {
       setErrorMsg('Öğün kaydedilemedi. Tekrar deneyin.');
     } finally {
       setIsSubmitting(false);
@@ -418,6 +423,21 @@ export default function PlateScanModal({
           {/* 3. ADIM: ONAY & PORSİYON DÜZELTME SLIDER'I */}
           {step === 'confirm' && parsedPlate && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {errorMsg && (
+                <div
+                  style={{
+                    backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '10px 12px',
+                    fontSize: '12px',
+                    color: '#F43F5E',
+                    textAlign: 'left'
+                  }}
+                >
+                  ⚠️ {errorMsg}
+                </div>
+              )}
               {/* Fotoğraf ve Başlık Bento Kartı */}
               <div
                 style={{

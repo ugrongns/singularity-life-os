@@ -1754,6 +1754,59 @@ export async function learnFromSavedMeal({
   }
 }
 
+export interface HealthMemberScope {
+  authorized: boolean;
+  memberId: string | null;
+  isPrimarySelf: boolean;
+}
+
+/**
+ * Opsiyonel `member_id` parametresi için kullanıcı/aile erişim yetkisini (OWASP BOLA) doğrular.
+ * `requestedMemberId` verilmemişse ekstra DB sorgusu yapmadan tüm hane kapsamını döndürür.
+ */
+export async function resolveOptionalHealthMemberScope(
+  userId: string,
+  familyId: string | null,
+  requestedMemberId?: string | null
+): Promise<HealthMemberScope> {
+  const cleanRequested =
+    typeof requestedMemberId === 'string' && requestedMemberId.trim() && requestedMemberId.trim() !== 'all'
+      ? requestedMemberId.trim()
+      : null;
+
+  if (!cleanRequested) {
+    return { authorized: true, memberId: null, isPrimarySelf: true };
+  }
+
+  try {
+    const found = await db
+      .select({ id: familyMembers.id, user_id: familyMembers.user_id })
+      .from(familyMembers)
+      .where(
+        and(
+          eq(familyMembers.id, cleanRequested),
+          or(
+            eq(familyMembers.user_id, userId),
+            familyId ? eq(familyMembers.family_id, familyId) : undefined
+          )
+        )
+      )
+      .limit(1);
+
+    if (Array.isArray(found) && found.length > 0) {
+      return {
+        authorized: true,
+        memberId: found[0].id,
+        isPrimarySelf: found[0].user_id === userId,
+      };
+    }
+  } catch {
+    return { authorized: false, memberId: null, isPrimarySelf: false };
+  }
+
+  return { authorized: false, memberId: null, isPrimarySelf: false };
+}
+
 /**
  * İstekle gelen `member_id` değerinin kullanıcının kendi ailesine ait olduğunu (BOLA) doğrular.
  * `requestedMemberId` verilmemişse aktif kullanıcı/aile üyesini döner.

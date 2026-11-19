@@ -1,16 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
-
-interface ParsedDietText {
-  title: string;
-  meal_type: 'breakfast' | 'lunch' | 'dinner' | 'snack';
-  description: string;
-  checklist: string[];
-  calories: number;
-  protein_g: number;
-  carbs_g: number;
-  fat_g: number;
-}
+import { RESILIENT_GEMINI_MODELS } from '@/lib/ai-vision';
 
 export async function POST(req: Request) {
   try {
@@ -57,16 +47,9 @@ SADECE aşağıdaki JSON formatında çıktı üret, başka hiçbir açıklama y
   "fat_g": 18
 }`;
 
-        const MODELS = [
-          'gemini-flash-lite-latest',
-          'gemini-3.5-flash-lite',
-          'gemini-3-flash-preview',
-          'gemini-3.5-flash',
-          'gemini-flash-latest'
-        ];
         let jsonResult: any = null;
 
-        for (const modelName of MODELS) {
+        for (const modelName of RESILIENT_GEMINI_MODELS) {
           try {
             const geminiRes = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,

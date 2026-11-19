@@ -517,12 +517,14 @@ export default function FastingHistoryModal({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {filteredSessions.map((s: FastingSessionStats) => {
                     const startStr = new Date(s.startTime).toLocaleDateString('tr-TR', {
+                      timeZone: 'Europe/Istanbul',
                       day: 'numeric',
                       month: 'short',
                       hour: '2-digit',
                       minute: '2-digit'
                     });
                     const endStr = new Date(s.endTime).toLocaleTimeString('tr-TR', {
+                      timeZone: 'Europe/Istanbul',
                       hour: '2-digit',
                       minute: '2-digit'
                     });

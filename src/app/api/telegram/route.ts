@@ -7,6 +7,7 @@ import { getAuthUser } from '@/lib/auth';
 import { getTodayTurkeyDate } from '@/lib/date-utils';
 import { summarizeTodayMit } from '@/lib/tasks-engine';
 import { ensureFamilyCategories, resolveCategoryIdForFamily } from '@/lib/budget-categories';
+import { syncDailyWaterIntake } from '@/lib/health-water';
 
 const isNumericChatId = (val: unknown): boolean =>
   typeof val === 'string' && /^-?\d+$/.test(val.trim());
@@ -552,27 +553,17 @@ export async function POST(req: Request) {
           replyText = `🎯 *Görev Başarıyla Eklendi!*\n📌 ${taskTitle}\n📅 Vade: Bugün\n🏷️ Kategori: İş & Kariyer`;
         }
       } else if (text.startsWith('/su')) {
-        const parts = text.split(' ');
-        const ml = parseInt(parts[1], 10) || 250;
-        const profile = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, targetUser.id)).limit(1))[0];
-        const current = (profile?.consumed_water_ml || 0) + ml;
-        if (profile?.id) {
-          await db.update(userHealthProfile)
-            .set({ consumed_water_ml: current, updated_at: new Date().toISOString() })
-            .where(eq(userHealthProfile.id, profile.id));
-        } else {
-          await db.insert(userHealthProfile).values({
-            id: `hp-${targetUser.id}`,
-            user_id: targetUser.id,
-            family_id: targetUser.family_id || `fam-${targetUser.id}`,
-            consumed_water_ml: current,
-            daily_water_target_ml: 2500,
-            active_fasting_protocol: '16:8',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-        }
-        replyText = `💧 *+${ml} ml su kaydedildi!*\nBugünkü toplam: ${current} ml`;
+        const parts = text.trim().split(/\s+/);
+        const parsedMl = parseInt(parts[1], 10);
+        const ml = Number.isFinite(parsedMl) && parsedMl > 0 ? parsedMl : 250;
+        const targetFamilyId = targetUser.family_id || `fam-${targetUser.id}`;
+        const { consumedMl, addedMl } = await syncDailyWaterIntake({
+          userId: targetUser.id,
+          familyId: targetFamilyId,
+          amountMl: ml,
+          defaultAddMl: 250,
+        });
+        replyText = `💧 *+${addedMl} ml su kaydedildi!*\nBugünkü toplam: ${consumedMl} ml`;
       } else if (text.startsWith('/kitap')) {
         const parts = text.split(' ');
         const pages = parseInt(parts[1], 10) || 10;

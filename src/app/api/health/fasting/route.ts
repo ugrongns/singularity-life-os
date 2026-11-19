@@ -3,8 +3,12 @@ import { db, initDatabase } from '@/db';
 import { fastingSessions } from '@/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { resolveOptionalHealthMemberScope } from '@/lib/nutrition-memory';
+import { buildHealthMemberFilter } from '@/lib/health-water';
 
-export async function GET() {
+export async function GET(): Promise<NextResponse>;
+export async function GET(req: Request): Promise<NextResponse>;
+export async function GET(req?: Request) {
   try {
     await initDatabase();
     const user = await getAuthUser();
@@ -12,10 +16,21 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     }
     const userId = user.id;
+    const familyId = user.family_id || `fam-${userId}`;
+    const rawMemberId = req ? new URL(req.url).searchParams.get('member_id') : null;
+    const scope = await resolveOptionalHealthMemberScope(userId, familyId, rawMemberId);
+    if (!scope.authorized) {
+      return NextResponse.json({ success: false, error: 'Seçilen aile üyesine erişim yetkiniz yok.' }, { status: 403 });
+    }
+
+    const memberCondition = buildHealthMemberFilter(fastingSessions.member_id, scope);
+    const activeConditions = memberCondition
+      ? and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, userId), memberCondition)
+      : and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, userId));
 
     let activeSession = (await db.select()
       .from(fastingSessions)
-      .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, userId)))
+      .where(activeConditions)
       .orderBy(desc(fastingSessions.created_at))
       .limit(1))[0];
 
@@ -34,15 +49,19 @@ export async function GET() {
             actual_end_time: activeSession.target_end_time || new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
-          .where(eq(fastingSessions.id, activeSession.id));
+          .where(and(eq(fastingSessions.id, activeSession.id), eq(fastingSessions.user_id, userId)));
         activeSession = null as any;
       }
     }
 
     // 2. Geçmiş Seansları (History) Çek
+    const pastConditions = memberCondition
+      ? and(eq(fastingSessions.is_active, 0), eq(fastingSessions.user_id, userId), memberCondition)
+      : and(eq(fastingSessions.is_active, 0), eq(fastingSessions.user_id, userId));
+
     const pastSessions = await db.select()
       .from(fastingSessions)
-      .where(and(eq(fastingSessions.is_active, 0), eq(fastingSessions.user_id, userId)))
+      .where(pastConditions)
       .orderBy(desc(fastingSessions.created_at))
       .limit(10);
 
@@ -137,18 +156,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     }
     const body = await req.json();
-    const { action, protocol = '16:8' } = body;
+    const { action, protocol = '16:8', member_id } = body;
+    const urlMemberId = new URL(req.url).searchParams.get('member_id');
 
     const now = new Date();
     const nowISO = now.toISOString();
-
     const familyId = user.family_id || `fam-${user.id}`;
+    const scope = await resolveOptionalHealthMemberScope(user.id, familyId, member_id ?? urlMemberId);
+    if (!scope.authorized) {
+      return NextResponse.json({ success: false, error: 'Seçilen aile üyesine erişim yetkiniz yok.' }, { status: 403 });
+    }
+
+    const memberCondition = buildHealthMemberFilter(fastingSessions.member_id, scope);
+    const activeCloseWhere = memberCondition
+      ? and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id), memberCondition)
+      : and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id));
 
     if (action === 'start') {
-      // Önceki tüm aktif seansları kapat
+      // Önceki tüm aktif seansları yalnızca ilgili üye/kapsam için kapat
       await db.update(fastingSessions)
         .set({ is_active: 0, actual_end_time: nowISO, updated_at: nowISO })
-        .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id)));
+        .where(activeCloseWhere);
 
       let hours = 16;
       if (protocol === '12:12') hours = 12;
@@ -163,10 +191,13 @@ export async function POST(req: Request) {
       else if (protocol === '72h' || protocol === '72 Saat Bağışıklık Sıfırlama') hours = 72;
       else if (typeof protocol === 'number') hours = protocol;
 
+      hours = Number.isFinite(Number(hours)) ? Math.max(1, Math.min(168, Number(hours))) : 16;
+
       const targetDate = new Date(now.getTime() + (hours * 60 * 60 * 1000));
 
       await db.insert(fastingSessions).values({
         id: `fast-${Date.now()}`,
+        member_id: scope.memberId,
         protocol: typeof protocol === 'string' ? protocol : `${hours}h`,
         start_time: nowISO,
         target_end_time: targetDate.toISOString(),
@@ -181,13 +212,13 @@ export async function POST(req: Request) {
     } else if (action === 'end') {
       await db.update(fastingSessions)
         .set({ is_active: 0, actual_end_time: nowISO, updated_at: nowISO })
-        .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id)));
+        .where(activeCloseWhere);
 
       return NextResponse.json({ success: true, message: 'Oruç seansı tamamlandı ve günlüğe kaydedildi. 🥗' });
     } else if (action === 'cancel') {
       await db.update(fastingSessions)
         .set({ is_active: 0, actual_end_time: null, notes: 'cancelled', updated_at: nowISO })
-        .where(and(eq(fastingSessions.is_active, 1), eq(fastingSessions.user_id, user.id)));
+        .where(activeCloseWhere);
 
       return NextResponse.json({ success: true, message: 'Oruç seansı iptal edildi.' });
     }

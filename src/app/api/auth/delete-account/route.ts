@@ -99,6 +99,9 @@ export async function POST(req: Request) {
       await tx.delete(fastingSessions).where(eq(fastingSessions.user_id, userId));
       await tx.delete(packagedFoodScans).where(eq(packagedFoodScans.user_id, userId));
       await tx.delete(foodNutrientProfiles).where(eq(foodNutrientProfiles.user_id, userId));
+      await tx.delete(dietMealOptions).where(
+        isMasterAdmin ? or(eq(dietMealOptions.user_id, userId), eq(dietMealOptions.family_id, familyId)) : eq(dietMealOptions.user_id, userId)
+      );
       await tx.delete(waterIntakeLogs).where(eq(waterIntakeLogs.user_id, userId));
       await tx.delete(smartScaleLogs).where(eq(smartScaleLogs.user_id, userId));
       await tx.delete(biometrics).where(eq(biometrics.user_id, userId));

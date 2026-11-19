@@ -4,11 +4,13 @@ import { packagedFoodScans } from '@/db/schema';
 import { desc, eq, or, and, ilike } from 'drizzle-orm';
 import { parsePlateImage, parsePackagedFoodImage, RESILIENT_GEMINI_MODELS } from '@/lib/ai-vision';
 import { getAuthUser } from '@/lib/auth';
+import { resolveOptionalHealthMemberScope } from '@/lib/nutrition-memory';
+import { buildHealthMemberFilter } from '@/lib/health-water';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await initDatabase();
     const user = await getAuthUser();
@@ -16,8 +18,20 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     }
 
+    const familyId = user.family_id || `fam-${user.id}`;
+    const rawMemberId = req ? new URL(req.url).searchParams.get('member_id') : null;
+    const scope = await resolveOptionalHealthMemberScope(user.id, familyId, rawMemberId);
+    if (!scope.authorized) {
+      return NextResponse.json({ success: false, error: 'Seçilen aile üyesine erişim yetkiniz yok.' }, { status: 403 });
+    }
+
+    const memberCondition = buildHealthMemberFilter(packagedFoodScans.member_id, scope);
+    const whereCondition = memberCondition
+      ? and(eq(packagedFoodScans.user_id, user.id), memberCondition)
+      : eq(packagedFoodScans.user_id, user.id);
+
     const scans = await db.select().from(packagedFoodScans)
-      .where(eq(packagedFoodScans.user_id, user.id))
+      .where(whereCondition)
       .orderBy(desc(packagedFoodScans.created_at))
       .limit(10);
     return NextResponse.json({ success: true, data: scans });
@@ -34,7 +48,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     }
     const body = await req.json();
-    const { type = 'plate', base64, mimeType = 'image/jpeg', barcode_text } = body;
+    const { type = 'plate', base64, mimeType = 'image/jpeg', barcode_text, member_id } = body;
 
     if (type === 'plate') {
       if (!base64) {
@@ -51,6 +65,11 @@ export async function POST(req: Request) {
         message: `🍽️ ${plateData.name} tabağı analiz edildi! (${plateData.base_calories} kcal, %${Math.round(plateData.confidence * 100)} güven)`
       });
     } else if (type === 'packaged_barcode') {
+      const familyId = user.family_id || `fam-${user.id}`;
+      const scope = await resolveOptionalHealthMemberScope(user.id, familyId, member_id);
+      if (!scope.authorized) {
+        return NextResponse.json({ success: false, error: 'Seçilen aile üyesine erişim yetkiniz yok.' }, { status: 403 });
+      }
       // Paketli Gıda Barkod & Pestisit / Katkı Maddesi Analizi
       let foodAnalysis: any = null;
 
@@ -207,6 +226,7 @@ SADECE aşağıdaki JSON formatında yanıt ver:
 
       await db.insert(packagedFoodScans).values({
         id: scanId,
+        member_id: scope.memberId,
         product_name: foodAnalysis.product_name,
         brand: foodAnalysis.brand,
         barcode: foodAnalysis.barcode,
@@ -271,19 +291,14 @@ export async function DELETE(req: Request) {
     const clearJunk = searchParams.get('clear_junk') === 'true';
 
     if (clearJunk) {
-      // Yalnızca kullanıcının kendi çöp/okunamayan taramalarını sil (veya master admin tümünü)
-      const userCondition = user.is_master_account === 1
-        ? or(
-            ilike(packagedFoodScans.product_name, '%Taranan Barkod%'),
-            ilike(packagedFoodScans.product_name, '%Etiketi Okunamad%')
-          )
-        : and(
-            eq(packagedFoodScans.user_id, user.id),
-            or(
-              ilike(packagedFoodScans.product_name, '%Taranan Barkod%'),
-              ilike(packagedFoodScans.product_name, '%Etiketi Okunamad%')
-            )
-          );
+      // Yalnızca oturum açmış kullanıcının kendi başarısız/çöp taramalarını sil (Cross-tenant BOLA kalkanı)
+      const userCondition = and(
+        eq(packagedFoodScans.user_id, user.id),
+        or(
+          ilike(packagedFoodScans.product_name, '%Taranan Barkod%'),
+          ilike(packagedFoodScans.product_name, '%Etiketi Okunamad%')
+        )
+      );
 
       await db.delete(packagedFoodScans).where(userCondition);
       return NextResponse.json({ success: true, message: 'Başarısız ve çöp taramalar temizlendi.' });
@@ -293,11 +308,19 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Silinecek tarama ID sağlanmalıdır.' }, { status: 400 });
     }
 
-    const canDelete = user.is_master_account === 1
-      ? eq(packagedFoodScans.id, id)
-      : and(eq(packagedFoodScans.id, id), eq(packagedFoodScans.user_id, user.id));
+    const ownedScan = (
+      await db
+        .select({ id: packagedFoodScans.id })
+        .from(packagedFoodScans)
+        .where(and(eq(packagedFoodScans.id, id), eq(packagedFoodScans.user_id, user.id)))
+        .limit(1)
+    )[0];
 
-    await db.delete(packagedFoodScans).where(canDelete);
+    if (!ownedScan) {
+      return NextResponse.json({ success: false, error: 'Tarama kaydı bulunamadı veya yetkisiz işlem.' }, { status: 404 });
+    }
+
+    await db.delete(packagedFoodScans).where(and(eq(packagedFoodScans.id, id), eq(packagedFoodScans.user_id, user.id)));
     return NextResponse.json({ success: true, message: 'Ürün tarama kaydı kalıcı olarak silindi.' });
   } catch (error: any) {
     console.error('Delete Food Scan API Error:', error);

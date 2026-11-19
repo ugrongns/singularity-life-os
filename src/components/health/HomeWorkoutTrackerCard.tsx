@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Trophy,
   RefreshCw,
@@ -82,17 +82,22 @@ const SPORT_CONFIGS: Record<string, { icon: string; label: string; color: string
   other: { icon: '🏅', label: 'Antrenman', color: '#6B7280', bg: 'rgba(107, 114, 128, 0.12)' }
 };
 
-export default function HomeWorkoutTrackerCard() {
+interface HomeWorkoutTrackerCardProps {
+  memberId?: string | null;
+}
+
+export default function HomeWorkoutTrackerCard({ memberId = null }: HomeWorkoutTrackerCardProps) {
   const [workouts, setWorkouts] = useState<WorkoutSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [syncingStrava, setSyncingStrava] = useState(false);
   const [stravaConnected, setStravaConnected] = useState<boolean | null>(null);
 
-  const fetchWorkouts = async () => {
+  const fetchWorkouts = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/health/workouts');
+      const query = memberId ? `?member_id=${encodeURIComponent(memberId)}` : '';
+      const res = await fetch(`/api/health/workouts${query}`);
       const json = await res.json();
       if (json.success && json.data) {
         setWorkouts(json.data);
@@ -102,7 +107,7 @@ export default function HomeWorkoutTrackerCard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [memberId]);
 
   const checkStravaStatus = async () => {
     try {
@@ -118,6 +123,9 @@ export default function HomeWorkoutTrackerCard() {
 
   useEffect(() => {
     fetchWorkouts();
+  }, [fetchWorkouts]);
+
+  useEffect(() => {
     checkStravaStatus();
   }, []);
 
@@ -484,6 +492,7 @@ export default function HomeWorkoutTrackerCard() {
       {/* ANTRENMAN MODALI */}
       <HomeWorkoutModal
         isOpen={isModalOpen}
+        memberId={memberId}
         onClose={() => setIsModalOpen(false)}
         onSuccess={() => {
           fetchWorkouts();

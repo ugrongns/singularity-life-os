@@ -342,15 +342,15 @@ export default function MacroSummaryCard({
         </div>
 
         {/* Sağ Sütun: 3'lü Makro Göstergeleri (Indigo, Amber, Emerald) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', minWidth: 0 }}>
           {/* Protein (Indigo) */}
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', fontWeight: 700, marginBottom: '4px' }}>
-              <span style={{ color: '#6366F1', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#6366F1' }} />
-                🥩 Protein
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px', fontSize: '11px', fontWeight: 700, marginBottom: '4px' }}>
+              <span style={{ color: '#6366F1', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#6366F1', flexShrink: 0 }} />
+                <span>🥩 Protein</span>
               </span>
-              <span className="tabular-nums" style={{ color: 'var(--text-main)' }}>
+              <span className="tabular-nums" style={{ color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
                 {consumed.protein_g}g <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>/ {targets.protein_g}g</span> (%{percentages.protein})
               </span>
             </div>
@@ -369,12 +369,12 @@ export default function MacroSummaryCard({
 
           {/* Karbonhidrat (Amber) */}
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', fontWeight: 700, marginBottom: '4px' }}>
-              <span style={{ color: '#F59E0B', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#F59E0B' }} />
-                🌾 Karbonhidrat
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px', fontSize: '11px', fontWeight: 700, marginBottom: '4px' }}>
+              <span style={{ color: '#F59E0B', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#F59E0B', flexShrink: 0 }} />
+                <span>🌾 Karbonhidrat</span>
               </span>
-              <span className="tabular-nums" style={{ color: 'var(--text-main)' }}>
+              <span className="tabular-nums" style={{ color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
                 {consumed.carbs_g}g <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>/ {targets.carbs_g}g</span> (%{percentages.carbs})
               </span>
             </div>
@@ -393,12 +393,12 @@ export default function MacroSummaryCard({
 
           {/* Sağlıklı Yağ (Emerald) */}
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', fontWeight: 700, marginBottom: '4px' }}>
-              <span style={{ color: '#10B981', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10B981' }} />
-                🥑 Sağlıklı Yağ
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px', fontSize: '11px', fontWeight: 700, marginBottom: '4px' }}>
+              <span style={{ color: '#10B981', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10B981', flexShrink: 0 }} />
+                <span>🥑 Sağlıklı Yağ</span>
               </span>
-              <span className="tabular-nums" style={{ color: 'var(--text-main)' }}>
+              <span className="tabular-nums" style={{ color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
                 {consumed.fat_g}g <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>/ {targets.fat_g}g</span> (%{percentages.fat})
               </span>
             </div>

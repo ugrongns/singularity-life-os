@@ -1,25 +1,38 @@
 import { NextResponse } from 'next/server';
-import { db, initDatabase } from '@/db';
-import { userHealthProfile, waterIntakeLogs } from '@/db/schema';
+import { initDatabase } from '@/db';
 import { getAuthUser } from '@/lib/auth';
-import { eq, and } from 'drizzle-orm';
 import { getTodayTurkeyDate } from '@/lib/date-utils';
+import { resolveOptionalHealthMemberScope } from '@/lib/nutrition-memory';
+import {
+  findScopedHealthProfile,
+  findScopedTodayWaterLog,
+  syncDailyWaterIntake,
+  updateScopedWaterTarget,
+} from '@/lib/health-water';
 
-export async function GET() {
+export async function GET(): Promise<NextResponse>;
+export async function GET(req: Request): Promise<NextResponse>;
+export async function GET(req?: Request) {
   try {
     await initDatabase();
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
 
     const today = getTodayTurkeyDate();
+    const familyId = user.family_id || `fam-${user.id}`;
+    const rawMemberId = req ? new URL(req.url).searchParams.get('member_id') : null;
+    const scope = await resolveOptionalHealthMemberScope(user.id, familyId, rawMemberId);
+    if (!scope.authorized) {
+      return NextResponse.json({ success: false, error: 'Seçilen aile üyesine erişim yetkiniz yok.' }, { status: 403 });
+    }
 
-    const profile = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, user.id)).limit(1))[0];
-    const todayLog = (await db.select().from(waterIntakeLogs).where(and(eq(waterIntakeLogs.date, today), eq(waterIntakeLogs.user_id, user.id))).limit(1))[0];
+    const profile = await findScopedHealthProfile(user.id, scope);
+    const todayLog = await findScopedTodayWaterLog(user.id, today, scope);
 
     const target = todayLog?.goal_ml || profile?.daily_water_target_ml || 2500;
     // Yeni gün için kayıt yoksa dünün tüketimi devretmemeli, 0 ml kabul edilmeli
     const consumed = todayLog ? todayLog.amount_ml : 0;
-    const percentage = Math.min(100, Math.round((consumed / target) * 100));
+    const percentage = target > 0 ? Math.min(100, Math.round((consumed / target) * 100)) : 0;
 
     return NextResponse.json({
       success: true,
@@ -42,55 +55,22 @@ export async function POST(req: Request) {
     if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
 
     const body = await req.json();
-    const { action, target_ml, amount_ml = 250, reset = false } = body;
-    const now = new Date().toISOString();
-    const today = getTodayTurkeyDate();
+    const { action, target_ml, amount_ml = 250, reset = false, member_id } = body;
+    const urlMemberId = new URL(req.url).searchParams.get('member_id');
     const familyId = user.family_id || `fam-${user.id}`;
-
-    const profile = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, user.id)).limit(1))[0];
-    const todayLog = (await db.select().from(waterIntakeLogs).where(and(eq(waterIntakeLogs.date, today), eq(waterIntakeLogs.user_id, user.id))).limit(1))[0];
+    const scope = await resolveOptionalHealthMemberScope(user.id, familyId, member_id ?? urlMemberId);
+    if (!scope.authorized) {
+      return NextResponse.json({ success: false, error: 'Seçilen aile üyesine erişim yetkiniz yok.' }, { status: 403 });
+    }
 
     // 🎯 HEDEF BELİRLEME (SET WATER GOAL)
     if (action === 'set_target' || (target_ml !== undefined && action !== 'log_water')) {
-      const newTarget = Math.max(500, Math.min(10000, Number(target_ml) || 2500));
-
-      if (profile) {
-        await db.update(userHealthProfile)
-          .set({ daily_water_target_ml: newTarget, updated_at: now })
-          .where(eq(userHealthProfile.id, profile.id));
-      } else {
-        await db.insert(userHealthProfile).values({
-          id: `hp-${user.id}`,
-          daily_calorie_target: 2200,
-          target_protein_g: 140,
-          target_carbs_g: 180,
-          target_fat_g: 65,
-          daily_water_target_ml: newTarget,
-          consumed_water_ml: 0,
-          active_fasting_protocol: '16:8',
-          user_id: user.id,
-          family_id: familyId,
-          created_at: now,
-          updated_at: now
-        });
-      }
-
-      if (todayLog) {
-        await db.update(waterIntakeLogs)
-          .set({ goal_ml: newTarget, updated_at: now })
-          .where(eq(waterIntakeLogs.id, todayLog.id));
-      } else {
-        await db.insert(waterIntakeLogs).values({
-          id: `water-${Date.now()}`,
-          date: today,
-          amount_ml: 0,
-          goal_ml: newTarget,
-          user_id: user.id,
-          family_id: familyId,
-          created_at: now,
-          updated_at: now
-        });
-      }
+      const newTarget = await updateScopedWaterTarget({
+        userId: user.id,
+        familyId,
+        targetMl: target_ml,
+        scope,
+      });
 
       return NextResponse.json({
         success: true,
@@ -99,55 +79,21 @@ export async function POST(req: Request) {
       });
     }
 
-    // 💧 SU İÇME KAYDI
-    // Yeni gün başlangıcında bugün için log yoksa dünün tüketimi aktarılmamalı, 0'dan başlanmalı
-    const currentConsumed = todayLog ? todayLog.amount_ml : 0;
-    const current = reset ? 0 : currentConsumed + (parseFloat(amount_ml) || 250);
-    const target = profile?.daily_water_target_ml || todayLog?.goal_ml || 2500;
-
-    if (profile) {
-      await db.update(userHealthProfile)
-        .set({ consumed_water_ml: current, updated_at: now })
-        .where(eq(userHealthProfile.id, profile.id));
-    } else {
-      await db.insert(userHealthProfile).values({
-        id: `hp-${user.id}`,
-        daily_calorie_target: 2200,
-        target_protein_g: 140,
-        target_carbs_g: 180,
-        target_fat_g: 65,
-        daily_water_target_ml: target,
-        consumed_water_ml: current,
-        active_fasting_protocol: '16:8',
-        user_id: user.id,
-        family_id: familyId,
-        created_at: now,
-        updated_at: now
-      });
-    }
-
-    if (todayLog) {
-      await db.update(waterIntakeLogs)
-        .set({ amount_ml: current, goal_ml: target, updated_at: now })
-        .where(eq(waterIntakeLogs.id, todayLog.id));
-    } else {
-      await db.insert(waterIntakeLogs).values({
-        id: `water-${Date.now()}`,
-        date: today,
-        amount_ml: current,
-        goal_ml: target,
-        user_id: user.id,
-        family_id: familyId,
-        created_at: now,
-        updated_at: now
-      });
-    }
+    // 💧 SU İÇME KAYDI (Ortak yardımcı ile daily log + profile senkron)
+    const { consumedMl, targetMl, addedMl } = await syncDailyWaterIntake({
+      userId: user.id,
+      familyId,
+      amountMl: amount_ml,
+      reset: Boolean(reset),
+      defaultAddMl: 250,
+      scope,
+    });
 
     return NextResponse.json({
       success: true,
-      message: reset ? '💧 Günlük su sayacı sıfırlandı.' : `💧 +${amount_ml} ml su kaydedildi! Toplam: ${current} ml`,
-      consumed_ml: current,
-      target_ml: target
+      message: reset ? '💧 Günlük su sayacı sıfırlandı.' : `💧 +${addedMl} ml su kaydedildi! Toplam: ${consumedMl} ml`,
+      consumed_ml: consumedMl,
+      target_ml: targetMl
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

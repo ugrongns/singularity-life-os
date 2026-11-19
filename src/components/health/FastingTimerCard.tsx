@@ -27,6 +27,7 @@ interface FastingProps {
     startTime?: string;
     targetEndTime?: string;
   };
+  memberId?: string | null;
   onToggleFasting: (action: 'start' | 'end', protocol?: string) => void;
 }
 
@@ -38,10 +39,16 @@ const FASTING_PROTOCOLS = [
   { id: '24h', label: '24s Otofaji', hours: 24, tag: 'Yenilenme' }
 ];
 
-export default function FastingTimerCard({ fastingData, onToggleFasting }: FastingProps) {
+export default function FastingTimerCard({ fastingData, memberId, onToggleFasting }: FastingProps) {
   const [selectedProtocol, setSelectedProtocol] = useState(fastingData.protocol || '16:8');
   const [isToggling, setIsToggling] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  useEffect(() => {
+    if (fastingData.protocol) {
+      setSelectedProtocol(fastingData.protocol);
+    }
+  }, [fastingData.protocol, memberId]);
 
   const [liveMetrics, setLiveMetrics] = useState(() =>
     fastingData.isActive && fastingData.startTime
@@ -302,13 +309,13 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sparkles size={14} color="#8B5CF6" />
-              <span style={{ fontSize: '13px', fontWeight: 800, color: '#8B5CF6' }}>
-                {fastingData.currentPhase || 'Metabolik Faz Analizi'}
+              <Sparkles size={14} color={currentColor} />
+              <span style={{ fontSize: '13px', fontWeight: 800, color: currentColor }}>
+                {liveMetrics?.currentPhase || fastingData.currentPhase || 'Metabolik Faz Analizi'}
               </span>
             </div>
             <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
-              {fastingData.phaseDescription || 'Hücreler glikojen depolarını boşaltıyor ve yağ yakım moduna geçiş yapıyor.'}
+              {liveMetrics?.phaseDescription || fastingData.phaseDescription || 'Hücreler glikojen depolarını boşaltıyor ve yağ yakım moduna geçiş yapıyor.'}
             </p>
           </div>
 
@@ -443,6 +450,7 @@ export default function FastingTimerCard({ fastingData, onToggleFasting }: Fasti
       {/* Geçmiş & Ötofaji Analitiği Modalı */}
       <FastingHistoryModal
         isOpen={isHistoryOpen}
+        memberId={memberId}
         onClose={() => setIsHistoryOpen(false)}
       />
     </div>

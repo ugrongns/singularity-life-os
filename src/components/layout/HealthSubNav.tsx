@@ -47,16 +47,13 @@ export default function HealthSubNav({
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'flex-start',
-          gap: '8px',
-          overflowX: 'auto',
-          WebkitOverflowScrolling: 'touch',
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          rowGap: '8px',
+          columnGap: '10px',
           width: '100%',
           boxSizing: 'border-box'
         }}
-        className="no-scrollbar"
       >
         {/* Sol Segmented Control: Modüller Arası Geçiş */}
         <div
@@ -124,13 +121,16 @@ export default function HealthSubNav({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              flexShrink: 0
+              flexWrap: 'wrap',
+              maxWidth: '100%'
             }}
           >
             <div
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '2px',
                 backgroundColor: 'var(--surface-subtle)',
                 padding: '2px',
                 borderRadius: '9px',

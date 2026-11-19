@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { transactions, walletsAccounts, userHealthProfile, books, shoppingListItems, supplementRoutines, supplementIntakeLogs, moodLogs, users, tasks } from '@/db/schema';
+import { transactions, walletsAccounts, books, shoppingListItems, supplementRoutines, supplementIntakeLogs, moodLogs, users, tasks } from '@/db/schema';
 import { eq, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { parseTurkishNumber } from '@/lib/ebelge-parser';
 import { getTodayTurkeyDate, shiftTurkeyDate } from '@/lib/date-utils';
 import { validateMitConstraint } from '@/lib/tasks-engine';
 import { ensureFamilyCategories, normalizeCategoryTemplateBaseId, resolveCategoryIdForFamily } from '@/lib/budget-categories';
+import { syncDailyWaterIntake } from '@/lib/health-water';
 
 interface ParsedAction {
   type: 'expense' | 'water' | 'reading' | 'shopping' | 'supplement' | 'mood' | 'fasting' | 'task';
@@ -148,27 +149,16 @@ export async function POST(req: Request) {
           }
           results.push(`💳 ${act.details.merchant} (${amount} ₺)`);
         } else if (act.type === 'water') {
-          const amount = Number(act.details.amount_ml) || 250;
-          const profile = currentUserId
-            ? (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, currentUserId)).limit(1))[0]
-            : (await db.select().from(userHealthProfile).limit(1))[0];
-          const current = (profile?.consumed_water_ml || 0) + amount;
-          if (profile?.id) {
-            await db.update(userHealthProfile)
-              .set({ consumed_water_ml: current, updated_at: nowISO })
-              .where(eq(userHealthProfile.id, profile.id));
-          } else if (currentUserId) {
-            await db.insert(userHealthProfile).values({
-              id: `hp-${currentUserId}`,
-              user_id: currentUserId,
-              family_id: currentFamilyId,
-              consumed_water_ml: current,
-              daily_water_target_ml: 2500,
-              created_at: nowISO,
-              updated_at: nowISO
-            });
-          }
-          results.push(`💧 +${amount} ml Su (Toplam: ${current} ml)`);
+          const parsedAmount = Number(act.details.amount_ml);
+          const amount = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : 250;
+          const { consumedMl, addedMl } = await syncDailyWaterIntake({
+            userId: currentUserId,
+            familyId: currentFamilyId,
+            amountMl: amount,
+            defaultAddMl: 250,
+            nowDate: now,
+          });
+          results.push(`💧 +${addedMl} ml Su (Toplam: ${consumedMl} ml)`);
         } else if (act.type === 'reading') {
           const pages = Math.max(1, Number(act.details.pages) || 10);
           if (currentUserId) {

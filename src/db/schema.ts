@@ -495,6 +495,7 @@ export const fastingSessions = pgTable('fasting_sessions', {
 
 export const packagedFoodScans = pgTable('packaged_food_scans', {
   id: text('id').primaryKey(),
+  member_id: text('member_id').references(() => familyMembers.id, { onDelete: 'set null' }),
   product_name: text('product_name').notNull(),
   brand: text('brand').default('Genel'),
   barcode: text('barcode'),
@@ -546,6 +547,7 @@ export const userHealthProfile = pgTable('user_health_profile', {
 
 export const workoutSessions = pgTable('workout_sessions', {
   id: text('id').primaryKey(),
+  member_id: text('member_id').references(() => familyMembers.id, { onDelete: 'set null' }),
   title: text('title').notNull(),
   sport_type: text('sport_type').notNull().default('strength'),
   date: text('date').notNull(),

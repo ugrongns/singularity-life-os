@@ -70,17 +70,6 @@ export async function GET(req: Request) {
       { key: `strava_athlete_name_${user.id}`, value: `${tokenData.athlete?.firstname || ''} ${tokenData.athlete?.lastname || ''}`.trim() }
     ];
 
-    // Master admin ise genel ayarlara da geriye dönük uyumluluk için kaydet
-    if (user.is_master_account === 1 || user.role === 'admin') {
-      updates.push(
-        { key: 'strava_access_token', value: tokenData.access_token },
-        { key: 'strava_refresh_token', value: tokenData.refresh_token },
-        { key: 'strava_expires_at', value: String(tokenData.expires_at) },
-        { key: 'strava_athlete_id', value: String(tokenData.athlete?.id || '') },
-        { key: 'strava_athlete_name', value: `${tokenData.athlete?.firstname || ''} ${tokenData.athlete?.lastname || ''}`.trim() }
-      );
-    }
-
     for (const u of updates) {
       await db.insert(appSettings).values({
         key: u.key,

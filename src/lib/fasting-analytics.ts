@@ -1,4 +1,5 @@
 // Singularity Life OS - Aralıklı Oruç & Ötofaji Geçmiş Analitiği (Faz 1)
+import { getTodayTurkeyDate, shiftTurkeyDate } from '@/lib/date-utils';
 
 export interface RawFastingSession {
   id: string;
@@ -222,15 +223,16 @@ export function calculateFastingHistoryAnalytics(
   let currentMonthFastingHours = 0;
   let currentMonthAutophagyHours = 0;
 
-  const refYear = referenceDate.getFullYear();
-  const refMonth = referenceDate.getMonth();
+  const refTodayTr = getTodayTurkeyDate(referenceDate);
+  const [refYearStr, refMonthStr] = refTodayTr.split('-');
 
   for (const s of validStats) {
     if (s.isSuccessful) successfulCount++;
     if (s.durationHours > longestFastHours) longestFastHours = s.durationHours;
 
-    const endDate = new Date(s.endTime);
-    if (endDate.getFullYear() === refYear && endDate.getMonth() === refMonth) {
+    const endDayTr = getTodayTurkeyDate(new Date(s.endTime));
+    const [endYearStr, endMonthStr] = endDayTr.split('-');
+    if (endYearStr === refYearStr && endMonthStr === refMonthStr) {
       currentMonthFastingHours += s.durationHours;
       currentMonthAutophagyHours += s.autophagyHours;
     }
@@ -244,18 +246,17 @@ export function calculateFastingHistoryAnalytics(
     ? Math.round((successfulCount / totalCompletedSessions) * 100)
     : 0;
 
-  // Son 30 günün gün bazında oruç süreleri dizisi
+  // Son 30 günün gün bazında oruç süreleri dizisi (Europe/Istanbul takvim günü)
   const dailyFastingHours: DailyFastingMetric[] = [];
   const monthNames = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
 
   for (let i = 29; i >= 0; i--) {
-    const d = new Date(referenceDate);
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().slice(0, 10);
-    const dayLabel = `${d.getDate()} ${monthNames[d.getMonth()]}`;
+    const dateStr = shiftTurkeyDate(refTodayTr, -i);
+    const [, mStr, dStr] = dateStr.split('-');
+    const dayLabel = `${Number(dStr)} ${monthNames[Number(mStr) - 1]}`;
 
-    // Bu gün tamamlanan seanslar
-    const daySessions = validStats.filter(s => s.endTime.slice(0, 10) === dateStr);
+    // Bu gün tamamlanan seanslar (Europe/Istanbul takvim günü)
+    const daySessions = validStats.filter(s => getTodayTurkeyDate(new Date(s.endTime)) === dateStr);
     const dayFasting = daySessions.reduce((acc, curr) => acc + curr.durationHours, 0);
     const dayAutophagy = daySessions.reduce((acc, curr) => acc + curr.autophagyHours, 0);
 

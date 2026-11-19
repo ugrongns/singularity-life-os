@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { foodNutrientProfiles } from '@/db/schema';
 import { getAuthUser } from '@/lib/auth';
+import { RESILIENT_GEMINI_MODELS } from '@/lib/ai-vision';
 import { eq, isNull, or } from 'drizzle-orm';
 import { normalizeFoodKey } from '@/lib/nutrition-memory';
 
@@ -863,7 +864,8 @@ export async function GET(req: Request) {
     if (!queryFood) {
       return NextResponse.json({ success: false, error: 'Lütfen sorgulanacak gıda adını girin.' }, { status: 400 });
     }
-    const grams = Number(searchParams.get('grams')) || 100;
+    const rawGrams = Number(searchParams.get('grams'));
+    const grams = Number.isFinite(rawGrams) && rawGrams > 0 ? Math.min(5000, Math.round(rawGrams)) : 100;
 
     // 1. HIZLI STATİK EŞLEŞME (2ms Yanıt, 0 AI Maliyeti, Kesin Doğruluk)
     const matchedProfile = findStaticProfileMatch(queryFood);
@@ -879,9 +881,11 @@ export async function GET(req: Request) {
       });
     }
 
-    try { 
-      await initDatabase(); 
-    } catch (e) {}
+    try {
+      await initDatabase();
+    } catch {
+      // ignore init race
+    }
 
     // 2. VERİTABANI ÖNBELLEĞİ KONTROLÜ (OWASP BOLA: Yalnızca kullanıcının kendi veya genel profilleri)
     try {
@@ -927,12 +931,12 @@ export async function GET(req: Request) {
     
     if (apiKey) {
       const promptText = `Sen uzman bir gıda mühendisi, biyo-kimyager ve diyetisyensin.
-TÜRKOMP (Türkiye Gıda Bileşim Veritabanı) ve USDA (ABD Tarım Bakanlığı) resmi verilerine göre "${grams} gram ${queryFood}" için TÜM MAKRO VE MİKRO BESİN DEĞERLERİNİ çıkar.
+TÜRKOMP (Türkiye Gıda Bileşim Veritabanı) ve USDA (ABD Tarım Bakanlığı) resmi verilerine göre "100 gram ${queryFood}" için TÜM MAKRO VE MİKRO BESİN DEĞERLERİNİ çıkar.
 
 SADECE aşağıdaki esnek JSON formatında yanıt ver:
 {
   "food_name": "${queryFood}",
-  "portion_g": ${grams},
+  "portion_g": 100,
   "macros": [
     {"label": "Enerji (Kalori)", "value": "240 kcal", "daily_percent": 12},
     {"label": "Protein", "value": "14.2 g", "daily_percent": 28},
@@ -952,10 +956,7 @@ SADECE aşağıdaki esnek JSON formatında yanıt ver:
   ]
 }`;
 
-      // Sırayla denenip ilk başarılı olandan dönülecek modeller
-      const MODELS_TO_TRY = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-pro-latest'];
-
-      for (const modelName of MODELS_TO_TRY) {
+      for (const modelName of RESILIENT_GEMINI_MODELS) {
         try {
           const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
             method: 'POST',
@@ -973,6 +974,7 @@ SADECE aşağıdaki esnek JSON formatında yanıt ver:
               const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
               parsed = JSON.parse(cleanJson);
               if (parsed && (parsed.macros || parsed.categories)) {
+                parsed.portion_g = 100;
                 parsed.source_info = {
                   type: "ai_grounded",
                   badge: `🧬 Gemini AI Biyo-Kimya Analizi (${modelName})`,
@@ -1011,7 +1013,7 @@ SADECE aşağıdaki esnek JSON formatında yanıt ver:
       };
     }
 
-    // Yalnızca GERÇEK doğrulanmış AI yanıtlarını DB'ye kaydet (Sentetik fallback'leri ASLA kaydetme)
+    // Yalnızca GERÇEK doğrulanmış AI yanıtlarını 100g standartıyla DB'ye kaydet (Sentetik fallback'leri ASLA kaydetme)
     if (!isFallback) {
       try {
         if (db) {
@@ -1020,11 +1022,11 @@ SADECE aşağıdaki esnek JSON formatında yanıt ver:
           await db.insert(foodNutrientProfiles).values({
             id: profileId,
             food_name: parsed.food_name || queryFood,
-            portion_g: grams,
+            portion_g: 100,
             categories_data: JSON.stringify(parsed),
             created_at: now,
             updated_at: now,
-            user_id: user?.id || null
+            user_id: user.id
           });
         }
       } catch (dbErr) {
@@ -1032,13 +1034,16 @@ SADECE aşağıdaki esnek JSON formatında yanıt ver:
       }
     }
 
+    const baseCategories = parsed.categories || parsed;
+    const responseCategories = isFallback ? baseCategories : scaleNutrientData(baseCategories, grams);
+
     return NextResponse.json({
       success: true,
       data: {
         food_name: parsed.food_name || queryFood,
         portion_g: grams,
         source_info: parsed.source_info,
-        categories: parsed.categories || parsed
+        categories: responseCategories
       }
     });
   } catch (error: any) {

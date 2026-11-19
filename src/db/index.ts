@@ -405,6 +405,7 @@ async function _runInit(): Promise<void> {
 
       CREATE TABLE IF NOT EXISTS packaged_food_scans (
         id TEXT PRIMARY KEY,
+        member_id TEXT REFERENCES family_members(id),
         product_name TEXT NOT NULL,
         brand TEXT DEFAULT 'Genel',
         barcode TEXT,
@@ -454,6 +455,7 @@ async function _runInit(): Promise<void> {
 
       CREATE TABLE IF NOT EXISTS workout_sessions (
         id TEXT PRIMARY KEY,
+        member_id TEXT REFERENCES family_members(id),
         title TEXT NOT NULL,
         sport_type TEXT NOT NULL DEFAULT 'strength',
         date TEXT NOT NULL,
@@ -1008,6 +1010,8 @@ async function _runInit(): Promise<void> {
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS formatted_distance TEXT;
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS external_id TEXT;
       ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS map_polyline TEXT;
+      ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS member_id TEXT;
+      ALTER TABLE packaged_food_scans ADD COLUMN IF NOT EXISTS member_id TEXT;
     `;
 
     const createIndexesSQL = `

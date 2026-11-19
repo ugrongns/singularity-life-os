@@ -19,11 +19,12 @@ interface FoodScan {
 
 interface FoodQualityProps {
   scans: FoodScan[];
+  memberId?: string | null;
   onOpenBarcodeScan: () => void;
   onRefresh?: () => void;
 }
 
-export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcodeScan, onRefresh }: FoodQualityProps) {
+export default function FoodQualityScoreCard({ scans: initialScans, memberId, onOpenBarcodeScan, onRefresh }: FoodQualityProps) {
   const [items, setItems] = useState<FoodScan[]>([]);
   const [isNutrientModalOpen, setIsNutrientModalOpen] = useState(false);
   const [selectedNutrientFood, setSelectedNutrientFood] = useState('');
@@ -271,6 +272,7 @@ export default function FoodQualityScoreCard({ scans: initialScans, onOpenBarcod
 
       <NutrientProfileModal
         isOpen={isNutrientModalOpen}
+        memberId={memberId}
         onClose={() => setIsNutrientModalOpen(false)}
         initialFoodName={selectedNutrientFood}
         initialGrams={100}

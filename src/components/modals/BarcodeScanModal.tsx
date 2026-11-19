@@ -165,7 +165,8 @@ export default function BarcodeScanModal({ isOpen, memberId, onClose, onSuccess 
         body: JSON.stringify({
           type: 'packaged_barcode',
           base64: compressedBase64,
-          mimeType: 'image/jpeg'
+          mimeType: 'image/jpeg',
+          member_id: memberId || undefined
         })
       });
       const json = await res.json();
@@ -198,7 +199,8 @@ export default function BarcodeScanModal({ isOpen, memberId, onClose, onSuccess 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'packaged_barcode',
-          barcode_text: targetBarcode
+          barcode_text: targetBarcode,
+          member_id: memberId || undefined
         })
       });
       const json = await res.json();
@@ -220,9 +222,8 @@ export default function BarcodeScanModal({ isOpen, memberId, onClose, onSuccess 
     if (isDeciding) return;
     setIsDeciding(true);
     try {
-    if (decision === 'consumed') {
-      try {
-        await fetch('/api/health/nutrition', {
+      if (decision === 'consumed') {
+        const nutRes = await fetch('/api/health/nutrition', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -237,28 +238,34 @@ export default function BarcodeScanModal({ isOpen, memberId, onClose, onSuccess 
             portion_multiplier: 1.0
           })
         });
+        const nutJson = await nutRes.json().catch(() => ({ success: false }));
+        if (!nutRes.ok || !nutJson.success) {
+          alert(nutJson.error || 'Öğün günlük beslenmeye kaydedilemedi.');
+          return;
+        }
         if (result?.id) {
           await fetch('/api/health/scan-food', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: result.id, decision: 'consumed' })
-          });
+          }).catch(() => {});
         }
-      } catch (e) {}
-      onSuccess(`🥗 "${result?.product_name}" günlük beslenmenize başarıyla eklendi!`);
-    } else {
-      if (result?.id) {
-        try {
-          await fetch(`/api/health/scan-food?id=${result.id}`, { method: 'DELETE' });
-        } catch (e) {}
+        onSuccess(`🥗 "${result?.product_name}" günlük beslenmenize başarıyla eklendi!`);
+      } else {
+        if (result?.id) {
+          try {
+            await fetch(`/api/health/scan-food?id=${result.id}`, { method: 'DELETE' });
+          } catch {}
+        }
+        onSuccess(`🏆 Harika karar! "${result?.product_name}" tüketmekten vazgeçtiniz ve kaydı tamamen silindi.`);
       }
-      onSuccess(`🏆 Harika karar! "${result?.product_name}" tüketmekten vazgeçtiniz ve kaydı tamamen silindi.`);
-    }
 
-    window.dispatchEvent(new CustomEvent('singularity-refresh'));
-    onClose();
-    setResult(null);
-    setStep('upload');
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      onClose();
+      setResult(null);
+      setStep('upload');
+    } catch {
+      alert('İşlem sırasında bağlantı hatası oluştu.');
     } finally {
       setIsDeciding(false);
     }
@@ -318,12 +325,17 @@ export default function BarcodeScanModal({ isOpen, memberId, onClose, onSuccess 
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"
-                placeholder="Barkod No (Örn: 8690158120143)"
+                placeholder="Barkod No (Örn: 8690...)"
                 value={barcodeInput}
                 onChange={e => setBarcodeInput(e.target.value)}
-                style={{ flex: 1, padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontWeight: 700 }}
+                style={{ flex: 1, minWidth: 0, padding: '10px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontWeight: 700 }}
               />
-              <button className="btn-primary" onClick={() => handleManualScan()} style={{ padding: '0 16px', fontSize: '13px', fontWeight: 800 }}>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => handleManualScan()}
+                style={{ width: 'auto', marginTop: 0, padding: '0 16px', fontSize: '13px', fontWeight: 800, whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+              >
                 🔍 Sorgula
               </button>
             </div>
@@ -444,7 +456,7 @@ export default function BarcodeScanModal({ isOpen, memberId, onClose, onSuccess 
               <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', marginBottom: '6px' }}>
                 🍽️ Günlük Beslenmeye Eklenecek Makrolar (Düzenlenebilir):
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '6px' }}>
                 <div>
                   <label style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>Kalori (kcal)</label>
                   <input type="number" min="0" step="1" value={macroCal} onChange={e => setMacroCal(e.target.value)} style={{ width: '100%', padding: '5px 6px', fontSize: '12px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-main)' }} />

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import SharedLayout from '@/components/layout/SharedLayout';
 import HealthSubNav, { FamilyMemberItem } from '@/components/layout/HealthSubNav';
 import MacroSummaryCard from '@/components/health/MacroSummaryCard';
@@ -24,6 +24,7 @@ export default function HealthPage() {
   const [members, setMembers] = useState<FamilyMemberItem[]>([]);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Modals
   const [isPlateScanOpen, setIsPlateScanOpen] = useState(false);
@@ -40,14 +41,15 @@ export default function HealthPage() {
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  const fetchData = async (memberId: string | null = selectedMemberId) => {
+  const fetchData = useCallback(async (memberId: string | null = selectedMemberId) => {
     try {
-      const memberQuery = memberId ? `?member_id=${memberId}` : '';
+      setFetchError(null);
+      const memberQuery = memberId ? `?member_id=${encodeURIComponent(memberId)}` : '';
       const [nutRes, waterRes, fastRes, scanRes, notifRes, membersRes] = await Promise.all([
         fetch(`/api/health/nutrition${memberQuery}`),
         fetch(`/api/health/water${memberQuery}`),
         fetch(`/api/health/fasting${memberQuery}`),
-        fetch('/api/health/scan-food'),
+        fetch(`/api/health/scan-food${memberQuery}`),
         fetch('/api/notifications'),
         fetch('/api/family-members')
       ]);
@@ -61,7 +63,11 @@ export default function HealthPage() {
         membersRes.json().catch(() => ({ success: false, data: [] }))
       ]);
 
-      if (nutJ.success) setNutritionData(nutJ.data);
+      if (!nutJ.success) {
+        setFetchError(nutJ.error || 'Beslenme verileri yüklenemedi.');
+      } else {
+        setNutritionData(nutJ.data);
+      }
       if (waterJ.success) setWaterData(waterJ.data);
       if (fastJ.success) setFastingData(fastJ.data);
       if (scanJ.success) setFoodScanData(scanJ.data || []);
@@ -71,10 +77,11 @@ export default function HealthPage() {
       }
     } catch (err) {
       console.error('Health data fetch error:', err);
+      setFetchError('Sağlık verileri alınırken bağlantı hatası oluştu.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedMemberId]);
 
   useEffect(() => {
     fetchData(selectedMemberId);
@@ -84,10 +91,9 @@ export default function HealthPage() {
     };
     window.addEventListener('singularity-refresh', handleRefresh);
     return () => window.removeEventListener('singularity-refresh', handleRefresh);
-  }, [selectedMemberId]);
+  }, [selectedMemberId, fetchData]);
 
   const handleUpdate = (msg?: string) => {
-    fetchData(selectedMemberId);
     window.dispatchEvent(new CustomEvent('singularity-refresh'));
     if (msg) showToast(msg);
   };
@@ -105,11 +111,13 @@ export default function HealthPage() {
       });
       const json = await res.json();
       if (json.success) {
-        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         handleUpdate(json.message);
+      } else {
+        showToast(`⚠️ ${json.error || 'Su kaydı eklenemedi.'}`);
       }
     } catch (err) {
       console.error(err);
+      showToast('⚠️ Su kaydı eklenirken bağlantı hatası oluştu.');
     }
   };
 
@@ -122,11 +130,13 @@ export default function HealthPage() {
       });
       const json = await res.json();
       if (json.success) {
-        window.dispatchEvent(new CustomEvent('singularity-refresh'));
         handleUpdate(json.message);
+      } else {
+        showToast(`⚠️ ${json.error || 'Oruç işlemi güncellenemedi.'}`);
       }
     } catch (err) {
       console.error(err);
+      showToast('⚠️ Oruç işlemi sırasında bağlantı hatası oluştu.');
     }
   };
 
@@ -187,6 +197,42 @@ export default function HealthPage() {
 
       {/* Ana Bento Izgarası: Masaüstü 1024px+ Eşit Yükseklik & 2 Sütun Hiyerarşisi */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {fetchError && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(244, 63, 94, 0.1)',
+              border: '1px solid rgba(244, 63, 94, 0.3)',
+              color: '#F43F5E',
+              fontSize: '12px',
+              fontWeight: 700
+            }}
+          >
+            <span>⚠️ {fetchError}</span>
+            <button
+              type="button"
+              onClick={() => fetchData(selectedMemberId)}
+              style={{
+                background: 'none',
+                border: '1px solid rgba(244, 63, 94, 0.4)',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '11px',
+                fontWeight: 700,
+                color: '#F43F5E',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Tekrar Dene
+            </button>
+          </div>
+        )}
         {/* ÜST SATIR: Makro & Kalori Panosu (Sol) + Aralıklı Oruç Sayacı (Sağ) - Eşit Yükseklik */}
         <div className="health-bento-grid">
           {nutritionData && (
@@ -209,6 +255,7 @@ export default function HealthPage() {
           {fastingData && (
             <FastingTimerCard
               fastingData={fastingData}
+              memberId={selectedMemberId}
               onToggleFasting={handleToggleFasting}
             />
           )}
@@ -220,6 +267,7 @@ export default function HealthPage() {
 
           <FoodQualityScoreCard
             scans={foodScanData}
+            memberId={selectedMemberId}
             onOpenBarcodeScan={() => setIsBarcodeScanOpen(true)}
             onRefresh={() => fetchData(selectedMemberId)}
           />
@@ -227,7 +275,7 @@ export default function HealthPage() {
 
         {/* Egzersiz & Antrenman Takip Kartı */}
         <div>
-          <HomeWorkoutTrackerCard />
+          <HomeWorkoutTrackerCard memberId={selectedMemberId} />
         </div>
       </div>
 
@@ -266,6 +314,8 @@ export default function HealthPage() {
 
       <EditHealthProfileModal
         isOpen={isEditProfileOpen}
+        memberId={selectedMemberId}
+        memberName={selectedMemberId ? members.find(m => m.id === selectedMemberId)?.name || null : null}
         profile={nutritionData?.profile || nutritionData?.summary?.targets}
         onClose={() => setIsEditProfileOpen(false)}
         onSuccess={(msg) => handleUpdate(msg)}

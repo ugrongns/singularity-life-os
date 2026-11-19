@@ -3,15 +3,21 @@
 import React, { useState, useEffect } from 'react';
 
 interface HealthProfile {
-  daily_calorie_target: number;
-  target_protein_g: number;
-  target_carbs_g: number;
-  target_fat_g: number;
+  daily_calorie_target?: number;
+  target_protein_g?: number;
+  target_carbs_g?: number;
+  target_fat_g?: number;
+  calories?: number;
+  protein_g?: number;
+  carbs_g?: number;
+  fat_g?: number;
   daily_water_target_ml?: number;
 }
 
 interface EditHealthProfileModalProps {
   isOpen: boolean;
+  memberId?: string | null;
+  memberName?: string | null;
   profile?: HealthProfile | null;
   onClose: () => void;
   onSuccess: (msg: string) => void;
@@ -19,27 +25,29 @@ interface EditHealthProfileModalProps {
 
 export default function EditHealthProfileModal({
   isOpen,
+  memberId,
+  memberName,
   profile,
   onClose,
   onSuccess
 }: EditHealthProfileModalProps) {
-  const [calorieTarget, setCalorieTarget] = useState(String(profile?.daily_calorie_target || 2000));
-  const [proteinTarget, setProteinTarget] = useState(String(profile?.target_protein_g || 150));
-  const [carbsTarget, setCarbsTarget] = useState(String(profile?.target_carbs_g || 200));
-  const [fatTarget, setFatTarget] = useState(String(profile?.target_fat_g || 65));
-  const [waterTarget, setWaterTarget] = useState(String(profile?.daily_water_target_ml || 2500));
+  const [calorieTarget, setCalorieTarget] = useState(String(profile?.daily_calorie_target ?? profile?.calories ?? 2000));
+  const [proteinTarget, setProteinTarget] = useState(String(profile?.target_protein_g ?? profile?.protein_g ?? 150));
+  const [carbsTarget, setCarbsTarget] = useState(String(profile?.target_carbs_g ?? profile?.carbs_g ?? 200));
+  const [fatTarget, setFatTarget] = useState(String(profile?.target_fat_g ?? profile?.fat_g ?? 65));
+  const [waterTarget, setWaterTarget] = useState(String(profile?.daily_water_target_ml ?? 2500));
   const [submitting, setSubmitting] = useState(false);
 
-  // Profile değiştiğinde state'leri senkronize et
+  // Profile veya seçili aile üyesi değiştiğinde state'leri senkronize et (açık 0 hedeflerini ezmeden)
   useEffect(() => {
     if (profile) {
-      setCalorieTarget(String(profile.daily_calorie_target || 2000));
-      setProteinTarget(String(profile.target_protein_g || 150));
-      setCarbsTarget(String(profile.target_carbs_g || 200));
-      setFatTarget(String(profile.target_fat_g || 65));
-      setWaterTarget(String(profile.daily_water_target_ml || 2500));
+      setCalorieTarget(String(profile.daily_calorie_target ?? profile.calories ?? 2000));
+      setProteinTarget(String(profile.target_protein_g ?? profile.protein_g ?? 150));
+      setCarbsTarget(String(profile.target_carbs_g ?? profile.carbs_g ?? 200));
+      setFatTarget(String(profile.target_fat_g ?? profile.fat_g ?? 65));
+      setWaterTarget(String(profile.daily_water_target_ml ?? 2500));
     }
-  }, [profile]);
+  }, [profile, memberId]);
 
   if (!isOpen) return null;
 
@@ -121,11 +129,12 @@ export default function EditHealthProfileModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update_profile',
-          daily_calorie_target: Math.max(0, Number(calorieTarget) || 0),
-          target_protein_g: Math.max(0, Number(proteinTarget) || 0),
-          target_carbs_g: Math.max(0, Number(carbsTarget) || 0),
-          target_fat_g: Math.max(0, Number(fatTarget) || 0),
-          daily_water_target_ml: Math.max(0, Number(waterTarget) || 2500)
+          member_id: memberId || undefined,
+          daily_calorie_target: Math.max(1, Number(calorieTarget) || 0),
+          target_protein_g: Math.max(0, Number(proteinTarget === '' ? 0 : proteinTarget) || 0),
+          target_carbs_g: Math.max(0, Number(carbsTarget === '' ? 0 : carbsTarget) || 0),
+          target_fat_g: Math.max(0, Number(fatTarget === '' ? 0 : fatTarget) || 0),
+          daily_water_target_ml: Math.max(500, Math.min(10000, Number(waterTarget) || 2500))
         })
       });
 
@@ -148,9 +157,14 @@ export default function EditHealthProfileModal({
       <div className="bottom-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', maxHeight: '92vh', overflowY: 'auto' }}>
         <div className="sheet-handle"></div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '8px' }}>
+          <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
             <span>🧮</span> Günlük Kalori, Makro & Su Hedefleri
+            {memberName && (
+              <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', backgroundColor: 'rgba(59, 130, 246, 0.12)', color: 'var(--blue)' }}>
+                👤 {memberName}
+              </span>
+            )}
           </div>
           <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✕</button>
         </div>

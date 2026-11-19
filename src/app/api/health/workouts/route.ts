@@ -2,9 +2,12 @@ import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { workoutSessions, workoutExerciseLogs } from '@/db/schema';
 import { getAuthUser } from '@/lib/auth';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
+import { resolveOptionalHealthMemberScope } from '@/lib/nutrition-memory';
+import { buildHealthMemberFilter } from '@/lib/health-water';
 import { desc, eq, and, inArray } from 'drizzle-orm';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await initDatabase();
     const user = await getAuthUser();
@@ -12,10 +15,21 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     }
     const userId = user.id;
+    const familyId = user.family_id || `fam-${userId}`;
+    const rawMemberId = req ? new URL(req.url).searchParams.get('member_id') : null;
+    const scope = await resolveOptionalHealthMemberScope(userId, familyId, rawMemberId);
+    if (!scope.authorized) {
+      return NextResponse.json({ success: false, error: 'Seçilen aile üyesine erişim yetkiniz yok.' }, { status: 403 });
+    }
 
-    // Son antrenman seanslarını çek (yalnızca oturum açmış kullanıcı)
+    const memberCondition = buildHealthMemberFilter(workoutSessions.member_id, scope);
+    const whereCondition = memberCondition
+      ? and(eq(workoutSessions.user_id, userId), memberCondition)
+      : eq(workoutSessions.user_id, userId);
+
+    // Son antrenman seanslarını çek (oturum açmış kullanıcı + seçili üye)
     const sessions = await db.select().from(workoutSessions)
-      .where(eq(workoutSessions.user_id, userId))
+      .where(whereCondition)
       .orderBy(desc(workoutSessions.date), desc(workoutSessions.created_at))
       .limit(20);
 
@@ -71,6 +85,7 @@ export async function POST(req: Request) {
 
     const {
       action = 'create',
+      member_id,
       title,
       sport_type = 'strength',
       date,
@@ -109,11 +124,25 @@ export async function POST(req: Request) {
       exercises = []
     } = body;
 
-    const now = new Date().toISOString();
+    const nowDate = new Date();
+    const now = nowDate.toISOString();
+    const todayTr = getTodayTurkeyDate(nowDate);
+    const currentTimeTr = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Istanbul',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(nowDate);
 
     if (action === 'create') {
+      const familyId = user.family_id || `fam-${user.id}`;
+      const urlMemberId = new URL(req.url).searchParams.get('member_id');
+      const scope = await resolveOptionalHealthMemberScope(user.id, familyId, member_id ?? urlMemberId);
+      if (!scope.authorized) {
+        return NextResponse.json({ success: false, error: 'Seçilen aile üyesine erişim yetkiniz yok.' }, { status: 403 });
+      }
       const workoutId = `wk-${Date.now()}`;
-      const workoutDate = date || now.split('T')[0];
+      const workoutDate = date || todayTr;
 
       // Süre atomik hesaplaması (salise, saniye & formatlı metin)
       let durSec = parseNum(duration_seconds);
@@ -216,10 +245,11 @@ export async function POST(req: Request) {
 
       await db.insert(workoutSessions).values({
         id: workoutId,
+        member_id: scope.memberId,
         title: title || (sport_type === 'cycling' ? 'Bisiklet Antrenmanı' : sport_type === 'running' ? 'Koşu' : sport_type === 'walking' ? 'Yürüyüş' : sport_type === 'swimming' ? 'Yüzme' : 'Antrenman'),
         sport_type,
         date: workoutDate,
-        start_time: start_time || now.split('T')[1]?.substring(0, 5),
+        start_time: start_time || currentTimeTr,
         duration_minutes: durMin,
         duration_seconds: durSec,
         duration_centiseconds: durCenti,
@@ -264,18 +294,17 @@ export async function POST(req: Request) {
       });
     } else if (action === 'delete') {
       const { workout_id } = body;
-      if (workout_id) {
-        const canDelete = user.is_master_account === 1
-          ? eq(workoutSessions.id, workout_id)
-          : and(eq(workoutSessions.id, workout_id), eq(workoutSessions.user_id, user.id));
-        const targetSession = (await db.select().from(workoutSessions).where(canDelete).limit(1))[0];
-        if (!targetSession) {
-          return NextResponse.json({ success: false, error: 'Antrenman bulunamadı veya yetkisiz işlem.' }, { status: 404 });
-        }
-        await db.delete(workoutExerciseLogs).where(eq(workoutExerciseLogs.workout_id, workout_id));
-        await db.delete(workoutSessions).where(eq(workoutSessions.id, workout_id));
-        return NextResponse.json({ success: true, message: 'Antrenman kaydı silindi.' });
+      if (!workout_id || typeof workout_id !== 'string') {
+        return NextResponse.json({ success: false, error: 'Silinecek antrenman ID gereklidir.' }, { status: 400 });
       }
+      const canDelete = and(eq(workoutSessions.id, workout_id), eq(workoutSessions.user_id, user.id));
+      const targetSession = (await db.select().from(workoutSessions).where(canDelete).limit(1))[0];
+      if (!targetSession) {
+        return NextResponse.json({ success: false, error: 'Antrenman bulunamadı veya yetkisiz işlem.' }, { status: 404 });
+      }
+      await db.delete(workoutExerciseLogs).where(and(eq(workoutExerciseLogs.workout_id, workout_id), eq(workoutExerciseLogs.user_id, user.id)));
+      await db.delete(workoutSessions).where(canDelete);
+      return NextResponse.json({ success: true, message: 'Antrenman kaydı silindi.' });
     }
 
     return NextResponse.json({ success: false, error: 'Geçersiz işlem.' }, { status: 400 });

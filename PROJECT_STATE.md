@@ -1,25 +1,30 @@
 # Singularity Life OS — Canlı Proje Durumu (`PROJECT_STATE.md`)
 
 > **Son Güncelleme:** 2026-11-19  
-> **Aktif Dal:** `main` (Çok kiracılı aile-izole kategori göçü, mobil header, dev rozeti & hesap silme kapsam düzeltmesi)  
+> **Aktif Dal:** `main` (`/health` modül denetimi, çoklu üye izolasyonu ve kanallar arası su senkronizasyonu)  
 > **Canlı Ortam:** Vercel (`https://singularity-life-os.vercel.app`) + Supabase PostgreSQL (`eu-central-1`)
 
 ---
 
 ## 1. Mevcut Sistem Envanteri (Doğrulanmış Durum)
 - **Çerçeve & Derleme:** Next.js `15.5.23` (App Router), React `19`, TypeScript `5.7.3` (`strict: true`), Drizzle ORM `0.38.4`.
-- **Veritabanı Şeması:** `src/db/schema.ts` içinde **44 tablo** tanımlı.
+- **Veritabanı Şeması:** `src/db/schema.ts` içinde **44 tablo** tanımlı (`packaged_food_scans` ve `workout_sessions` `member_id` kolonlarıyla genişletildi).
 - **Aktif Sayfa Modülleri (`src/app/`):**
   - `/` (Ana Akış & Özet), `/budget` (Bütçe & Nakit Akışı), `/analytics` (5x20 Holistik Skor, FIRE & Yaşam Takvimi Isı Haritası), `/tasks` (Görevler, MIT, Alt Görevler, Yinelenme, Pomodoro/Odak, Aylık Takvim), `/vehicles` (Araç & Ev), `/library` (Kütüphane), `/health` (Beslenme, Oruç, Antrenman), `/wellness` & `/boost` (Wellness, Takviye, Uyku, Tartı), `/vault` (Dijital Kasa), `/shopping` (Alışveriş Listesi), `/settings`, `/welcome`, `/auth`.
 - **Doğrulama Durumu (`2026-11-19` itibarıyla):**
   - `npm run typecheck` (`tsc --noEmit`): Geçiyor (`exit 0`).
-  - `npm run lint` (`eslint .` — `eslint.config.mjs`): Sıfır hata (`exit 0`, `260` legacy uyarı).
-  - `npm run test` (`vitest run`): Çalışma ağacında `23` dosya / `351` test geçiyor (`exit 0`; `tests/budget-audit.test.ts` içinde `8`, `tests/analytics-audit.test.ts` içinde `7` test).
+  - `npm run lint` (`eslint .` — `eslint.config.mjs`): Sıfır hata (`exit 0`, `250` legacy uyarı).
+  - `npm run test` (`vitest run`): Çalışma ağacında `24` dosya / `369` test geçiyor (`exit 0`; `tests/health-audit.test.ts` içinde `18`, `tests/budget-audit.test.ts` içinde `8`, `tests/analytics-audit.test.ts` içinde `7` test).
   - `npm run verify` / `npm run verify:full` (`next build` dahil): Geçiyor (`exit 0`).
 
 ---
 
 ## 2. Son Tamamlanan İşler
+- **[2026-11-19]** **`!denetle sağlık` Modül Denetimi & Opsiyonel İyileştirmeler (`src/lib/health-water.ts`, `tests/health-audit.test.ts`):**
+  - *BOLA & Veri Yaşam Döngüsü:* `scan-food DELETE` (`clear_junk` ve tekil `id`), `workouts delete` ve `strava/callback` üzerindeki `is_master_account` / global `appSettings` sızıntı açıkları `user.id` kapsamına daraltıldı; `diet GET` genel şablon sorgusuna `family_id IS NULL` şartı eklendi ve `delete-account` / `reset-user-data` içine `dietMealOptions` temizliği bağlandı.
+  - *Matematik, Sınır Koruması & Türkiye Saati (`Europe/Istanbul`):* `nutrition` (`0` makro hedefi korunumu, `daily_water_target_ml <= 10000`, negatif makro/porsiyon clamp ve `DIET_MEAL_RECORDED` `familyId` olayı), `water` (negatif miktar clamp), `fasting` (`1–168` saat sınırı), `nutrition-profile` (`1–5000g` clamp, `100g` canonical kayıt & ölçekleme, güncel `RESILIENT_GEMINI_MODELS`), `workouts`, `workout-ocr`, `diet/parse-text` ve `fasting-analytics` (`Europe/Istanbul` gün/ay gruplaması) düzeltildi.
+  - *Çoklu Aile Üyesi İzolasyonu & Kanallar Arası Su Senkronizasyonu:* `resolveOptionalHealthMemberScope` (`src/lib/nutrition-memory.ts`) ve `src/lib/health-water.ts` ile `water`, `fasting`, `fasting/history`, `workouts`, `scan-food` ve `nutrition` (`update_profile`) uçları ile `HealthPage`, `FastingTimerCard`, `FastingHistoryModal`, `HomeWorkoutTrackerCard`, `HomeWorkoutModal`, `FoodQualityScoreCard`, `BarcodeScanModal` ve `EditHealthProfileModal` BOLA korumalı `member_id` kapsamına bağlandı; Telegram (`/su`) ve Sesli Komut (`water`) mutasyonları günlük `waterIntakeLogs` tablosuyla eşzamanlı hale getirildi.
+  - *Duyarlı UI & Canlı Doğrulama:* `HealthSubNav`, `MacroSummaryCard`, `NutrientProfileCard`, `NutrientProfileModal`, `BarcodeScanModal`, `PlateScanModal`, `FastingTimerCard`, `FastingHistoryModal` ve `HomeWorkoutModal` üzerindeki `390px` mobil / `1280px` masaüstü taşma, hata geri bildirimi ve canlı faz hataları giderildi (`npm run verify:full`, `369/369` test ve canlı `/health` akışları doğrulandı).
 - **[2026-11-19]** **Çok Kiracılı Aile-İzole Kategori Mimarisi & İsteğe Bağlı Kapanış İyileştirmeleri (`src/lib/budget-categories.ts`, `src/db/index.ts`, `next.config.mjs`):**
   - *Çok Kiracılı Kategori Göçü & İzolasyonu:* Küresel `family_id IS NULL` seed kategorileri (`cat-maas ... cat-diger`) `src/db/index.ts` içinde idempotent PostgreSQL bloklarıyla her aileye kopyalanıp (`cat-<slug>-<familyId>`) mevcut `transactions.category_id` ve `recurring_bills.category_id` kayıtlarına aktarıldı (`register`, `reset-user-data`, `delete-account` yaşam döngüleri dahil). `categories`, `category-details`, `budget`, `card-statement`, `reconcile`, `recurring-bills`, `transactions`, `analytics`, `notifications`, `tasks`, `shopping-list`, `telegram`, `voice-command` ve `events.ts` uçlarından `family_id IS NULL` paylaşımı kaldırılıp şablon eşleştirmesi `resolveCategoryIdForFamily` ile aile sınırına alındı (ayrıca `voice-command` içindeki `cat-arac`/`cat-sosyal` alias'ları `cat-ulasim`/`cat-eeglence`'ye bağlandı).
   - *`delete-account` & İyileştirmeler:* [delete-account/route.ts](file:///C:/Users/uguro/Documents/Projeler/singularity/src/app/api/auth/delete-account/route.ts) içindeki küresel `like(appSettings.key, 'telegram_%')` silme işlemi yalnızca kullanıcı/aile anahtarlarıyla sınırlandırılıp aile `categories` temizliği eklendi; [next.config.mjs](file:///C:/Users/uguro/Documents/Projeler/singularity/next.config.mjs) içinde `devIndicators: false` ile dev `N` rozeti kaldırıldı; [SharedLayout.tsx](file:///C:/Users/uguro/Documents/Projeler/singularity/src/components/layout/SharedLayout.tsx) & [globals.css](file:///C:/Users/uguro/Documents/Projeler/singularity/src/styles/globals.css) üzerinde `390px` mobil header aksiyonları `32px` yapılarak `"Singularity v2.1"` başlığının kesintisiz sığması sağlandı (`npm run verify:full`, `351/351` test ve canlı Supabase kategori detayı/CRUD + `390x844` doğrulandı).

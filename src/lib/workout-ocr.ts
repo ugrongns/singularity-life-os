@@ -1,3 +1,6 @@
+import { RESILIENT_GEMINI_MODELS } from '@/lib/ai-vision';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
+
 export interface ParsedWorkout {
   sport_type: 'cycling' | 'running' | 'walking' | 'swimming' | 'strength' | 'hiit' | 'other';
   title: string;
@@ -158,16 +161,9 @@ Tespit Edilecek Alanlar:
 
 SADECE geçerli bir JSON çıktısı üret, markdown veya açıklama yazma.`;
 
-      const MODELS = [
-        'gemini-flash-lite-latest',
-        'gemini-3.5-flash-lite',
-        'gemini-3-flash-preview',
-        'gemini-3.5-flash',
-        'gemini-flash-latest'
-      ];
       let jsonResult: any = null;
 
-      for (const modelName of MODELS) {
+      for (const modelName of RESILIENT_GEMINI_MODELS) {
         try {
           const response = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
@@ -235,7 +231,7 @@ SADECE geçerli bir JSON çıktısı üret, markdown veya açıklama yazma.`;
           return {
             sport_type: parsed.sport_type || 'other',
             title: parsed.title || 'Antrenman',
-            date: parsed.date || new Date().toISOString().split('T')[0],
+            date: parsed.date || getTodayTurkeyDate(),
             duration_minutes: durationMinutes,
             duration_seconds: durationSeconds,
             duration_centiseconds: durationCentiseconds,
@@ -280,7 +276,7 @@ SADECE geçerli bir JSON çıktısı üret, markdown veya açıklama yazma.`;
   return {
     sport_type: 'other',
     title: '',
-    date: new Date().toISOString().split('T')[0],
+    date: getTodayTurkeyDate(),
     duration_minutes: 0,
     distance_km: 0,
     calories: 0,

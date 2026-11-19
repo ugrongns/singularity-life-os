@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 interface SetItem {
   set_number: number;
@@ -18,6 +19,7 @@ interface ExerciseEntry {
 
 interface HomeWorkoutModalProps {
   isOpen: boolean;
+  memberId?: string | null;
   onClose: () => void;
   onSuccess: (msg: string) => void;
 }
@@ -49,10 +51,10 @@ const PRESET_EXERCISES = [
   { name: 'Balance Board Squat', category: 'bacak', equipment: 'balance_board', icon: '🛹' }
 ];
 
-export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWorkoutModalProps) {
+export default function HomeWorkoutModal({ isOpen, memberId, onClose, onSuccess }: HomeWorkoutModalProps) {
   const [sportType, setSportType] = useState<SportType>('cycling');
   const [title, setTitle] = useState('');
-  const [workoutDate, setWorkoutDate] = useState(new Date().toISOString().split('T')[0]);
+  const [workoutDate, setWorkoutDate] = useState(() => getTodayTurkeyDate());
   const [durationInput, setDurationInput] = useState('');
   const [distanceKm, setDistanceKm] = useState('');
   const [calories, setCalories] = useState('');
@@ -91,6 +93,43 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
 
   // Dinlenme sayacı
   const [restSeconds, setRestSeconds] = useState<number | null>(null);
+
+  const resetForm = () => {
+    setSportType('cycling');
+    setTitle('');
+    setWorkoutDate(getTodayTurkeyDate());
+    setDurationInput('');
+    setDistanceKm('');
+    setCalories('');
+    setAvgSpeedKmh('');
+    setMaxSpeedKmh('');
+    setAvgPace('');
+    setAvgHeartRate('');
+    setMaxHeartRate('');
+    setVo2Max('');
+    setElevationGainM('');
+    setStepCount('');
+    setCadenceSpm('');
+    setSweatLossMl('');
+    setSwimPoolLengthM('25');
+    setSwimTotalLengths('');
+    setSwimStrokeCount('');
+    setSwimAvgSwolf('');
+    setSwimStyle('Serbest stil');
+    setHeartRateZones(null);
+    setSplitsData(null);
+    setRunningDynamics(null);
+    setNotes('');
+    setScanMessage(null);
+    setExerciseEntries([]);
+    setRestSeconds(null);
+  };
+
+  useEffect(() => {
+    if (!isOpen) {
+      resetForm();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     let timer: any = null;
@@ -237,6 +276,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
 
       const payload: any = {
         action: 'create',
+        member_id: memberId || undefined,
         sport_type: sportType,
         title,
         date: workoutDate,
@@ -284,6 +324,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
           msg += ` (💧 ${json.sweat_loss_ml} ml ter kaybı hidrasyon hedefinize eklendi)`;
         }
         onSuccess(msg);
+        resetForm();
         onClose();
       } else {
         alert(json.error || 'Kayıt başarısız.');
@@ -354,7 +395,7 @@ export default function HomeWorkoutModal({ isOpen, onClose, onSuccess }: HomeWor
             <span>{scanning ? '⏳' : '📸'}</span>
             <span>
               {scanning
-                ? 'AI Vision Ekran Görüntüsünü İnceliyor (Gemini 3.5 Flash)...'
+                ? 'AI Vision Ekran Görüntüsünü İnceliyor (Gemini AI Vision)...'
                 : 'Ekran Görüntüsü Yükle (Samsung Health / Strava / Garmin)'}
             </span>
           </button>

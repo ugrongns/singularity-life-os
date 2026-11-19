@@ -4,7 +4,12 @@ import { nutritionMeals, nutritionMealItems, userHealthProfile, waterIntakeLogs 
 import { eq, desc, and, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { getTodayTurkeyDate } from '@/lib/date-utils';
-import { learnFromSavedMeal, resolveAuthorizedMemberId } from '@/lib/nutrition-memory';
+import { learnFromSavedMeal, resolveAuthorizedMemberId, resolveOptionalHealthMemberScope } from '@/lib/nutrition-memory';
+import {
+  findScopedHealthProfile,
+  findScopedTodayWaterLog,
+  resolveProfileEffectiveMemberId,
+} from '@/lib/health-water';
 
 async function deleteUserMealSafely(mealId: string, userId: string) {
   if (!mealId || !userId) return;
@@ -40,12 +45,18 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const memberId = searchParams.get('member_id');
+    const scope = await resolveOptionalHealthMemberScope(userId, familyId, memberId);
+    if (!scope.authorized) {
+      return NextResponse.json({ success: false, error: 'Seçilen aile üyesine erişim yetkiniz yok.' }, { status: 403 });
+    }
+    const effectiveMemberId = resolveProfileEffectiveMemberId(scope);
 
-    let profile = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, userId)).limit(1))[0] || null;
+    let profile = await findScopedHealthProfile(userId, scope);
     
     if (!profile) {
       profile = {
-        id: `hp-${userId}`,
+        id: effectiveMemberId ? `hp-${userId}-${effectiveMemberId}` : `hp-${userId}`,
+        member_id: effectiveMemberId,
         daily_calorie_target: 2200,
         target_protein_g: 140,
         target_carbs_g: 180,
@@ -73,8 +84,10 @@ export async function GET(req: Request) {
       .orderBy(desc(nutritionMeals.created_at));
 
     // Eğer belirli bir aile üyesi seçildiyse ona göre filtrele
-    if (memberId) {
-      todayMeals = todayMeals.filter(m => m.member_id === memberId);
+    if (scope.memberId) {
+      todayMeals = todayMeals.filter(m =>
+        scope.isPrimarySelf ? (m.member_id === scope.memberId || !m.member_id) : m.member_id === scope.memberId
+      );
     }
 
     // PostgreSQL real(float4) kaynaklı 2.5999999 artifaktlarını 1 ondalığa normalize et
@@ -98,6 +111,11 @@ export async function GET(req: Request) {
       totalFat += meal.fat_g;
     }
 
+    const calTargetSummary = profile?.daily_calorie_target ?? 2200;
+    const proTargetSummary = profile?.target_protein_g ?? 140;
+    const carbTargetSummary = profile?.target_carbs_g ?? 180;
+    const fatTargetSummary = profile?.target_fat_g ?? 65;
+
     const summary = {
       consumed: {
         calories: Math.round(totalCalories),
@@ -106,16 +124,16 @@ export async function GET(req: Request) {
         fat_g: Math.round(totalFat * 10) / 10
       },
       targets: {
-        calories: profile?.daily_calorie_target || 2200,
-        protein_g: profile?.target_protein_g || 140,
-        carbs_g: profile?.target_carbs_g || 180,
-        fat_g: profile?.target_fat_g || 65
+        calories: calTargetSummary,
+        protein_g: proTargetSummary,
+        carbs_g: carbTargetSummary,
+        fat_g: fatTargetSummary
       },
       percentages: {
-        calories: Math.min(100, Math.round((totalCalories / (profile?.daily_calorie_target || 2200)) * 100)),
-        protein: Math.min(100, Math.round((totalProtein / (profile?.target_protein_g || 140)) * 100)),
-        carbs: Math.min(100, Math.round((totalCarbs / (profile?.target_carbs_g || 180)) * 100)),
-        fat: Math.min(100, Math.round((totalFat / (profile?.target_fat_g || 65)) * 100))
+        calories: calTargetSummary > 0 ? Math.min(100, Math.round((totalCalories / calTargetSummary) * 100)) : 0,
+        protein: proTargetSummary > 0 ? Math.min(100, Math.round((totalProtein / proTargetSummary) * 100)) : 0,
+        carbs: carbTargetSummary > 0 ? Math.min(100, Math.round((totalCarbs / carbTargetSummary) * 100)) : 0,
+        fat: fatTargetSummary > 0 ? Math.min(100, Math.round((totalFat / fatTargetSummary) * 100)) : 0
       }
     };
 
@@ -149,25 +167,40 @@ export async function POST(req: Request) {
 
     // Günlük Makro ve Su Hedeflerini Güncelleme
     if (action === 'update_profile') {
-      const existing = (await db.select().from(userHealthProfile).where(eq(userHealthProfile.user_id, user.id)).limit(1))[0];
-      const waterTarget = data.daily_water_target_ml !== undefined ? Number(data.daily_water_target_ml) : existing?.daily_water_target_ml || 2500;
+      const scope = await resolveOptionalHealthMemberScope(user.id, familyId, data.member_id);
+      if (!scope.authorized) {
+        return NextResponse.json({ success: false, error: 'Seçilen aile üyesine erişim yetkiniz yok.' }, { status: 403 });
+      }
+      const effectiveMemberId = resolveProfileEffectiveMemberId(scope);
+      const existing = await findScopedHealthProfile(user.id, scope);
+      const toSafeTarget = (raw: any, fallback: number, minVal: number) => {
+        if (raw === undefined || raw === null || raw === '') return fallback;
+        const n = Number(raw);
+        return Number.isFinite(n) && n >= minVal ? n : fallback;
+      };
+      const waterTarget = Math.min(10000, toSafeTarget(data.daily_water_target_ml, existing?.daily_water_target_ml ?? 2500, 500));
+      const calTarget = toSafeTarget(data.daily_calorie_target, existing?.daily_calorie_target ?? 2200, 1);
+      const proTarget = toSafeTarget(data.target_protein_g, existing?.target_protein_g ?? 140, 0);
+      const carbTarget = toSafeTarget(data.target_carbs_g, existing?.target_carbs_g ?? 180, 0);
+      const fatTarget = toSafeTarget(data.target_fat_g, existing?.target_fat_g ?? 65, 0);
 
       if (existing) {
         await db.update(userHealthProfile).set({
-          daily_calorie_target: Number(data.daily_calorie_target) || existing.daily_calorie_target,
-          target_protein_g: Number(data.target_protein_g) || existing.target_protein_g,
-          target_carbs_g: Number(data.target_carbs_g) || existing.target_carbs_g,
-          target_fat_g: Number(data.target_fat_g) || existing.target_fat_g,
+          daily_calorie_target: calTarget,
+          target_protein_g: proTarget,
+          target_carbs_g: carbTarget,
+          target_fat_g: fatTarget,
           daily_water_target_ml: waterTarget,
           updated_at: now
         }).where(eq(userHealthProfile.id, existing.id));
       } else {
         await db.insert(userHealthProfile).values({
-          id: `hp-${user.id}`,
-          daily_calorie_target: Number(data.daily_calorie_target) || 2200,
-          target_protein_g: Number(data.target_protein_g) || 140,
-          target_carbs_g: Number(data.target_carbs_g) || 180,
-          target_fat_g: Number(data.target_fat_g) || 65,
+          id: effectiveMemberId ? `hp-${user.id}-${effectiveMemberId}` : `hp-${user.id}`,
+          member_id: effectiveMemberId,
+          daily_calorie_target: calTarget,
+          target_protein_g: proTarget,
+          target_carbs_g: carbTarget,
+          target_fat_g: fatTarget,
           daily_water_target_ml: waterTarget,
           consumed_water_ml: 0,
           active_fasting_protocol: '16:8',
@@ -178,8 +211,8 @@ export async function POST(req: Request) {
         });
       }
 
-      // Bugünün su günlüğündeki hedefi de güncelle
-      const todayWaterLog = (await db.select().from(waterIntakeLogs).where(and(eq(waterIntakeLogs.date, today), eq(waterIntakeLogs.user_id, user.id))).limit(1))[0];
+      // Bugünün su günlüğündeki hedefi de ilgili üye kapsamında güncelle
+      const todayWaterLog = await findScopedTodayWaterLog(user.id, today, scope);
       if (todayWaterLog) {
         await db.update(waterIntakeLogs).set({ goal_ml: waterTarget, updated_at: now }).where(eq(waterIntakeLogs.id, todayWaterLog.id));
       }
@@ -196,12 +229,13 @@ export async function POST(req: Request) {
     // Manuel veya Otomatik Öğün Ekleme
     const name = data.name || 'Öğün';
     const meal_type = data.meal_type || 'lunch';
-    const multiplier = parseFloat(data.portion_multiplier) || 1.0;
+    const rawMultiplier = parseFloat(data.portion_multiplier);
+    const multiplier = Number.isFinite(rawMultiplier) && rawMultiplier > 0 ? rawMultiplier : 1.0;
 
-    const calories = Math.round((parseFloat(data.calories ?? data.base_calories) || 0) * multiplier);
-    const protein_g = Math.round(((parseFloat(data.protein_g ?? data.base_protein) || 0) * multiplier) * 10) / 10;
-    const carbs_g = Math.round(((parseFloat(data.carbs_g ?? data.base_carbs) || 0) * multiplier) * 10) / 10;
-    const fat_g = Math.round(((parseFloat(data.fat_g ?? data.base_fat) || 0) * multiplier) * 10) / 10;
+    const calories = Math.max(0, Math.round((parseFloat(data.calories ?? data.base_calories) || 0) * multiplier));
+    const protein_g = Math.max(0, Math.round(((parseFloat(data.protein_g ?? data.base_protein) || 0) * multiplier) * 10) / 10);
+    const carbs_g = Math.max(0, Math.round(((parseFloat(data.carbs_g ?? data.base_carbs) || 0) * multiplier) * 10) / 10);
+    const fat_g = Math.max(0, Math.round(((parseFloat(data.fat_g ?? data.base_fat) || 0) * multiplier) * 10) / 10);
 
     const mealId = `meal-${Date.now()}`;
 
@@ -264,7 +298,8 @@ export async function POST(req: Request) {
         protein_g,
         carbs_g,
         fat_g,
-        userId: user.id
+        userId: user.id,
+        familyId
       });
     } catch (evErr) {
       console.warn('EventBus emit notice:', evErr);

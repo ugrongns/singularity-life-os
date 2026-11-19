@@ -20,12 +20,12 @@ export async function GET() {
 
     const familyId = user.family_id || `fam-${user.id}`;
 
-    // Kullanıcıya/aileye ait veya sistem varsayılanı (user_id IS NULL) menüler
+    // Kullanıcıya/aileye ait veya sistem varsayılanı (user_id IS NULL AND family_id IS NULL) menüler
     const options = await db.select().from(dietMealOptions).where(
       or(
         eq(dietMealOptions.user_id, user.id),
         eq(dietMealOptions.family_id, familyId),
-        isNull(dietMealOptions.user_id)
+        and(isNull(dietMealOptions.user_id), isNull(dietMealOptions.family_id))
       )
     ).orderBy(asc(dietMealOptions.option_number));
 

@@ -97,15 +97,46 @@ export default function NutrientProfileModal({
     setAdded(false);
     setShowConfirm(false);
 
-    // Eğer doğrudan hazır profil string'i verilmişse anında göster
+    // Eğer doğrudan hazır profil string'i verilmişse hedef gramaja ölçekleyerek göster
     if (initialProfile) {
       try {
         const parsed = typeof initialProfile === 'string' ? JSON.parse(initialProfile) : initialProfile;
         if (parsed && (parsed.categories || parsed.macros)) {
+          const baseCats = parsed.categories || parsed;
+          const basePortion = Number(parsed.portion_g) || Number(baseCats.portion_g) || 100;
+          const ratio = basePortion > 0 ? portionGrams / basePortion : 1;
+          const scaleSection = (items?: NutrientItem[]) =>
+            Array.isArray(items)
+              ? items.map((item) => {
+                  let valStr = item.value || '';
+                  const m = valStr.match(/([\d.]+)/);
+                  if (m && ratio !== 1) {
+                    const num = parseFloat(m[1]);
+                    const nextNum = Math.round(num * ratio * 10) / 10;
+                    valStr = valStr.replace(m[1], String(nextNum));
+                  }
+                  const dailyPct =
+                    typeof item.daily_percent === 'number' && ratio !== 1
+                      ? Math.round(item.daily_percent * ratio)
+                      : item.daily_percent;
+                  return { ...item, value: valStr, daily_percent: dailyPct };
+                })
+              : items;
+
+          const scaledCategories = ratio === 1
+            ? baseCats
+            : {
+                ...baseCats,
+                macros: scaleSection(baseCats.macros),
+                vitamins: scaleSection(baseCats.vitamins),
+                minerals: scaleSection(baseCats.minerals),
+                special_compounds: scaleSection(baseCats.special_compounds)
+              };
+
           const formattedData = {
             food_name: parsed.food_name || food,
             portion_g: portionGrams,
-            categories: parsed.categories || parsed,
+            categories: scaledCategories,
             source_info: parsed.source_info
           };
           setData(formattedData);
@@ -113,7 +144,7 @@ export default function NutrientProfileModal({
           setLoading(false);
           return;
         }
-      } catch (e) {}
+      } catch {}
     }
 
     try {
@@ -156,12 +187,12 @@ export default function NutrientProfileModal({
     if (!data) return;
     setSaving(true);
     try {
-      const calories = Number(editCalories) || 0;
-      const protein = Number(editProtein) || 0;
-      const carbs = Number(editCarbs) || 0;
-      const fat = Number(editFat) || 0;
+      const calories = Math.max(0, Number(editCalories) || 0);
+      const protein = Math.max(0, Number(editProtein) || 0);
+      const carbs = Math.max(0, Number(editCarbs) || 0);
+      const fat = Math.max(0, Number(editFat) || 0);
 
-      await fetch('/api/health/nutrition', {
+      const res = await fetch('/api/health/nutrition', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -176,13 +207,19 @@ export default function NutrientProfileModal({
           portion_multiplier: 1.0
         })
       });
+      const json = await res.json().catch(() => ({ success: false }));
+      if (!res.ok || !json.success) {
+        alert(json.error || 'Beslenme kaydı eklenemedi.');
+        return;
+      }
       setAdded(true);
       setShowConfirm(false);
       if (onSuccess) {
-        onSuccess(`🥗 "${data.food_name}" (${calories} kcal) günlük beslenmenize eklendi!`);
+        onSuccess(json.message || `🥗 "${data.food_name}" (${calories} kcal) günlük beslenmenize eklendi!`);
       }
     } catch (e) {
       console.error(e);
+      alert('Beslenme kaydı eklenirken bağlantı hatası oluştu.');
     } finally {
       setSaving(false);
     }
@@ -306,11 +343,11 @@ export default function NutrientProfileModal({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* Header Banner */}
             <div style={{ padding: '14px', background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ minWidth: 0, flex: '1 1 200px' }}>
                   <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)' }}>{data.food_name}</div>
                   <div style={{ fontSize: '12px', color: '#10B981', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                    <ShieldCheck className="w-4 h-4" />
+                    <ShieldCheck className="w-4 h-4 shrink-0" />
                     <span>{grams} gram porsiyon mikro-besin ve etken madde karnesi</span>
                   </div>
                 </div>
@@ -319,7 +356,7 @@ export default function NutrientProfileModal({
                   className="btn-primary"
                   onClick={() => setShowConfirm(!showConfirm)}
                   disabled={added}
-                  style={{ fontSize: '12px', padding: '8px 14px', background: added ? '#059669' : undefined }}
+                  style={{ width: 'auto', marginTop: 0, fontSize: '12px', padding: '8px 14px', whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '5px', background: added ? '#059669' : undefined }}
                 >
                   {added ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                   <span>{added ? 'Eklendi!' : 'Beslenmeme Ekle'}</span>
@@ -360,7 +397,7 @@ export default function NutrientProfileModal({
                   </div>
 
                   {/* Düzenlenebilir Makro Değerleri (Editable Macro Inputs) */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '4px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '8px', marginTop: '4px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '10px', color: 'var(--text-muted)', marginBottom: '3px', fontWeight: 600 }}>🔥 Kalori (kcal)</label>
                       <input
@@ -472,7 +509,7 @@ export default function NutrientProfileModal({
             </div>
 
             {/* Navigation Tabs */}
-            <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid var(--border)', paddingBottom: '8px', overflowX: 'auto' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
               {[
                 { key: 'all', label: 'Tüm Profil' },
                 { key: 'macros', label: '🥗 Makrolar' },
@@ -485,7 +522,7 @@ export default function NutrientProfileModal({
                   type="button"
                   onClick={() => setActiveTab(t.key as any)}
                   style={{
-                    padding: '6px 12px',
+                    padding: '6px 10px',
                     fontSize: '12px',
                     borderRadius: '8px',
                     border: 'none',

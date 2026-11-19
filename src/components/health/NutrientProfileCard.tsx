@@ -66,7 +66,9 @@ export default function NutrientProfileCard({ memberId, onSuccess, onRefresh }: 
               border: '1px solid rgba(20, 184, 166, 0.25)',
               padding: '3px 8px',
               borderRadius: '999px',
-              fontWeight: 800
+              fontWeight: 800,
+              whiteSpace: 'nowrap',
+              flexShrink: 0
             }}
           >
             TÜRKOMP v2
@@ -89,14 +91,15 @@ export default function NutrientProfileCard({ memberId, onSuccess, onRefresh }: 
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            gap: '8px',
             fontSize: '12px',
             color: 'var(--text-muted)',
             transition: 'border-color 0.15s ease'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Search size={14} color="#0D9488" />
-            <span>Herhangi bir gıda aratın (Örn: Ceviz, Somon, Zerdeçal...)</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+            <Search size={14} color="#0D9488" style={{ flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Herhangi bir gıda aratın (Örn: Ceviz, Somon, Zerdeçal...)</span>
           </div>
           <span
             style={{
@@ -106,7 +109,9 @@ export default function NutrientProfileCard({ memberId, onSuccess, onRefresh }: 
               padding: '4px 10px',
               borderRadius: '6px',
               fontSize: '11px',
-              boxShadow: '0 1px 4px rgba(13, 148, 136, 0.25)'
+              boxShadow: '0 1px 4px rgba(13, 148, 136, 0.25)',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
             }}
           >
             Sorgula ➔
