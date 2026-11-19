@@ -155,6 +155,19 @@ export default function LifeCalendarHeatmap() {
   const svgTotalHeight = topPad + 7 * (cellSide + cellGap) + 8;
 
   const dayRowNames = ['Pzt', '', 'Çar', '', 'Cum', '', 'Paz'];
+  const totalHabitsTarget = summary.totalHabitsTarget ?? ((summary.activeHabitsCount ?? 0) > 0 ? 5 : 4);
+  const legendSwatches =
+    mode === 'fasting'
+      ? ['rgba(59, 130, 246, 0.4)', '#3B82F6', '#8B5CF6', '#EC4899']
+      : mode === 'reading'
+      ? ['rgba(59, 130, 246, 0.25)', 'rgba(59, 130, 246, 0.45)', 'rgba(59, 130, 246, 0.7)', '#3B82F6']
+      : mode === 'nospend'
+      ? ['rgba(239, 68, 68, 0.35)', 'rgba(16, 185, 129, 0.35)', '#F59E0B']
+      : mode === 'habits'
+      ? ['var(--surface-subtle)', 'rgba(6, 182, 212, 0.35)', 'rgba(6, 182, 212, 0.65)', '#06B6D4']
+      : mode === 'tasks'
+      ? ['var(--surface-subtle)', 'rgba(16, 185, 129, 0.35)', 'rgba(16, 185, 129, 0.65)', '#10B981']
+      : ['var(--surface-subtle)', 'rgba(16, 185, 129, 0.3)', 'rgba(16, 185, 129, 0.65)', '#10B981'];
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -447,7 +460,7 @@ export default function LifeCalendarHeatmap() {
                       style={{ cursor: 'pointer', transition: 'all 0.15s ease' }}
                       onClick={() => setSelectedCell(cell)}
                     >
-                      <title>{`${cell.dayLabel} (${cell.date})\n• Oruç: ${cell.fastingHours}s (Ötofaji: ${cell.autophagyHours}s)\n• Okuma: ${cell.pagesRead} sayfa (${cell.avgWpm} WPM)\n• Harcama: ₺${cell.spentAmount} (${cell.isNoSpend ? 'No-Spend' : 'Harcamalı'})\n• Görev: ${cell.completedTasksCount ?? 0} tamamlandı (${cell.completedMitsCount ?? 0} MIT)\n• Alışkanlık: ${cell.habitsMetCount}/4`}</title>
+                      <title>{`${cell.dayLabel} (${cell.date})\n• Oruç: ${cell.fastingHours}s (Ötofaji: ${cell.autophagyHours}s)\n• Okuma: ${cell.pagesRead} sayfa (${cell.avgWpm} WPM)\n• Harcama: ₺${cell.spentAmount} (${cell.isNoSpend ? 'No-Spend' : 'Harcamalı'})\n• Görev: ${cell.completedTasksCount ?? 0} tamamlandı (${cell.completedMitsCount ?? 0} MIT)\n• Alışkanlık: ${cell.habitsMetCount}/${totalHabitsTarget} (${cell.completedHabitsCount ?? 0} özel rutin)`}</title>
                     </rect>
                   );
                 })}
@@ -458,12 +471,20 @@ export default function LifeCalendarHeatmap() {
 
         {/* Lejant (Az -> Çok) */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '10px', color: 'var(--text-muted)' }}>
-          <span>Az</span>
-          <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: 'var(--surface-subtle)', border: '1px solid var(--border)' }} />
-          <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: mode === 'fasting' ? 'rgba(139, 92, 246, 0.3)' : mode === 'reading' ? 'rgba(59, 130, 246, 0.35)' : mode === 'nospend' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(16, 185, 129, 0.3)' }} />
-          <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: mode === 'fasting' ? '#8B5CF6' : mode === 'reading' ? 'rgba(59, 130, 246, 0.7)' : mode === 'nospend' ? '#F59E0B' : 'rgba(16, 185, 129, 0.65)' }} />
-          <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: mode === 'fasting' ? '#EC4899' : mode === 'reading' ? '#3B82F6' : mode === 'nospend' ? '#F59E0B' : '#10B981' }} />
-          <span>Çok</span>
+          <span>{mode === 'nospend' ? 'Harcamalı' : 'Az'}</span>
+          {legendSwatches.map((bg, sIdx) => (
+            <span
+              key={sIdx}
+              style={{
+                width: '10px',
+                height: '10px',
+                borderRadius: '2px',
+                background: bg,
+                border: bg === 'var(--surface-subtle)' ? '1px solid var(--border)' : 'none'
+              }}
+            />
+          ))}
+          <span>{mode === 'nospend' ? 'No-Spend' : 'Çok'}</span>
         </div>
       </div>
 
@@ -497,7 +518,7 @@ export default function LifeCalendarHeatmap() {
                 border: `1px solid ${selectedCell.dominantLevel === 3 ? 'rgba(16, 185, 129, 0.3)' : 'var(--border)'}`
               }}
             >
-              {selectedCell.habitsMetCount} / 4 Alışkanlık Sağlandı {selectedCell.dominantLevel === 3 ? '🏆' : ''}
+              {selectedCell.habitsMetCount} / {totalHabitsTarget} Alışkanlık Sağlandı {selectedCell.dominantLevel === 3 ? '🏆' : ''}
             </span>
           </div>
 
@@ -573,6 +594,25 @@ export default function LifeCalendarHeatmap() {
                 {(selectedCell.completedMitsCount ?? 0) > 0 ? `🎯 ${selectedCell.completedMitsCount} Odak (MIT) tamamlandı` : 'Odak hedefi tamamlanmadı'}
               </div>
             </div>
+
+            {/* Özel Alışkanlıklar */}
+            {((summary.activeHabitsCount ?? 0) > 0 || (selectedCell.completedHabitsCount ?? 0) > 0) && (
+              <div style={{ background: 'rgba(6, 182, 212, 0.08)', border: '1px solid rgba(6, 182, 212, 0.2)', borderRadius: '6px', padding: '8px 10px' }}>
+                <div style={{ fontSize: '10px', color: '#06B6D4', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>🔁</span> ALIŞKANLIKLAR
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px' }}>
+                  {(selectedCell.completedHabitsCount ?? 0) > 0
+                    ? `${selectedCell.completedHabitsCount} / ${summary.activeHabitsCount || selectedCell.completedHabitsCount} rutin tamamlandı`
+                    : 'Tamamlanan rutin yok'}
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                  {(summary.activeHabitsCount ?? 0) > 0
+                    ? `Hedef: Günlük en az ${Math.ceil((summary.activeHabitsCount ?? 0) * 0.5)} rutin`
+                    : 'Özel alışkanlık takibi'}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

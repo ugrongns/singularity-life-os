@@ -45,6 +45,7 @@ export async function GET() {
     const today = getTodayTurkeyDate();
     const currentMonth = today.slice(0, 7);
     const last7Days = shiftTurkeyDate(today, -6);
+    const last30Days = shiftTurkeyDate(today, -29);
 
     // ==========================================
     // 1. 💰 FİNANSAL SAĞLIK SKORU (Ham: 0 - 25, Bütünsel Matris: 0 - 20)
@@ -221,8 +222,10 @@ export async function GET() {
     // ==========================================
     let healthScore = 0;
     try {
-      // Antrenman / Egzersiz kaydı (+5 puan)
-      const workouts = await db.select().from(workoutSessions).where(eq(workoutSessions.user_id, userId)).limit(1);
+      // Antrenman / Egzersiz kaydı (Son 30 gün, +5 puan)
+      const workouts = await db.select().from(workoutSessions)
+        .where(and(eq(workoutSessions.user_id, userId), sql`${workoutSessions.date} >= ${last30Days}`))
+        .limit(1);
       if (workouts.length > 0) {
         healthScore += 5;
       }
@@ -238,16 +241,24 @@ export async function GET() {
         else healthScore += 3;
       }
 
-      // Oruç veya beslenme öğün kaydı
-      const fastingList = await db.select().from(fastingSessions).where(eq(fastingSessions.user_id, userId)).limit(1);
-      const mealsList = await db.select().from(nutritionMeals).where(eq(nutritionMeals.user_id, userId)).limit(1);
+      // Oruç veya beslenme öğün kaydı (Son 30 gün)
+      const fastingList = await db.select().from(fastingSessions)
+        .where(and(eq(fastingSessions.user_id, userId), sql`${fastingSessions.start_time} >= ${last30Days}`))
+        .limit(1);
+      const mealsList = await db.select().from(nutritionMeals)
+        .where(and(eq(nutritionMeals.user_id, userId), sql`${nutritionMeals.date} >= ${last30Days}`))
+        .limit(1);
       if (fastingList.length > 0 || mealsList.length > 0) {
         healthScore += 5;
       }
 
-      // Biyometri / Akıllı Tartı kaydı
-      const scaleList = await db.select().from(smartScaleLogs).where(eq(smartScaleLogs.user_id, userId)).limit(1);
-      const bioList = await db.select().from(biometrics).where(eq(biometrics.user_id, userId)).limit(1);
+      // Biyometri / Akıllı Tartı kaydı (Son 30 gün)
+      const scaleList = await db.select().from(smartScaleLogs)
+        .where(and(eq(smartScaleLogs.user_id, userId), sql`${smartScaleLogs.measurement_date} >= ${last30Days}`))
+        .limit(1);
+      const bioList = await db.select().from(biometrics)
+        .where(and(eq(biometrics.user_id, userId), sql`${biometrics.date} >= ${last30Days}`))
+        .limit(1);
       if (scaleList.length > 0 || bioList.length > 0) {
         healthScore += 5;
       }
@@ -316,15 +327,21 @@ export async function GET() {
       const activeBooks = allBooks.filter((b: any) => b.status === 'reading');
       if (activeBooks.length > 0) mindScore += 8; // Aktif okunan kitap var
 
-      const sessions = await db.select().from(readingSessions).where(eq(readingSessions.user_id, userId)).limit(1);
-      if (sessions.length > 0) mindScore += 7; // Okuma seansı yapılmış
+      const sessions = await db.select().from(readingSessions)
+        .where(and(eq(readingSessions.user_id, userId), sql`${readingSessions.session_date} >= ${last30Days}`))
+        .limit(1);
+      if (sessions.length > 0) mindScore += 7; // Son 30 günde okuma seansı yapılmış
 
-      const quotes = await db.select().from(bookQuotes).where(eq(bookQuotes.user_id, userId)).limit(1);
+      const quotes = await db.select().from(bookQuotes)
+        .where(and(eq(bookQuotes.user_id, userId), sql`${bookQuotes.created_at} >= ${last30Days}`))
+        .limit(1);
       if (quotes.length > 0) {
-        mindScore += 5; // Alıntı kaydedilmiş
+        mindScore += 5; // Son 30 günde alıntı kaydedilmiş
       } else {
-        const recentNotes = await db.select().from(notes).where(eq(notes.user_id, userId)).limit(1);
-        if (recentNotes.length > 0) mindScore += 5; // İkinci Beyin notu kaydedilmiş
+        const recentNotes = await db.select().from(notes)
+          .where(and(eq(notes.user_id, userId), sql`${notes.updated_at} >= ${last30Days}`))
+          .limit(1);
+        if (recentNotes.length > 0) mindScore += 5; // Son 30 günde İkinci Beyin notu kaydedilmiş/güncellenmiş
       }
       mindScore = Math.min(25, mindScore);
     } catch (e) {

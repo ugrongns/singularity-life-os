@@ -13,6 +13,7 @@ import {
 } from '@/db/schema';
 import { eq, and, gte, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { fetchLiveExchangeRates } from '@/lib/market-data';
 import { calculateHeatmapMatrix, RawHeatmapData } from '@/lib/calendar-heatmap';
 import { getTodayTurkeyDate, shiftTurkeyDate } from '@/lib/date-utils';
 
@@ -69,9 +70,10 @@ export async function GET(req: Request) {
       )
       .limit(1000);
 
-    // 3. Harcamalar (OWASP BOLA)
+    // 3. Harcamalar (OWASP BOLA + Döviz/Altın TRY Dönüşümü)
     const rawTransactions = await db.select({
       amount: transactions.amount,
+      currency: transactions.currency,
       transaction_date: transactions.transaction_date,
       merchant: transactions.merchant,
       notes: transactions.notes,
@@ -89,6 +91,27 @@ export async function GET(req: Request) {
         )
       )
       .limit(1500);
+
+    const hasForeignCurrencyTx = rawTransactions.some((t: any) => {
+      const c = (t.currency || 'TRY').toUpperCase();
+      return c !== 'TRY' && c !== 'TL';
+    });
+    const liveRates = hasForeignCurrencyTx ? await fetchLiveExchangeRates() : null;
+    const toTryAmount = (amount: number, currency?: string | null) => {
+      const num = Number(amount) || 0;
+      const c = (currency || 'TRY').toUpperCase();
+      if (!liveRates || c === 'TRY' || c === 'TL') return num;
+      if (c === 'USD') return num * (liveRates.USD_TRY || 0);
+      if (c === 'EUR') return num * (liveRates.EUR_TRY || 0);
+      if (c === 'GBP') return num * (liveRates.GBP_TRY || 0);
+      if (c === 'GOLD') return num * (liveRates.GOLD_GRAM_TRY || 0);
+      if (c === 'BTC') return num * (liveRates.BTC_TRY || 0);
+      return num;
+    };
+    const normalizedTransactions = rawTransactions.map((t: any) => ({
+      ...t,
+      amount: Math.round(toTryAmount(t.amount, t.currency) * 100) / 100
+    }));
 
     // 4. Su Kayıtları (OWASP BOLA — kişisel sağlık verisi yalnızca oturum sahibine aittir)
     const rawWater = await db.select({
@@ -143,7 +166,7 @@ export async function GET(req: Request) {
     const rawData: RawHeatmapData = {
       fastingSessions: rawFasting,
       readingSessions: rawReading,
-      transactions: rawTransactions,
+      transactions: normalizedTransactions,
       waterLogs: rawWater,
       completedTasks: rawTasks,
       habitLogs: rawHabitLogs,

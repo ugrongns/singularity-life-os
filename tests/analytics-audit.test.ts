@@ -404,4 +404,65 @@ describe('📊 Analitik Modülü (!denetle analitik) Denetim & Regresyon Testler
       vi.useRealTimers();
     }
   });
+
+  it('5 Opsiyonel İyileştirme: Isı haritası dövizli harcamayı TRY kuruna çevirmeli, dinamik alışkanlık paydasını (4 vs 5) hesaplamalı ve Holistik Skor Sağlık/Zihin sorgularında 30 günlük tarih penceresi uygulamalıdır', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-11-19T12:00:00Z'));
+      mockGetAuthUser.mockResolvedValue({ id: 'user-1', family_id: 'fam-1' });
+
+      // 1) GET /api/analytics/calendar: 10 USD harcama (USD_TRY = 40 -> 400 TL) ve 2 aktif alışkanlık -> totalHabitsTarget = 5
+      setupMockDb(new Map<unknown, unknown[]>([
+        [schema.transactions, [
+          {
+            amount: 10,
+            currency: 'USD',
+            transaction_date: '2026-11-19',
+            merchant: 'Cloud Subscription',
+            notes: null,
+            category_type: 'expense'
+          }
+        ]],
+        [schema.habits, [{ id: 'h-1' }, { id: 'h-2' }]],
+        [schema.habitLogs, [{ date: '2026-11-19', is_completed: 1 }]],
+      ]));
+
+      const calRes = await getAnalyticsCalendar(new Request('http://localhost/api/analytics/calendar?days=30'));
+      const calJson = await calRes.json();
+
+      expect(calRes.status).toBe(200);
+      expect(calJson.data.activeHabitsCount).toBe(2);
+      expect(calJson.data.totalHabitsTarget).toBe(5);
+
+      const nov19 = calJson.data.days.find((d: any) => d.date === '2026-11-19');
+      expect(nov19.spentAmount).toBe(400); // 10 USD * 40 TRY = 400 TL (> 250 TL olduğu için düşük bütçe kriterini geçmez)
+      expect(nov19.isNoSpend).toBe(false);
+      expect(nov19.completedHabitsCount).toBe(1);
+      // 1/2 aktif alışkanlık (%50) tamamlandığı için habitCustom = 1
+      expect(nov19.habitsMetCount).toBe(1);
+
+      // 2) GET /api/analytics: Sağlık ve Zihin sorgularında son 30 gün (>= 2026-10-21) tarih filtresi bulunmalıdır
+      const queries = setupMockDb(new Map<unknown, unknown[]>([]));
+      const anaRes = await getAnalytics();
+      expect(anaRes.status).toBe(200);
+
+      for (const tbl of [
+        schema.workoutSessions,
+        schema.fastingSessions,
+        schema.nutritionMeals,
+        schema.smartScaleLogs,
+        schema.biometrics,
+        schema.readingSessions,
+        schema.bookQuotes,
+        schema.notes
+      ]) {
+        const q = queries.find(x => x.table === tbl);
+        expect(q).toBeDefined();
+        expect(q!.sql).toContain('>=');
+        expect(q!.params).toContain('2026-10-21');
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

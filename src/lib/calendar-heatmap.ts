@@ -19,6 +19,7 @@ export interface RawHeatmapData {
   }>;
   transactions: Array<{
     amount: number;
+    currency?: string | null;
     transaction_date: string;
     merchant?: string | null;
     notes?: string | null;
@@ -69,6 +70,8 @@ export interface HeatmapSummary {
   totalNoSpendDays: number;
   totalCompletedTasks: number;
   totalCompletedMits: number;
+  activeHabitsCount: number;
+  totalHabitsTarget: number;
 }
 
 /**
@@ -253,6 +256,8 @@ export function calculateHeatmapMatrix(
     totalPagesRead,
     totalNoSpendDays,
     totalCompletedTasks,
-    totalCompletedMits
+    totalCompletedMits,
+    activeHabitsCount,
+    totalHabitsTarget: activeHabitsCount > 0 ? 5 : 4
   };
 }
