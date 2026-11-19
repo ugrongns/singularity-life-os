@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
                 eq(tasks.user_id, user.id),
                 and(eq(tasks.family_id, familyId), eq(tasks.is_family_shared, 1))
               ),
-              eq(tasks.status, 'done')
+              eq(tasks.status, 'completed')
             )
           ),
         db

@@ -182,6 +182,9 @@ export async function POST(req: Request) {
         await tx.delete(shoppingListItems).where(eq(shoppingListItems.family_id, familyId));
         await tx.delete(sinkingFunds).where(eq(sinkingFunds.family_id, familyId));
         await tx.delete(tasks).where(or(eq(tasks.user_id, userId), eq(tasks.family_id, familyId)));
+        await tx.delete(timeBlocks).where(or(eq(timeBlocks.user_id, userId), eq(timeBlocks.family_id, familyId)));
+        await tx.delete(okrObjectives).where(or(eq(okrObjectives.user_id, userId), eq(okrObjectives.family_id, familyId)));
+        await tx.delete(notes).where(or(eq(notes.user_id, userId), eq(notes.family_id, familyId)));
 
         // Bütçe işlemleri, Periyodik Faturalar, Kategoriler ve Cüzdanlar (Önce transactions & bills, sonra kategoriler & cüzdanlar)
         await tx.delete(transactions).where(eq(transactions.family_id, familyId));

@@ -30,6 +30,8 @@ export interface TimeBlockItem {
   id: string;
   user_id: string;
   family_id?: string | null;
+  owner_name?: string | null;
+  owner_avatar?: string | null;
   title: string;
   category: string;
   date: string;
@@ -154,6 +156,83 @@ export function computeTimeBlocksSummary(blocks: TimeBlockItem[]): TimeBlocksSum
     completedMinutes,
     conflictCount: conflicts.size,
     completionRate,
+  };
+}
+
+/**
+ * Formats minutes since 00:00 (0..1439) into an HH:mm string.
+ */
+export function formatMinutesToTime(totalMinutes: number): string {
+  const clamped = Math.max(0, Math.min(1439, Math.round(totalMinutes)));
+  const h = String(Math.floor(clamped / 60)).padStart(2, '0');
+  const m = String(clamped % 60).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+/**
+ * Finds the first conflict-free time slot on a day starting from preferredStart.
+ * Steps in 15-minute increments up to 23:59; if no slot exists after preferredStart,
+ * falls back to scanning from 06:00. If the entire day is full, returns preferredStart.
+ */
+export function findNextAvailableSlot(
+  dayBlocks: Array<Pick<TimeBlockItem, 'start_time' | 'end_time'>>,
+  preferredStart: string,
+  durationMinutes: number
+): { start_time: string; end_time: string; shifted: boolean } {
+  const safeDuration = Math.max(15, Math.min(720, Math.round(durationMinutes || 30)));
+  const rawPreferred = parseTimeToMinutes(preferredStart);
+  const prefStartMin = rawPreferred >= 0 ? rawPreferred : 9 * 60;
+  const maxStartMin = 23 * 60 + 59 - safeDuration;
+  const clampedPrefStart = Math.max(0, Math.min(maxStartMin, prefStartMin));
+
+  const occupied = dayBlocks
+    .map((b) => ({
+      start: parseTimeToMinutes(b.start_time),
+      end: parseTimeToMinutes(b.end_time),
+    }))
+    .filter((interval) => interval.start >= 0 && interval.end > interval.start);
+
+  const isFree = (start: number, end: number) =>
+    !occupied.some((o) => start < o.end && end > o.start);
+
+  // 1. Try preferredStart directly
+  if (isFree(clampedPrefStart, clampedPrefStart + safeDuration)) {
+    return {
+      start_time: formatMinutesToTime(clampedPrefStart),
+      end_time: formatMinutesToTime(clampedPrefStart + safeDuration),
+      shifted: false,
+    };
+  }
+
+  // 2. Scan forward from preferredStart in 15-minute steps
+  const firstStep = Math.ceil((clampedPrefStart + 1) / 15) * 15;
+  for (let cand = firstStep; cand <= maxStartMin; cand += 15) {
+    if (isFree(cand, cand + safeDuration)) {
+      return {
+        start_time: formatMinutesToTime(cand),
+        end_time: formatMinutesToTime(cand + safeDuration),
+        shifted: true,
+      };
+    }
+  }
+
+  // 3. Fallback: scan from 06:00 up to preferredStart
+  const morningStart = 6 * 60;
+  for (let cand = morningStart; cand < clampedPrefStart; cand += 15) {
+    if (isFree(cand, cand + safeDuration)) {
+      return {
+        start_time: formatMinutesToTime(cand),
+        end_time: formatMinutesToTime(cand + safeDuration),
+        shifted: true,
+      };
+    }
+  }
+
+  // 4. Entire day full: keep preferred slot
+  return {
+    start_time: formatMinutesToTime(clampedPrefStart),
+    end_time: formatMinutesToTime(clampedPrefStart + safeDuration),
+    shifted: false,
   };
 }
 

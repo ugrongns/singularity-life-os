@@ -157,6 +157,9 @@ export async function POST(req: Request) {
       
       if (isMasterAdmin) {
         await tx.delete(tasks).where(or(eq(tasks.user_id, userId), eq(tasks.family_id, familyId)));
+        await tx.delete(timeBlocks).where(or(eq(timeBlocks.user_id, userId), eq(timeBlocks.family_id, familyId)));
+        await tx.delete(okrObjectives).where(or(eq(okrObjectives.user_id, userId), eq(okrObjectives.family_id, familyId)));
+        await tx.delete(notes).where(or(eq(notes.user_id, userId), eq(notes.family_id, familyId)));
         await tx.delete(sinkingFunds).where(eq(sinkingFunds.family_id, familyId));
         await tx.delete(homeMaintenanceRecords).where(eq(homeMaintenanceRecords.family_id, familyId));
         await tx.delete(homeAppliances).where(eq(homeAppliances.family_id, familyId));

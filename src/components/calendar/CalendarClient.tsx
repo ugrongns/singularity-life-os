@@ -29,11 +29,13 @@ import {
   TimeBlockItem,
   computeTimeBlocksSummary,
   detectTimeBlockConflicts,
+  findNextAvailableSlot,
   formatMinutesToDuration,
   getTimeBlockCategoryMeta,
   getTurkeyWeekDates,
   parseTimeToMinutes,
 } from '@/lib/time-blocks-engine';
+import PageLoadingState from '@/components/ui/PageLoadingState';
 
 interface UnscheduledTask {
   id: string;
@@ -58,15 +60,41 @@ interface ActiveHabit {
   color: string;
 }
 
+const HABIT_EMOJI_MAP: Record<string, string> = {
+  check: '✅',
+  water: '💧',
+  book: '📚',
+  meditation: '🧘',
+  fitness: '🏋️',
+  walk: '🚶',
+  code: '💻',
+  sleep: '😴',
+  heart: '❤️',
+  bolt: '⚡',
+};
+
+function resolveHabitEmoji(iconKey: string): string {
+  if (!iconKey) return '🔁';
+  return HABIT_EMOJI_MAP[iconKey] || iconKey;
+}
+
+const PRIORITY_LABELS: Record<string, string> = {
+  critical: '🔴 Kritik',
+  high: '🟡 Yüksek',
+  medium: '🔵 Orta',
+  low: '⚪ Düşük',
+};
+
 export default function CalendarClient() {
-  const today = useMemo(() => getTodayTurkeyDate(), []);
-  const [selectedDate, setSelectedDate] = useState<string>(today);
+  const [today, setToday] = useState<string>(() => getTodayTurkeyDate());
+  const [selectedDate, setSelectedDate] = useState<string>(() => getTodayTurkeyDate());
   const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('weekly');
   const [blocks, setBlocks] = useState<TimeBlockItem[]>([]);
   const [unscheduledTasks, setUnscheduledTasks] = useState<UnscheduledTask[]>([]);
   const [activeBooks, setActiveBooks] = useState<ActiveBook[]>([]);
   const [activeHabits, setActiveHabits] = useState<ActiveHabit[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [initialLoaded, setInitialLoaded] = useState<boolean>(false);
   const [showDrawer, setShowDrawer] = useState<boolean>(false);
   const [drawerTab, setDrawerTab] = useState<'tasks' | 'books' | 'habits'>('tasks');
   const [toast, setToast] = useState<{ text: string; type: 'ok' | 'err' } | null>(null);
@@ -81,11 +109,43 @@ export default function CalendarClient() {
   const [formCategory, setFormCategory] = useState<string>('deep_work');
   const [formNotes, setFormNotes] = useState<string>('');
   const [formShared, setFormShared] = useState<boolean>(false);
+  const [formLinkedTaskId, setFormLinkedTaskId] = useState<string>('');
+  const [formLinkedBookId, setFormLinkedBookId] = useState<string>('');
+  const [formLinkedHabitId, setFormLinkedHabitId] = useState<string>('');
   const [saving, setSaving] = useState<boolean>(false);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [pendingFollowUp, setPendingFollowUp] = useState<{
+    blockId: string;
+    blockTitle: string;
+    blockDate: string;
+    taskId: string | null;
+    habitId: string | null;
+  } | null>(null);
+  const [followUpBusy, setFollowUpBusy] = useState<boolean>(false);
 
   const notify = useCallback((text: string, type: 'ok' | 'err' = 'ok') => {
     setToast({ text, type });
     setTimeout(() => setToast(null), 3200);
+  }, []);
+
+  // Midnight Europe/Istanbul rollover check
+  useEffect(() => {
+    const syncToday = () => {
+      const nextToday = getTodayTurkeyDate();
+      setToday((prev) => {
+        if (prev !== nextToday) {
+          setSelectedDate((sel) => (sel === prev ? nextToday : sel));
+          return nextToday;
+        }
+        return prev;
+      });
+    };
+    const timer = setInterval(syncToday, 60_000);
+    window.addEventListener('focus', syncToday);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', syncToday);
+    };
   }, []);
 
   const weekDates = useMemo(() => getTurkeyWeekDates(selectedDate), [selectedDate]);
@@ -111,11 +171,15 @@ export default function CalendarClient() {
       notify('Bağlantı hatası oluştu.', 'err');
     } finally {
       setLoading(false);
+      setInitialLoaded(true);
     }
   }, [rangeFrom, rangeTo, notify]);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
+    const onRefresh = () => void fetchData();
+    window.addEventListener('singularity-refresh', onRefresh);
+    return () => window.removeEventListener('singularity-refresh', onRefresh);
   }, [fetchData]);
 
   // Default to daily on mobile viewports on first mount
@@ -136,6 +200,19 @@ export default function CalendarClient() {
     [blocks, selectedDate]
   );
 
+  const nextTaskSlot = useMemo(
+    () => findNextAvailableSlot(dailyBlocks, '10:00', 60),
+    [dailyBlocks]
+  );
+  const nextBookSlot = useMemo(
+    () => findNextAvailableSlot(dailyBlocks, '21:00', 45),
+    [dailyBlocks]
+  );
+  const nextHabitSlot = useMemo(
+    () => findNextAvailableSlot(dailyBlocks, '08:00', 30),
+    [dailyBlocks]
+  );
+
   const openCreateModal = (presetDate?: string) => {
     setEditingBlock(null);
     setFormTitle('');
@@ -145,6 +222,9 @@ export default function CalendarClient() {
     setFormCategory('deep_work');
     setFormNotes('');
     setFormShared(false);
+    setFormLinkedTaskId('');
+    setFormLinkedBookId('');
+    setFormLinkedHabitId('');
     setModalOpen(true);
   };
 
@@ -157,6 +237,9 @@ export default function CalendarClient() {
     setFormCategory(block.category);
     setFormNotes(block.notes || '');
     setFormShared(block.is_family_shared === 1);
+    setFormLinkedTaskId(block.linked_task_id || '');
+    setFormLinkedBookId(block.linked_book_id || '');
+    setFormLinkedHabitId(block.linked_habit_id || '');
     setModalOpen(true);
   };
 
@@ -189,13 +272,16 @@ export default function CalendarClient() {
           color: catMeta.color,
           notes: formNotes.trim() || null,
           is_family_shared: formShared,
+          linked_task_id: formLinkedTaskId || null,
+          linked_book_id: formLinkedBookId || null,
+          linked_habit_id: formLinkedHabitId || null,
         }),
       });
       const json = await res.json();
       if (json.success) {
         notify(editingBlock ? 'Zaman bloğu güncellendi.' : 'Zaman bloğu eklendi.');
         setModalOpen(false);
-        fetchData();
+        void fetchData();
       } else {
         notify(json.error || 'İşlem başarısız.', 'err');
       }
@@ -207,6 +293,7 @@ export default function CalendarClient() {
   };
 
   const handleToggleComplete = async (block: TimeBlockItem) => {
+    const nextCompleted = block.is_completed === 1 ? 0 : 1;
     try {
       const res = await fetch('/api/time-blocks', {
         method: 'POST',
@@ -217,9 +304,20 @@ export default function CalendarClient() {
       if (json.success) {
         setBlocks((prev) =>
           prev.map((b) =>
-            b.id === block.id ? { ...b, is_completed: b.is_completed === 1 ? 0 : 1 } : b
+            b.id === block.id ? { ...b, is_completed: nextCompleted } : b
           )
         );
+        if (nextCompleted === 1 && (block.linked_task_id || block.linked_habit_id)) {
+          setPendingFollowUp({
+            blockId: block.id,
+            blockTitle: block.title,
+            blockDate: block.date,
+            taskId: block.linked_task_id || null,
+            habitId: block.linked_habit_id || null,
+          });
+        } else if (nextCompleted === 0 && pendingFollowUp?.blockId === block.id) {
+          setPendingFollowUp(null);
+        }
       } else {
         notify(json.error || 'Güncellenemedi.', 'err');
       }
@@ -228,7 +326,68 @@ export default function CalendarClient() {
     }
   };
 
+  const handleConfirmLinkedTask = async () => {
+    if (!pendingFollowUp?.taskId || followUpBusy) return;
+    setFollowUpBusy(true);
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'toggle_complete',
+          task_id: pendingFollowUp.taskId,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        notify('✅ Bağlı görev tamamlandı olarak işaretlendi.');
+        setPendingFollowUp((prev) =>
+          prev && prev.habitId ? { ...prev, taskId: null } : null
+        );
+        void fetchData();
+      } else {
+        notify(json.error || 'Bağlı görev güncellenemedi.', 'err');
+      }
+    } catch {
+      notify('Bağlı görev güncellenirken hata oluştu.', 'err');
+    } finally {
+      setFollowUpBusy(false);
+    }
+  };
+
+  const handleConfirmLinkedHabit = async () => {
+    if (!pendingFollowUp?.habitId || followUpBusy) return;
+    setFollowUpBusy(true);
+    try {
+      const res = await fetch('/api/habits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'toggle_log',
+          habit_id: pendingFollowUp.habitId,
+          date: pendingFollowUp.blockDate,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        notify('🔁 Bağlı alışkanlık kaydedildi.');
+        setPendingFollowUp((prev) =>
+          prev && prev.taskId ? { ...prev, habitId: null } : null
+        );
+        void fetchData();
+      } else {
+        notify(json.error || 'Bağlı alışkanlık güncellenemedi.', 'err');
+      }
+    } catch {
+      notify('Bağlı alışkanlık güncellenirken hata oluştu.', 'err');
+    } finally {
+      setFollowUpBusy(false);
+    }
+  };
+
   const handleDelete = async (block: TimeBlockItem) => {
+    if (deletingIds.has(block.id)) return;
+    setDeletingIds((prev) => new Set(prev).add(block.id));
     try {
       const res = await fetch('/api/time-blocks', {
         method: 'POST',
@@ -237,13 +396,20 @@ export default function CalendarClient() {
       });
       const json = await res.json();
       if (json.success) {
+        setBlocks((prev) => prev.filter((b) => b.id !== block.id));
         notify('Zaman bloğu silindi.');
-        fetchData();
+        void fetchData();
       } else {
         notify(json.error || 'Silinemedi.', 'err');
       }
     } catch {
       notify('Silme sırasında hata oluştu.', 'err');
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(block.id);
+        return next;
+      });
     }
   };
 
@@ -278,6 +444,7 @@ export default function CalendarClient() {
   };
 
   const handleQuickScheduleTask = async (task: UnscheduledTask) => {
+    const slot = findNextAvailableSlot(dailyBlocks, '10:00', 60);
     try {
       const res = await fetch('/api/time-blocks', {
         method: 'POST',
@@ -286,14 +453,21 @@ export default function CalendarClient() {
           action: 'schedule_from_task',
           task_id: task.id,
           date: selectedDate,
-          start_time: '10:00',
-          end_time: '11:00',
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          auto_slot: true,
         }),
       });
       const json = await res.json();
       if (json.success) {
-        notify(`"${task.title}" ${selectedDate} gününe planlandı.`);
-        fetchData();
+        const finalStart = json.data?.start_time || slot.start_time;
+        const finalEnd = json.data?.end_time || slot.end_time;
+        notify(
+          slot.shifted || json.shifted
+            ? `"${task.title}" boş aralığa (${finalStart}–${finalEnd}) planlandı.`
+            : `"${task.title}" ${selectedDate} ${finalStart}–${finalEnd} aralığına planlandı.`
+        );
+        void fetchData();
       } else {
         notify(json.error || 'Planlanamadı.', 'err');
       }
@@ -303,6 +477,7 @@ export default function CalendarClient() {
   };
 
   const handleQuickScheduleBook = async (book: ActiveBook) => {
+    const slot = findNextAvailableSlot(dailyBlocks, '21:00', 45);
     try {
       const res = await fetch('/api/time-blocks', {
         method: 'POST',
@@ -311,14 +486,21 @@ export default function CalendarClient() {
           action: 'schedule_from_book',
           book_id: book.id,
           date: selectedDate,
-          start_time: '21:00',
-          end_time: '21:45',
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          auto_slot: true,
         }),
       });
       const json = await res.json();
       if (json.success) {
-        notify(`"${book.title}" okuma bloğu eklendi.`);
-        fetchData();
+        const finalStart = json.data?.start_time || slot.start_time;
+        const finalEnd = json.data?.end_time || slot.end_time;
+        notify(
+          slot.shifted || json.shifted
+            ? `"${book.title}" boş aralığa (${finalStart}–${finalEnd}) planlandı.`
+            : `"${book.title}" okuma bloğu (${finalStart}–${finalEnd}) eklendi.`
+        );
+        void fetchData();
       } else {
         notify(json.error || 'Planlanamadı.', 'err');
       }
@@ -328,25 +510,30 @@ export default function CalendarClient() {
   };
 
   const handleQuickScheduleHabit = async (habit: ActiveHabit) => {
+    const slot = findNextAvailableSlot(dailyBlocks, '08:00', 30);
     try {
       const res = await fetch('/api/time-blocks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'create',
-          title: `${habit.icon} ${habit.title}`,
-          category: 'personal',
+          action: 'schedule_from_habit',
+          habit_id: habit.id,
           date: selectedDate,
-          start_time: '08:00',
-          end_time: '08:30',
-          color: habit.color || '#06B6D4',
-          linked_habit_id: habit.id,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          auto_slot: true,
         }),
       });
       const json = await res.json();
       if (json.success) {
-        notify(`"${habit.title}" rutin bloğu eklendi.`);
-        fetchData();
+        const finalStart = json.data?.start_time || slot.start_time;
+        const finalEnd = json.data?.end_time || slot.end_time;
+        notify(
+          slot.shifted || json.shifted
+            ? `"${habit.title}" boş aralığa (${finalStart}–${finalEnd}) planlandı.`
+            : `"${habit.title}" rutin bloğu (${finalStart}–${finalEnd}) eklendi.`
+        );
+        void fetchData();
       } else {
         notify(json.error || 'Planlanamadı.', 'err');
       }
@@ -365,53 +552,111 @@ export default function CalendarClient() {
     [blocks]
   );
 
+  const totalUnscheduledCount =
+    unscheduledTasks.length + activeBooks.length + activeHabits.length;
+
+  if (!initialLoaded && loading) {
+    return (
+      <PageLoadingState
+        icon="📅"
+        title="Zaman Bloklama & Ajanda Yükleniyor..."
+        description="Türkiye saatiyle günlük/haftalık zaman blokları, çakışma analizi ve görev/okuma/rutin köprüsü hazırlanıyor"
+        color="#6366F1"
+      />
+    );
+  }
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', width: '100%', minWidth: 0 }}>
       {toast && (
         <div
-          className={`fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl border shadow-xl text-sm font-medium ${
-            toast.type === 'ok'
-              ? 'bg-emerald-950/90 border-emerald-700 text-emerald-200'
-              : 'bg-rose-950/90 border-rose-700 text-rose-200'
-          }`}
+          className="toast-glass"
+          role="status"
+          aria-live="polite"
+          style={{
+            zIndex: 1100,
+            borderColor: toast.type === 'err' ? 'var(--rose)' : 'rgba(16, 185, 129, 0.45)',
+          }}
         >
           {toast.text}
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2.5">
-            <CalendarIcon className="w-6 h-6 text-indigo-400" />
-            Zaman Bloklama & Haftalık Ajanda
+      {/* Üst Başlık & Görünüm Kontrolleri */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <h1
+            style={{
+              fontSize: '21px',
+              fontWeight: 900,
+              margin: 0,
+              color: 'var(--text-main)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <CalendarIcon size={22} style={{ color: 'var(--indigo)', flexShrink: 0 }} />
+            <span>Zaman Bloklama &amp; Haftalık Ajanda</span>
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Gününü saatlik bloklara ayır, çakışmaları yakala ve görev/okuma hedeflerini takvime yerleştir.
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '3px 0 0' }}>
+            Gününü saatlik bloklara ayır, çakışmaları yakala ve görev, kitap veya alışkanlık hedeflerini takvime yerleştir.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-xl bg-slate-900 border border-slate-800 p-1">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {/* Günlük / Haftalık Seçici */}
+          <div
+            role="group"
+            aria-label="Görünüm Modu"
+            style={{
+              display: 'inline-flex',
+              background: 'var(--surface-subtle)',
+              border: '1px solid var(--border)',
+              borderRadius: '999px',
+              padding: '3px',
+              gap: '2px',
+            }}
+          >
             <button
               type="button"
               onClick={() => setViewMode('daily')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                viewMode === 'daily'
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '999px',
+                border: 'none',
+                fontSize: '12px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                background: viewMode === 'daily' ? 'var(--indigo)' : 'transparent',
+                color: viewMode === 'daily' ? '#FFFFFF' : 'var(--text-muted)',
+                transition: 'all 0.15s ease',
+              }}
             >
               📅 Günlük
             </button>
             <button
               type="button"
               onClick={() => setViewMode('weekly')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                viewMode === 'weekly'
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '999px',
+                border: 'none',
+                fontSize: '12px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                background: viewMode === 'weekly' ? 'var(--indigo)' : 'transparent',
+                color: viewMode === 'weekly' ? '#FFFFFF' : 'var(--text-muted)',
+                transition: 'all 0.15s ease',
+              }}
             >
               📆 Haftalık
             </button>
@@ -420,50 +665,96 @@ export default function CalendarClient() {
           <button
             type="button"
             onClick={() => setShowDrawer((v) => !v)}
-            className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 hover:border-indigo-500 text-slate-200 text-xs font-medium transition"
+            className="btn-subtle"
+            style={{
+              padding: '7px 13px',
+              fontSize: '12px',
+              fontWeight: 800,
+              borderRadius: '999px',
+              borderColor: showDrawer ? 'var(--indigo)' : 'var(--border)',
+              color: showDrawer ? 'var(--indigo)' : 'var(--text-main)',
+            }}
           >
-            Planlanmamışlar ({unscheduledTasks.length + activeBooks.length})
+            📥 Planlanmamışlar ({totalUnscheduledCount})
           </button>
 
           <button
             type="button"
             onClick={() => openCreateModal()}
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 transition"
+            className="btn-primary"
+            style={{
+              width: 'auto',
+              marginTop: 0,
+              padding: '8px 14px',
+              fontSize: '12px',
+              fontWeight: 800,
+              borderRadius: '999px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+            }}
           >
-            <Plus className="w-4 h-4" />
-            Yeni Blok
+            <Plus size={15} />
+            <span>Yeni Blok</span>
           </button>
         </div>
       </div>
 
-      {/* Date Navigator */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 border border-slate-800 rounded-2xl px-4 py-3">
-        <div className="flex items-center gap-2">
+      {/* Tarih Gezgini */}
+      <div
+        className="card"
+        style={{
+          padding: '12px 16px',
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '10px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <button
             type="button"
             onClick={() => stepPeriod(-1)}
-            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300"
-            aria-label="Önceki"
+            className="btn-subtle"
+            style={{ padding: '7px 10px', minWidth: '36px', minHeight: '36px' }}
+            aria-label="Önceki dönem"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft size={16} />
           </button>
           <button
             type="button"
             onClick={() => setSelectedDate(today)}
-            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200"
+            className="btn-subtle"
+            style={{
+              padding: '7px 12px',
+              fontSize: '12px',
+              fontWeight: 800,
+              minHeight: '36px',
+              borderColor: selectedDate === today ? 'var(--indigo)' : 'var(--border)',
+              color: selectedDate === today ? 'var(--indigo)' : 'var(--text-main)',
+            }}
           >
             Bugün (TR)
           </button>
           <button
             type="button"
             onClick={() => stepPeriod(1)}
-            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300"
-            aria-label="Sonraki"
+            className="btn-subtle"
+            style={{ padding: '7px 10px', minWidth: '36px', minHeight: '36px' }}
+            aria-label="Sonraki dönem"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight size={16} />
           </button>
         </div>
-        <div className="text-sm font-semibold text-slate-200">
+
+        <div
+          style={{
+            fontSize: '13px',
+            fontWeight: 800,
+            color: 'var(--text-main)',
+          }}
+        >
           {viewMode === 'weekly'
             ? `${formatTurkishDisplayDate(weekDates[0], false)} – ${formatTurkishDisplayDate(
                 weekDates[6],
@@ -473,128 +764,299 @@ export default function CalendarClient() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-          <div className="text-xs text-slate-400">Planlanan Süre</div>
-          <div className="text-xl font-bold text-slate-100 mt-1">
+      {/* Bağlı Görev / Alışkanlık Onaylı Geri-Yazım Şeridi */}
+      {pendingFollowUp && (pendingFollowUp.taskId || pendingFollowUp.habitId) && (
+        <div
+          className="card"
+          role="region"
+          aria-label="Bağlı kayıt tamamlama onayı"
+          style={{
+            padding: '12px 16px',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '10px',
+            borderColor: 'var(--emerald)',
+            background: 'var(--emerald-bg)',
+          }}
+        >
+          <div style={{ minWidth: 0, flex: '1 1 240px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 900, color: 'var(--text-main)' }}>
+              🎉 &ldquo;{pendingFollowUp.blockTitle}&rdquo; bloğu tamamlandı
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+              Bu bloğa bağlı kaydı da tamamlandı olarak işaretlemek ister misiniz?
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {pendingFollowUp.taskId && (
+              <button
+                type="button"
+                disabled={followUpBusy}
+                onClick={handleConfirmLinkedTask}
+                className="btn-primary"
+                style={{
+                  width: 'auto',
+                  marginTop: 0,
+                  padding: '7px 12px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  borderRadius: '999px',
+                }}
+              >
+                ✅ Bağlı Görevi Tamamla
+              </button>
+            )}
+            {pendingFollowUp.habitId && (
+              <button
+                type="button"
+                disabled={followUpBusy}
+                onClick={handleConfirmLinkedHabit}
+                className="btn-primary"
+                style={{
+                  width: 'auto',
+                  marginTop: 0,
+                  padding: '7px 12px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  borderRadius: '999px',
+                }}
+              >
+                🔁 Bağlı Alışkanlığı İşaretle
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setPendingFollowUp(null)}
+              className="btn-subtle"
+              style={{
+                padding: '6px 10px',
+                fontSize: '11px',
+                fontWeight: 700,
+                borderRadius: '999px',
+              }}
+            >
+              Kapat
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 4 KPI Özeti */}
+      <div className="calendar-kpi-grid">
+        <div className="card" style={{ padding: '14px 16px', gap: '4px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            Planlanan Süre
+          </div>
+          <div className="tabular-nums" style={{ fontSize: '22px', fontWeight: 900, color: 'var(--text-main)' }}>
             {formatMinutesToDuration(summary.totalMinutes)}
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
             {summary.totalBlocks} zaman bloğu
           </div>
         </div>
 
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-          <div className="text-xs text-slate-400">Tamamlanma</div>
-          <div className="text-xl font-bold text-emerald-400 mt-1">
+        <div className="card" style={{ padding: '14px 16px', gap: '4px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            Tamamlanma
+          </div>
+          <div className="tabular-nums" style={{ fontSize: '22px', fontWeight: 900, color: 'var(--emerald)' }}>
             %{summary.completionRate}
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">
-            {summary.completedBlocks}/{summary.totalBlocks} blok tamamlandı
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+            {summary.completedBlocks}/{summary.totalBlocks} blok ({formatMinutesToDuration(summary.completedMinutes)})
           </div>
         </div>
 
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-          <div className="text-xs text-slate-400">Çakışma Kontrolü</div>
+        <div className="card" style={{ padding: '14px 16px', gap: '4px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            Çakışma Kontrolü
+          </div>
           <div
-            className={`text-xl font-bold mt-1 ${
-              summary.conflictCount > 0 ? 'text-amber-400' : 'text-emerald-400'
-            }`}
+            style={{
+              fontSize: '22px',
+              fontWeight: 900,
+              color: summary.conflictCount > 0 ? 'var(--amber)' : 'var(--emerald)',
+            }}
           >
             {summary.conflictCount > 0 ? `${summary.conflictCount} Çakışma` : 'Temiz'}
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">
-            {summary.conflictCount > 0 ? 'Aynı saatte üst üste bloklar var' : 'Saatler uyumlu'}
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+            {summary.conflictCount > 0 ? 'Aynı saatte üst üste bloklar var' : 'Saat aralıkları uyumlu'}
           </div>
         </div>
 
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-          <div className="text-xs text-slate-400">Aile Paylaşımı</div>
-          <div className="text-xl font-bold text-pink-400 mt-1">{sharedCount}</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">
+        <div className="card" style={{ padding: '14px 16px', gap: '4px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            Aile Paylaşımı
+          </div>
+          <div className="tabular-nums" style={{ fontSize: '22px', fontWeight: 900, color: '#EC4899' }}>
+            {sharedCount}
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
             Aileye açık zaman bloğu
           </div>
         </div>
       </div>
 
-      {/* Unscheduled Drawer */}
+      {/* Planlanmamış Görev / Kitap / Alışkanlık Çekmecesi */}
       {showDrawer && (
-        <div className="bg-slate-900/80 border border-indigo-500/30 rounded-2xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+        <div
+          className="card"
+          style={{
+            padding: '16px',
+            borderColor: 'rgba(99, 102, 241, 0.45)',
+            gap: '12px',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '8px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={() => setDrawerTab('tasks')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 ${
-                  drawerTab === 'tasks'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-800 text-slate-400'
-                }`}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '999px',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  border: `1px solid ${drawerTab === 'tasks' ? 'var(--indigo)' : 'var(--border)'}`,
+                  background: drawerTab === 'tasks' ? 'var(--indigo-bg)' : 'var(--surface-subtle)',
+                  color: drawerTab === 'tasks' ? 'var(--indigo)' : 'var(--text-muted)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  cursor: 'pointer',
+                }}
               >
-                <CheckSquare className="w-3.5 h-3.5" />
-                Görevler ({unscheduledTasks.length})
+                <CheckSquare size={14} />
+                <span>Görevler ({unscheduledTasks.length})</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => setDrawerTab('books')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 ${
-                  drawerTab === 'books'
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-slate-800 text-slate-400'
-                }`}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '999px',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  border: `1px solid ${drawerTab === 'books' ? 'var(--amber)' : 'var(--border)'}`,
+                  background: drawerTab === 'books' ? 'var(--amber-bg)' : 'var(--surface-subtle)',
+                  color: drawerTab === 'books' ? 'var(--amber)' : 'var(--text-muted)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  cursor: 'pointer',
+                }}
               >
-                <BookOpen className="w-3.5 h-3.5" />
-                Kitaplar ({activeBooks.length})
+                <BookOpen size={14} />
+                <span>Kitaplar ({activeBooks.length})</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => setDrawerTab('habits')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 ${
-                  drawerTab === 'habits'
-                    ? 'bg-cyan-600 text-white'
-                    : 'bg-slate-800 text-slate-400'
-                }`}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '999px',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  border: `1px solid ${drawerTab === 'habits' ? '#06B6D4' : 'var(--border)'}`,
+                  background: drawerTab === 'habits' ? 'rgba(6, 182, 212, 0.14)' : 'var(--surface-subtle)',
+                  color: drawerTab === 'habits' ? '#06B6D4' : 'var(--text-muted)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  cursor: 'pointer',
+                }}
               >
-                <Repeat className="w-3.5 h-3.5" />
-                Alışkanlıklar ({activeHabits.length})
+                <Repeat size={14} />
+                <span>Alışkanlıklar ({activeHabits.length})</span>
               </button>
             </div>
+
             <button
               type="button"
               onClick={() => setShowDrawer(false)}
-              className="text-slate-400 hover:text-slate-200"
+              className="modal-close-btn"
+              aria-label="Çekmeceyi kapat"
             >
-              <X className="w-4 h-4" />
+              <X size={15} />
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-60 overflow-y-auto">
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+              gap: '10px',
+              maxHeight: '240px',
+              overflowY: 'auto',
+            }}
+          >
             {drawerTab === 'tasks' &&
               (unscheduledTasks.length === 0 ? (
-                <div className="text-xs text-slate-500 col-span-full py-2">
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 4px', gridColumn: '1 / -1' }}>
                   Bekleyen görev bulunmuyor.
                 </div>
               ) : (
                 unscheduledTasks.map((t) => (
                   <div
                     key={t.id}
-                    className="flex items-center justify-between gap-2 bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px',
+                      padding: '10px 12px',
+                      borderRadius: '12px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface-subtle)',
+                      minWidth: 0,
+                    }}
                   >
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium text-slate-200 truncate">
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: 800,
+                          color: 'var(--text-main)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
                         {t.title}
                       </div>
-                      <div className="text-[10px] text-slate-500">
-                        Öncelik: {t.priority}
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {PRIORITY_LABELS[t.priority] || t.priority}
+                        {t.due_date ? ` • ${t.due_date}` : ''}
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => handleQuickScheduleTask(t)}
-                      className="shrink-0 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white text-[11px] font-medium transition"
+                      className="btn-subtle"
+                      style={{
+                        padding: '5px 10px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        borderColor: 'var(--indigo)',
+                        color: 'var(--indigo)',
+                        flexShrink: 0,
+                      }}
                     >
-                      + Planla
+                      + Planla ({nextTaskSlot.start_time})
                     </button>
                   </div>
                 ))
@@ -602,29 +1064,56 @@ export default function CalendarClient() {
 
             {drawerTab === 'books' &&
               (activeBooks.length === 0 ? (
-                <div className="text-xs text-slate-500 col-span-full py-2">
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 4px', gridColumn: '1 / -1' }}>
                   Şu an okunan kitap bulunmuyor.
                 </div>
               ) : (
                 activeBooks.map((b) => (
                   <div
                     key={b.id}
-                    className="flex items-center justify-between gap-2 bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px',
+                      padding: '10px 12px',
+                      borderRadius: '12px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface-subtle)',
+                      minWidth: 0,
+                    }}
                   >
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium text-slate-200 truncate">
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: 800,
+                          color: 'var(--text-main)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
                         {b.title}
                       </div>
-                      <div className="text-[10px] text-slate-500">
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
                         Sayfa {b.current_page}/{b.total_pages}
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => handleQuickScheduleBook(b)}
-                      className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white text-[11px] font-medium transition"
+                      className="btn-subtle"
+                      style={{
+                        padding: '5px 10px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        borderColor: 'var(--amber)',
+                        color: 'var(--amber)',
+                        flexShrink: 0,
+                      }}
                     >
-                      + 21:00
+                      + {nextBookSlot.start_time}
                     </button>
                   </div>
                 ))
@@ -632,24 +1121,53 @@ export default function CalendarClient() {
 
             {drawerTab === 'habits' &&
               (activeHabits.length === 0 ? (
-                <div className="text-xs text-slate-500 col-span-full py-2">
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 4px', gridColumn: '1 / -1' }}>
                   Aktif alışkanlık bulunmuyor.
                 </div>
               ) : (
                 activeHabits.map((h) => (
                   <div
                     key={h.id}
-                    className="flex items-center justify-between gap-2 bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px',
+                      padding: '10px 12px',
+                      borderRadius: '12px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface-subtle)',
+                      minWidth: 0,
+                    }}
                   >
-                    <div className="text-xs font-medium text-slate-200 truncate">
-                      {h.icon} {h.title}
+                    <div
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 800,
+                        color: 'var(--text-main)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        minWidth: 0,
+                        flex: 1,
+                      }}
+                    >
+                      {resolveHabitEmoji(h.icon)} {h.title}
                     </div>
                     <button
                       type="button"
                       onClick={() => handleQuickScheduleHabit(h)}
-                      className="shrink-0 px-2.5 py-1 rounded-lg bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white text-[11px] font-medium transition"
+                      className="btn-subtle"
+                      style={{
+                        padding: '5px 10px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        borderColor: '#06B6D4',
+                        color: '#06B6D4',
+                        flexShrink: 0,
+                      }}
                     >
-                      + 08:00
+                      + {nextHabitSlot.start_time}
                     </button>
                   </div>
                 ))
@@ -658,25 +1176,45 @@ export default function CalendarClient() {
         </div>
       )}
 
-      {/* Main View */}
-      {loading ? (
-        <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-10 text-center text-sm text-slate-400">
-          Zaman blokları yükleniyor...
-        </div>
-      ) : viewMode === 'daily' ? (
-        <div className="space-y-3">
+      {/* Ana Görünüm: Günlük veya Haftalık */}
+      {viewMode === 'daily' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {dailyBlocks.length === 0 ? (
-            <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-10 text-center space-y-3">
-              <div className="text-sm text-slate-400">
-                {formatTurkishDisplayDate(selectedDate, true)} için planlanmış zaman bloğu yok.
+            <div
+              className="card"
+              style={{
+                padding: '36px 20px',
+                textAlign: 'center',
+                alignItems: 'center',
+                borderStyle: 'dashed',
+                gap: '10px',
+              }}
+            >
+              <div style={{ fontSize: '28px' }}>📅</div>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
+                {formatTurkishDisplayDate(selectedDate, true)} için planlanmış zaman bloğu yok
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '420px' }}>
+                Yeni bir saat bloğu oluşturabilir veya &ldquo;Planlanmamışlar&rdquo; çekmecesinden görev, kitap ve alışkanlıklarınızı tek tıkla ekleyebilirsiniz.
               </div>
               <button
                 type="button"
                 onClick={() => openCreateModal(selectedDate)}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold inline-flex items-center gap-1.5"
+                className="btn-primary"
+                style={{
+                  width: 'auto',
+                  marginTop: '4px',
+                  padding: '9px 16px',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  borderRadius: '999px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
               >
-                <Plus className="w-4 h-4" />
-                İlk Bloğu Ekle
+                <Plus size={15} />
+                <span>İlk Bloğu Ekle</span>
               </button>
             </div>
           ) : (
@@ -689,93 +1227,181 @@ export default function CalendarClient() {
               return (
                 <div
                   key={block.id}
-                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/70 border rounded-2xl p-4 transition ${
-                    isConflict
-                      ? 'border-amber-500/60'
+                  className="card"
+                  style={{
+                    padding: '14px 16px',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                    borderColor: isConflict
+                      ? 'var(--amber)'
                       : block.is_completed === 1
-                      ? 'border-emerald-500/30 opacity-75'
-                      : 'border-slate-800'
-                  }`}
-                  style={{ borderLeftWidth: '4px', borderLeftColor: block.color || meta.color }}
+                      ? 'rgba(16, 185, 129, 0.35)'
+                      : 'var(--border)',
+                    borderLeftWidth: '4px',
+                    borderLeftStyle: 'solid',
+                    borderLeftColor: block.color || meta.color,
+                    opacity: block.is_completed === 1 ? 0.78 : 1,
+                  }}
                 >
-                  <div className="flex items-start gap-3 min-w-0">
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: 0, flex: 1 }}>
                     <button
                       type="button"
                       onClick={() => handleToggleComplete(block)}
-                      className={`mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition ${
-                        block.is_completed === 1
-                          ? 'bg-emerald-500 border-emerald-500 text-white'
-                          : 'border-slate-600 hover:border-indigo-400'
-                      }`}
                       aria-label="Tamamlandı olarak işaretle"
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '7px',
+                        border: `1.5px solid ${block.is_completed === 1 ? 'var(--emerald)' : 'var(--border-strong)'}`,
+                        background: block.is_completed === 1 ? 'var(--emerald)' : 'var(--surface-subtle)',
+                        color: '#FFFFFF',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        marginTop: '2px',
+                      }}
                     >
-                      {block.is_completed === 1 && <Check className="w-3.5 h-3.5" />}
+                      {block.is_completed === 1 && <Check size={14} />}
                     </button>
 
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-mono text-indigo-300 bg-indigo-500/10 px-2 py-0.5 rounded-md flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                        <span
+                          className="tabular-nums"
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            background: 'var(--indigo-bg)',
+                            color: 'var(--indigo)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <Clock size={12} />
                           {block.start_time} – {block.end_time} ({formatMinutesToDuration(dur)})
                         </span>
-                        <span className="text-[11px] text-slate-400">
+
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>
                           {meta.emoji} {meta.label}
                         </span>
+
                         {isConflict && (
-                          <span className="text-[11px] bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3" />
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              background: 'var(--amber-bg)',
+                              color: 'var(--amber)',
+                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <AlertTriangle size={12} />
                             Çakışma
                           </span>
                         )}
+
                         {block.is_family_shared === 1 && (
-                          <span className="text-[11px] bg-pink-500/15 text-pink-300 border border-pink-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
-                            <Users className="w-3 h-3" />
-                            Aile
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              background: 'rgba(236, 72, 153, 0.14)',
+                              color: '#EC4899',
+                              border: '1px solid rgba(236, 72, 153, 0.3)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <Users size={12} />
+                            <span>
+                              Aile
+                              {block.owner_name
+                                ? ` • ${block.owner_avatar || '👤'} ${block.owner_name}`
+                                : ''}
+                            </span>
                           </span>
                         )}
                       </div>
 
                       <div
-                        className={`text-sm font-semibold mt-1.5 ${
-                          block.is_completed === 1
-                            ? 'line-through text-slate-400'
-                            : 'text-slate-100'
-                        }`}
+                        style={{
+                          fontSize: '14px',
+                          fontWeight: 800,
+                          color: block.is_completed === 1 ? 'var(--text-muted)' : 'var(--text-main)',
+                          textDecoration: block.is_completed === 1 ? 'line-through' : 'none',
+                          marginTop: '6px',
+                          wordBreak: 'break-word',
+                        }}
                       >
                         {block.title}
                       </div>
+
                       {block.notes && (
-                        <div className="text-xs text-slate-400 mt-1">{block.notes}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                          {block.notes}
+                        </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                     {block.linked_task_id && (
                       <button
                         type="button"
                         onClick={() => handleStartFocus(block)}
-                        className="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-xs font-medium flex items-center gap-1 transition"
+                        className="btn-subtle"
+                        style={{
+                          padding: '6px 10px',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          borderColor: 'var(--emerald)',
+                          color: 'var(--emerald)',
+                        }}
                       >
-                        <Play className="w-3.5 h-3.5" />
-                        Odaklan
+                        <Play size={13} />
+                        <span>Odaklan</span>
                       </button>
                     )}
+
                     <button
                       type="button"
                       onClick={() => openEditModal(block)}
-                      className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
+                      className="btn-subtle"
+                      style={{ padding: '7px 9px' }}
                       aria-label="Düzenle"
                     >
-                      <Edit3 className="w-3.5 h-3.5" />
+                      <Edit3 size={14} />
                     </button>
+
                     <button
                       type="button"
+                      disabled={deletingIds.has(block.id)}
                       onClick={() => handleDelete(block)}
-                      className="p-2 rounded-lg bg-slate-800 hover:bg-rose-600/30 text-slate-400 hover:text-rose-300"
+                      className="btn-subtle"
+                      style={{
+                        padding: '7px 9px',
+                        color: 'var(--rose)',
+                        opacity: deletingIds.has(block.id) ? 0.5 : 1,
+                      }}
                       aria-label="Sil"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
@@ -784,7 +1410,7 @@ export default function CalendarClient() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+        <div className="calendar-week-grid">
           {weekDates.map((dateStr) => {
             const dayBlocks = blocks
               .filter((b) => b.date === dateStr)
@@ -798,47 +1424,86 @@ export default function CalendarClient() {
             return (
               <div
                 key={dateStr}
-                className={`bg-slate-900/60 border rounded-2xl p-3 flex flex-col min-h-[260px] ${
-                  isToday
-                    ? 'border-indigo-500/60'
+                className="card"
+                style={{
+                  padding: '12px',
+                  minHeight: '240px',
+                  gap: '10px',
+                  borderColor: isToday
+                    ? 'var(--indigo)'
                     : isSelected
-                    ? 'border-slate-600'
-                    : 'border-slate-800'
-                }`}
+                    ? 'var(--border-strong)'
+                    : 'var(--border)',
+                }}
               >
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingBottom: '8px',
+                    borderBottom: '1px solid var(--border)',
+                    gap: '6px',
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => {
                       setSelectedDate(dateStr);
                       setViewMode('daily');
                     }}
-                    className="text-left hover:text-indigo-300 transition"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      padding: 0,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
                   >
-                    <div className="text-[11px] uppercase tracking-wider text-slate-400">
+                    <div
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        color: 'var(--text-muted)',
+                      }}
+                    >
                       {getShortTurkishDayName(dateStr)}
                     </div>
                     <div
-                      className={`text-sm font-bold ${
-                        isToday ? 'text-indigo-400' : 'text-slate-200'
-                      }`}
+                      className="tabular-nums"
+                      style={{
+                        fontSize: '14px',
+                        fontWeight: 900,
+                        color: isToday ? 'var(--indigo)' : 'var(--text-main)',
+                      }}
                     >
                       {dateStr.slice(8, 10)}.{dateStr.slice(5, 7)}
                     </div>
                   </button>
+
                   <button
                     type="button"
                     onClick={() => openCreateModal(dateStr)}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white transition"
-                    aria-label="Bu güne blok ekle"
+                    className="btn-subtle"
+                    style={{ padding: '5px 7px', borderRadius: '8px' }}
+                    aria-label={`${dateStr} gününe blok ekle`}
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus size={13} />
                   </button>
                 </div>
 
-                <div className="space-y-2 flex-1">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
                   {dayBlocks.length === 0 ? (
-                    <div className="text-[11px] text-slate-600 py-4 text-center">
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        color: 'var(--text-muted)',
+                        textAlign: 'center',
+                        padding: '18px 4px',
+                      }}
+                    >
                       Boş
                     </div>
                   ) : (
@@ -848,44 +1513,106 @@ export default function CalendarClient() {
                         <div
                           key={b.id}
                           onClick={() => openEditModal(b)}
-                          className={`cursor-pointer rounded-xl p-2 bg-slate-950/80 border text-xs transition hover:border-slate-600 ${
-                            isConflict ? 'border-amber-500/60' : 'border-slate-800'
-                          } ${b.is_completed === 1 ? 'opacity-60' : ''}`}
                           style={{
+                            cursor: 'pointer',
+                            borderRadius: '10px',
+                            padding: '8px 9px',
+                            background: 'var(--surface-subtle)',
+                            borderWidth: '1px',
+                            borderStyle: 'solid',
+                            borderColor: isConflict ? 'var(--amber)' : 'var(--border)',
                             borderLeftWidth: '3px',
                             borderLeftColor: b.color || '#3B82F6',
+                            opacity: b.is_completed === 1 ? 0.65 : 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '4px',
+                            minWidth: 0,
                           }}
                         >
-                          <div className="flex items-center justify-between gap-1 text-[10px] text-slate-400 font-mono">
-                            <span>
-                              {b.start_time}-{b.end_time}
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '4px',
+                              minWidth: 0,
+                            }}
+                          >
+                            <span
+                              className="tabular-nums"
+                              style={{
+                                fontSize: '10px',
+                                fontWeight: 800,
+                                color: 'var(--text-muted)',
+                                minWidth: 0,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {b.start_time}–{b.end_time}
                             </span>
+
                             <button
                               type="button"
+                              aria-label={`${b.title} tamamla`}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleToggleComplete(b);
+                                void handleToggleComplete(b);
                               }}
-                              className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${
-                                b.is_completed === 1
-                                  ? 'bg-emerald-500 border-emerald-500 text-white'
-                                  : 'border-slate-600'
-                              }`}
+                              style={{
+                                width: '18px',
+                                height: '18px',
+                                borderRadius: '5px',
+                                border: `1px solid ${b.is_completed === 1 ? 'var(--emerald)' : 'var(--border-strong)'}`,
+                                background: b.is_completed === 1 ? 'var(--emerald)' : 'var(--surface)',
+                                color: '#FFFFFF',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                              }}
                             >
-                              {b.is_completed === 1 && <Check className="w-2.5 h-2.5" />}
+                              {b.is_completed === 1 && <Check size={11} />}
                             </button>
                           </div>
+
                           <div
-                            className={`font-medium mt-1 line-clamp-2 ${
-                              b.is_completed === 1
-                                ? 'line-through text-slate-400'
-                                : 'text-slate-200'
-                            }`}
+                            style={{
+                              fontSize: '12px',
+                              fontWeight: 800,
+                              color: b.is_completed === 1 ? 'var(--text-muted)' : 'var(--text-main)',
+                              textDecoration: b.is_completed === 1 ? 'line-through' : 'none',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              wordBreak: 'break-word',
+                            }}
                           >
                             {b.title}
                           </div>
+
+                          {b.is_family_shared === 1 && (
+                            <div
+                              style={{
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                color: '#EC4899',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {b.owner_name
+                                ? `${b.owner_avatar || '👤'} ${b.owner_name}`
+                                : '👨‍👩‍👧 Aile'}
+                            </div>
+                          )}
+
                           {isConflict && (
-                            <div className="text-[10px] text-amber-400 mt-1">
+                            <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--amber)' }}>
                               ⚠️ Çakışma
                             </div>
                           )}
@@ -900,75 +1627,170 @@ export default function CalendarClient() {
         </div>
       )}
 
-      {/* Create / Edit Modal */}
+      {/* Yeni / Düzenle Modalı */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-slate-100">
-                {editingBlock ? 'Zaman Bloğunu Düzenle' : 'Yeni Zaman Bloğu'}
+        <div
+          className="modal-overlay"
+          onClick={() => setModalOpen(false)}
+          style={{ zIndex: 1100 }}
+        >
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label={editingBlock ? 'Zaman Bloğunu Düzenle' : 'Yeni Zaman Bloğu'}
+            style={{ maxWidth: '480px', width: '100%', padding: '20px' }}
+          >
+            <div className="modal-header">
+              <h2 className="modal-title" style={{ margin: 0 }}>
+                {editingBlock ? '⏱️ Zaman Bloğunu Düzenle' : '📅 Yeni Zaman Bloğu'}
               </h2>
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
-                className="text-slate-400 hover:text-slate-200"
+                className="modal-close-btn"
+                aria-label="Kapat"
               >
-                <X className="w-4 h-4" />
+                <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveBlock} className="space-y-3">
+            <form
+              onSubmit={handleSaveBlock}
+              style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
+            >
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Başlık</label>
+                <label
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: 'var(--text-muted)',
+                    display: 'block',
+                    marginBottom: '4px',
+                  }}
+                >
+                  Başlık *
+                </label>
                 <input
                   type="text"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="Örn: Mimari Tasarım Odak"
-                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+                  placeholder="Örn: Mimari Tasarım & Derin Odak"
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border)',
+                    fontSize: '13px',
+                  }}
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '8px' }}>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Tarih</label>
+                  <label
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: 'var(--text-muted)',
+                      display: 'block',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    Tarih
+                  </label>
                   <input
                     type="date"
                     value={formDate}
                     onChange={(e) => setFormDate(e.target.value)}
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: '10px',
+                      border: '1px solid var(--border)',
+                      fontSize: '12px',
+                    }}
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Başlangıç</label>
+                  <label
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: 'var(--text-muted)',
+                      display: 'block',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    Başlangıç
+                  </label>
                   <input
                     type="time"
                     value={formStart}
                     onChange={(e) => setFormStart(e.target.value)}
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: '10px',
+                      border: '1px solid var(--border)',
+                      fontSize: '12px',
+                    }}
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Bitiş</label>
+                  <label
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: 'var(--text-muted)',
+                      display: 'block',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    Bitiş
+                  </label>
                   <input
                     type="time"
                     value={formEnd}
                     onChange={(e) => setFormEnd(e.target.value)}
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: '10px',
+                      border: '1px solid var(--border)',
+                      fontSize: '12px',
+                    }}
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Kategori</label>
+                <label
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: 'var(--text-muted)',
+                    display: 'block',
+                    marginBottom: '4px',
+                  }}
+                >
+                  Kategori
+                </label>
                 <select
                   value={formCategory}
                   onChange={(e) => setFormCategory(e.target.value)}
-                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100"
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border)',
+                    fontSize: '13px',
+                  }}
                 >
                   {TIME_BLOCK_CATEGORIES.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -978,51 +1800,201 @@ export default function CalendarClient() {
                 </select>
               </div>
 
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                <div>
+                  <label
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: 'var(--text-muted)',
+                      display: 'block',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    Modül Bağlantısı (Opsiyonel: Görev / Kitap / Alışkanlık)
+                  </label>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                      gap: '6px',
+                    }}
+                  >
+                    <select
+                      value={formLinkedTaskId}
+                      onChange={(e) => setFormLinkedTaskId(e.target.value)}
+                      aria-label="Bağlı Görev"
+                      style={{
+                        width: '100%',
+                        padding: '7px 9px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border)',
+                        fontSize: '11px',
+                      }}
+                    >
+                      <option value="">✅ Görev Yok</option>
+                      {formLinkedTaskId &&
+                        !unscheduledTasks.some((t) => t.id === formLinkedTaskId) && (
+                          <option value={formLinkedTaskId}>
+                            ✅ Mevcut Bağlı Görev
+                          </option>
+                        )}
+                      {unscheduledTasks.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={formLinkedBookId}
+                      onChange={(e) => setFormLinkedBookId(e.target.value)}
+                      aria-label="Bağlı Kitap"
+                      style={{
+                        width: '100%',
+                        padding: '7px 9px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border)',
+                        fontSize: '11px',
+                      }}
+                    >
+                      <option value="">📚 Kitap Yok</option>
+                      {formLinkedBookId &&
+                        !activeBooks.some((b) => b.id === formLinkedBookId) && (
+                          <option value={formLinkedBookId}>
+                            📚 Mevcut Bağlı Kitap
+                          </option>
+                        )}
+                      {activeBooks.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.title}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={formLinkedHabitId}
+                      onChange={(e) => setFormLinkedHabitId(e.target.value)}
+                      aria-label="Bağlı Alışkanlık"
+                      style={{
+                        width: '100%',
+                        padding: '7px 9px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border)',
+                        fontSize: '11px',
+                      }}
+                    >
+                      <option value="">🔁 Alışkanlık Yok</option>
+                      {formLinkedHabitId &&
+                        !activeHabits.some((h) => h.id === formLinkedHabitId) && (
+                          <option value={formLinkedHabitId}>
+                            🔁 Mevcut Bağlı Alışkanlık
+                          </option>
+                        )}
+                      {activeHabits.map((h) => (
+                        <option key={h.id} value={h.id}>
+                          {h.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Notlar</label>
+                <label
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: 'var(--text-muted)',
+                    display: 'block',
+                    marginBottom: '4px',
+                  }}
+                >
+                  Notlar
+                </label>
                 <textarea
                   rows={2}
                   value={formNotes}
                   onChange={(e) => setFormNotes(e.target.value)}
-                  placeholder="Opsiyonel detay..."
-                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100"
+                  placeholder="Opsiyonel detay veya hedef..."
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border)',
+                    fontSize: '13px',
+                  }}
                 />
               </div>
 
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: 'var(--text-main)',
+                  cursor: 'pointer',
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={formShared}
                   onChange={(e) => setFormShared(e.target.checked)}
-                  className="rounded border-slate-600 bg-slate-950"
                 />
-                Aileyle Paylaş (ortak takvimde görünsün)
+                <span>Aileyle Paylaş (ortak aile takviminde görünsün)</span>
               </label>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  gap: '8px',
+                  paddingTop: '8px',
+                  borderTop: '1px solid var(--border)',
+                }}
+              >
                 {editingBlock && (
                   <button
                     type="button"
                     onClick={() => {
-                      handleDelete(editingBlock);
+                      void handleDelete(editingBlock);
                       setModalOpen(false);
                     }}
-                    className="mr-auto px-3 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-xs font-medium"
+                    className="btn-subtle"
+                    style={{
+                      marginRight: 'auto',
+                      color: 'var(--rose)',
+                      borderColor: 'rgba(244, 63, 94, 0.35)',
+                    }}
                   >
-                    Sil
+                    <Trash2 size={14} />
+                    <span>Sil</span>
                   </button>
                 )}
+
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-medium"
+                  className="btn-subtle"
                 >
                   İptal
                 </button>
+
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold disabled:opacity-50"
+                  className="btn-primary"
+                  style={{
+                    width: 'auto',
+                    marginTop: 0,
+                    padding: '8px 18px',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                  }}
                 >
                   {saving ? 'Kaydediliyor...' : 'Kaydet'}
                 </button>
@@ -1031,6 +2003,39 @@ export default function CalendarClient() {
           </div>
         </div>
       )}
+
+      <style jsx>{`
+        .calendar-kpi-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+        @media (min-width: 900px) {
+          .calendar-kpi-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+          }
+        }
+        .calendar-week-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 12px;
+        }
+        @media (min-width: 768px) {
+          .calendar-week-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+        @media (min-width: 960px) {
+          .calendar-week-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+          }
+        }
+        @media (min-width: 1200px) {
+          .calendar-week-grid {
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+          }
+        }
+      `}</style>
     </div>
   );
 }
