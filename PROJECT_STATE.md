@@ -1,25 +1,28 @@
 # Singularity Life OS — Canlı Proje Durumu (`PROJECT_STATE.md`)
 
 > **Son Güncelleme:** 2026-11-19  
-> **Aktif Dal:** `main` (`/wellness` & `/boost` modül denetimi, çoklu üye izolasyonu, akıllı tartı grafik/silme düzeltmeleri ve sıfır mock iyileştirmeleri)  
+> **Aktif Dal:** `main` (LifeOS Faz 1–3 entegrasyonları `/calendar`, `/okr`, `/habits`, `/notes`, 16 modül & 66 modal `PROMPT_GUIDE.md` senkronizasyonu ve denetim kuralları)  
 > **Canlı Ortam:** Vercel (`https://singularity-life-os.vercel.app`) + Supabase PostgreSQL (`eu-central-1`)
 
 ---
 
 ## 1. Mevcut Sistem Envanteri (Doğrulanmış Durum)
 - **Çerçeve & Derleme:** Next.js `15.5.23` (App Router), React `19`, TypeScript `5.7.3` (`strict: true`), Drizzle ORM `0.38.4`.
-- **Veritabanı Şeması:** `src/db/schema.ts` içinde **44 tablo** tanımlı (`packaged_food_scans` ve `workout_sessions` `member_id` kolonlarıyla genişletildi).
-- **Aktif Sayfa Modülleri (`src/app/`):**
-  - `/` (Ana Akış & Özet), `/budget` (Bütçe & Nakit Akışı), `/analytics` (5x20 Holistik Skor, FIRE & Yaşam Takvimi Isı Haritası), `/tasks` (Görevler, MIT, Alt Görevler, Yinelenme, Pomodoro/Odak, Aylık Takvim), `/vehicles` (Araç & Ev), `/library` (Kütüphane), `/health` (Beslenme, Oruç, Antrenman), `/wellness` & `/boost` (Wellness, Takviye, Uyku, Tartı), `/vault` (Dijital Kasa), `/shopping` (Alışveriş Listesi), `/settings`, `/welcome`, `/auth`.
+- **Veritabanı Şeması:** `src/db/schema.ts` içinde **54 tablo** tanımlı (`sinking_funds`, `habits`, `habit_logs`, `notes`, `note_folders`, `book_bookmarks`, `workout_routines`, `time_blocks`, `okr_objectives`, `okr_key_results`, `okr_check_ins` ile `packaged_food_scans` ve `workout_sessions` `member_id` kolonlarıyla genişletildi).
+- **Aktif Sayfa Modülleri (`src/app/` — 16 Modül):**
+  - `/` (Ana Akış & Özet), `/tasks` (Görevler, MIT, Alt Görevler, Yinelenme, Pomodoro/Odak, Kanban, Aylık Takvim), `/calendar` (Zaman Bloklama & Ajanda), `/okr` (OKR & Yaşam Vizyonu), `/budget` (Bütçe, Birikim Hedefleri, Banka CSV, Kredi İtfa & Borç Simülatörü), `/analytics` (5x20 Holistik Skor, FIRE & Yaşam Takvimi Isı Haritası), `/vehicles` (Araç & Ev), `/library` (Kütüphane, Canlı Kronometre, Yer İmleri, Goodreads CSV & Alıntılar), `/notes` (Notlar & İkinci Beyin), `/health` (Beslenme, Oruç, Antrenman & Hazır Rutinler), `/wellness` & `/boost` (Wellness, Takviye, Uyku, Tartı), `/habits` (Alışkanlıklar & Rutinler), `/vault` (Dijital Kasa), `/shopping` (Alışveriş Listesi), `/settings`, `/welcome`, `/auth`.
 - **Doğrulama Durumu (`2026-11-19` itibarıyla):**
   - `npm run typecheck` (`tsc --noEmit`): Geçiyor (`exit 0`).
   - `npm run lint` (`eslint .` — `eslint.config.mjs`): Sıfır hata (`exit 0`, düzenlenen dosyalarda 0 yeni uyarı).
-  - `npm run test` (`vitest run`): Çalışma ağacında `25` dosya / `383` test geçiyor (`exit 0`; `tests/wellness-audit.test.ts` içinde `14`, `tests/wellness-calendar-reset.test.ts` içinde `10`, `tests/health-audit.test.ts` içinde `18`, `tests/budget-audit.test.ts` içinde `8`, `tests/analytics-audit.test.ts` içinde `7` test).
+  - `npm run test` (`vitest run`): Çalışma ağacında `29` dosya / `427` test geçiyor (`exit 0`).
   - `npm run verify` / `npm run verify:full` (`next build` dahil): Geçiyor (`exit 0`).
 
 ---
 
 ## 2. Son Tamamlanan İşler
+- **[2026-11-19]** **LifeOS Faz 1–3 Entegrasyonları (`/calendar`, `/okr`, `/habits`, `/notes`, `Ctrl+K`) & `PROMPT_GUIDE.md` / Denetim Kuralları Senkronizasyonu:**
+  - *LifeOS Faz 1–3:* Küresel Komut & Arama Paleti (`CommandPaletteModal` `Ctrl+K`, `/api/search`), Görev Kanban panosu (`TaskKanbanBoard.tsx`), Birikim Hedefleri (`SavingsGoalsCard.tsx`, `/api/budget/sinking-funds`), Kredi İtfa & Erken Kapama Simülatörü (`LoanAmortizationModal.tsx`, `debt-simulators.ts`), Banka CSV İçe Aktarım (`BankCsvImportModal.tsx`), Kütüphane Canlı Kronometre / Okuma Analitiği / Yer İmleri (`/api/library/bookmarks`) / Goodreads CSV İçe Aktarım (`GoodreadsImportModal.tsx`) / `QuotesDrawer.tsx`, Antrenman Rutin Şablonları (`/api/health/workout-routines`) & PR, Alışkanlıklar (`/habits`, `habits-engine.ts` + EventBus otomatik tamamlama), Notlar & İkinci Beyin (`/notes`, `notes-utils.ts`), Zaman Bloklama (`/calendar`, `time-blocks-engine.ts`) ve OKR Vizyon (`/okr`, `okr-engine.ts`) modülleri devreye alındı.
+  - *Prompt Rehberi & Denetim Kuralı:* `PROMPT_GUIDE.md` tüm yeni modülleri (**16 modül**) ve hem ayrılmış hem sayfa içi tüm açılır pencereleri (**66 modal, çekmece ve pop-up**) kapsayacak şekilde güncellendi; `AGENTS.md`, `.agents/skills/singularity-audit/SKILL.md`, `.agents/skills/singularity-lifeos-dev/SKILL.md` ve `PROMPT_GUIDE.md` içindeki opsiyonel not sınırı **"en fazla 10 salt-okunur opsiyonel not (sayıyı doldurmak için zorlama madde uydurma; 1 tane bile gerekli görmezsen hiç yazma)"** olarak hizalandı.
 - **[2026-11-19]** **`!denetle wellness` Modül Denetimi & Opsiyonel İyileştirmeler (`src/app/api/wellness/*`, `src/middleware.ts`, `WellnessCard.tsx`, `WellnessTrackerClient.tsx`, `DailyTrackerCalendarBar.tsx`, `SmartScaleTrendDashboard.tsx`, `SmartScaleScanModal.tsx`, `AddSupplementModal.tsx`, `tests/wellness-audit.test.ts`):**
   - *Auth, Middleware & BOLA İzolasyonu:* `src/middleware.ts` içine `/boost` korumalı rotası eklendi; `GET /api/wellness` oturumsuz erişimde `401`, `GET/POST /api/wellness` ve `GET/POST /api/wellness/scale-logs` yetkisiz `member_id` taleplerinde `403` döndürecek şekilde `resolveOptionalHealthMemberScope` ve `buildHealthMemberFilter` ile sınırlandı. Başka kullanıcıya ait takviyede `take`/`undo`/`update`/`delete` ve tartı kaydı `DELETE` işlemleri `403` BOLA engeline alındı; `WellnessTrackerClient` `memberId` bilgisini tüm alt bileşenlere ve `HomeWorkoutTrackerCard`'a aktardı.
   - *Veri Bütünlüğü, Sıfır Mock & Takviye/Tartı Mantığı:* `WellnessCard` içinde kayıtsız günlerde gösterilen sahte `7.5 sa`, `23:30 - 07:00`, `4/5` ve `İyi` fallback'leri gerçek boş durumlarla değiştirildi; `AddSupplementModal` & `/api/wellness` üzerinde `0` stoğun `60`'a dönmesi, boş stoğun zorla `60` olması ve `as_needed` -> `daily` geçişinde kaybolan `timing` hatası düzeltildi. `take_all` ve sesli komut takviye alımı yalnızca `daily` rutinlerle sınırlandı; `undo_supplement` log yokken stok `+1` şişirmesi engellendi; `add_sleep`/`add_mood` giriş sınırları (`HH:MM`, `1..5`) doğrulandı.
