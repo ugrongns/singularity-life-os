@@ -84,7 +84,14 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const todayTr = getTodayTurkeyDate();
     const clampedEnd = book.total_pages > 0 ? Math.min(book.total_pages, end) : end;
-    const sessionId = `session-${Date.now()}`;
+    if (clampedEnd <= start) {
+      return NextResponse.json(
+        { success: false, error: 'Okuma bitiş sayfası kitabın toplam sayfa sınırları içinde ve başlangıç sayfasından büyük olmalıdır.' },
+        { status: 400 }
+      );
+    }
+    pagesRead = clampedEnd - start;
+    const sessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
     // 1. Seans Kaydet
     await db.insert(readingSessions).values({

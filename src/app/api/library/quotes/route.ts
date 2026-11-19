@@ -81,7 +81,7 @@ export async function POST(req: Request) {
     }
 
     const now = new Date().toISOString();
-    const quoteId = `quote-${Date.now()}`;
+    const quoteId = `quote-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
     // user_id ve family_id alanlarını set ederek kaydet
     await db.insert(bookQuotes).values({

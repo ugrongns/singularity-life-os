@@ -285,7 +285,7 @@ export async function POST(req: Request) {
       const safeWpp = Number.isFinite(rawWpp) && rawWpp > 0 ? Math.max(50, Math.min(1000, rawWpp)) : 250;
       const rawRating = parseInt(rating, 10);
       const safeRating = Number.isFinite(rawRating) ? Math.max(1, Math.min(5, rawRating)) : 5;
-      const bookId = `book-${Date.now()}`;
+      const bookId = `book-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
       await db.insert(books).values({
         id: bookId,
@@ -344,10 +344,15 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: 'Kitap bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
       }
 
+      const cleanLentTo = typeof lent_to_name === 'string' ? lent_to_name.trim() : '';
+      if (is_lent_out && !cleanLentTo) {
+        return NextResponse.json({ success: false, error: 'Emanet verilen kişi adı zorunludur.' }, { status: 400 });
+      }
+
       await db.update(books)
         .set({
           is_lent_out: is_lent_out ? 1 : 0,
-          lent_to_name: is_lent_out ? (lent_to_name || null) : null,
+          lent_to_name: is_lent_out ? cleanLentTo : null,
           lent_date: is_lent_out ? (lent_date || todayTr) : null,
           updated_at: now
         })
@@ -355,7 +360,7 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         success: true,
-        message: is_lent_out ? `🤝 Kitap "${lent_to_name}" adlı kişiye emanet verildi olarak işaretlendi.` : '✅ Kitap emanetten teslim alındı.'
+        message: is_lent_out ? `🤝 Kitap "${cleanLentTo}" adlı kişiye emanet verildi olarak işaretlendi.` : '✅ Kitap emanetten teslim alındı.'
       });
     }
 
@@ -499,10 +504,38 @@ export async function POST(req: Request) {
       if (incomingBooks.length === 0) {
         return NextResponse.json({ success: false, error: 'Aktarılacak kitap listesi boş.' }, { status: 400 });
       }
+
+      const existingVisibleBooks = await db.select({
+        title: books.title,
+        isbn: books.isbn
+      }).from(books).where(getVisibleBooksCondition(user.id, familyId));
+
+      const existingTitles = new Set(
+        existingVisibleBooks.map((b: any) => (b.title || '').trim().toLowerCase()).filter(Boolean)
+      );
+      const existingIsbns = new Set(
+        existingVisibleBooks
+          .map((b: any) => (b.isbn || '').replace(/[^0-9X]/gi, '').trim())
+          .filter((s: string) => s.length >= 9)
+      );
+
       let insertedCount = 0;
+      let skippedCount = 0;
       for (const item of incomingBooks.slice(0, 200)) {
         const cleanTitle = typeof item.title === 'string' ? item.title.trim() : '';
         if (!cleanTitle) continue;
+        const rawIsbn = typeof item.isbn === 'string' ? item.isbn.trim() : '';
+        const cleanIsbn = rawIsbn.replace(/[^0-9X]/gi, '').trim();
+
+        const isDuplicate =
+          existingTitles.has(cleanTitle.toLowerCase()) ||
+          (cleanIsbn.length >= 9 && existingIsbns.has(cleanIsbn));
+
+        if (isDuplicate) {
+          skippedCount++;
+          continue;
+        }
+
         const cleanAuthor = typeof item.author === 'string' && item.author.trim() ? item.author.trim() : 'Bilinmeyen Yazar';
         const total = Math.max(1, parseInt(item.total_pages, 10) || 200);
         const st = item.status === 'completed' || item.status === 'reading' ? item.status : 'wishlist';
@@ -520,7 +553,7 @@ export async function POST(req: Request) {
           format: 'physical',
           shelf_location: 'Goodreads',
           words_per_page: 250,
-          isbn: typeof item.isbn === 'string' && item.isbn.trim() ? item.isbn.trim() : null,
+          isbn: rawIsbn || null,
           rating: ratingVal,
           category: 'Kişisel Gelişim',
           start_date: curr > 0 ? todayTr : null,
@@ -534,11 +567,18 @@ export async function POST(req: Request) {
           sync_status: 'synced',
           device_id: 'web-client'
         });
+
+        existingTitles.add(cleanTitle.toLowerCase());
+        if (cleanIsbn.length >= 9) existingIsbns.add(cleanIsbn);
         insertedCount++;
       }
       return NextResponse.json({
         success: true,
-        message: `📚 ${insertedCount} kitap Goodreads CSV üzerinden kütüphanenize eklendi!`
+        insertedCount,
+        skippedCount,
+        message: skippedCount > 0
+          ? `📚 ${insertedCount} yeni kitap eklendi (${skippedCount} mükerrer kitap atlandı).`
+          : `📚 ${insertedCount} kitap Goodreads CSV üzerinden kütüphanenize eklendi!`
       });
     }
 

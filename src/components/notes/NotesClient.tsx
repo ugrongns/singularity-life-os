@@ -141,11 +141,15 @@ export default function NotesClient() {
     const json = await res.json();
     if (json.success) {
       showToast(json.message);
-      setActiveNoteId(json.id);
+      if (json.note) {
+        loadNoteIntoEditor(json.note);
+      } else {
+        setActiveNoteId(json.id);
+      }
       setIsMobileEditorOpen(true);
       await fetchNotes();
-      const created = (await (await fetch('/api/notes')).json())?.data?.notes?.find((n: NoteItem) => n.id === json.id);
-      if (created) loadNoteIntoEditor(created);
+    } else {
+      showToast(json.error || 'Not oluşturulamadı.');
     }
   };
 
@@ -305,6 +309,7 @@ export default function NotesClient() {
               onClick={() => void handleCreateFromTemplate(t)}
               className={t.id === 'blank' ? 'btn-primary' : 'btn-subtle'}
               style={{
+                width: 'auto',
                 padding: '7px 11px',
                 fontSize: '11px',
                 fontWeight: 800,
@@ -322,7 +327,7 @@ export default function NotesClient() {
       </div>
 
       {/* Klasör Şeridi */}
-      <div className="no-scrollbar" style={{ display: 'flex', gap: '6px', alignItems: 'center', overflowX: 'auto', paddingBottom: '2px' }}>
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', paddingBottom: '2px' }}>
         {[
           { id: 'all', label: '📚 Tüm Notlar' },
           { id: 'pinned', label: '📌 Sabitlenenler' },
@@ -542,7 +547,7 @@ export default function NotesClient() {
                     disabled={saving}
                     onClick={handleSaveNote}
                     className="btn-primary"
-                    style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                    style={{ width: 'auto', padding: '6px 14px', fontSize: '12px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
                   >
                     <Save size={14} />
                     <span>{saving ? 'Kaydediliyor...' : 'Kaydet'}</span>

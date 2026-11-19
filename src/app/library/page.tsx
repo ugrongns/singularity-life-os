@@ -16,6 +16,7 @@ export default function LibraryPage() {
   const [data, setData] = useState<any>(null);
   const [notifData, setNotifData] = useState<any>({ notifications: [], critical: 0, warning: 0 });
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [isSessionOpen, setIsSessionOpen] = useState(false);
   const [sessionBookId, setSessionBookId] = useState<string | undefined>(undefined);
   const [isQuotesOpen, setIsQuotesOpen] = useState(false);
@@ -30,6 +31,7 @@ export default function LibraryPage() {
   };
 
   const fetchData = async () => {
+    setFetchError(null);
     try {
       const [libRes, notifRes] = await Promise.all([
         fetch('/api/library'),
@@ -39,10 +41,15 @@ export default function LibraryPage() {
         libRes.json(),
         notifRes.json()
       ]);
-      if (libJ.success) setData(libJ.data);
-      if (notifJ.success) setNotifData(notifJ.data);
+      if (libRes.ok && libJ.success) {
+        setData(libJ.data);
+      } else {
+        setFetchError(libJ?.error || 'Kütüphane verileri yüklenemedi.');
+      }
+      if (notifRes.ok && notifJ.success) setNotifData(notifJ.data);
     } catch (err) {
       console.error('Kütüphane veri yükleme hatası:', err);
+      setFetchError('Sunucuya bağlanılamadı. Lütfen bağlantınızı kontrol edip tekrar deneyin.');
     } finally {
       setLoading(false);
     }
@@ -96,6 +103,35 @@ export default function LibraryPage() {
           description="Aktif kitaplar, okuma seansları, hız (WPM) trendi ve alıntılar derleniyor"
           color="#3B82F6"
         />
+      </SharedLayout>
+    );
+  }
+
+  if (fetchError && !data) {
+    return (
+      <SharedLayout notifications={notifData}>
+        <div style={{ padding: '24px 16px', maxWidth: '520px', margin: '40px auto' }}>
+          <div className="card" style={{ textAlign: 'center', padding: '28px 20px', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+            <div style={{ fontSize: '32px' }}>⚠️</div>
+            <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-main)' }}>
+              Kütüphane Verileri Yüklenemedi
+            </h2>
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>
+              {fetchError}
+            </p>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => {
+                setLoading(true);
+                fetchData();
+              }}
+              style={{ padding: '8px 18px', fontSize: '12px', fontWeight: 800 }}
+            >
+              Tekrar Dene
+            </button>
+          </div>
+        </div>
       </SharedLayout>
     );
   }

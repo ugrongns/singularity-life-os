@@ -11,6 +11,59 @@ function getVisibleNotesCondition(userId: string, familyId: string) {
   );
 }
 
+async function validateNoteReferences(
+  userId: string,
+  familyId: string,
+  refs: {
+    folder_id?: string | null;
+    linked_book_id?: string | null;
+    linked_task_id?: string | null;
+    linked_sinking_fund_id?: string | null;
+  }
+): Promise<string | null> {
+  if (refs.folder_id) {
+    const f = (
+      await db
+        .select({ id: noteFolders.id })
+        .from(noteFolders)
+        .where(and(eq(noteFolders.id, refs.folder_id), eq(noteFolders.user_id, userId)))
+        .limit(1)
+    )[0];
+    if (!f) return 'Seçilen klasör bulunamadı veya size ait değil.';
+  }
+  if (refs.linked_book_id) {
+    const b = (
+      await db
+        .select({ id: books.id })
+        .from(books)
+        .where(and(eq(books.id, refs.linked_book_id), or(eq(books.user_id, userId), and(eq(books.family_id, familyId), eq(books.is_family_shared, 1)))))
+        .limit(1)
+    )[0];
+    if (!b) return 'Bağlanan kitap bulunamadı veya erişim yetkiniz yok.';
+  }
+  if (refs.linked_task_id) {
+    const t = (
+      await db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(and(eq(tasks.id, refs.linked_task_id), or(eq(tasks.user_id, userId), and(eq(tasks.family_id, familyId), eq(tasks.is_family_shared, 1)))))
+        .limit(1)
+    )[0];
+    if (!t) return 'Bağlanan görev bulunamadı veya erişim yetkiniz yok.';
+  }
+  if (refs.linked_sinking_fund_id) {
+    const sf = (
+      await db
+        .select({ id: sinkingFunds.id })
+        .from(sinkingFunds)
+        .where(and(eq(sinkingFunds.id, refs.linked_sinking_fund_id), or(eq(sinkingFunds.user_id, userId), and(eq(sinkingFunds.family_id, familyId), eq(sinkingFunds.is_family_shared, 1)))))
+        .limit(1)
+    )[0];
+    if (!sf) return 'Bağlanan birikim hedefi bulunamadı veya erişim yetkiniz yok.';
+  }
+  return null;
+}
+
 export async function GET() {
   try {
     await initDatabase();
@@ -102,12 +155,22 @@ export async function POST(req: Request) {
     }
 
     if (action === 'create_note' || action === 'import_from_quote') {
+      const refErr = await validateNoteReferences(user.id, familyId, {
+        folder_id: body.folder_id || null,
+        linked_book_id: body.linked_book_id || null,
+        linked_task_id: body.linked_task_id || null,
+        linked_sinking_fund_id: body.linked_sinking_fund_id || null
+      });
+      if (refErr) {
+        return NextResponse.json({ success: false, error: refErr }, { status: 403 });
+      }
+
       const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : 'Başlıksız Not';
       const content = typeof body.content === 'string' ? body.content : '';
       const tags = Array.isArray(body.tags) ? body.tags.map((t: any) => String(t).trim()).filter(Boolean) : [];
       const id = `note-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
-      await db.insert(notes).values({
+      const newNote = {
         id,
         user_id: user.id,
         family_id: familyId,
@@ -123,11 +186,14 @@ export async function POST(req: Request) {
         linked_sinking_fund_id: body.linked_sinking_fund_id || null,
         created_at: now,
         updated_at: now
-      });
+      };
+
+      await db.insert(notes).values(newNote);
 
       return NextResponse.json({
         success: true,
         id,
+        note: newNote,
         message: action === 'import_from_quote' ? '📝 Alıntı İkinci Beyin notlarına aktarıldı!' : '📝 Not kaydedildi!'
       });
     }
@@ -162,6 +228,16 @@ export async function POST(req: Request) {
     }
 
     if (action === 'update_note') {
+      const refErr = await validateNoteReferences(user.id, familyId, {
+        folder_id: body.folder_id !== undefined ? (body.folder_id || null) : null,
+        linked_book_id: body.linked_book_id !== undefined ? (body.linked_book_id || null) : null,
+        linked_task_id: body.linked_task_id !== undefined ? (body.linked_task_id || null) : null,
+        linked_sinking_fund_id: body.linked_sinking_fund_id !== undefined ? (body.linked_sinking_fund_id || null) : null
+      });
+      if (refErr) {
+        return NextResponse.json({ success: false, error: refErr }, { status: 403 });
+      }
+
       const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : targetNote.title;
       const content = typeof body.content === 'string' ? body.content : targetNote.content;
       const tagsJson = Array.isArray(body.tags)

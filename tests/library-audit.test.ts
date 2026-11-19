@@ -590,4 +590,94 @@ describe('📚 Kütüphane Modülü (!denetle kütüphane) Güvenlik & Veri Büt
       }
     }
   });
+
+  it('13. POST /api/library/sessions total_pages tavanını aşan end_page gönderildiğinde pages_read değerini kırpmalı ve start>=total_pages iken 400 dönmelidir', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: 'u1', family_id: 'fam-1' });
+    const insertChain = createInsertChain();
+    mockInsert.mockImplementation(() => insertChain);
+
+    mockSelect
+      .mockImplementationOnce(() => createSelectChain([{ id: 'b1', user_id: 'u1', family_id: 'fam-1', is_family_shared: 1, total_pages: 200, current_page: 190, status: 'reading', words_per_page: 250 }]))
+      .mockImplementationOnce(() => createSelectChain([{ pages_read: 10, duration_minutes: 10, words_per_page: 250 }]))
+      .mockImplementationOnce(() => createSelectChain([{ id: 'urp-u1', user_id: 'u1' }]));
+
+    const resOk = await postSession(
+      new Request('http://localhost/api/library/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ book_id: 'b1', start_page: 190, end_page: 250, duration_minutes: 10 }),
+      })
+    );
+    expect(resOk.status).toBe(200);
+    expect(insertChain.lastValues.end_page).toBe(200);
+    expect(insertChain.lastValues.pages_read).toBe(10);
+
+    mockSelect.mockImplementationOnce(() =>
+      createSelectChain([{ id: 'b1', user_id: 'u1', family_id: 'fam-1', is_family_shared: 1, total_pages: 200, current_page: 200, status: 'completed', words_per_page: 250 }])
+    );
+    const resErr = await postSession(
+      new Request('http://localhost/api/library/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ book_id: 'b1', start_page: 200, end_page: 220, duration_minutes: 10 }),
+      })
+    );
+    expect(resErr.status).toBe(400);
+  });
+
+  it('14. POST /api/library import_goodreads_batch mevcut kitapları (başlık/ISBN) atlayarak yalnızca yenileri eklemelidir', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: 'u1', family_id: 'fam-1' });
+    const insertChain = createInsertChain();
+    mockInsert.mockImplementation(() => insertChain);
+
+    mockSelect.mockImplementationOnce(() =>
+      createSelectChain([
+        { title: 'Atomik Alışkanlıklar', isbn: '9786051981111' },
+      ])
+    );
+
+    const res = await postLibrary(
+      new Request('http://localhost/api/library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'import_goodreads_batch',
+          books: [
+            { title: 'Atomik Alışkanlıklar', author: 'James Clear', isbn: '978-605-198-111-1', total_pages: 320, status: 'completed' },
+            { title: 'Yeni Kitap', author: 'Yazar', isbn: '9786051982222', total_pages: 240, status: 'wishlist' },
+            { title: 'Yeni Kitap', author: 'Yazar', isbn: '9786051982222', total_pages: 240, status: 'wishlist' },
+          ],
+        }),
+      })
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.success).toBe(true);
+    expect(json.insertedCount).toBe(1);
+    expect(json.skippedCount).toBe(2);
+    expect(insertChain.allValues).toHaveLength(1);
+    expect(insertChain.allValues[0].title).toBe('Yeni Kitap');
+  });
+
+  it('15. POST /api/library toggle_lent is_lent_out=1 iken boş lent_to_name değerini 400 ile reddetmelidir', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: 'u1', family_id: 'fam-1' });
+    mockSelect.mockImplementationOnce(() =>
+      createSelectChain([{ id: 'b1', user_id: 'u1', family_id: 'fam-1', is_family_shared: 1 }])
+    );
+
+    const res = await postLibrary(
+      new Request('http://localhost/api/library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'toggle_lent',
+          book_id: 'b1',
+          is_lent_out: 1,
+          lent_to_name: '   ',
+        }),
+      })
+    );
+    expect(res.status).toBe(400);
+  });
 });
