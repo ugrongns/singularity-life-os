@@ -53,8 +53,8 @@ export default function FutureForecastCard({ forecast, selectedMonth, onSelectMo
               key={item.monthStr}
               onClick={() => onSelectMonth(item.monthStr)}
               style={{
-                background: isSelected ? '#EEF2FF' : 'var(--surface-subtle)',
-                border: isSelected ? '2px solid #4F46E5' : '1px solid var(--border)',
+                background: isSelected ? 'var(--indigo-bg)' : 'var(--surface-subtle)',
+                border: isSelected ? '2px solid var(--indigo)' : '1px solid var(--border)',
                 borderRadius: 'var(--radius-lg)',
                 padding: '12px',
                 cursor: 'pointer',
@@ -84,7 +84,7 @@ export default function FutureForecastCard({ forecast, selectedMonth, onSelectMo
               )}
 
               {/* Ay Adı */}
-              <div style={{ fontSize: '12px', fontWeight: 800, color: isSelected ? '#312E81' : 'var(--text-main)', marginBottom: '4px', paddingRight: isPast || isCurrentMonth ? '42px' : '0' }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: isSelected ? 'var(--indigo)' : 'var(--text-main)', marginBottom: '4px', paddingRight: isPast || isCurrentMonth ? '42px' : '0' }}>
                 {item.monthName}
               </div>
 

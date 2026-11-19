@@ -128,12 +128,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Bu vadeli hesabı kapatma yetkiniz yok.' }, { status: 403 });
     }
 
+    if (targetAccountId === accountId) {
+      return NextResponse.json({ success: false, error: 'Hedef hesap kapatılan vadeli mevduat hesabıyla aynı olamaz.' }, { status: 400 });
+    }
+
     const targetAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetAccountId)))[0];
     if (!targetAcc) {
       return NextResponse.json({ success: false, error: 'Hedef vadesiz hesap bulunamadı.' }, { status: 404 });
     }
     if (targetAcc.is_active === 0) {
       return NextResponse.json({ success: false, error: 'Arşivlenmiş veya pasif hesaba aktarım yapılamaz.' }, { status: 400 });
+    }
+    if (targetAcc.type === 'credit_card' || targetAcc.type === 'loan' || targetAcc.type === 'time_deposit') {
+      return NextResponse.json({ success: false, error: 'Vadeli mevduat kapanış tutarı yalnızca vadesiz banka, nakit veya KMH hesabına aktarılabilir.' }, { status: 400 });
     }
 
     if (depositAcc.currency !== targetAcc.currency) {
@@ -177,6 +184,10 @@ export async function POST(req: Request) {
     const nowISO = now.toISOString();
     const todayTurkeyStr = getTodayTurkeyDate(now);
 
+    let finalPrincipal = principal;
+    let finalTotalReturn = totalReturn;
+    const txShared = (depositAcc.is_family_shared === 0 || targetAcc.is_family_shared === 0) ? 0 : 1;
+
     await db.transaction(async (tx) => {
       const [lockedDeposit] = await tx.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).for('update');
       if (!lockedDeposit || lockedDeposit.is_active === 0) {
@@ -188,10 +199,13 @@ export async function POST(req: Request) {
         throw new Error('Hedef hesap bulunamadı.');
       }
 
+      finalPrincipal = Number(lockedDeposit.balance) || 0;
+      finalTotalReturn = Math.round((finalPrincipal + interest) * 100) / 100;
+
       // 1. Hedef hesabın bakiyesini güncelle
       await tx.update(walletsAccounts)
         .set({
-          balance: Math.round(((Number(lockedTarget.balance) || 0) + totalReturn) * 100) / 100,
+          balance: Math.round(((Number(lockedTarget.balance) || 0) + finalTotalReturn) * 100) / 100,
           updated_at: nowISO
         })
         .where(eq(walletsAccounts.id, targetAccountId));
@@ -212,7 +226,7 @@ export async function POST(req: Request) {
         user_id: user.id,
         family_id: familyId,
         merchant: `🏛️ Vadeli Mevduat Dönüşü (Anapara)`,
-        amount: principal,
+        amount: finalPrincipal,
         currency: depositAcc.currency,
         transaction_date: todayTurkeyStr,
         notes: `${depositAcc.name} vadeli hesabı kapanış anaparası. ${closeNotes || ''}`,
@@ -220,7 +234,7 @@ export async function POST(req: Request) {
         installment_number: 1,
         total_installments: 1,
         is_verified: 1,
-        is_family_shared: 1,
+        is_family_shared: txShared,
         created_at: nowISO,
         updated_at: nowISO,
         sync_status: 'synced',
@@ -243,7 +257,7 @@ export async function POST(req: Request) {
           installment_number: 1,
           total_installments: 1,
           is_verified: 1,
-          is_family_shared: 1,
+          is_family_shared: txShared,
           created_at: nowISO,
           updated_at: nowISO,
           sync_status: 'synced',
@@ -254,7 +268,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Vadeli mevduat kapatıldı! Toplam ${totalReturn.toLocaleString('tr-TR')} ${depositAcc.currency} (${principal.toLocaleString('tr-TR')} anapara + ${interest.toLocaleString('tr-TR')} faiz) ${targetAcc.name} hesabına aktarıldı.`
+      message: `Vadeli mevduat kapatıldı! Toplam ${finalTotalReturn.toLocaleString('tr-TR')} ${depositAcc.currency} (${finalPrincipal.toLocaleString('tr-TR')} anapara + ${interest.toLocaleString('tr-TR')} faiz) ${targetAcc.name} hesabına aktarıldı.`
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

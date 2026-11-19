@@ -366,6 +366,9 @@ export async function PATCH(req: Request) {
           if (!wallet) {
             throw new Error('NOT_FOUND: Seçilen ödeme hesabı bulunamadı.');
           }
+          if (wallet.is_active === 0) {
+            throw new Error('INACTIVE: Arşivlenmiş veya pasif hesapla fatura ödemesi yapılamaz.');
+          }
 
           // BOLA Koruması: Ödeme yapılan cüzdanın bu aileye ait olduğunu doğrula
           const walletBelongs = wallet.family_id
@@ -412,7 +415,7 @@ export async function PATCH(req: Request) {
             notes: `${bill.name} - ${targetPaidMonth} dönemi faturası ödendi${bill.amount_type === 'variable' ? ' (Net Tutar)' : ''}`,
             is_installment: 0,
             is_verified: 1,
-            is_family_shared: 1,
+            is_family_shared: wallet.is_family_shared === 0 ? 0 : 1,
             created_at: now,
             updated_at: now,
             sync_status: 'synced',
@@ -450,7 +453,7 @@ export async function PATCH(req: Request) {
     if (msg.startsWith('FORBIDDEN:')) {
       return NextResponse.json({ success: false, error: msg.replace('FORBIDDEN: ', '') }, { status: 403 });
     }
-    if (msg.startsWith('LIMIT_EXCEEDED:') || msg.startsWith('INSUFFICIENT_FUNDS:')) {
+    if (msg.startsWith('LIMIT_EXCEEDED:') || msg.startsWith('INSUFFICIENT_FUNDS:') || msg.startsWith('INACTIVE:')) {
       return NextResponse.json({ success: false, error: msg.replace(/^[A-Z_]+: /, '') }, { status: 400 });
     }
     return NextResponse.json({ success: false, error: msg }, { status: 500 });

@@ -113,6 +113,7 @@ export async function POST(req: Request) {
 
       // 4. Çift Taraflı Muhasebe (Double-Entry) Kayıtları
       const familyId = user.family_id || fromAcc.family_id || (user.id ? `fam-${user.id}` : null);
+      const transferShared = (fromAcc.is_family_shared === 0 || toAcc.is_family_shared === 0) ? 0 : 1;
       const baseNote = note ? note.trim() : (isCardPayment ? `${toAcc.name} borç ödemesi` : `Hesaplar arası transfer`);
 
       // 4a. Çıkış Hesabı Hareketi
@@ -132,7 +133,7 @@ export async function POST(req: Request) {
         transaction_date: txDate,
         is_installment: 0,
         notes: outNotes,
-        is_family_shared: 1,
+        is_family_shared: transferShared,
         is_verified: 1,
         created_at: now,
         updated_at: now,
@@ -157,7 +158,7 @@ export async function POST(req: Request) {
         transaction_date: txDate,
         is_installment: 0,
         notes: inNotes,
-        is_family_shared: 1,
+        is_family_shared: transferShared,
         is_verified: 1,
         created_at: now,
         updated_at: now,

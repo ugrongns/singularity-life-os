@@ -194,7 +194,7 @@ export async function POST(req: Request) {
           parent_transaction_id: parentTxId,
           receipt_image_url: receipt_image_url || null,
           is_verified: 1,
-          is_family_shared: is_family_shared ? 1 : 0,
+          is_family_shared: lockedWallet.is_family_shared === 0 ? 0 : (is_family_shared ? 1 : 0),
           created_at: nowISO,
           updated_at: nowISO,
           sync_status: 'synced',

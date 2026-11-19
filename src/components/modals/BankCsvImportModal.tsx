@@ -35,6 +35,8 @@ export default function BankCsvImportModal({
   if (!isOpen) return null;
 
   const activeWalletId = walletId || accounts[0]?.id || '';
+  const activeExpenseCatId = expenseCatId || categories.find(c => c.type !== 'income')?.id || categories[0]?.id || '';
+  const activeIncomeCatId = incomeCatId || categories.find(c => c.type === 'income')?.id || categories[0]?.id || '';
   const selectedRows = rows.filter(r => r.selected);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -59,15 +61,19 @@ export default function BankCsvImportModal({
     setImporting(true);
     setErrorMsg(null);
     let savedCount = 0;
+    let failedCount = 0;
+    let lastError = '';
 
     try {
       for (const r of selectedRows) {
+        const chosenCatId = r.txType === 'income' ? activeIncomeCatId : activeExpenseCatId;
         const res = await fetch('/api/transactions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             wallet_id: activeWalletId,
-            category_id: r.txType === 'income' ? incomeCatId : expenseCatId,
+            type: r.txType,
+            category_id: chosenCatId || undefined,
             merchant: r.description,
             amount: r.amount,
             transaction_date: r.date,
@@ -75,10 +81,25 @@ export default function BankCsvImportModal({
           })
         });
         const j = await res.json();
-        if (j.success) savedCount++;
+        if (res.ok && j.success) {
+          savedCount++;
+        } else {
+          failedCount++;
+          lastError = j.error || `HTTP ${res.status}`;
+        }
       }
+
+      if (savedCount === 0 && failedCount > 0) {
+        setErrorMsg(`İşlemler aktarılamadı (${failedCount} hata): ${lastError}`);
+        return;
+      }
+
       setRows([]);
-      onSuccess(`📥 ${savedCount} banka hareketi onaylanarak bütçeye aktarıldı!`);
+      onSuccess(
+        failedCount > 0
+          ? `📥 ${savedCount} banka hareketi aktarıldı, ${failedCount} satır atlandı (${lastError}).`
+          : `📥 ${savedCount} banka hareketi onaylanarak bütçeye aktarıldı!`
+      );
       onClose();
     } catch {
       setErrorMsg('İşlemler kaydedilirken hata oluştu.');
@@ -126,7 +147,7 @@ export default function BankCsvImportModal({
             </div>
             <div>
               <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>Varsayılan Gider Kategorisi</label>
-              <select value={expenseCatId} onChange={e => setExpenseCatId(e.target.value)} className="input" style={{ width: '100%', fontSize: '12px', marginTop: '3px' }}>
+              <select value={activeExpenseCatId} onChange={e => setExpenseCatId(e.target.value)} className="input" style={{ width: '100%', fontSize: '12px', marginTop: '3px' }}>
                 {categories.filter(c => c.type !== 'income').map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -134,7 +155,7 @@ export default function BankCsvImportModal({
             </div>
             <div>
               <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>Varsayılan Gelir Kategorisi</label>
-              <select value={incomeCatId} onChange={e => setIncomeCatId(e.target.value)} className="input" style={{ width: '100%', fontSize: '12px', marginTop: '3px' }}>
+              <select value={activeIncomeCatId} onChange={e => setIncomeCatId(e.target.value)} className="input" style={{ width: '100%', fontSize: '12px', marginTop: '3px' }}>
                 {categories.filter(c => c.type === 'income').map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}

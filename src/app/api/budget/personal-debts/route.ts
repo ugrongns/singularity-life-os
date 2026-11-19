@@ -148,6 +148,9 @@ export async function POST(req: Request) {
       if (wallet.is_active === 0) {
         return NextResponse.json({ success: false, error: 'Arşivlenmiş veya pasif hesap bağlanamaz.' }, { status: 400 });
       }
+      if (wallet.type === 'credit_card' || wallet.type === 'loan' || wallet.type === 'time_deposit') {
+        return NextResponse.json({ success: false, error: 'Kişisel borç/alacak kaydı yalnızca nakit, vadesiz banka veya KMH hesabına bağlanabilir.' }, { status: 400 });
+      }
       if (wallet.currency && wallet.currency !== 'TRY') {
         return NextResponse.json({ success: false, error: `Para birimi uyuşmazlığı: Bağlı hesap TRY olmalıdır (Seçilen: ${wallet.currency}).` }, { status: 400 });
       }
@@ -225,7 +228,7 @@ export async function POST(req: Request) {
             total_installments: 1,
             parent_transaction_id: newId,
             is_verified: 1,
-            is_family_shared: 1,
+            is_family_shared: wallet.is_family_shared === 0 ? 0 : 1,
             created_at: now,
             updated_at: now,
             sync_status: 'synced',
@@ -302,6 +305,12 @@ export async function PATCH(req: Request) {
           if (!walletBelongs || (wallet.user_id !== user.id && wallet.is_family_shared !== 1 && !(!wallet.user_id && walletBelongs))) {
             throw new Error('FORBIDDEN: Bağlı ödeme hesabına erişim yetkiniz yok.');
           }
+          if (wallet.is_active === 0) {
+            throw new Error('INSUFFICIENT_FUNDS: Bağlı ödeme hesabı arşivlenmiş veya pasif durumda.');
+          }
+          if (wallet.type === 'credit_card' || wallet.type === 'loan' || wallet.type === 'time_deposit') {
+            throw new Error('INSUFFICIENT_FUNDS: Kişisel borç/alacak ödemesi yalnızca nakit, vadesiz banka veya KMH hesabı üzerinden yapılabilir.');
+          }
           if (wallet.currency && wallet.currency !== 'TRY') {
             throw new Error(`INSUFFICIENT_FUNDS: Bağlı ödeme hesabı TRY olmalıdır (Mevcut: ${wallet.currency}).`);
           }
@@ -342,7 +351,7 @@ export async function PATCH(req: Request) {
             total_installments: 1,
             parent_transaction_id: record.id,
             is_verified: 1,
-            is_family_shared: 1,
+            is_family_shared: wallet.is_family_shared === 0 ? 0 : 1,
             created_at: now,
             updated_at: now,
             sync_status: 'synced',

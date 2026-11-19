@@ -130,18 +130,31 @@ export async function POST(req: Request) {
           ? (is_family_shared === true || is_family_shared === 1 || targetUserId === null ? 1 : 0)
           : 1;
 
-        // BOLA: Aktarım yapılacak vadesiz hesabın varlığını ve aile yetkisini doğrula
+        // BOLA: Aktarım yapılacak vadesiz hesabın varlığını, aktifliğini, türünü, para birimini ve aile/özel yetkisini doğrula
         let bankAcc: any = null;
         if (deposited_account_id && origAmt > 0) {
           bankAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)))[0];
           if (!bankAcc) {
             return NextResponse.json({ success: false, error: 'Kredi anaparasının aktarılacağı hesap bulunamadı.' }, { status: 404 });
           }
+          if (bankAcc.is_active === 0) {
+            return NextResponse.json({ success: false, error: 'Arşivlenmiş veya pasif hesaba kredi anaparası aktarılamaz.' }, { status: 400 });
+          }
+          if (bankAcc.type === 'credit_card' || bankAcc.type === 'loan') {
+            return NextResponse.json({ success: false, error: 'Kredi anaparası yalnızca nakit veya vadesiz banka hesabına aktarılabilir.' }, { status: 400 });
+          }
           const bankBelongs = bankAcc.family_id
             ? Boolean(familyId && bankAcc.family_id === familyId)
             : bankAcc.user_id === userId;
-          if (!bankBelongs) {
+          const canUseBank = bankAcc.user_id === userId || (bankBelongs && (bankAcc.is_family_shared === 1 || !bankAcc.user_id));
+          if (!bankBelongs || !canUseBank) {
             return NextResponse.json({ success: false, error: 'Seçilen aktarım hesabına yetkiniz yok.' }, { status: 403 });
+          }
+          if (bankAcc.currency && bankAcc.currency !== (currency || 'TRY')) {
+            return NextResponse.json({
+              success: false,
+              error: `Para birimi uyuşmazlığı: Aktarım hesabı (${bankAcc.currency}), Kredi (${currency || 'TRY'}).`
+            }, { status: 400 });
           }
         }
 
@@ -183,14 +196,14 @@ export async function POST(req: Request) {
                 wallet_id: deposited_account_id,
                 merchant: `🏛️ Kredi Çekim Anaparası (${name.trim()})`,
                 amount: origAmt,
-                currency: 'TRY',
+                currency: currency || 'TRY',
                 transaction_date: todayTurkeyStr,
                 notes: `${name.trim()} çekilen nakit anapara girişi [to_wallet:${newLoanId}]`,
                 is_installment: 0,
                 installment_number: 1,
                 total_installments: 1,
                 is_verified: 1,
-                is_family_shared: 1,
+                is_family_shared: lockedBankAcc.is_family_shared === 0 ? 0 : targetIsShared,
                 user_id: userId,
                 family_id: familyId,
                 created_at: nowISO,
@@ -248,10 +261,17 @@ export async function POST(req: Request) {
           if (!bankAcc) {
             return NextResponse.json({ success: false, error: 'Mevduat anaparasının aktarılacağı kaynak hesap bulunamadı.' }, { status: 404 });
           }
+          if (bankAcc.is_active === 0) {
+            return NextResponse.json({ success: false, error: 'Arşivlenmiş veya pasif hesaptan vadeli mevduat açılamaz.' }, { status: 400 });
+          }
+          if (bankAcc.type === 'credit_card' || bankAcc.type === 'loan') {
+            return NextResponse.json({ success: false, error: 'Kredi kartı veya kredi hesabından vadeli mevduat açılamaz.' }, { status: 400 });
+          }
           const bankBelongs = bankAcc.family_id
             ? Boolean(familyId && bankAcc.family_id === familyId)
             : bankAcc.user_id === userId;
-          if (!bankBelongs) {
+          const canUseBank = bankAcc.user_id === userId || (bankBelongs && (bankAcc.is_family_shared === 1 || !bankAcc.user_id));
+          if (!bankBelongs || !canUseBank) {
             return NextResponse.json({ success: false, error: 'Seçilen kaynak hesaba yetkiniz yok.' }, { status: 403 });
           }
           if (bankAcc.currency !== (currency || 'TRY')) {
@@ -304,7 +324,7 @@ export async function POST(req: Request) {
               installment_number: 1,
               total_installments: 1,
               is_verified: 1,
-              is_family_shared: 1,
+              is_family_shared: lockedBankAcc.is_family_shared === 0 ? 0 : targetIsShared,
               user_id: userId,
               family_id: familyId,
               created_at: nowISO,

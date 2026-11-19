@@ -76,7 +76,7 @@ export async function GET(req: Request) {
       .from(transactions)
       .where(
         and(
-          eq(transactions.category_id, categoryId),
+          eq(transactions.category_id, resolvedCategoryId),
           sql`substr(${transactions.transaction_date}, 1, 7) = ${currentMonthStr}`,
           familyTxFilter
         )

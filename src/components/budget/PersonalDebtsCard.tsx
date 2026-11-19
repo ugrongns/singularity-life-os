@@ -254,17 +254,17 @@ export default function PersonalDebtsCard({ accounts, onToast, onUpdate, marketR
 
       {/* Özet Satırı */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-        <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#7F1D1D' }}>🔴 Borçlarım</div>
-          <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: '#DC2626', marginTop: '3px' }}>{formatTRY(summary.totalDebt)}</div>
+        <div style={{ background: 'var(--rose-bg)', border: '1px solid var(--rose)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>🔴 Borçlarım</div>
+          <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: 'var(--rose)', marginTop: '3px' }}>{formatTRY(summary.totalDebt)}</div>
         </div>
-        <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#14532D' }}>🟢 Alacaklarım</div>
-          <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: '#059669', marginTop: '3px' }}>{formatTRY(summary.totalReceivable)}</div>
+        <div style={{ background: 'var(--emerald-bg)', border: '1px solid var(--emerald)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>🟢 Alacaklarım</div>
+          <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: 'var(--emerald)', marginTop: '3px' }}>{formatTRY(summary.totalReceivable)}</div>
         </div>
-        <div style={{ background: summary.netPosition >= 0 ? '#F0FDF4' : '#FEF2F2', border: `1px solid ${summary.netPosition >= 0 ? '#86EFAC' : '#FCA5A5'}`, borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#374151' }}>📊 Net Pozisyon</div>
-          <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: summary.netPosition >= 0 ? '#059669' : '#DC2626', marginTop: '3px' }}>{summary.netPosition >= 0 ? '+' : ''}{formatTRY(summary.netPosition)}</div>
+        <div style={{ background: summary.netPosition >= 0 ? 'var(--emerald-bg)' : 'var(--rose-bg)', border: `1px solid ${summary.netPosition >= 0 ? 'var(--emerald)' : 'var(--rose)'}`, borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>📊 Net Pozisyon</div>
+          <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: 900, color: summary.netPosition >= 0 ? 'var(--emerald)' : 'var(--rose)', marginTop: '3px' }}>{summary.netPosition >= 0 ? '+' : ''}{formatTRY(summary.netPosition)}</div>
         </div>
       </div>
 

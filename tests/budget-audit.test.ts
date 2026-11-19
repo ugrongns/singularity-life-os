@@ -57,6 +57,9 @@ import {
   POST as postPersonalDebt,
   DELETE as deletePersonalDebt,
 } from '../src/app/api/budget/personal-debts/route';
+import { POST as postSinkingFund } from '../src/app/api/budget/sinking-funds/route';
+import { POST as postTimeDeposit } from '../src/app/api/budget/time-deposit/route';
+import { POST as postTransfer } from '../src/app/api/budget/transfer/route';
 import { getTodayTurkeyDate } from '../src/lib/date-utils';
 
 type TableDataMap = Map<unknown, unknown[][]>;
@@ -743,5 +746,277 @@ describe('💰 Bütçe Modülü (!denetle bütçe) Regresyon & Güvenlik Testler
     expect(appSettingsDeletes[0].whereSql).not.toContain('"telegram_%"');
     expect(appSettingsDeletes[0].whereSql).toContain('fam-1');
     expect(appSettingsDeletes[0].whereSql).toContain('user-1');
+  });
+
+  it('POST /api/budget/sinking-funds: aşırı çekim (400), kredi kartı/döviz/yetersiz bakiye (400) ve geçersiz başlangıç tutarı (400) engellenir', async () => {
+    // 1. Geçersiz current_amount (NaN) -> 400
+    createMockDbHarness(new Map());
+    const nanRes = await postSinkingFund(
+      new Request('http://localhost/api/budget/sinking-funds', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'create', name: 'Tatil', target_amount: 10000, current_amount: 'abc' }),
+      })
+    );
+    expect(nanRes.status).toBe(400);
+
+    // 2. Mevcut birikimden (200) fazla çekim (-1000) -> 400 (havadan para yaratma engeli)
+    createMockDbHarness(
+      new Map<unknown, unknown[][]>([
+        [
+          schema.sinkingFunds,
+          [[{ id: 'sf-1', user_id: 'user-1', family_id: 'fam-1', name: 'Tatil', target_amount: 10000, current_amount: 200, is_family_shared: 1 }]],
+        ],
+      ])
+    );
+    const overWithdrawRes = await postSinkingFund(
+      new Request('http://localhost/api/budget/sinking-funds', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'contribute', id: 'sf-1', amount: -1000, wallet_id: 'w-1' }),
+      })
+    );
+    expect(overWithdrawRes.status).toBe(400);
+
+    // 3. Kredi kartından birikim aktarımı -> 400
+    createMockDbHarness(
+      new Map<unknown, unknown[][]>([
+        [
+          schema.sinkingFunds,
+          [[{ id: 'sf-1', user_id: 'user-1', family_id: 'fam-1', name: 'Tatil', target_amount: 10000, current_amount: 200, is_family_shared: 1 }]],
+        ],
+        [
+          schema.walletsAccounts,
+          [[{ id: 'cc-1', user_id: 'user-1', family_id: 'fam-1', name: 'Kart', type: 'credit_card', currency: 'TRY', balance: 1000, is_active: 1, is_family_shared: 1 }]],
+        ],
+      ])
+    );
+    const ccRes = await postSinkingFund(
+      new Request('http://localhost/api/budget/sinking-funds', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'contribute', id: 'sf-1', amount: 500, wallet_id: 'cc-1' }),
+      })
+    );
+    expect(ccRes.status).toBe(400);
+
+    // 4. Yetersiz banka bakiyesi -> 400
+    createMockDbHarness(
+      new Map<unknown, unknown[][]>([
+        [
+          schema.sinkingFunds,
+          [[{ id: 'sf-1', user_id: 'user-1', family_id: 'fam-1', name: 'Tatil', target_amount: 10000, current_amount: 200, is_family_shared: 1 }]],
+        ],
+        [
+          schema.walletsAccounts,
+          [
+            [{ id: 'w-1', user_id: 'user-1', family_id: 'fam-1', name: 'Banka', type: 'bank', currency: 'TRY', balance: 100, is_active: 1, is_family_shared: 1 }],
+            [{ id: 'w-1', user_id: 'user-1', family_id: 'fam-1', name: 'Banka', type: 'bank', currency: 'TRY', balance: 100, is_active: 1, is_family_shared: 1 }],
+          ],
+        ],
+      ])
+    );
+    const lowBalRes = await postSinkingFund(
+      new Request('http://localhost/api/budget/sinking-funds', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'contribute', id: 'sf-1', amount: 500, wallet_id: 'w-1' }),
+      })
+    );
+    expect(lowBalRes.status).toBe(400);
+  });
+
+  it('Özel cüzdan BOLA ve mahremiyet: time_deposit başkasının özel cüzdanından açılamaz (403), kredi kartına kapatılamaz (400), özel cüzdan işlemleri gizli kalır ve category-details şablon ID çözer', async () => {
+    // 1. Başka aile üyesinin özel (is_family_shared=0) hesabından vadeli mevduat açma -> 403
+    createMockDbHarness(
+      new Map<unknown, unknown[][]>([
+        [
+          schema.walletsAccounts,
+          [[{ id: 'w-priv', user_id: 'user-other', family_id: 'fam-1', name: 'Özel Banka', type: 'bank', currency: 'TRY', balance: 50000, is_active: 1, is_family_shared: 0 }]],
+        ],
+      ])
+    );
+    const tdBolaRes = await postAccount(
+      new Request('http://localhost/api/budget/accounts', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'Vadeli',
+          type: 'time_deposit',
+          balance: 10000,
+          currency: 'TRY',
+          deposited_account_id: 'w-priv',
+        }),
+      })
+    );
+    expect(tdBolaRes.status).toBe(403);
+
+    // 2. Vadeli mevduatı kredi kartına kapatma -> 400
+    createMockDbHarness(
+      new Map<unknown, unknown[][]>([
+        [
+          schema.walletsAccounts,
+          [
+            [{ id: 'td-1', user_id: 'user-1', family_id: 'fam-1', name: 'Vadeli', type: 'time_deposit', currency: 'TRY', balance: 10000, is_active: 1, is_family_shared: 1 }],
+            [{ id: 'cc-1', user_id: 'user-1', family_id: 'fam-1', name: 'Kart', type: 'credit_card', currency: 'TRY', balance: 2000, is_active: 1, is_family_shared: 1 }],
+          ],
+        ],
+      ])
+    );
+    const tdCloseCcRes = await postTimeDeposit(
+      new Request('http://localhost/api/budget/time-deposit', {
+        method: 'POST',
+        body: JSON.stringify({ accountId: 'td-1', targetAccountId: 'cc-1', actualInterestEarned: 100 }),
+      })
+    );
+    expect(tdCloseCcRes.status).toBe(400);
+
+    // 3. Özel cüzdanda işlem ve transfer -> is_family_shared=0 olarak kaydedilmeli
+    const privTxHarness = createMockDbHarness(
+      new Map<unknown, unknown[][]>([
+        [
+          schema.walletsAccounts,
+          [
+            [{ id: 'w-my-priv', user_id: 'user-1', family_id: 'fam-1', name: 'Kişisel', type: 'bank', currency: 'TRY', balance: 5000, is_active: 1, is_family_shared: 0 }],
+            [{ id: 'w-my-priv', user_id: 'user-1', family_id: 'fam-1', name: 'Kişisel', type: 'bank', currency: 'TRY', balance: 5000, is_active: 1, is_family_shared: 0 }],
+          ],
+        ],
+      ])
+    );
+    const privTxRes = await postTransaction(
+      new Request('http://localhost/api/transactions', {
+        method: 'POST',
+        body: JSON.stringify({ wallet_id: 'w-my-priv', amount: 150, merchant: 'Kahve', type: 'expense' }),
+      })
+    );
+    expect(privTxRes.status).toBe(200);
+    const privTxInsert = privTxHarness.inserted.find(e => e.table === schema.transactions);
+    expect((privTxInsert?.values as { is_family_shared: number }).is_family_shared).toBe(0);
+
+    const privTrfHarness = createMockDbHarness(
+      new Map<unknown, unknown[][]>([
+        [
+          schema.walletsAccounts,
+          [
+            [{ id: 'w-my-priv', user_id: 'user-1', family_id: 'fam-1', name: 'Kişisel 1', type: 'bank', currency: 'TRY', balance: 5000, is_active: 1, is_family_shared: 0 }],
+            [{ id: 'w-my-pub', user_id: 'user-1', family_id: 'fam-1', name: 'Ortak', type: 'bank', currency: 'TRY', balance: 1000, is_active: 1, is_family_shared: 1 }],
+          ],
+        ],
+      ])
+    );
+    const privTrfRes = await postTransfer(
+      new Request('http://localhost/api/budget/transfer', {
+        method: 'POST',
+        body: JSON.stringify({ from_account_id: 'w-my-priv', to_account_id: 'w-my-pub', amount: 200 }),
+      })
+    );
+    expect(privTrfRes.status).toBe(200);
+    const trfInserts = privTrfHarness.inserted.filter(e => e.table === schema.transactions);
+    expect(trfInserts).toHaveLength(2);
+    expect((trfInserts[0].values as { is_family_shared: number }).is_family_shared).toBe(0);
+    expect((trfInserts[1].values as { is_family_shared: number }).is_family_shared).toBe(0);
+
+    // 4. GET /api/budget/category-details şablon ID (cat-market) ile çözümlenmiş ID (cat-market-fam-1) sorgular
+    const catDetHarness = createMockDbHarness(
+      new Map<unknown, unknown[][]>([
+        [schema.categories, [[{ id: 'cat-market-fam-1', family_id: 'fam-1', name: 'Market & Gıda', type: 'expense', monthly_budget_limit: 5000 }]]],
+        [schema.walletsAccounts, [[]]],
+        [schema.familyMembers, [[]]],
+        [schema.transactions, [[]]],
+      ])
+    );
+    const detOk = await getCategoryDetails(
+      new Request('http://localhost/api/budget/category-details?category_id=cat-market&month=2026-11')
+    );
+    expect(detOk.status).toBe(200);
+    const txSelect = catDetHarness.selectedWhereSql.find(q => q.table === schema.transactions);
+    expect(txSelect?.whereSql).toContain('category_id');
+  });
+
+  it('Opsiyonel iyileştirme regresyonları: duplicateCheckTransactions gelir+gider içerir, pasif cüzdanla fatura ödenemez (400) ve kredi kartına kişisel borç bağlanamaz (400)', async () => {
+    const todayStr = getTodayTurkeyDate();
+    const currentMonth = todayStr.slice(0, 7);
+
+    // 1. Pasif cüzdanla fatura ödeme -> 400
+    createMockDbHarness(
+      new Map<unknown, unknown[][]>([
+        [
+          schema.recurringBills,
+          [[{ id: 'bill-inact', user_id: 'user-1', family_id: 'fam-1', name: 'Su', amount: 300, due_day: 20, last_paid_month: '2026-01', status: 'active' }]],
+        ],
+        [
+          schema.walletsAccounts,
+          [[{ id: 'w-inact', user_id: 'user-1', family_id: 'fam-1', name: 'Eski Banka', type: 'bank', balance: 5000, is_active: 0, is_family_shared: 1 }]],
+        ],
+      ])
+    );
+    const inactBillRes = await patchRecurringBill(
+      new Request('http://localhost/api/budget/recurring-bills', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: 'bill-inact', action: 'mark_paid', create_transaction: true, wallet_id: 'w-inact' }),
+      })
+    );
+    expect(inactBillRes.status).toBe(400);
+
+    // 2. Özel cüzdanla fatura ödeme -> işlem is_family_shared=0 olmalı
+    const privBillHarness = createMockDbHarness(
+      new Map<unknown, unknown[][]>([
+        [
+          schema.recurringBills,
+          [[{ id: 'bill-priv', user_id: 'user-1', family_id: 'fam-1', name: 'İnternet', amount: 400, due_day: 20, last_paid_month: '2026-01', status: 'active' }]],
+        ],
+        [
+          schema.walletsAccounts,
+          [[{ id: 'w-priv-ok', user_id: 'user-1', family_id: 'fam-1', name: 'Özel Banka', type: 'bank', balance: 5000, is_active: 1, is_family_shared: 0 }]],
+        ],
+      ])
+    );
+    const privBillRes = await patchRecurringBill(
+      new Request('http://localhost/api/budget/recurring-bills', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: 'bill-priv', action: 'mark_paid', create_transaction: true, wallet_id: 'w-priv-ok' }),
+      })
+    );
+    expect(privBillRes.status).toBe(200);
+    const billTx = privBillHarness.inserted.find(e => e.table === schema.transactions);
+    expect((billTx?.values as { is_family_shared: number }).is_family_shared).toBe(0);
+
+    // 3. Kişisel borç/alacak kredi kartına bağlanamaz -> 400
+    createMockDbHarness(
+      new Map<unknown, unknown[][]>([
+        [
+          schema.walletsAccounts,
+          [[{ id: 'cc-debt', user_id: 'user-1', family_id: 'fam-1', name: 'Kart', type: 'credit_card', currency: 'TRY', balance: 1000, is_active: 1, is_family_shared: 1 }]],
+        ],
+      ])
+    );
+    const ccDebtRes = await postPersonalDebt(
+      new Request('http://localhost/api/budget/personal-debts', {
+        method: 'POST',
+        body: JSON.stringify({ type: 'debt', person_name: 'Mehmet', index_amount: 500, index_type: 'TRY', connected_wallet_id: 'cc-debt' }),
+      })
+    );
+    expect(ccDebtRes.status).toBe(400);
+
+    // 4. GET /api/budget duplicateCheckTransactions gelir + gideri içerir, transferi hariç tutar
+    createMockDbHarness(
+      new Map<unknown, unknown[][]>([
+        [schema.familyMembers, [[]]],
+        [schema.walletsAccounts, [[{ id: 'w-1', user_id: 'user-1', family_id: 'fam-1', name: 'Banka', type: 'bank', currency: 'TRY', balance: 1000, is_active: 1, is_family_shared: 1 }]]],
+        [schema.categories, [[{ id: 'cat-maas-fam-1', family_id: 'fam-1', name: 'Maaş', type: 'income', monthly_budget_limit: 0 }]]],
+        [
+          schema.transactions,
+          [
+            [
+              { id: 'tx-inc', user_id: 'user-1', wallet_id: 'w-1', category_id: 'cat-maas-fam-1', amount: 50000, merchant: 'Maaş', transaction_date: todayStr, created_at: `${todayStr}T10:00:00Z`, is_installment: 0 },
+              { id: 'tx-exp', user_id: 'user-1', wallet_id: 'w-1', category_id: null, amount: 250, merchant: 'Migros', transaction_date: todayStr, created_at: `${todayStr}T09:00:00Z`, is_installment: 0 },
+              { id: 'tx-trf', user_id: 'user-1', wallet_id: 'w-1', category_id: null, amount: 1000, merchant: '🔄 Transfer Çıkışı: A ➔ B', notes: '[to_wallet:w-2]', transaction_date: todayStr, created_at: `${todayStr}T08:00:00Z`, is_installment: 0 },
+            ],
+          ],
+        ],
+        [schema.vehicles, [[]]],
+        [schema.recurringBills, [[]]],
+      ])
+    );
+    const budRes = await getBudget(new Request(`http://localhost/api/budget?month=${currentMonth}`));
+    expect(budRes.status).toBe(200);
+    const budJson = await budRes.json();
+    expect(budJson.data.duplicateCheckTransactions).toHaveLength(2);
+    expect(budJson.data.duplicateCheckTransactions.map((t: { merchant: string }) => t.merchant)).toEqual(['Maaş', 'Migros']);
   });
 });

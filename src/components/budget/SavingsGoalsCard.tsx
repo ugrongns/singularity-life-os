@@ -138,7 +138,7 @@ export default function SavingsGoalsCard({ funds, accounts, onUpdate }: SavingsG
           <Target size={18} style={{ color: '#10B981' }} />
           <div>
             <h2 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
-              🎯 Birikim Hedefleri (Sinking Funds)
+              Birikim Hedefleri (Sinking Funds)
             </h2>
             <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>
               Kişisel veya aile hedefleriniz için adım adım birikim takibi

@@ -51,7 +51,9 @@ export async function POST(req: Request) {
     if (action === 'create') {
       const cleanName = typeof body.name === 'string' ? body.name.trim() : '';
       const targetAmount = Number(body.target_amount);
-      const currentAmount = Math.max(0, Number(body.current_amount || 0));
+      const rawCurrent = body.current_amount !== undefined && body.current_amount !== null && body.current_amount !== ''
+        ? Number(body.current_amount)
+        : 0;
 
       if (!cleanName) {
         return NextResponse.json({ success: false, error: 'Hedef adı zorunludur.' }, { status: 400 });
@@ -59,6 +61,10 @@ export async function POST(req: Request) {
       if (!Number.isFinite(targetAmount) || targetAmount <= 0) {
         return NextResponse.json({ success: false, error: 'Hedef tutar 0’dan büyük olmalıdır.' }, { status: 400 });
       }
+      if (!Number.isFinite(rawCurrent) || rawCurrent < 0) {
+        return NextResponse.json({ success: false, error: 'Başlangıç tutarı geçerli ve 0 veya pozitif olmalıdır.' }, { status: 400 });
+      }
+      const currentAmount = Math.round(rawCurrent * 100) / 100;
 
       const id = `sf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       await db.insert(sinkingFunds).values({
@@ -102,15 +108,23 @@ export async function POST(req: Request) {
     }
 
     if (action === 'contribute') {
-      const delta = Number(body.amount);
+      const delta = Math.round(Number(body.amount) * 100) / 100;
       if (!Number.isFinite(delta) || delta === 0) {
         return NextResponse.json({ success: false, error: 'Geçerli bir katkı tutarı giriniz.' }, { status: 400 });
       }
 
-      const nextAmount = Math.max(0, Math.round(((targetFund.current_amount || 0) + delta) * 100) / 100);
+      const currentFundAmount = Math.round((Number(targetFund.current_amount) || 0) * 100) / 100;
+      if (delta < 0 && Math.abs(delta) > currentFundAmount) {
+        return NextResponse.json(
+          { success: false, error: `Çekmek istediğiniz tutar mevcut birikimden (${currentFundAmount.toLocaleString('tr-TR')} ₺) fazla olamaz.` },
+          { status: 400 }
+        );
+      }
+
+      const nextAmount = Math.max(0, Math.round((currentFundAmount + delta) * 100) / 100);
       const walletId = typeof body.wallet_id === 'string' && body.wallet_id.trim() ? body.wallet_id.trim() : null;
 
-      // İsteğe bağlı: Cüzdandan gerçek para düşümü / işlem kaydı
+      // İsteğe bağlı: Cüzdandan gerçek para düşümü / iade ve atomik işlem kaydı
       if (walletId) {
         const wallet = (
           await db
@@ -129,48 +143,97 @@ export async function POST(req: Request) {
         if (!wallet) {
           return NextResponse.json({ success: false, error: 'Seçilen cüzdana erişim yetkiniz yok.' }, { status: 403 });
         }
-
-        const newBalance = Math.round(((wallet.balance || 0) - delta) * 100) / 100;
-        await db
-          .update(walletsAccounts)
-          .set({ balance: newBalance, updated_at: now })
-          .where(eq(walletsAccounts.id, wallet.id));
+        if (wallet.is_active === 0) {
+          return NextResponse.json({ success: false, error: 'Arşivlenmiş veya pasif hesapla birikim aktarımı yapılamaz.' }, { status: 400 });
+        }
+        if (wallet.type === 'credit_card' || wallet.type === 'loan') {
+          return NextResponse.json({ success: false, error: 'Kredi kartı veya kredi hesabından birikim aktarımı yapılamaz.' }, { status: 400 });
+        }
+        if (wallet.currency && wallet.currency !== 'TRY') {
+          return NextResponse.json({ success: false, error: `Birikim hedefleri TRY cinsindendir; seçilen hesap (${wallet.currency}) uyumlu değil.` }, { status: 400 });
+        }
 
         const famCats = await ensureFamilyCategories(familyId);
-        const defaultCat = famCats.find((c: any) => c.type !== 'income') || famCats[0];
+        const defaultCat = delta < 0
+          ? (famCats.find((c: any) => c.type === 'income') || famCats[0])
+          : (famCats.find((c: any) => c.type !== 'income') || famCats[0]);
 
-        await db.insert(transactions).values({
-          id: `tx-sf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          wallet_id: wallet.id,
-          category_id: defaultCat?.id || null,
-          merchant: `🎯 Birikim: ${targetFund.name}`,
-          amount: Math.abs(delta),
-          currency: wallet.currency || 'TRY',
-          transaction_date: todayTr,
-          notes: delta > 0 ? `Birikim hedefine aktarım (${targetFund.name})` : `Birikim hedefinden iade (${targetFund.name})`,
-          is_installment: 0,
-          installment_number: 1,
-          total_installments: 1,
-          is_verified: 1,
-          is_family_shared: targetFund.is_family_shared,
-          user_id: user.id,
-          family_id: familyId,
-          created_at: now,
-          updated_at: now,
-          sync_status: 'synced',
-          device_id: 'web-client'
-        });
+        try {
+          await db.transaction(async (tx) => {
+            const [lockedWallet] = await tx
+              .select()
+              .from(walletsAccounts)
+              .where(eq(walletsAccounts.id, wallet.id))
+              .for('update');
+            if (!lockedWallet) {
+              throw new Error('NOT_FOUND: Seçilen cüzdan bulunamadı.');
+            }
+
+            if (delta > 0) {
+              const availableFunds = lockedWallet.type === 'kmh'
+                ? (Number(lockedWallet.balance) || 0) + (Number(lockedWallet.overdraft_limit) || 0)
+                : (Number(lockedWallet.balance) || 0);
+              if (delta > availableFunds) {
+                throw new Error(`INSUFFICIENT_FUNDS: Yetersiz bakiye! ${lockedWallet.name} hesabınızda kullanılabilir bakiye ${availableFunds.toLocaleString('tr-TR')} ₺.`);
+              }
+            }
+
+            const newBalance = Math.round(((Number(lockedWallet.balance) || 0) - delta) * 100) / 100;
+            await tx
+              .update(walletsAccounts)
+              .set({ balance: newBalance, updated_at: now })
+              .where(eq(walletsAccounts.id, wallet.id));
+
+            await tx.insert(transactions).values({
+              id: `tx-sf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              wallet_id: wallet.id,
+              category_id: defaultCat?.id || null,
+              merchant: `🎯 Birikim: ${targetFund.name}`,
+              amount: Math.abs(delta),
+              currency: lockedWallet.currency || 'TRY',
+              transaction_date: todayTr,
+              notes: delta > 0 ? `Birikim hedefine aktarım (${targetFund.name})` : `Birikim hedefinden iade (${targetFund.name})`,
+              is_installment: 0,
+              installment_number: 1,
+              total_installments: 1,
+              is_verified: 1,
+              is_family_shared: lockedWallet.is_family_shared === 0 ? 0 : targetFund.is_family_shared,
+              user_id: user.id,
+              family_id: familyId,
+              created_at: now,
+              updated_at: now,
+              sync_status: 'synced',
+              device_id: 'web-client'
+            });
+
+            await tx
+              .update(sinkingFunds)
+              .set({ current_amount: nextAmount, updated_at: now })
+              .where(eq(sinkingFunds.id, targetFund.id));
+          });
+        } catch (txErr: any) {
+          const msg = txErr?.message || 'Birikim aktarımı sırasında hata oluştu.';
+          if (msg.startsWith('INSUFFICIENT_FUNDS:')) {
+            return NextResponse.json({ success: false, error: msg.replace('INSUFFICIENT_FUNDS: ', '') }, { status: 400 });
+          }
+          if (msg.startsWith('NOT_FOUND:')) {
+            return NextResponse.json({ success: false, error: msg.replace('NOT_FOUND: ', '') }, { status: 404 });
+          }
+          throw txErr;
+        }
+      } else {
+        await db
+          .update(sinkingFunds)
+          .set({ current_amount: nextAmount, updated_at: now })
+          .where(eq(sinkingFunds.id, targetFund.id));
       }
-
-      await db
-        .update(sinkingFunds)
-        .set({ current_amount: nextAmount, updated_at: now })
-        .where(eq(sinkingFunds.id, targetFund.id));
 
       return NextResponse.json({
         success: true,
         message: walletId
-          ? `✅ ${Math.abs(delta).toLocaleString('tr-TR')} ₺ "${targetFund.name}" hedefine aktarıldı ve cüzdandan düşüldü!`
+          ? (delta > 0
+            ? `✅ ${Math.abs(delta).toLocaleString('tr-TR')} ₺ "${targetFund.name}" hedefine aktarıldı ve cüzdandan düşüldü!`
+            : `✅ ${Math.abs(delta).toLocaleString('tr-TR')} ₺ "${targetFund.name}" hedefinden cüzdana iade edildi!`)
           : `✅ "${targetFund.name}" hedefi güncellendi!`
       });
     }

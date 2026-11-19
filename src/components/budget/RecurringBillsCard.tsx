@@ -342,20 +342,20 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
           </div>
         </div>
 
-        <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 'var(--radius-md)', padding: '12px' }}>
-          <div style={{ fontSize: '11px', color: '#065F46', fontWeight: 700 }}>BU AY ÖDENEN</div>
-          <div style={{ fontSize: '16px', fontWeight: 900, color: '#059669', marginTop: '2px' }}>
+        <div style={{ background: 'var(--emerald-bg)', border: '1px solid var(--emerald)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--emerald)', fontWeight: 700 }}>BU AY ÖDENEN</div>
+          <div style={{ fontSize: '16px', fontWeight: 900, color: 'var(--emerald)', marginTop: '2px' }}>
             {formatTRY(summary.paidThisMonth)}
           </div>
-          <div style={{ fontSize: '10px', color: '#065F46', marginTop: '2px' }}>{summary.paidCount} Ödeme Tamamlandı</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>{summary.paidCount} Ödeme Tamamlandı</div>
         </div>
 
-        <div style={{ background: summary.pendingThisMonth > 0 ? '#FEF2F2' : 'var(--surface-subtle)', border: `1px solid ${summary.pendingThisMonth > 0 ? '#FECDD3' : 'var(--border)'}`, borderRadius: 'var(--radius-md)', padding: '12px' }}>
-          <div style={{ fontSize: '11px', color: summary.pendingThisMonth > 0 ? '#991B1B' : 'var(--text-muted)', fontWeight: 700 }}>KALAN / BEKLEYEN</div>
-          <div style={{ fontSize: '16px', fontWeight: 900, color: summary.pendingThisMonth > 0 ? '#DC2626' : 'var(--text-main)', marginTop: '2px' }}>
+        <div style={{ background: summary.pendingThisMonth > 0 ? 'var(--rose-bg)' : 'var(--surface-subtle)', border: `1px solid ${summary.pendingThisMonth > 0 ? 'var(--rose)' : 'var(--border)'}`, borderRadius: 'var(--radius-md)', padding: '12px' }}>
+          <div style={{ fontSize: '11px', color: summary.pendingThisMonth > 0 ? 'var(--rose)' : 'var(--text-muted)', fontWeight: 700 }}>KALAN / BEKLEYEN</div>
+          <div style={{ fontSize: '16px', fontWeight: 900, color: summary.pendingThisMonth > 0 ? 'var(--rose)' : 'var(--text-main)', marginTop: '2px' }}>
             {formatTRY(summary.pendingThisMonth)}
           </div>
-          <div style={{ fontSize: '10px', color: summary.pendingThisMonth > 0 ? '#991B1B' : 'var(--text-muted)', marginTop: '2px' }}>{summary.pendingCount} Bekleyen Ödeme</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>{summary.pendingCount} Bekleyen Ödeme</div>
         </div>
       </div>
 

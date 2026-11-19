@@ -172,10 +172,10 @@ export default function BudgetPage() {
               const net = inc - exp;
               const saveRate = inc > 0 ? Math.round((net / inc) * 100) : 0;
               const topCats = [...(data?.categories || [])]
-                .filter((c: any) => c.type !== 'income' && (c.spent || 0) > 0)
-                .sort((a: any, b: any) => (b.spent || 0) - (a.spent || 0))
+                .filter((c: any) => c.type !== 'income' && (c.spent_this_month || 0) > 0)
+                .sort((a: any, b: any) => (b.spent_this_month || 0) - (a.spent_this_month || 0))
                 .slice(0, 3)
-                .map((c: any, idx: number) => `${idx + 1}. ${c.name}: ${formatTRY(c.spent)}`)
+                .map((c: any, idx: number) => `${idx + 1}. ${c.name}: ${formatTRY(c.spent_this_month)}`)
                 .join('\n');
               const reportText = [
                 `📊 Singularity Finans Özeti — ${summary.monthName || selectedMonth}`,
@@ -760,7 +760,7 @@ export default function BudgetPage() {
         isOpen={isCsvImportOpen}
         accounts={data?.accounts || []}
         categories={data?.categories || []}
-        existingTransactions={data?.recentTransactions || []}
+        existingTransactions={data?.duplicateCheckTransactions || data?.recentTransactions || []}
         onClose={() => setIsCsvImportOpen(false)}
         onSuccess={(msg) => handleUpdate(msg)}
       />

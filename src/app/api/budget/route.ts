@@ -647,12 +647,23 @@ export async function GET(req: Request) {
       remainingDaysInMonth
     });
 
+    // CSV içe aktarım mükerrer kontrolü için son 500 harcama + gelir özeti (virman hariç)
+    const duplicateCheckTransactions = allFamilyTxs
+      .filter((tx: any) => !isTransferOrPaymentTx(tx))
+      .slice(0, 500)
+      .map((tx: any) => ({
+        transaction_date: tx.transaction_date,
+        amount: tx.amount,
+        merchant: tx.merchant
+      }));
+
     return NextResponse.json({
       success: true,
       data: {
         accounts,
         categories: categoriesWithSpending,
         recentTransactions: recentTx,
+        duplicateCheckTransactions,
         upcomingPayments: top5Upcoming,
         sinkingFunds: sinkingFundsRows,
         safeDailyLimit,
