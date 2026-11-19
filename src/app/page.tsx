@@ -110,13 +110,18 @@ export default function HomePage() {
 
   const handleQuickTakeSupplements = async () => {
     try {
-      await fetch('/api/wellness', {
+      const res = await fetch('/api/wellness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'take_all' })
       });
-      showToast('💊 Tüm günlük takviyeler alındı işaretlendi!');
-      handleUpdate();
+      const json = await res.json();
+      if (res.ok && json.success) {
+        showToast(json.message || '💊 Tüm günlük takviyeler alındı işaretlendi!');
+        handleUpdate();
+      } else {
+        showToast(json.error || 'Takviye durumu güncellenemedi.');
+      }
     } catch (e) {
       console.error('Supplements take error:', e);
       showToast('Takviye durumu güncellenirken hata oluştu.');

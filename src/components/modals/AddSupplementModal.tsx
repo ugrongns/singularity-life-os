@@ -18,6 +18,7 @@ interface Supplement {
 interface AddSupplementModalProps {
   isOpen: boolean;
   item?: Supplement | null;
+  memberId?: string | null;
   onClose: () => void;
   onSuccess: (msg: string) => void;
 }
@@ -98,16 +99,17 @@ const FORM_TYPES: Record<string, FormTypeConfig> = {
   }
 };
 
-export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }: AddSupplementModalProps) {
+export default function AddSupplementModal({ isOpen, item, memberId = null, onClose, onSuccess }: AddSupplementModalProps) {
   const isEditing = Boolean(item?.id);
+  const normalizeSelectableTiming = (t?: string) => (t && t !== 'as_needed' ? t : 'morning');
   const [name, setName] = useState(item?.name || '');
   const [formType, setFormType] = useState(item?.form_type || 'capsule');
   const [unit, setUnit] = useState(item?.unit || FORM_TYPES[item?.form_type || 'capsule']?.defaultUnit || 'kapsül');
   const [dose, setDose] = useState(item?.dose || '');
-  const [timing, setTiming] = useState(item?.timing || 'morning');
+  const [timing, setTiming] = useState(normalizeSelectableTiming(item?.timing));
   const [frequencyType, setFrequencyType] = useState(item?.frequency_type || 'daily');
   const [intervalDays, setIntervalDays] = useState(String(item?.interval_days || 2));
-  const [totalPills, setTotalPills] = useState(item?.total_pills ? String(item.total_pills) : '');
+  const [totalPills, setTotalPills] = useState(item?.total_pills !== undefined && item?.total_pills !== null ? String(item.total_pills) : '');
   const [remainingPills, setRemainingPills] = useState(item?.remaining_pills !== undefined && item?.remaining_pills !== null ? String(item.remaining_pills) : '');
   const [notes, setNotes] = useState(item?.notes || '');
   const [submitting, setSubmitting] = useState(false);
@@ -119,10 +121,10 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
       setFormType(fType);
       setUnit(item?.unit || FORM_TYPES[fType]?.defaultUnit || 'kapsül');
       setDose(item?.dose || '');
-      setTiming(item?.timing || 'morning');
+      setTiming(normalizeSelectableTiming(item?.timing));
       setFrequencyType(item?.frequency_type || 'daily');
       setIntervalDays(String(item?.interval_days || 2));
-      setTotalPills(item?.total_pills ? String(item.total_pills) : '');
+      setTotalPills(item?.total_pills !== undefined && item?.total_pills !== null ? String(item.total_pills) : '');
       setRemainingPills(item?.remaining_pills !== undefined && item?.remaining_pills !== null ? String(item.remaining_pills) : '');
       setNotes(item?.notes || '');
     }
@@ -138,33 +140,43 @@ export default function AddSupplementModal({ isOpen, item, onClose, onSuccess }:
     setUnit(newConfig.defaultUnit);
   };
 
+  const parseOptionalInt = (raw: string): number | null => {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    const parsed = parseInt(trimmed, 10);
+    return Number.isNaN(parsed) ? null : Math.max(0, parsed);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
 
     try {
       const action = isEditing ? 'update_supplement' : 'add_supplement';
+      const parsedTotal = parseOptionalInt(totalPills);
+      const parsedRemaining = parseOptionalInt(remainingPills);
       const res = await fetch('/api/wellness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action,
           id: item?.id,
-          name,
+          member_id: memberId,
+          name: name.trim(),
           form_type: formType,
           unit: unit.trim() || currentConfig.defaultUnit,
-          dose,
-          timing: frequencyType === 'as_needed' ? 'as_needed' : timing,
+          dose: dose.trim(),
+          timing: frequencyType === 'as_needed' ? 'as_needed' : normalizeSelectableTiming(timing),
           frequency_type: frequencyType,
-          interval_days: frequencyType === 'interval' ? (parseInt(intervalDays) || 2) : 1,
-          total_pills: parseInt(totalPills) || 60,
-          remaining_pills: parseInt(remainingPills) || 60,
+          interval_days: frequencyType === 'interval' ? (parseInt(intervalDays, 10) || 2) : 1,
+          total_pills: parsedTotal,
+          remaining_pills: parsedRemaining,
           notes
         })
       });
 
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         onSuccess(isEditing ? `${currentConfig.icon} Takviye güncellendi!` : `${currentConfig.icon} Yeni takviye eklendi!`);
         onClose();
       } else {

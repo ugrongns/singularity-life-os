@@ -1,14 +1,16 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 interface SmartScaleScanModalProps {
   isOpen: boolean;
+  memberId?: string | null;
   onClose: () => void;
   onSuccess: (message: string) => void;
 }
 
-export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleScanModalProps) {
+export function SmartScaleScanModal({ isOpen, memberId = null, onClose, onSuccess }: SmartScaleScanModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -39,6 +41,71 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
   const [actualAge, setActualAge] = useState('');
   const [heightCm, setHeightCm] = useState('');
   const [notes, setNotes] = useState('');
+
+  const resetForm = useCallback(() => {
+    setIsScanning(false);
+    setIsSaving(false);
+    setIsDuplicate(false);
+    setDuplicateInfo(null);
+    setMeasurementDate('');
+    setMeasurementTime('');
+    setWeightKg('');
+    setBmi('');
+    setBodyFatPercent('');
+    setBodyFatMassKg('');
+    setSkeletalMusclePercent('');
+    setSkeletalMuscleMassKg('');
+    setMusclePercent('');
+    setMuscleMassKg('');
+    setWaterPercent('');
+    setWaterMassKg('');
+    setVisceralFatRating('');
+    setBoneMassKg('');
+    setBmrCalories('');
+    setProteinPercent('');
+    setObesityDegreePercent('');
+    setMetabolicAge('');
+    setFatFreeMassKg('');
+    setActualAge('');
+    setHeightCm('');
+    setNotes('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      resetForm();
+    } else {
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+    }
+  }, [isOpen, resetForm]);
+
+  const checkDuplicateForDate = useCallback(async (dateStr: string) => {
+    if (!dateStr) {
+      setIsDuplicate(false);
+      setDuplicateInfo(null);
+      return;
+    }
+    try {
+      const params = new URLSearchParams({ check_date: dateStr });
+      if (memberId) params.set('member_id', memberId);
+      const dupRes = await fetch(`/api/wellness/scale-logs?${params.toString()}`);
+      const dupJson = await dupRes.json();
+      if (dupJson.exists) {
+        setIsDuplicate(true);
+        setDuplicateInfo(`Bu tarihte (${dateStr}) daha önce ${dupJson.count} ölçüm kaydedilmiş.`);
+      } else {
+        setIsDuplicate(false);
+        setDuplicateInfo(null);
+      }
+    } catch {
+      setIsDuplicate(false);
+      setDuplicateInfo(null);
+    }
+  }, [memberId]);
 
   if (!isOpen) return null;
 
@@ -91,7 +158,7 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
       });
 
       const json = await res.json();
-      if (json.success && json.data) {
+      if (res.ok && json.success && json.data) {
         const d = json.data;
 
         // Ekrandaki tarihi + saati normalize et — asla override yapma
@@ -99,9 +166,7 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
         let parsedTime = '';
         if (d.measurement_date) {
           const raw = d.measurement_date.trim();
-          // YYYY-MM-DD HH:mm:ss veya YYYY/MM/DD HH:mm:ss
           const isoMatch = raw.match(/^(\d{4})[\/-](\d{2})[\/-](\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?/);
-          // DD.MM.YYYY HH:mm veya DD/MM/YYYY
           const dotMatch = raw.match(/^(\d{2})[.\/](\d{2})[.\/](\d{4})(?:\s+(\d{2}:\d{2}(?::\d{2})?))?/);
           if (isoMatch) {
             parsedDate = `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
@@ -114,45 +179,40 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
         setMeasurementDate(parsedDate);
         setMeasurementTime(parsedTime);
 
-        // Aynı tarihte kayıt var mı kontrol et
         if (parsedDate) {
-          try {
-            const dupRes = await fetch(`/api/wellness/scale-logs?check_date=${parsedDate}`);
-            const dupJson = await dupRes.json();
-            if (dupJson.exists) {
-              setIsDuplicate(true);
-              setDuplicateInfo(`Bu tarihte (${parsedDate}) daha önce ${dupJson.count} ölçüm kaydedilmiş.`);
-            } else {
-              setIsDuplicate(false);
-              setDuplicateInfo(null);
-            }
-          } catch { setIsDuplicate(false); }
+          await checkDuplicateForDate(parsedDate);
         }
 
-        if (d.weight_kg) setWeightKg(d.weight_kg.toString());
-        if (d.bmi) setBmi(d.bmi.toString());
-        if (d.body_fat_percent) setBodyFatPercent(d.body_fat_percent.toString());
-        if (d.body_fat_mass_kg) setBodyFatMassKg(d.body_fat_mass_kg.toString());
-        if (d.skeletal_muscle_percent) setSkeletalMusclePercent(d.skeletal_muscle_percent.toString());
-        if (d.skeletal_muscle_mass_kg) setSkeletalMuscleMassKg(d.skeletal_muscle_mass_kg.toString());
-        if (d.muscle_percent) setMusclePercent(d.muscle_percent.toString());
-        if (d.muscle_mass_kg) setMuscleMassKg(d.muscle_mass_kg.toString());
-        if (d.water_percent) setWaterPercent(d.water_percent.toString());
-        if (d.water_mass_kg) setWaterMassKg(d.water_mass_kg.toString());
-        if (d.visceral_fat_rating) setVisceralFatRating(d.visceral_fat_rating.toString());
-        if (d.bone_mass_kg) setBoneMassKg(d.bone_mass_kg.toString());
-        if (d.bmr_calories) setBmrCalories(d.bmr_calories.toString());
-        if (d.protein_percent) setProteinPercent(d.protein_percent.toString());
-        if (d.obesity_degree_percent) setObesityDegreePercent(d.obesity_degree_percent.toString());
-        if (d.metabolic_age) setMetabolicAge(d.metabolic_age.toString());
-        if (d.fat_free_mass_kg) setFatFreeMassKg(d.fat_free_mass_kg.toString());
-        if (d.actual_age) setActualAge(d.actual_age.toString());
-        if (d.height_cm) setHeightCm(d.height_cm.toString());
+        const setIfDefined = (val: unknown, setter: (v: string) => void) => {
+          if (val !== null && val !== undefined && val !== '') {
+            setter(String(val));
+          }
+        };
 
+        setIfDefined(d.weight_kg, setWeightKg);
+        setIfDefined(d.bmi, setBmi);
+        setIfDefined(d.body_fat_percent, setBodyFatPercent);
+        setIfDefined(d.body_fat_mass_kg, setBodyFatMassKg);
+        setIfDefined(d.skeletal_muscle_percent, setSkeletalMusclePercent);
+        setIfDefined(d.skeletal_muscle_mass_kg, setSkeletalMuscleMassKg);
+        setIfDefined(d.muscle_percent, setMusclePercent);
+        setIfDefined(d.muscle_mass_kg, setMuscleMassKg);
+        setIfDefined(d.water_percent, setWaterPercent);
+        setIfDefined(d.water_mass_kg, setWaterMassKg);
+        setIfDefined(d.visceral_fat_rating, setVisceralFatRating);
+        setIfDefined(d.bone_mass_kg, setBoneMassKg);
+        setIfDefined(d.bmr_calories, setBmrCalories);
+        setIfDefined(d.protein_percent, setProteinPercent);
+        setIfDefined(d.obesity_degree_percent, setObesityDegreePercent);
+        setIfDefined(d.metabolic_age, setMetabolicAge);
+        setIfDefined(d.fat_free_mass_kg, setFatFreeMassKg);
+        setIfDefined(d.actual_age, setActualAge);
+        setIfDefined(d.height_cm, setHeightCm);
       } else {
         alert(json.error || 'Ekran görüntüsünden veri okunamadı.');
       }
-    } catch {
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       alert('Yapay zeka tarama hatası.');
     } finally {
       setIsScanning(false);
@@ -168,15 +228,16 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
 
     setIsSaving(true);
     try {
-      // Tarih + saat birleştir
-      const finalDate = measurementDate || new Date().toISOString().split('T')[0];
+      // Tarih + saat birleştir (Türkiye saati fallback)
+      const finalDate = measurementDate || getTodayTurkeyDate();
       const finalDatetime = measurementTime ? `${finalDate} ${measurementTime}` : finalDate;
 
       const res = await fetch('/api/wellness/scale-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          measurement_date: finalDate,
+          member_id: memberId,
+          measurement_date: finalDatetime,
           measurement_datetime: finalDatetime,
           weight_kg: weightKg,
           bmi,
@@ -202,7 +263,7 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
       });
 
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         window.dispatchEvent(new CustomEvent('singularity-refresh'));
         onSuccess(json.message || 'Ölçüm başarıyla kaydedildi.');
         onClose();
@@ -300,7 +361,11 @@ export function SmartScaleScanModal({ isOpen, onClose, onSuccess }: SmartScaleSc
               <input 
                 type="date" 
                 value={measurementDate} 
-                onChange={e => setMeasurementDate(e.target.value)} 
+                onChange={e => {
+                  const val = e.target.value;
+                  setMeasurementDate(val);
+                  checkDuplicateForDate(val);
+                }} 
                 required 
                 style={{ width: '100%', padding: '8px', borderRadius: '8px', border: isDuplicate ? '1px solid #F59E0B' : '1px solid var(--border)', marginTop: '2px', background: 'var(--surface-subtle)', color: 'var(--text-main)' }} 
               />

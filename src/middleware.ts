@@ -100,6 +100,7 @@ const PUBLIC_API_ROUTES = [
 // ─── Korumalı UI Rotaları ───────────────────────────────────────────────────
 const PROTECTED_UI_ROUTES = [
   '/analytics',
+  '/boost',
   '/budget',
   '/health',
   '/library',
@@ -217,6 +218,7 @@ export const config = {
   matcher: [
     '/api/:path*',
     '/analytics/:path*',
+    '/boost/:path*',
     '/budget/:path*',
     '/health/:path*',
     '/library/:path*',

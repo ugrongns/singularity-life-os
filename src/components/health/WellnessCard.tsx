@@ -6,21 +6,17 @@ import {
   Droplets,
   Moon,
   Smile,
-  Sparkles,
   Check,
   RotateCcw,
   Plus,
-  Flame,
-  AlertTriangle,
-  Zap,
   Shield,
   Edit2,
   Trash2,
   CheckCircle2,
   Clock,
-  ChevronRight,
   Sun,
-  Sunset
+  Sunset,
+  X
 } from 'lucide-react';
 
 export interface Supplement {
@@ -82,8 +78,10 @@ interface Props {
   aiInsight?: string;
   onOpenAddSupplement?: (item?: Supplement) => void;
   onRefresh?: () => void;
+  onNotify?: (msg: string) => void;
   selectedDate?: string;
   isToday?: boolean;
+  memberId?: string | null;
   onResetDay?: () => void;
 }
 
@@ -96,11 +94,11 @@ const MOODS = [
 ];
 
 function getDaysPassed(lastTakenDate?: string | null) {
-  if (!lastTakenDate) return 999;
+  if (!lastTakenDate || !/^\d{4}-\d{2}-\d{2}$/.test(lastTakenDate)) return 999;
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date());
   if (lastTakenDate === todayStr) return 0;
-  const today = new Date(todayStr);
-  const last = new Date(lastTakenDate);
+  const today = new Date(`${todayStr}T12:00:00Z`);
+  const last = new Date(`${lastTakenDate}T12:00:00Z`);
   const diffTime = today.getTime() - last.getTime();
   return Math.max(0, Math.floor(diffTime / (1000 * 3600 * 24)));
 }
@@ -110,14 +108,12 @@ export default function WellnessCard({
   todayMood,
   todaySleep,
   todayWater,
-  moodHistory,
-  sleepHistory,
-  aiInsight,
   onOpenAddSupplement,
   onRefresh,
+  onNotify,
   selectedDate,
   isToday = true,
-  onResetDay
+  memberId = null,
 }: Props) {
   const [taking, setTaking] = useState<string | null>(null);
   const [undoing, setUndoing] = useState<string | null>(null);
@@ -176,6 +172,7 @@ export default function WellnessCard({
   const [stressLevel, setStressLevel] = useState<number>(todayMood?.stress_level || 2);
   const [wellnessNote, setWellnessNote] = useState<string>(todayMood?.note || '');
   const [savingMood, setSavingMood] = useState(false);
+  const [isMoodModalOpen, setIsMoodModalOpen] = useState(false);
 
   useEffect(() => {
     if (todayMood) {
@@ -206,13 +203,20 @@ export default function WellnessCard({
   const handleTake = async (id: string) => {
     setTaking(id);
     try {
-      await fetch('/api/wellness', {
+      const res = await fetch('/api/wellness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'take_supplement', id, date: selectedDate })
+        body: JSON.stringify({ action: 'take_supplement', id, date: selectedDate, member_id: memberId })
       });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        onNotify?.(json.error || 'Takviye kaydedilemedi.');
+        return;
+      }
       window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
+    } catch {
+      onNotify?.('Takviye kaydedilirken bağlantı hatası oluştu.');
     } finally {
       setTaking(null);
     }
@@ -221,13 +225,20 @@ export default function WellnessCard({
   const handleUndo = async (id: string) => {
     setUndoing(id);
     try {
-      await fetch('/api/wellness', {
+      const res = await fetch('/api/wellness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'undo_supplement', id, date: selectedDate })
+        body: JSON.stringify({ action: 'undo_supplement', id, date: selectedDate, member_id: memberId })
       });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        onNotify?.(json.error || 'Takviye alımı geri alınamadı.');
+        return;
+      }
       window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
+    } catch {
+      onNotify?.('Geri alma sırasında bağlantı hatası oluştu.');
     } finally {
       setUndoing(null);
     }
@@ -236,13 +247,20 @@ export default function WellnessCard({
   const handleTakeAll = async () => {
     setTakingAll(true);
     try {
-      await fetch('/api/wellness', {
+      const res = await fetch('/api/wellness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'take_all', date: selectedDate })
+        body: JSON.stringify({ action: 'take_all', date: selectedDate, member_id: memberId })
       });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        onNotify?.(json.error || 'Takviyeler işaretlenemedi.');
+        return;
+      }
       window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
+    } catch {
+      onNotify?.('Toplu alım sırasında bağlantı hatası oluştu.');
     } finally {
       setTakingAll(false);
     }
@@ -250,44 +268,76 @@ export default function WellnessCard({
 
   const handleDeleteSupp = async (id: string) => {
     if (!confirm('Bu takviye kaydını silmek istediğinize emin misiniz?')) return;
-    await fetch('/api/wellness', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'delete_supplement', id })
-    });
-    window.dispatchEvent(new CustomEvent('singularity-refresh'));
-    if (onRefresh) onRefresh();
+    try {
+      const res = await fetch('/api/wellness', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete_supplement', id, member_id: memberId })
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        onNotify?.(json.error || 'Takviye silinemedi.');
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      if (onRefresh) onRefresh();
+    } catch {
+      onNotify?.('Silme işlemi sırasında bağlantı hatası oluştu.');
+    }
   };
 
   // --- SU API EYLEMLERİ ---
   const handleUpdateWater = async (deltaMl: number) => {
+    const prevAmount = waterAmount;
     const newAmount = Math.max(0, waterAmount + deltaMl);
     setWaterAmount(newAmount);
     setSavingWater(true);
     try {
-      await fetch('/api/wellness', {
+      const res = await fetch('/api/wellness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'log_water', amount_ml: newAmount, goal_ml: waterGoal, date: selectedDate })
+        body: JSON.stringify({ action: 'log_water', amount_ml: newAmount, goal_ml: waterGoal, date: selectedDate, member_id: memberId })
       });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setWaterAmount(prevAmount);
+        onNotify?.(json.error || 'Su kaydı güncellenemedi.');
+        return;
+      }
       window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
+    } catch {
+      setWaterAmount(prevAmount);
+      onNotify?.('Su kaydı güncellenirken bağlantı hatası oluştu.');
     } finally {
       setSavingWater(false);
     }
   };
 
   const handleSaveWaterGoal = async () => {
-    const val = Math.max(500, Math.min(10000, parseInt(goalInput) || 2500));
+    const prevGoal = waterGoal;
+    const val = Math.max(500, Math.min(10000, parseInt(goalInput, 10) || 2500));
     setWaterGoal(val);
     setIsEditingGoal(false);
-    await fetch('/api/wellness', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'set_water_goal', goal_ml: val, date: selectedDate })
-    });
-    window.dispatchEvent(new CustomEvent('singularity-refresh'));
-    if (onRefresh) onRefresh();
+    try {
+      const res = await fetch('/api/wellness', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_water_goal', goal_ml: val, date: selectedDate, member_id: memberId })
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setWaterGoal(prevGoal);
+        onNotify?.(json.error || 'Su hedefi güncellenemedi.');
+        return;
+      }
+      onNotify?.(json.message || `Su hedefi ${val} ml olarak güncellendi.`);
+      window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      if (onRefresh) onRefresh();
+    } catch {
+      setWaterGoal(prevGoal);
+      onNotify?.('Su hedefi güncellenirken bağlantı hatası oluştu.');
+    }
   };
 
   // --- UYKU API EYLEMLERİ ---
@@ -295,42 +345,75 @@ export default function WellnessCard({
     e.preventDefault();
     setSavingSleep(true);
     try {
-      await fetch('/api/wellness', {
+      const res = await fetch('/api/wellness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add_sleep', ...sleepForm, date: selectedDate })
+        body: JSON.stringify({ action: 'add_sleep', ...sleepForm, date: selectedDate, member_id: memberId })
       });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        onNotify?.(json.error || 'Uyku kaydı güncellenemedi.');
+        return;
+      }
       setIsSleepModalOpen(false);
       window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
+    } catch {
+      onNotify?.('Uyku kaydı sırasında bağlantı hatası oluştu.');
     } finally {
       setSavingSleep(false);
     }
   };
 
   // --- MOOD & ENERJİ API EYLEMLERİ ---
-  const handleSelectMoodScore = async (score: number) => {
+  const saveMoodPayload = async (score: number, energy: number, stress: number, note: string) => {
+    const prevMood = selectedMood;
     setSelectedMood(score);
     const selected = MOODS.find(m => m.score === score);
     setSavingMood(true);
     try {
-      await fetch('/api/wellness', {
+      const res = await fetch('/api/wellness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'add_mood',
           mood_emoji: selected?.emoji || '😊',
           mood_score: score,
-          energy_level: energyLevel,
-          stress_level: stressLevel,
-          note: wellnessNote,
-          date: selectedDate
+          energy_level: energy,
+          stress_level: stress,
+          note,
+          date: selectedDate,
+          member_id: memberId
         })
       });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setSelectedMood(prevMood);
+        onNotify?.(json.error || 'Mod kaydı güncellenemedi.');
+        return false;
+      }
       window.dispatchEvent(new CustomEvent('singularity-refresh'));
       if (onRefresh) onRefresh();
+      return true;
+    } catch {
+      setSelectedMood(prevMood);
+      onNotify?.('Mod kaydı sırasında bağlantı hatası oluştu.');
+      return false;
     } finally {
       setSavingMood(false);
+    }
+  };
+
+  const handleSelectMoodScore = async (score: number) => {
+    await saveMoodPayload(score, energyLevel, stressLevel, wellnessNote);
+  };
+
+  const handleSaveMoodModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetScore = selectedMood ?? 4;
+    const ok = await saveMoodPayload(targetScore, energyLevel, stressLevel, wellnessNote);
+    if (ok) {
+      setIsMoodModalOpen(false);
     }
   };
 
@@ -362,7 +445,7 @@ export default function WellnessCard({
   };
 
   // 2 Katmanlı Mobil-First Takviye Satırı
-  const renderSupplementRow = (s: Supplement, timingAccentColor: string = '#10B981') => {
+  const renderSupplementRow = (s: Supplement) => {
     const isLowStock = s.remaining_pills !== null && s.remaining_pills !== undefined && s.remaining_pills <= 7;
     const isTaken = Boolean(s.is_taken_today);
 
@@ -494,7 +577,7 @@ export default function WellnessCard({
                   <CheckCircle2 size={14} color="#10B981" />
                   <span>
                     Alındı
-                    {s.taken_at ? ` (${new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit' }).format(new Date(s.taken_at))})` : ''}
+                    {s.taken_at ? ` (${new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' }).format(new Date(s.taken_at))})` : ''}
                   </span>
                 </span>
                 <button
@@ -537,7 +620,7 @@ export default function WellnessCard({
           <span>{title} ({list.length})</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {list.map(s => renderSupplementRow(s, accentColor))}
+          {list.map(s => renderSupplementRow(s))}
         </div>
       </div>
     );
@@ -599,6 +682,8 @@ export default function WellnessCard({
               onClick={handleTakeAll}
               disabled={takingAll}
               style={{
+                width: 'auto',
+                marginTop: 0,
                 height: '34px',
                 padding: '6px 12px',
                 fontSize: '11px',
@@ -683,32 +768,88 @@ export default function WellnessCard({
               <Droplets size={16} color="#0284C7" />
               <span>Su Takibi</span>
             </div>
-            <span className="tabular-nums" style={{ fontSize: '11px', fontWeight: 800, color: '#0284C7' }}>
-              %{waterProgress}
-            </span>
-          </div>
-
-          <div>
-            <div className="tabular-nums" style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-main)' }}>
-              {waterAmount} <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>/ {waterGoal} ml</span>
-            </div>
-
-            {/* İlerleme Çubuğu */}
-            <div style={{ height: '6px', backgroundColor: 'rgba(14, 165, 233, 0.2)', borderRadius: '999px', overflow: 'hidden', marginTop: '4px' }}>
-              <div
-                style={{
-                  width: `${waterProgress}%`,
-                  height: '100%',
-                  backgroundColor: '#0284C7',
-                  borderRadius: '999px',
-                  transition: 'width 0.4s ease'
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="tabular-nums" style={{ fontSize: '11px', fontWeight: 800, color: '#0284C7' }}>
+                %{waterProgress}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setGoalInput(String(waterGoal));
+                  setIsEditingGoal(!isEditingGoal);
                 }}
-              />
+                title="Günlük Su Hedefini Düzenle"
+                aria-label="Günlük Su Hedefini Düzenle"
+                style={{ background: 'none', border: 'none', color: '#0284C7', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+              >
+                <Edit2 size={12} />
+              </button>
             </div>
           </div>
 
-          {/* Hızlı Ekleme Butonları */}
+          {isEditingGoal ? (
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <input
+                type="number"
+                min={500}
+                max={10000}
+                step={100}
+                value={goalInput}
+                onChange={e => setGoalInput(e.target.value)}
+                aria-label="Günlük su hedefi ml"
+                style={{ flex: 1, minWidth: 0, padding: '5px 8px', fontSize: '12px', fontWeight: 700, borderRadius: '6px', border: '1px solid rgba(14, 165, 233, 0.4)', backgroundColor: 'var(--surface)', color: 'var(--text-main)' }}
+              />
+              <button
+                type="button"
+                onClick={handleSaveWaterGoal}
+                style={{ padding: '5px 10px', fontSize: '11px', fontWeight: 800, backgroundColor: '#0284C7', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+              >
+                Kaydet
+              </button>
+            </div>
+          ) : (
+            <div>
+              <div className="tabular-nums" style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-main)' }}>
+                {waterAmount} <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>/ {waterGoal} ml</span>
+              </div>
+
+              {/* İlerleme Çubuğu */}
+              <div style={{ height: '6px', backgroundColor: 'rgba(14, 165, 233, 0.2)', borderRadius: '999px', overflow: 'hidden', marginTop: '4px' }}>
+                <div
+                  style={{
+                    width: `${waterProgress}%`,
+                    height: '100%',
+                    backgroundColor: '#0284C7',
+                    borderRadius: '999px',
+                    transition: 'width 0.4s ease'
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Hızlı Ekleme / Geri Alma Butonları */}
           <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+            {waterAmount > 0 && (
+              <button
+                type="button"
+                onClick={() => handleUpdateWater(-250)}
+                disabled={savingWater}
+                title="250 ml Geri Al"
+                style={{
+                  padding: '4px 7px',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  color: 'var(--text-muted)',
+                  backgroundColor: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                -250
+              </button>
+            )}
             <button
               type="button"
               onClick={() => handleUpdateWater(250)}
@@ -774,19 +915,28 @@ export default function WellnessCard({
           </div>
 
           <div>
-            <div className="tabular-nums" style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-main)' }}>
-              {todaySleep ? `${todaySleep.duration_hours} sa` : '7.5 sa'}
+            <div className="tabular-nums" style={{ fontSize: todaySleep ? '18px' : '15px', fontWeight: 900, color: todaySleep ? 'var(--text-main)' : 'var(--text-muted)' }}>
+              {todaySleep ? `${todaySleep.duration_hours} sa` : 'Kayıt yok'}
             </div>
             <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
-              {todaySleep ? `${todaySleep.bedtime} - ${todaySleep.wake_time}` : '23:30 - 07:00'}
+              {todaySleep ? `${todaySleep.bedtime} - ${todaySleep.wake_time}` : 'Uyku süresi eklemek için tıklayın'}
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '10px', fontWeight: 800, color: '#8B5CF6' }}>
-              {'★'.repeat(todaySleep?.quality_rating || 4)}{'☆'.repeat(5 - (todaySleep?.quality_rating || 4))}
-            </span>
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Kalite</span>
+            {todaySleep ? (
+              <>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: '#8B5CF6' }}>
+                  {'★'.repeat(Math.max(1, Math.min(5, todaySleep.quality_rating)))}{'☆'.repeat(5 - Math.max(1, Math.min(5, todaySleep.quality_rating)))}
+                </span>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Kalite</span>
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>Henüz girilmedi</span>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: '#8B5CF6' }}>+ Uyku Gir</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -808,9 +958,20 @@ export default function WellnessCard({
               <Smile size={16} color="#10B981" />
               <span>Mod & Enerji</span>
             </div>
-            <span style={{ fontSize: '10px', fontWeight: 800, color: '#10B981' }}>
-              ⚡ {energyLevel}/5
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 800, color: selectedMood !== null ? '#10B981' : 'var(--text-muted)' }}>
+                {selectedMood !== null ? `⚡ ${energyLevel}/5` : '⚡ —'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsMoodModalOpen(true)}
+                title="Mod, Enerji, Stres ve Not Düzenle"
+                aria-label="Mod, Enerji, Stres ve Not Düzenle"
+                style={{ background: 'none', border: 'none', color: '#10B981', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+              >
+                <Edit2 size={12} />
+              </button>
+            </div>
           </div>
 
           {/* 5'li Emoji Seçim Butonları */}
@@ -839,9 +1000,9 @@ export default function WellnessCard({
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', color: 'var(--text-muted)' }}>
-            <span>Stres: <strong>{stressLevel}/5</strong></span>
-            <span style={{ color: '#10B981', fontWeight: 700 }}>
-              {MOODS.find(m => m.score === selectedMood)?.label || 'İyi'}
+            <span>Stres: <strong>{selectedMood !== null ? `${stressLevel}/5` : '—'}</strong></span>
+            <span style={{ color: selectedMood !== null ? '#10B981' : 'var(--text-muted)', fontWeight: 700 }}>
+              {MOODS.find(m => m.score === selectedMood)?.label || 'Seçilmedi'}
             </span>
           </div>
         </div>
@@ -908,6 +1069,8 @@ export default function WellnessCard({
                 className="btn-primary"
                 onClick={() => onOpenAddSupplement()}
                 style={{
+                  width: 'auto',
+                  marginTop: 0,
                   padding: '10px 20px',
                   fontSize: '13px',
                   fontWeight: 800,
@@ -969,7 +1132,7 @@ export default function WellnessCard({
                     const isDue = !s.is_taken_today && daysPassed >= interval;
                     return (
                       <div key={s.id} style={{ borderLeft: `3px solid ${isDue ? '#EF4444' : '#6366F1'}` }}>
-                        {renderSupplementRow(s, isDue ? '#EF4444' : '#6366F1')}
+                        {renderSupplementRow(s)}
                       </div>
                     );
                   })}
@@ -985,7 +1148,7 @@ export default function WellnessCard({
                   <span>İhtiyaç Halinde / S.O.S ({asNeededSupps.length})</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {asNeededSupps.map(s => renderSupplementRow(s, '#EC4899'))}
+                  {asNeededSupps.map(s => renderSupplementRow(s))}
                 </div>
               </div>
             )}
@@ -1002,9 +1165,19 @@ export default function WellnessCard({
             style={{ maxWidth: '440px' }}
           >
             <div className="sheet-handle" />
-            <h3 style={{ fontSize: '15px', fontWeight: 800, margin: '0 0 14px', color: 'var(--text-main)' }}>
-              😴 Uyku Süresi & Kalitesini Güncelle
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+                😴 Uyku Süresi & Kalitesini Güncelle
+              </h3>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setIsSleepModalOpen(false)}
+                aria-label="Kapat"
+              >
+                <X size={16} />
+              </button>
+            </div>
 
             <form onSubmit={handleSaveSleep} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -1014,7 +1187,7 @@ export default function WellnessCard({
                     type="time"
                     value={sleepForm.bedtime}
                     onChange={e => setSleepForm({ ...sleepForm, bedtime: e.target.value })}
-                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'inherit', marginTop: '4px' }}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'inherit', marginTop: '4px' }}
                   />
                 </div>
                 <div>
@@ -1023,7 +1196,7 @@ export default function WellnessCard({
                     type="time"
                     value={sleepForm.wake_time}
                     onChange={e => setSleepForm({ ...sleepForm, wake_time: e.target.value })}
-                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'inherit', marginTop: '4px' }}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'inherit', marginTop: '4px' }}
                   />
                 </div>
               </div>
@@ -1053,22 +1226,171 @@ export default function WellnessCard({
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={savingSleep}
-                  style={{ flex: 1, padding: '10px', fontSize: '12px', fontWeight: 800 }}
-                >
-                  {savingSleep ? 'Kaydediliyor...' : 'Kaydet'}
-                </button>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>NOTLAR</label>
+                <textarea
+                  rows={2}
+                  placeholder="Derin uyku, gece uyanması veya dinlenme notu..."
+                  value={sleepForm.notes}
+                  onChange={e => setSleepForm({ ...sleepForm, notes: e.target.value })}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'inherit', marginTop: '4px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: '6px', alignItems: 'center' }}>
                 <button
                   type="button"
                   className="btn-secondary"
                   onClick={() => setIsSleepModalOpen(false)}
-                  style={{ padding: '10px 14px', fontSize: '12px' }}
+                  style={{ flex: 1, width: 'auto', marginTop: 0, padding: '10px 14px', fontSize: '12px', fontWeight: 700 }}
                 >
                   İptal
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={savingSleep}
+                  style={{ flex: 1, width: 'auto', marginTop: 0, padding: '10px 14px', fontSize: '12px', fontWeight: 800 }}
+                >
+                  {savingSleep ? 'Kaydediliyor...' : 'Kaydet'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MOD, ENERJİ & STRES GÜNCELLEME MODALI */}
+      {isMoodModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsMoodModalOpen(false)}>
+          <div
+            className="bottom-sheet"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '440px' }}
+          >
+            <div className="sheet-handle" />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+                😊 Mod, Enerji & Stres Durumu
+              </h3>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setIsMoodModalOpen(false)}
+                aria-label="Kapat"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveMoodModal} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>RUH HALİ</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', marginTop: '6px' }}>
+                  {MOODS.map(m => {
+                    const active = (selectedMood ?? 4) === m.score;
+                    return (
+                      <button
+                        key={m.score}
+                        type="button"
+                        onClick={() => setSelectedMood(m.score)}
+                        style={{
+                          padding: '8px 4px',
+                          borderRadius: '8px',
+                          border: active ? `1px solid ${m.color}` : '1px solid var(--border)',
+                          background: active ? 'var(--surface-subtle)' : 'var(--surface)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '2px'
+                        }}
+                      >
+                        <span style={{ fontSize: '18px' }}>{m.emoji}</span>
+                        <span style={{ fontSize: '10px', fontWeight: 700, color: active ? m.color : 'var(--text-muted)' }}>{m.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>ENERJİ SEVİYESİ ({energyLevel}/5)</label>
+                <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                  {[1, 2, 3, 4, 5].map(val => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setEnergyLevel(val)}
+                      style={{
+                        flex: 1,
+                        padding: '8px',
+                        borderRadius: '6px',
+                        border: energyLevel === val ? '1px solid #10B981' : '1px solid var(--border)',
+                        background: energyLevel === val ? 'rgba(16, 185, 129, 0.15)' : 'var(--surface)',
+                        color: energyLevel === val ? '#10B981' : 'var(--text-muted)',
+                        fontWeight: 800,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ⚡ {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>STRES SEVİYESİ ({stressLevel}/5)</label>
+                <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                  {[1, 2, 3, 4, 5].map(val => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setStressLevel(val)}
+                      style={{
+                        flex: 1,
+                        padding: '8px',
+                        borderRadius: '6px',
+                        border: stressLevel === val ? '1px solid #F59E0B' : '1px solid var(--border)',
+                        background: stressLevel === val ? 'rgba(245, 158, 11, 0.15)' : 'var(--surface)',
+                        color: stressLevel === val ? '#F59E0B' : 'var(--text-muted)',
+                        fontWeight: 800,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>GÜNLÜK NOT</label>
+                <textarea
+                  rows={2}
+                  placeholder="Günün odak, enerji veya stres notu..."
+                  value={wellnessNote}
+                  onChange={e => setWellnessNote(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'inherit', marginTop: '4px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: '6px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setIsMoodModalOpen(false)}
+                  style={{ flex: 1, width: 'auto', marginTop: 0, padding: '10px 14px', fontSize: '12px', fontWeight: 700 }}
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={savingMood}
+                  style={{ flex: 1, width: 'auto', marginTop: 0, padding: '10px 14px', fontSize: '12px', fontWeight: 800 }}
+                >
+                  {savingMood ? 'Kaydediliyor...' : 'Kaydet'}
                 </button>
               </div>
             </form>

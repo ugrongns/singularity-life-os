@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface ScaleLog {
   id: string;
@@ -22,11 +23,13 @@ interface ScaleLog {
   obesity_degree_percent?: number | null;
   metabolic_age?: number | null;
   fat_free_mass_kg?: number | null;
+  notes?: string | null;
 }
 
 interface SmartScaleTrendDashboardProps {
   logs: ScaleLog[];
   onOpenScanModal: () => void;
+  onDeleteLog?: (id: string) => Promise<void> | void;
 }
 
 type ViewMode = 'single' | 'multi' | 'radar' | 'matrix';
@@ -51,11 +54,30 @@ const METRIC_OPTIONS = [
   { key: 'metabolic_age', label: 'Metabolik Yaş', unit: 'Yaş', color: '#EC4899', icon: '🎂' }
 ];
 
-export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTrendDashboardProps) {
+function parseScaleTimestamp(rawDate: string): number {
+  const normalized = /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(rawDate)
+    ? rawDate.replace(' ', 'T')
+    : rawDate;
+  const ms = Date.parse(normalized);
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+function getNumericMetric(log: ScaleLog | undefined, key: string): number | null {
+  if (!log) return null;
+  const raw = (log as unknown as Record<string, unknown>)[key];
+  if (raw === null || raw === undefined || raw === '') return null;
+  const num = Number(raw);
+  return Number.isFinite(num) && !Number.isNaN(num) ? num : null;
+}
+
+export function SmartScaleTrendDashboard({ logs, onOpenScanModal, onDeleteLog }: SmartScaleTrendDashboardProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('single');
   const [selectedMetric, setSelectedMetric] = useState('weight_kg');
   const [chartType, setChartType] = useState<ChartType>('line');
   const [hoveredPoint, setHoveredPoint] = useState<{ idx: number; val: number; date: string } | null>(null);
+  const [hoveredMulti, setHoveredMulti] = useState<{ label: string; valueText: string; date: string; x: number; y: number; color: string } | null>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Çoklu metrik karşılaştırma state'i
   const [selectedMultiMetrics, setSelectedMultiMetrics] = useState<string[]>([
@@ -64,26 +86,30 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
 
   const currentOption = METRIC_OPTIONS.find(m => m.key === selectedMetric) || METRIC_OPTIONS[0];
 
-  // Filtrelenmiş ve tarihe göre sıralanmış loglar
-  const sortedLogs = [...logs].sort((a, b) => new Date(a.measurement_date).getTime() - new Date(b.measurement_date).getTime());
+  // Tarihe göre deterministik sıralanmış loglar (Safari/Chrome uyumlu)
+  const sortedLogs = [...logs].sort((a, b) => {
+    const diff = parseScaleTimestamp(a.measurement_date) - parseScaleTimestamp(b.measurement_date);
+    if (diff !== 0) return diff;
+    return a.measurement_date.localeCompare(b.measurement_date);
+  });
 
   const metricValues = sortedLogs
     .map(l => ({
       date: l.measurement_date,
-      value: (l as any)[selectedMetric] as number | null
+      value: getNumericMetric(l, selectedMetric)
     }))
-    .filter(item => item.value !== null && item.value !== undefined);
+    .filter((item): item is { date: string; value: number } => item.value !== null);
 
   const latestLog = sortedLogs[sortedLogs.length - 1];
   const prevLog = sortedLogs[sortedLogs.length - 2];
 
-  const latestValue = latestLog ? (latestLog as any)[selectedMetric] : null;
-  const prevValue = prevLog ? (prevLog as any)[selectedMetric] : null;
+  const latestValue = getNumericMetric(latestLog, selectedMetric);
+  const prevValue = getNumericMetric(prevLog, selectedMetric);
 
   let deltaText = '';
   let deltaColor = 'var(--text-muted)';
 
-  if (latestValue !== null && prevValue !== null && latestValue !== undefined && prevValue !== undefined) {
+  if (latestValue !== null && prevValue !== null) {
     const diff = Math.round((latestValue - prevValue) * 100) / 100;
     if (diff > 0) {
       deltaText = `+${diff} ${currentOption.unit} (Son ölçüme göre)`;
@@ -97,7 +123,7 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
   }
 
   // Y Eksen Skala Hesaplamaları (Tekli Grafik İçin)
-  const rawNumbers = metricValues.map(m => Number(m.value));
+  const rawNumbers = metricValues.map(m => m.value);
   const minRaw = rawNumbers.length > 0 ? Math.min(...rawNumbers) : 0;
   const maxRaw = rawNumbers.length > 0 ? Math.max(...rawNumbers) : 100;
 
@@ -117,29 +143,34 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
   });
 
   const svgWidth = 600;
-  const svgHeight = 220;
-  const paddingLeft = 55;
-  const paddingRight = 30;
-  const paddingTop = 30;
-  const paddingBottom = 40;
+  const svgHeight = 232;
+  const paddingLeft = 60;
+  const paddingRight = 28;
+  const paddingTop = 36;
+  const paddingBottom = 44;
+  const plotInsetX = 36;
 
   const chartWidth = svgWidth - paddingLeft - paddingRight;
+  const usableWidth = Math.max(40, chartWidth - plotInsetX * 2);
   const chartHeight = svgHeight - paddingTop - paddingBottom;
 
+  const getPlotX = (idx: number, total: number) => {
+    if (total <= 1) return paddingLeft + chartWidth / 2;
+    return paddingLeft + plotInsetX + (idx / (total - 1)) * usableWidth;
+  };
+
   const points = metricValues.map((m, idx) => {
-    const val = Number(m.value);
-    const x = metricValues.length === 1 
-      ? paddingLeft + chartWidth / 2 
-      : paddingLeft + (idx / (metricValues.length - 1)) * chartWidth;
+    const val = m.value;
+    const x = getPlotX(idx, metricValues.length);
     const y = paddingTop + chartHeight - ((val - yMin) / yRange) * chartHeight;
     return { x, y, val, date: m.date };
   });
 
-  const linePathD = points.length > 0 
+  const linePathD = points.length > 0
     ? points.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '')
     : '';
 
-  const areaPathD = points.length > 0 
+  const areaPathD = points.length > 0
     ? `${linePathD} L ${points[points.length - 1].x} ${paddingTop + chartHeight} L ${points[0].x} ${paddingTop + chartHeight} Z`
     : '';
 
@@ -165,9 +196,9 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
     { key: 'metabolic_age', label: 'Met. Yaş', max: 60, unit: 'yaş' }
   ];
 
-  const radarCenterX = 250;
-  const radarCenterY = 150;
-  const radarRadius = 100;
+  const radarCenterX = 290;
+  const radarCenterY = 170;
+  const radarRadius = 92;
   const totalAxes = radarMetrics.length;
 
   const getRadarCoordinates = (index: number, valueRatio: number) => {
@@ -175,14 +206,30 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
     const r = radarRadius * Math.min(1, Math.max(0, valueRatio));
     return {
       x: radarCenterX + r * Math.cos(angle),
-      y: radarCenterY + r * Math.sin(angle)
+      y: radarCenterY + r * Math.sin(angle),
+      angle
+    };
+  };
+
+  const getRadarLabelCoordinates = (index: number, ratio: number) => {
+    const angle = (Math.PI * 2 / totalAxes) * index - Math.PI / 2;
+    const r = radarRadius * ratio;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const textAnchor: 'start' | 'middle' | 'end' = cos > 0.2 ? 'start' : cos < -0.2 ? 'end' : 'middle';
+    const dy = sin > 0.5 ? 8 : sin < -0.5 ? -8 : 0;
+    return {
+      x: radarCenterX + r * cos,
+      y: radarCenterY + r * sin + dy,
+      textAnchor
     };
   };
 
   const latestRadarPoints = radarMetrics.map((rm, idx) => {
-    const val = latestLog ? Number((latestLog as any)[rm.key] || 0) : 0;
+    const rawVal = getNumericMetric(latestLog, rm.key);
+    const val = rawVal ?? 0;
     const ratio = val / rm.max;
-    return { ...getRadarCoordinates(idx, ratio), val, rm };
+    return { ...getRadarCoordinates(idx, ratio), val, hasValue: rawVal !== null, rm };
   });
 
   const radarPolygonD = latestRadarPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '') + ' Z';
@@ -200,10 +247,21 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
           </p>
         </div>
 
-        <button 
-          className="btn-primary" 
+        <button
+          type="button"
+          className="btn-primary"
           onClick={onOpenScanModal}
-          style={{ padding: '10px 16px', fontWeight: 800, background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', gap: '8px' }}
+          style={{
+            width: 'auto',
+            marginTop: 0,
+            padding: '10px 16px',
+            fontWeight: 800,
+            background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
         >
           <span>📸</span>
           <span>TARTI EKRANI TARA (AI)</span>
@@ -251,13 +309,13 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
               <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
                 İzlenecek Metriği Seçin:
               </label>
-              <select 
-                value={selectedMetric} 
+              <select
+                value={selectedMetric}
                 onChange={e => setSelectedMetric(e.target.value)}
                 style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid var(--border)', fontWeight: 700, fontSize: '14px', background: 'var(--surface-subtle)', color: 'var(--text-main)', cursor: 'pointer' }}
               >
                 {METRIC_OPTIONS.map(opt => (
-                  <option key={opt.key} value={opt.key}>{opt.icon} {opt.label} ({opt.unit})</option>
+                  <option key={opt.key} value={opt.key}>{opt.icon} {opt.label} ({opt.unit || 'puan'})</option>
                 ))}
               </select>
             </div>
@@ -299,10 +357,10 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
             {/* Anlık Değer Kartı */}
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '24px', fontWeight: 900, color: currentOption.color }}>
-                {latestValue !== null && latestValue !== undefined ? `${latestValue} ${currentOption.unit}` : 'Veri Yok'}
+                {latestValue !== null ? `${latestValue} ${currentOption.unit}` : 'Veri Yok'}
               </div>
               <div style={{ fontSize: '12px', fontWeight: 700, color: deltaColor }}>
-                {deltaText || 'Ölçüm Kayıtlı'}
+                {deltaText || (latestValue !== null ? 'Ölçüm Kayıtlı' : 'Ölçüm Bekleniyor')}
               </div>
             </div>
           </div>
@@ -323,7 +381,7 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
                   return (
                     <g key={i}>
                       <line x1={paddingLeft} y1={yPos} x2={svgWidth - paddingRight} y2={yPos} stroke="var(--border)" strokeDasharray="4 4" strokeOpacity="0.6" />
-                      <text x={paddingLeft - 8} y={yPos + 4} textAnchor="end" fontSize="10" fontWeight="600" fill="var(--text-muted)">{tick}</text>
+                      <text x={paddingLeft - 10} y={yPos + 4} textAnchor="end" fontSize="10" fontWeight="600" fill="var(--text-muted)">{tick}</text>
                     </g>
                   );
                 })}
@@ -337,7 +395,7 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
                 )}
 
                 {chartType === 'bar' && points.map((p, idx) => {
-                  const barWidth = Math.min(32, (chartWidth / points.length) * 0.5);
+                  const barWidth = Math.min(32, (usableWidth / Math.max(1, points.length)) * 0.5);
                   const barHeight = paddingTop + chartHeight - p.y;
                   return (
                     <rect key={idx} x={p.x - barWidth / 2} y={p.y} width={barWidth} height={Math.max(4, barHeight)} rx="4" fill={currentOption.color} opacity={idx === points.length - 1 ? 1 : 0.7} />
@@ -348,13 +406,22 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
                   const dateParts = p.date.split(' ');
                   const dateStr = dateParts[0].split('-').slice(1).join('/');
                   const timeStr = dateParts[1] ? dateParts[1].substring(0, 5) : '';
+                  const showLabel = points.length <= 7 || idx === 0 || idx === points.length - 1 || hoveredPoint?.idx === idx || idx % Math.ceil(points.length / 6) === 0;
 
                   return (
                     <g key={idx} style={{ cursor: 'pointer' }} onMouseEnter={() => setHoveredPoint({ idx, val: p.val, date: p.date })} onMouseLeave={() => setHoveredPoint(null)}>
-                      <circle cx={p.x} cy={p.y} r={hoveredPoint?.idx === idx ? "8" : "6"} fill={currentOption.color} stroke="#FFFFFF" strokeWidth="2" style={{ transition: 'all 0.2s ease' }} />
-                      <text x={p.x} y={p.y - 12} textAnchor="middle" fontSize="11" fontWeight="800" fill={currentOption.color}>{p.val} {currentOption.unit}</text>
-                      <text x={p.x} y={paddingTop + chartHeight + 18} textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--text-main)">{dateStr}</text>
-                      {timeStr && <text x={p.x} y={paddingTop + chartHeight + 30} textAnchor="middle" fontSize="9" fontWeight="500" fill="var(--text-muted)">{timeStr}</text>}
+                      <circle cx={p.x} cy={p.y} r={hoveredPoint?.idx === idx ? '8' : '6'} fill={currentOption.color} stroke="#FFFFFF" strokeWidth="2" style={{ transition: 'all 0.2s ease' }} />
+                      {showLabel && (
+                        <text x={p.x} y={p.y - 12} textAnchor="middle" fontSize="11" fontWeight="800" fill={currentOption.color}>
+                          {p.val} {currentOption.unit}
+                        </text>
+                      )}
+                      {showLabel && (
+                        <>
+                          <text x={p.x} y={paddingTop + chartHeight + 18} textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--text-main)">{dateStr}</text>
+                          {timeStr && <text x={p.x} y={paddingTop + chartHeight + 30} textAnchor="middle" fontSize="9" fontWeight="500" fill="var(--text-muted)">{timeStr}</text>}
+                        </>
+                      )}
                     </g>
                   );
                 })}
@@ -377,7 +444,7 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
       {/* ------------------ GÖRÜNÜM 2: ÇOKLU ÇİZGİ KARŞILAŞTIRMA ------------------ */}
       {viewMode === 'multi' && (
         <div className="glass-card" style={{ padding: '20px' }}>
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '12px' }}>
             <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, display: 'block', marginBottom: '8px' }}>
               Grafikte Karşılaştırılacak Metrikleri Seçin:
             </label>
@@ -408,6 +475,25 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
             </div>
           </div>
 
+          {/* Seçili Metriklerin Güncel Değer Lejantı (Çakışmasız Okuma) */}
+          {sortedLogs.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '12px', padding: '8px 12px', borderRadius: '8px', background: 'var(--surface-subtle)', border: '1px solid var(--border)' }}>
+              {selectedMultiMetrics.map(metricKey => {
+                const opt = METRIC_OPTIONS.find(m => m.key === metricKey) || METRIC_OPTIONS[0];
+                const lastVal = getNumericMetric(latestLog, metricKey);
+                return (
+                  <div key={metricKey} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700 }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, display: 'inline-block' }} />
+                    <span style={{ color: 'var(--text-muted)' }}>{opt.label}:</span>
+                    <span style={{ color: opt.color, fontWeight: 800 }}>
+                      {lastVal !== null ? `${lastVal} ${opt.unit}`.trim() : '—'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Çoklu Normalize Çizgi Grafiği */}
           {sortedLogs.length > 0 ? (
             <div style={{ position: 'relative', width: '100%', overflowX: 'auto' }}>
@@ -418,42 +504,59 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
                   return (
                     <g key={idx}>
                       <line x1={paddingLeft} y1={yPos} x2={svgWidth - paddingRight} y2={yPos} stroke="var(--border)" strokeDasharray="4 4" strokeOpacity="0.5" />
-                      <text x={paddingLeft - 8} y={yPos + 4} textAnchor="end" fontSize="10" fontWeight="600" fill="var(--text-muted)">%{pct}</text>
+                      <text x={paddingLeft - 10} y={yPos + 4} textAnchor="end" fontSize="10" fontWeight="600" fill="var(--text-muted)">%{pct}</text>
                     </g>
                   );
                 })}
 
-                {/* Her Seçili Metrik İçin Çizgi Çiz */}
+                {/* Her Seçili Metrik İçin Çizgi Çiz (Yalnızca gerçek veri olan noktalar!) */}
                 {selectedMultiMetrics.map(metricKey => {
                   const opt = METRIC_OPTIONS.find(m => m.key === metricKey) || METRIC_OPTIONS[0];
-                  const vals = sortedLogs.map(l => Number((l as any)[metricKey])).filter(v => !isNaN(v) && v !== 0);
+                  const validEntries = sortedLogs
+                    .map((l, i) => ({ idx: i, val: getNumericMetric(l, metricKey), date: l.measurement_date }))
+                    .filter((entry): entry is { idx: number; val: number; date: string } => entry.val !== null);
 
-                  if (vals.length === 0) return null;
+                  if (validEntries.length === 0) return null;
 
+                  const vals = validEntries.map(e => e.val);
                   const minV = Math.min(...vals);
                   const maxV = Math.max(...vals);
-                  const rangeV = maxV - minV || 1;
+                  const rangeV = maxV - minV;
 
-                  const mPoints = sortedLogs.map((l, i) => {
-                    const rawV = Number((l as any)[metricKey] || minV);
-                    const normRatio = (rawV - minV) / rangeV;
-                    const x = sortedLogs.length === 1 ? paddingLeft + chartWidth / 2 : paddingLeft + (i / (sortedLogs.length - 1)) * chartWidth;
+                  const mPoints = validEntries.map(entry => {
+                    const normRatio = rangeV === 0 ? 0.5 : (entry.val - minV) / rangeV;
+                    const x = getPlotX(entry.idx, sortedLogs.length);
                     const y = paddingTop + chartHeight - (normRatio * 0.8 + 0.1) * chartHeight;
-                    return { x, y, rawV, date: l.measurement_date };
+                    return { x, y, rawV: entry.val, date: entry.date };
                   });
 
                   const pathD = mPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '');
 
                   return (
                     <g key={metricKey}>
-                      <path d={pathD} fill="none" stroke={opt.color} strokeWidth="2.5" strokeLinecap="round" opacity="0.9" />
+                      {mPoints.length > 1 && (
+                        <path d={pathD} fill="none" stroke={opt.color} strokeWidth="2.5" strokeLinecap="round" opacity="0.9" />
+                      )}
                       {mPoints.map((p, pIdx) => (
-                        <g key={pIdx}>
-                          <circle cx={p.x} cy={p.y} r="4" fill={opt.color} stroke="#FFFFFF" strokeWidth="1.5" />
-                          <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize="9" fontWeight="800" fill={opt.color}>
-                            {p.rawV} {opt.unit}
-                          </text>
-                        </g>
+                        <circle
+                          key={pIdx}
+                          cx={p.x}
+                          cy={p.y}
+                          r="4.5"
+                          fill={opt.color}
+                          stroke="#FFFFFF"
+                          strokeWidth="1.5"
+                          style={{ cursor: 'pointer' }}
+                          onMouseEnter={() => setHoveredMulti({
+                            label: opt.label,
+                            valueText: `${p.rawV} ${opt.unit}`.trim(),
+                            date: p.date.split(' ')[0],
+                            x: p.x,
+                            y: p.y,
+                            color: opt.color
+                          })}
+                          onMouseLeave={() => setHoveredMulti(null)}
+                        />
                       ))}
                     </g>
                   );
@@ -461,7 +564,9 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
 
                 {/* X Eksen Tarihleri */}
                 {sortedLogs.map((l, i) => {
-                  const x = sortedLogs.length === 1 ? paddingLeft + chartWidth / 2 : paddingLeft + (i / (sortedLogs.length - 1)) * chartWidth;
+                  const showDateTick = sortedLogs.length <= 7 || i === 0 || i === sortedLogs.length - 1 || i % Math.ceil(sortedLogs.length / 6) === 0;
+                  if (!showDateTick) return null;
+                  const x = getPlotX(i, sortedLogs.length);
                   const dateStr = l.measurement_date.split(' ')[0].split('-').slice(1).join('/');
                   return (
                     <text key={i} x={x} y={paddingTop + chartHeight + 20} textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--text-main)">
@@ -469,6 +574,32 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
                     </text>
                   );
                 })}
+
+                {/* Hover Tooltip */}
+                {hoveredMulti && (
+                  <g pointerEvents="none">
+                    <rect
+                      x={Math.min(svgWidth - 155, Math.max(paddingLeft, hoveredMulti.x - 68))}
+                      y={Math.max(4, hoveredMulti.y - 36)}
+                      width="136"
+                      height="26"
+                      rx="6"
+                      fill="#0F172A"
+                      stroke={hoveredMulti.color}
+                      strokeWidth="1.5"
+                    />
+                    <text
+                      x={Math.min(svgWidth - 155, Math.max(paddingLeft, hoveredMulti.x - 68)) + 68}
+                      y={Math.max(4, hoveredMulti.y - 36) + 17}
+                      textAnchor="middle"
+                      fontSize="10"
+                      fontWeight="800"
+                      fill="#FFFFFF"
+                    >
+                      {hoveredMulti.label}: {hoveredMulti.valueText}
+                    </text>
+                  </g>
+                )}
               </svg>
             </div>
           ) : (
@@ -484,12 +615,12 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
             🕸️ 360° Vücut Kompozisyonu Radarı
           </div>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-            Son biyo-İmpedans taramanızın 8 temel parametredeki bütünsel profili
+            Son biyo-impedans taramanızın 8 temel parametredeki bütünsel profili
           </p>
 
           {latestLog ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              <svg viewBox="0 0 500 300" style={{ width: '100%', maxWidth: '500px', height: 'auto' }}>
+              <svg viewBox="0 0 580 340" style={{ width: '100%', maxWidth: '580px', height: 'auto', overflow: 'visible' }}>
                 {/* Radar Ağ Arka Plan Poligonları (%25, %50, %75, %100) */}
                 {[0.25, 0.5, 0.75, 1.0].map((level, lIdx) => {
                   const polyPoints = radarMetrics.map((_, i) => getRadarCoordinates(i, level));
@@ -499,15 +630,25 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
                   );
                 })}
 
-                {/* Eksen Çizgileri & Etiketleri */}
+                {/* Eksen Çizgileri & Değerli Dış Etiketler (Çakışmasız Yerleşim) */}
                 {radarMetrics.map((rm, i) => {
                   const endPos = getRadarCoordinates(i, 1.0);
-                  const labelPos = getRadarCoordinates(i, 1.2);
+                  const labelPos = getRadarLabelCoordinates(i, 1.24);
+                  const pt = latestRadarPoints[i];
+                  const valLabel = pt.hasValue ? `${pt.val}${rm.unit ? ` ${rm.unit}` : ''}` : '—';
                   return (
                     <g key={i}>
                       <line x1={radarCenterX} y1={radarCenterY} x2={endPos.x} y2={endPos.y} stroke="var(--border)" strokeOpacity="0.6" />
-                      <text x={labelPos.x} y={labelPos.y} textAnchor="middle" fontSize="11" fontWeight="800" fill="var(--text-main)">
-                        {rm.label}
+                      <text
+                        x={labelPos.x}
+                        y={labelPos.y}
+                        textAnchor={labelPos.textAnchor}
+                        fontSize="11"
+                        fontWeight="800"
+                        fill="var(--text-main)"
+                      >
+                        <tspan x={labelPos.x} dy="0">{rm.label}</tspan>
+                        <tspan x={labelPos.x} dy="13" fill="#10B981" fontSize="10" fontWeight="900">{valLabel}</tspan>
                       </text>
                     </g>
                   );
@@ -516,14 +657,9 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
                 {/* Son Ölçüm Veri Poligonu */}
                 <path d={radarPolygonD} fill="rgba(16, 185, 129, 0.25)" stroke="#10B981" strokeWidth="3" strokeLinejoin="round" />
 
-                {/* Veri Noktaları ve Rozetleri */}
+                {/* Veri Noktaları */}
                 {latestRadarPoints.map((p, i) => (
-                  <g key={i}>
-                    <circle cx={p.x} cy={p.y} r="5" fill="#10B981" stroke="#FFFFFF" strokeWidth="2" />
-                    <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize="10" fontWeight="900" fill="#10B981">
-                      {p.val} {p.rm.unit}
-                    </text>
-                  </g>
+                  <circle key={i} cx={p.x} cy={p.y} r="5" fill="#10B981" stroke="#FFFFFF" strokeWidth="2" />
                 ))}
               </svg>
             </div>
@@ -545,13 +681,15 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
             {METRIC_OPTIONS.map(opt => {
-              const currentVal = latestLog ? (latestLog as any)[opt.key] : null;
-              const previousVal = prevLog ? (prevLog as any)[opt.key] : null;
-              const allVals = sortedLogs.map(l => Number((l as any)[opt.key])).filter(v => !isNaN(v));
+              const currentVal = getNumericMetric(latestLog, opt.key);
+              const previousVal = getNumericMetric(prevLog, opt.key);
+              const allVals = sortedLogs
+                .map(l => getNumericMetric(l, opt.key))
+                .filter((v): v is number => v !== null);
 
               let diffText = '—';
               let diffColor = 'var(--text-muted)';
-              if (currentVal !== null && previousVal !== null && currentVal !== undefined && previousVal !== undefined) {
+              if (currentVal !== null && previousVal !== null) {
                 const diff = Math.round((currentVal - previousVal) * 100) / 100;
                 if (diff > 0) {
                   diffText = `▲ +${diff} ${opt.unit}`;
@@ -580,7 +718,7 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
               }
 
               return (
-                <div 
+                <div
                   key={opt.key}
                   style={{
                     padding: '14px',
@@ -605,7 +743,7 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
                   </div>
 
                   <div style={{ fontSize: '20px', fontWeight: 900, color: opt.color }}>
-                    {currentVal !== null && currentVal !== undefined ? `${currentVal} ${opt.unit}` : '—'}
+                    {currentVal !== null ? `${currentVal} ${opt.unit}` : '—'}
                   </div>
 
                   <div style={{ fontSize: '11px', fontWeight: 700, color: diffColor }}>
@@ -617,8 +755,120 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal }: SmartScaleTr
           </div>
         </div>
       )}
+
+      {/* ------------------ KAYITLI TARTI ÖLÇÜMLERİ GEÇMİŞİ & TEKİL SİLME ------------------ */}
+      {sortedLogs.length > 0 && onDeleteLog && (
+        <div className="glass-card" style={{ padding: '14px 18px' }}>
+          <button
+            type="button"
+            onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+            style={{
+              width: '100%',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              cursor: 'pointer',
+              color: 'var(--text-main)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 800 }}>
+              <span>📋</span>
+              <span>Kayıtlı Tartı Ölçümleri ({sortedLogs.length})</span>
+            </div>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>
+              <span>{isHistoryOpen ? 'Gizle' : 'Göster'}</span>
+              {isHistoryOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            </span>
+          </button>
+
+          {isHistoryOpen && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px', maxHeight: '260px', overflowY: 'auto' }}>
+              {[...sortedLogs].reverse().map(log => {
+                const isDeleting = deletingId === log.id;
+                return (
+                  <div
+                    key={log.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      backgroundColor: 'var(--surface-subtle)',
+                      border: '1px solid var(--border)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span className="tabular-nums" style={{ fontSize: '14px', fontWeight: 900, color: '#10B981' }}>
+                          {log.weight_kg} Kg
+                        </span>
+                        <span className="tabular-nums" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>
+                          📅 {log.measurement_date}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {log.bmi !== null && log.bmi !== undefined && (
+                          <span>BMI: <strong style={{ color: 'var(--text-main)' }}>{log.bmi}</strong></span>
+                        )}
+                        {log.body_fat_percent !== null && log.body_fat_percent !== undefined && (
+                          <span>Yağ: <strong style={{ color: '#EF4444' }}>%{log.body_fat_percent}</strong></span>
+                        )}
+                        {log.muscle_percent !== null && log.muscle_percent !== undefined && (
+                          <span>Kas: <strong style={{ color: '#8B5CF6' }}>%{log.muscle_percent}</strong></span>
+                        )}
+                        {log.water_percent !== null && log.water_percent !== undefined && (
+                          <span>Su: <strong style={{ color: '#06B6D4' }}>%{log.water_percent}</strong></span>
+                        )}
+                        {log.notes && (
+                          <span style={{ fontStyle: 'italic' }}>• {log.notes}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isDeleting}
+                      onClick={async () => {
+                        setDeletingId(log.id);
+                        try {
+                          await onDeleteLog(log.id);
+                        } finally {
+                          setDeletingId(null);
+                        }
+                      }}
+                      title="Ölçümü Sil"
+                      aria-label={`${log.measurement_date} ölçümünü sil`}
+                      style={{
+                        minWidth: '34px',
+                        minHeight: '34px',
+                        padding: '6px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border)',
+                        backgroundColor: 'var(--surface)',
+                        color: '#EF4444',
+                        cursor: isDeleting ? 'wait' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        opacity: isDeleting ? 0.5 : 1
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
-
-

@@ -208,9 +208,10 @@ export async function POST(req: Request) {
             const yesterdayDate = new Date(Date.now() - 86400000);
             const yesterdayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(yesterdayDate);
 
-            const activeSupps = await db.select().from(supplementRoutines).where(
+            const allActiveSupps = await db.select().from(supplementRoutines).where(
               and(eq(supplementRoutines.is_active, 1), eq(supplementRoutines.user_id, currentUserId))
             );
+            const activeSupps = allActiveSupps.filter((s) => !s.frequency_type || s.frequency_type === 'daily');
 
             let suppCount = 0;
             for (const supp of activeSupps) {

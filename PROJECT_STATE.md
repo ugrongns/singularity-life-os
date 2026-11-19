@@ -1,7 +1,7 @@
 # Singularity Life OS — Canlı Proje Durumu (`PROJECT_STATE.md`)
 
 > **Son Güncelleme:** 2026-11-19  
-> **Aktif Dal:** `main` (`/health` modül denetimi, çoklu üye izolasyonu ve kanallar arası su senkronizasyonu)  
+> **Aktif Dal:** `main` (`/wellness` & `/boost` modül denetimi, çoklu üye izolasyonu, akıllı tartı grafik/silme düzeltmeleri ve sıfır mock iyileştirmeleri)  
 > **Canlı Ortam:** Vercel (`https://singularity-life-os.vercel.app`) + Supabase PostgreSQL (`eu-central-1`)
 
 ---
@@ -13,13 +13,17 @@
   - `/` (Ana Akış & Özet), `/budget` (Bütçe & Nakit Akışı), `/analytics` (5x20 Holistik Skor, FIRE & Yaşam Takvimi Isı Haritası), `/tasks` (Görevler, MIT, Alt Görevler, Yinelenme, Pomodoro/Odak, Aylık Takvim), `/vehicles` (Araç & Ev), `/library` (Kütüphane), `/health` (Beslenme, Oruç, Antrenman), `/wellness` & `/boost` (Wellness, Takviye, Uyku, Tartı), `/vault` (Dijital Kasa), `/shopping` (Alışveriş Listesi), `/settings`, `/welcome`, `/auth`.
 - **Doğrulama Durumu (`2026-11-19` itibarıyla):**
   - `npm run typecheck` (`tsc --noEmit`): Geçiyor (`exit 0`).
-  - `npm run lint` (`eslint .` — `eslint.config.mjs`): Sıfır hata (`exit 0`, `250` legacy uyarı).
-  - `npm run test` (`vitest run`): Çalışma ağacında `24` dosya / `369` test geçiyor (`exit 0`; `tests/health-audit.test.ts` içinde `18`, `tests/budget-audit.test.ts` içinde `8`, `tests/analytics-audit.test.ts` içinde `7` test).
+  - `npm run lint` (`eslint .` — `eslint.config.mjs`): Sıfır hata (`exit 0`, düzenlenen dosyalarda 0 yeni uyarı).
+  - `npm run test` (`vitest run`): Çalışma ağacında `25` dosya / `383` test geçiyor (`exit 0`; `tests/wellness-audit.test.ts` içinde `14`, `tests/wellness-calendar-reset.test.ts` içinde `10`, `tests/health-audit.test.ts` içinde `18`, `tests/budget-audit.test.ts` içinde `8`, `tests/analytics-audit.test.ts` içinde `7` test).
   - `npm run verify` / `npm run verify:full` (`next build` dahil): Geçiyor (`exit 0`).
 
 ---
 
 ## 2. Son Tamamlanan İşler
+- **[2026-11-19]** **`!denetle wellness` Modül Denetimi & Opsiyonel İyileştirmeler (`src/app/api/wellness/*`, `src/middleware.ts`, `WellnessCard.tsx`, `WellnessTrackerClient.tsx`, `DailyTrackerCalendarBar.tsx`, `SmartScaleTrendDashboard.tsx`, `SmartScaleScanModal.tsx`, `AddSupplementModal.tsx`, `tests/wellness-audit.test.ts`):**
+  - *Auth, Middleware & BOLA İzolasyonu:* `src/middleware.ts` içine `/boost` korumalı rotası eklendi; `GET /api/wellness` oturumsuz erişimde `401`, `GET/POST /api/wellness` ve `GET/POST /api/wellness/scale-logs` yetkisiz `member_id` taleplerinde `403` döndürecek şekilde `resolveOptionalHealthMemberScope` ve `buildHealthMemberFilter` ile sınırlandı. Başka kullanıcıya ait takviyede `take`/`undo`/`update`/`delete` ve tartı kaydı `DELETE` işlemleri `403` BOLA engeline alındı; `WellnessTrackerClient` `memberId` bilgisini tüm alt bileşenlere ve `HomeWorkoutTrackerCard`'a aktardı.
+  - *Veri Bütünlüğü, Sıfır Mock & Takviye/Tartı Mantığı:* `WellnessCard` içinde kayıtsız günlerde gösterilen sahte `7.5 sa`, `23:30 - 07:00`, `4/5` ve `İyi` fallback'leri gerçek boş durumlarla değiştirildi; `AddSupplementModal` & `/api/wellness` üzerinde `0` stoğun `60`'a dönmesi, boş stoğun zorla `60` olması ve `as_needed` -> `daily` geçişinde kaybolan `timing` hatası düzeltildi. `take_all` ve sesli komut takviye alımı yalnızca `daily` rutinlerle sınırlandı; `undo_supplement` log yokken stok `+1` şişirmesi engellendi; `add_sleep`/`add_mood` giriş sınırları (`HH:MM`, `1..5`) doğrulandı.
+  - *Akıllı Tartı, Kontroller & Duyarlı UI:* `SmartScaleScanModal` ve `scale-logs POST` ölçüm saatini (`measurement_datetime`) koruyup `getTodayTurkeyDate()` ve modal sıfırlamaya geçti; `DELETE /api/wellness/scale-logs` + `SmartScaleTrendDashboard` **"📋 Kayıtlı Tartı Ölçümleri"** listesi/tekil silme eklendi; Tekli/Çoklu/Radar/Matris SVG grafik çakışmaları (`null` noktaların uydurulması dahil), Uyku modalı `Kaydet`/`İptal` hizası, Su hedefi düzenleme + `-250ml`, Mod/Enerji/Stres/Not düzenleme modalı ve `DailyTrackerCalendarBar` ilk yükleme + `resize` Bugün odaklaması tamamlandı (`npm run verify:full`, `383/383` test, canlı `/wellness` & `/boost` `1280x800` / `390x844` CRUD/reload doğrulandı).
 - **[2026-11-19]** **`!denetle sağlık` Modül Denetimi & Opsiyonel İyileştirmeler (`src/lib/health-water.ts`, `tests/health-audit.test.ts`):**
   - *BOLA & Veri Yaşam Döngüsü:* `scan-food DELETE` (`clear_junk` ve tekil `id`), `workouts delete` ve `strava/callback` üzerindeki `is_master_account` / global `appSettings` sızıntı açıkları `user.id` kapsamına daraltıldı; `diet GET` genel şablon sorgusuna `family_id IS NULL` şartı eklendi ve `delete-account` / `reset-user-data` içine `dietMealOptions` temizliği bağlandı.
   - *Matematik, Sınır Koruması & Türkiye Saati (`Europe/Istanbul`):* `nutrition` (`0` makro hedefi korunumu, `daily_water_target_ml <= 10000`, negatif makro/porsiyon clamp ve `DIET_MEAL_RECORDED` `familyId` olayı), `water` (negatif miktar clamp), `fasting` (`1–168` saat sınırı), `nutrition-profile` (`1–5000g` clamp, `100g` canonical kayıt & ölçekleme, güncel `RESILIENT_GEMINI_MODELS`), `workouts`, `workout-ocr`, `diet/parse-text` ve `fasting-analytics` (`Europe/Istanbul` gün/ay gruplaması) düzeltildi.

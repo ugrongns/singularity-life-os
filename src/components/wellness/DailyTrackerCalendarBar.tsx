@@ -7,9 +7,6 @@ import {
   Calendar,
   RotateCcw,
   Sparkles,
-  Check,
-  Droplets,
-  Pill,
   ArrowRight
 } from 'lucide-react';
 import {
@@ -54,18 +51,48 @@ export default function DailyTrackerCalendarBar({
 }: DailyTrackerCalendarBarProps) {
   const selectedDayRef = useRef<HTMLButtonElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const hasScrolledInitiallyRef = useRef(false);
   const today = getTodayTurkeyDate();
   const isToday = selectedDate === today;
 
   useEffect(() => {
-    if (selectedDayRef.current) {
-      selectedDayRef.current.scrollIntoView({
-        behavior: 'smooth',
-        inline: 'center',
-        block: 'nearest'
+    let frame = 0;
+
+    const alignSelectedDay = (smooth: boolean) => {
+      const container = scrollContainerRef.current;
+      const selectedBtn = selectedDayRef.current;
+      if (!container || !selectedBtn) return;
+
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const targetScrollLeft = Math.max(
+          0,
+          selectedBtn.offsetLeft - (container.clientWidth / 2) + (selectedBtn.offsetWidth / 2)
+        );
+        if (typeof container.scrollTo === 'function') {
+          container.scrollTo({
+            left: targetScrollLeft,
+            behavior: smooth ? 'smooth' : 'auto'
+          });
+        } else {
+          container.scrollLeft = targetScrollLeft;
+        }
       });
-    }
-  }, [selectedDate]);
+    };
+
+    alignSelectedDay(hasScrolledInitiallyRef.current);
+    hasScrolledInitiallyRef.current = true;
+
+    const handleResize = () => {
+      alignSelectedDay(false);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [selectedDate, calendarHistory?.length]);
 
   const daysToRender: CalendarDayStatus[] = (calendarHistory && calendarHistory.length > 0)
     ? calendarHistory

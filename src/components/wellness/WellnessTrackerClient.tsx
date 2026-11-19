@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import SharedLayout from '@/components/layout/SharedLayout';
 import HealthSubNav, { FamilyMemberItem } from '@/components/layout/HealthSubNav';
 import WellnessCard from '@/components/health/WellnessCard';
@@ -23,6 +23,8 @@ export default function WellnessTrackerClient({ isBoostRoute = false }: Wellness
   const [members, setMembers] = useState<FamilyMemberItem[]>([]);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Modal State
@@ -30,13 +32,14 @@ export default function WellnessTrackerClient({ isBoostRoute = false }: Wellness
   const [suppEditItem, setSuppEditItem] = useState<any>(null);
   const [isScaleModalOpen, setIsScaleModalOpen] = useState(false);
 
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
-  };
+  }, []);
 
-  const fetchData = async (memberId: string | null = selectedMemberId, date: string = selectedDate) => {
+  const fetchData = useCallback(async (memberId: string | null = selectedMemberId, date: string = selectedDate) => {
     try {
+      setFetchError(null);
       const params = new URLSearchParams();
       if (date) params.set('date', date);
       if (memberId) params.set('member_id', memberId);
@@ -54,17 +57,22 @@ export default function WellnessTrackerClient({ isBoostRoute = false }: Wellness
         membersRes.json().catch(() => ({ success: false, data: [] }))
       ]);
 
-      if (wellJ.success) setData(wellJ.data);
+      if (wellRes.ok && wellJ.success) {
+        setData(wellJ.data);
+      } else {
+        setFetchError(wellJ.error || 'Wellness verileri yüklenemedi.');
+      }
       if (notifJ.success) setNotifData(notifJ.data);
       if (membersJ.success && Array.isArray(membersJ.data)) {
         setMembers(membersJ.data);
       }
     } catch (err) {
       console.error('Wellness fetchData error:', err);
+      setFetchError('Wellness verileri alınırken bağlantı hatası oluştu.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedMemberId, selectedDate]);
 
   useEffect(() => {
     fetchData(selectedMemberId, selectedDate);
@@ -74,7 +82,7 @@ export default function WellnessTrackerClient({ isBoostRoute = false }: Wellness
     };
     window.addEventListener('singularity-refresh', handleRefresh);
     return () => window.removeEventListener('singularity-refresh', handleRefresh);
-  }, [selectedDate, selectedMemberId]);
+  }, [selectedDate, selectedMemberId, fetchData]);
 
   // Gece yarısı rollover ve sekme yeniden açıldığında otomatik gün sıfırlama/güncelleme
   useEffect(() => {
@@ -104,27 +112,26 @@ export default function WellnessTrackerClient({ isBoostRoute = false }: Wellness
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', handleVisibility);
     };
-  }, [selectedMemberId, selectedDate]);
+  }, [selectedMemberId, selectedDate, fetchData]);
 
   const handleSelectMember = (id: string | null) => {
     setSelectedMemberId(id);
-    fetchData(id, selectedDate);
   };
 
   const handleSelectDate = (dateStr: string) => {
     setSelectedDate(dateStr);
-    fetchData(selectedMemberId, dateStr);
   };
 
   const handleResetDay = async () => {
+    setIsResetting(true);
     try {
       const res = await fetch('/api/wellness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reset_day', date: selectedDate })
+        body: JSON.stringify({ action: 'reset_day', date: selectedDate, member_id: selectedMemberId })
       });
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         showToast(json.message || 'Günlük rutin takip verileri sıfırlandı.');
         fetchData(selectedMemberId, selectedDate);
         window.dispatchEvent(new CustomEvent('singularity-refresh'));
@@ -134,6 +141,8 @@ export default function WellnessTrackerClient({ isBoostRoute = false }: Wellness
     } catch (err) {
       console.error('Reset day error:', err);
       showToast('Sıfırlama sırasında hata oluştu.');
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -141,6 +150,26 @@ export default function WellnessTrackerClient({ isBoostRoute = false }: Wellness
     fetchData(selectedMemberId, selectedDate);
     window.dispatchEvent(new CustomEvent('singularity-refresh'));
     if (msg) showToast(msg);
+  };
+
+  const handleDeleteScaleLog = async (logId: string) => {
+    if (!confirm('Bu akıllı tartı ölçümünü silmek istediğinize emin misiniz?')) return;
+    try {
+      const res = await fetch(`/api/wellness/scale-logs?id=${encodeURIComponent(logId)}`, {
+        method: 'DELETE'
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        showToast(json.message || 'Akıllı tartı ölçümü silindi.');
+        fetchData(selectedMemberId, selectedDate);
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      } else {
+        showToast(json.error || 'Ölçüm silinemedi.');
+      }
+    } catch (err) {
+      console.error('Delete scale log error:', err);
+      showToast('Ölçüm silinirken bağlantı hatası oluştu.');
+    }
   };
 
   if (loading) {
@@ -159,17 +188,18 @@ export default function WellnessTrackerClient({ isBoostRoute = false }: Wellness
   return (
     <SharedLayout notifications={notifData}>
       {toastMsg && (
-        <div 
-          style={{ 
-            position: 'fixed', 
-            top: '20px', 
-            left: '50%', 
-            transform: 'translateX(-50%)', 
-            background: 'var(--text-main)', 
-            color: 'white', 
-            padding: '10px 20px', 
-            borderRadius: 'var(--radius-full)', 
-            fontSize: '13px', 
+        <div
+          style={{
+            position: 'fixed',
+            top: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'var(--text-main)',
+            color: 'var(--surface)',
+            padding: '10px 20px',
+            borderRadius: 'var(--radius-full)',
+            fontSize: '13px',
+            fontWeight: 700,
             zIndex: 999,
             boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)'
           }}
@@ -201,9 +231,28 @@ export default function WellnessTrackerClient({ isBoostRoute = false }: Wellness
             onSelectDate={handleSelectDate}
             calendarHistory={data?.calendarHistory}
             onResetDay={handleResetDay}
+            isResetting={isResetting}
           />
         </div>
       </div>
+
+      {/* Hata Şeridi */}
+      {fetchError && (
+        <div style={{ padding: '0 16px 12px' }}>
+          <div className="glass-card" style={{ padding: '14px 16px', border: '1px solid rgba(239, 68, 68, 0.35)', background: 'rgba(239, 68, 68, 0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#EF4444' }}>
+              ⚠️ {fetchError}
+            </div>
+            <button
+              type="button"
+              onClick={() => fetchData(selectedMemberId, selectedDate)}
+              style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 800, borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.4)', background: 'var(--surface)', color: 'var(--text-main)', cursor: 'pointer' }}
+            >
+              Tekrar Dene
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Ana Bento Izgarası */}
       <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -220,7 +269,9 @@ export default function WellnessTrackerClient({ isBoostRoute = false }: Wellness
             waterHistory={data?.waterHistory || []}
             aiInsight={data?.aiInsight}
             selectedDate={selectedDate}
-            isToday={selectedDate === getTodayTurkeyDate()}
+            isToday={data?.isToday ?? (selectedDate === getTodayTurkeyDate())}
+            memberId={selectedMemberId}
+            onNotify={showToast}
             onResetDay={handleResetDay}
             onOpenAddSupplement={(item) => {
               setSuppEditItem(item || null);
@@ -230,14 +281,15 @@ export default function WellnessTrackerClient({ isBoostRoute = false }: Wellness
           />
 
           {/* Sağ Sütun: Antrenman & Egzersiz Performans Panosu */}
-          <HomeWorkoutTrackerCard />
+          <HomeWorkoutTrackerCard memberId={selectedMemberId} />
         </div>
 
         {/* ALT SATIR: Akıllı Tartı Vücut Kompozisyonu Trend Grafikleri (Tam Genişlik / Full-Span) */}
         <div>
-          <SmartScaleTrendDashboard 
-            logs={data?.scaleLogs || []} 
-            onOpenScanModal={() => setIsScaleModalOpen(true)} 
+          <SmartScaleTrendDashboard
+            logs={data?.scaleLogs || []}
+            onOpenScanModal={() => setIsScaleModalOpen(true)}
+            onDeleteLog={handleDeleteScaleLog}
           />
         </div>
       </div>
@@ -246,6 +298,7 @@ export default function WellnessTrackerClient({ isBoostRoute = false }: Wellness
       <AddSupplementModal
         isOpen={isSuppOpen}
         item={suppEditItem}
+        memberId={selectedMemberId}
         onClose={() => {
           setIsSuppOpen(false);
           setSuppEditItem(null);
@@ -256,6 +309,7 @@ export default function WellnessTrackerClient({ isBoostRoute = false }: Wellness
       {/* Smart Scale Scan & Entry Modal */}
       <SmartScaleScanModal
         isOpen={isScaleModalOpen}
+        memberId={selectedMemberId}
         onClose={() => setIsScaleModalOpen(false)}
         onSuccess={(msg) => handleSuccess(msg)}
       />
