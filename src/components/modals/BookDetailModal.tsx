@@ -53,6 +53,19 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
   const [status, setStatus] = useState('reading');
   const [format, setFormat] = useState('physical');
   const [shelfLocation, setShelfLocation] = useState('');
+  const [bookmarks, setBookmarks] = useState<Array<{ id: string; page_number: number; title: string; note?: string | null }>>([]);
+  const [bmPage, setBmPage] = useState('');
+  const [bmTitle, setBmTitle] = useState('');
+
+  useEffect(() => {
+    if (!isOpen || !book?.id) return;
+    fetch(`/api/library/bookmarks?book_id=${encodeURIComponent(book.id)}`)
+      .then(r => r.json())
+      .then(j => {
+        if (j.success && Array.isArray(j.data)) setBookmarks(j.data);
+      })
+      .catch(() => {});
+  }, [isOpen, book?.id]);
   const [totalPages, setTotalPages] = useState<number | ''>(200);
   const [currentPage, setCurrentPage] = useState<number | ''>(0);
   const [wordsPerPage, setWordsPerPage] = useState<number | ''>(250);
@@ -636,6 +649,75 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
                 <span>⏱️</span>
                 <span>Bu Kitap İçin Okuma Seansı Kaydet (Özel Sayfa & Dakika)</span>
               </button>
+            )}
+          </div>
+
+          {/* Çoklu Kitap Ayraçları */}
+          <div style={{ background: 'var(--surface-subtle)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+              🔖 Bölüm &amp; Konu Ayraçları ({bookmarks.length})
+            </div>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              <input
+                type="number"
+                min="1"
+                placeholder="Sayfa"
+                value={bmPage}
+                onChange={e => setBmPage(e.target.value)}
+                style={{ width: '80px', padding: '6px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-main)' }}
+              />
+              <input
+                type="text"
+                placeholder="Ayraç başlığı (ör. Bölüm 4: Strateji)"
+                value={bmTitle}
+                onChange={e => setBmTitle(e.target.value)}
+                style={{ flex: 1, minWidth: '150px', padding: '6px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-main)' }}
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!book?.id || !bmPage) return;
+                  const res = await fetch('/api/library/bookmarks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'create', book_id: book.id, page_number: Number(bmPage), title: bmTitle.trim() || `Sayfa ${bmPage}` })
+                  });
+                  const j = await res.json();
+                  if (j.success) {
+                    setBmPage('');
+                    setBmTitle('');
+                    const listRes = await fetch(`/api/library/bookmarks?book_id=${encodeURIComponent(book.id)}`);
+                    const listJ = await listRes.json();
+                    if (listJ.success) setBookmarks(listJ.data || []);
+                  }
+                }}
+                style={{ padding: '6px 10px', fontSize: '11px', fontWeight: 800, borderRadius: '6px', border: '1px solid #F59E0B', background: 'rgba(245, 158, 11, 0.14)', color: '#D97706', cursor: 'pointer' }}
+              >
+                + Ayraç Ekle
+              </button>
+            </div>
+            {bookmarks.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {bookmarks.map(bm => (
+                  <div key={bm.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', padding: '5px 8px', borderRadius: '6px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                    <span><strong>sf. {bm.page_number}</strong> — {bm.title}</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await fetch('/api/library/bookmarks', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action: 'delete', id: bm.id })
+                        });
+                        setBookmarks(prev => prev.filter(x => x.id !== bm.id));
+                      }}
+                      style={{ background: 'none', border: 'none', color: 'var(--rose)', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 

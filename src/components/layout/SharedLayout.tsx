@@ -25,7 +25,9 @@ import {
   Camera,
   ScanLine,
   CheckSquare,
-  Search
+  Search,
+  Repeat,
+  FileText
 } from 'lucide-react';
 import NotificationHub from './NotificationHub';
 import ReceiptScanModal from '@/components/modals/ReceiptScanModal';
@@ -247,8 +249,10 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
     { href: '/budget',    icon: Wallet,       color: 'emerald', label: 'Finans & Bütçe' },
     { href: '/vehicles',  icon: Car,          color: 'cyan',    label: 'Araç & Ev' },
     { href: '/library',   icon: BookOpen,     color: 'amber',   label: 'Kütüphane' },
+    { href: '/notes',     icon: FileText,     color: 'indigo',  label: 'Notlar & İkinci Beyin' },
     { href: '/health',    icon: Activity,     color: 'rose',    label: 'Sağlık & Beslenme' },
     { href: '/wellness',  icon: Sparkles,     color: 'purple',  label: 'Wellness & Rutin' },
+    { href: '/habits',    icon: Repeat,       color: 'cyan',    label: 'Alışkanlıklar' },
     { href: '/shopping',  icon: ShoppingCart, color: 'amber',   label: 'Market Listesi' },
     { href: '/vault',     icon: FolderLock,   color: 'indigo',  label: 'Dijital Kasa' },
     { href: '/analytics', icon: BarChart3,    color: 'purple',  label: 'Yaşam Skoru' },

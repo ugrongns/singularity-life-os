@@ -15,7 +15,7 @@ import {
   CheckSquare
 } from 'lucide-react';
 
-type HeatmapMode = 'holistic' | 'fasting' | 'reading' | 'nospend' | 'tasks';
+type HeatmapMode = 'holistic' | 'fasting' | 'reading' | 'nospend' | 'tasks' | 'habits';
 
 export default function LifeCalendarHeatmap() {
   const [loading, setLoading] = useState(true);
@@ -105,6 +105,12 @@ export default function LifeCalendarHeatmap() {
         if ((cell.completedMitsCount ?? 0) >= 2 || (cell.completedTasksCount ?? 0) >= 5) return '#10B981'; // Zirve odak
         if ((cell.completedMitsCount ?? 0) >= 1 || (cell.completedTasksCount ?? 0) >= 3) return 'rgba(16, 185, 129, 0.65)';
         if ((cell.completedTasksCount ?? 0) >= 1) return 'rgba(16, 185, 129, 0.35)';
+        return 'var(--surface-subtle)';
+
+      case 'habits':
+        if ((cell.completedHabitsCount ?? 0) >= 4) return '#06B6D4';
+        if ((cell.completedHabitsCount ?? 0) >= 2) return 'rgba(6, 182, 212, 0.65)';
+        if ((cell.completedHabitsCount ?? 0) >= 1) return 'rgba(6, 182, 212, 0.35)';
         return 'var(--surface-subtle)';
     }
   };
@@ -314,6 +320,27 @@ export default function LifeCalendarHeatmap() {
           >
             <span>🎯</span>
             <span>Görev & Odak</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMode('habits')}
+            style={{
+              padding: '6px 12px',
+              fontSize: '11px',
+              fontWeight: 800,
+              borderRadius: '999px',
+              border: `1px solid ${mode === 'habits' ? '#06B6D4' : 'var(--border)'}`,
+              background: mode === 'habits' ? 'rgba(6, 182, 212, 0.15)' : 'var(--surface-subtle)',
+              color: mode === 'habits' ? '#06B6D4' : 'var(--text-main)',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <span>🔁</span>
+            <span>Alışkanlıklar</span>
           </button>
         </div>
       </div>

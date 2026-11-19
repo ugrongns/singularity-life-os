@@ -557,6 +557,43 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded, onQ
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
                     <span>✍️ {q.author}</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch('/api/notes', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              action: 'import_from_quote',
+                              title: `Alıntı: ${q.book_title}`,
+                              content: `> ${q.quote_text}\n\n**Kaynak:** ${q.book_title} — ${q.author}${q.page_number ? ` (sf. ${q.page_number})` : ''}${q.reflection_note ? `\n\n## Düşüncem\n${q.reflection_note}` : ''}`,
+                              linked_book_id: (q as { book_id?: string }).book_id || books.find(b => b.title === q.book_title)?.id || null,
+                              tags: ['alıntı', 'kitap']
+                            })
+                          });
+                          const json = await res.json();
+                          if (json.success && onQuoteAdded) {
+                            onQuoteAdded();
+                          }
+                        } catch {
+                          //
+                        }
+                      }}
+                      title="İkinci Beyin Notlarına Aktar"
+                      style={{
+                        padding: '3px 7px',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        borderRadius: '5px',
+                        border: '1px solid rgba(99, 102, 241, 0.35)',
+                        background: 'rgba(99, 102, 241, 0.08)',
+                        color: '#6366F1',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      📝 Nota Aktar
+                    </button>
                     {confirmDeleteId === q.id ? (
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                         <button

@@ -32,6 +32,11 @@ export interface RawHeatmapData {
     completed_at?: string | null;
     is_mit?: number | null;
   }>;
+  habitLogs?: Array<{
+    date: string;
+    is_completed: number;
+  }>;
+  activeHabitsCount?: number;
 }
 
 export interface DayHeatmapCell {
@@ -46,10 +51,11 @@ export interface DayHeatmapCell {
   spentAmount: number;
   isNoSpend: boolean;
   waterMl: number;
-  habitsMetCount: number; // 0..4
+  habitsMetCount: number; // 0..5
   dominantLevel: number; // 0 (boş), 1 (hafif), 2 (orta), 3 (mükemmel)
   completedTasksCount: number;
   completedMitsCount: number;
+  completedHabitsCount: number;
 }
 
 export interface HeatmapSummary {
@@ -144,6 +150,16 @@ export function calculateHeatmapMatrix(
     tasksByDate.set(dStr, existing);
   }
 
+  // 4.2 Tamamlanan özel alışkanlıkları gün bazında indeksle
+  const habitsByDate = new Map<string, number>();
+  for (const hl of data.habitLogs || []) {
+    if (hl.is_completed !== 1) continue;
+    const dStr = hl.date?.slice(0, 10);
+    if (!dStr) continue;
+    habitsByDate.set(dStr, (habitsByDate.get(dStr) ?? 0) + 1);
+  }
+  const activeHabitsCount = Math.max(0, data.activeHabitsCount ?? 0);
+
   // 5. Gün gün matris üretimi (Europe/Istanbul takvim günü bazlı)
   const cells: DayHeatmapCell[] = [];
   let totalFastingHours = 0;
@@ -168,6 +184,7 @@ export function calculateHeatmapMatrix(
     const isNoSpend = spent === 0;
     const water = waterByDate.get(dateStr) ?? 0;
     const taskInfo = tasksByDate.get(dateStr) || { tasks: 0, mits: 0 };
+    const completedHabitsCount = habitsByDate.get(dateStr) ?? 0;
 
     const fastingH = Math.round(fast.totalHours * 10) / 10;
     const autophagyH = Math.round(fast.autophagyHours * 10) / 10;
@@ -182,8 +199,9 @@ export function calculateHeatmapMatrix(
     const habitFinance = (isNoSpend || spent <= 250) ? 1 : 0;
     // 4. Su Tüketimi / Sağlık Dengesi Tutuldu mu? (>= 1500 ml)
     const habitWater = water >= 1500 ? 1 : 0;
+    const habitCustom = activeHabitsCount > 0 && completedHabitsCount >= Math.ceil(activeHabitsCount * 0.5) ? 1 : 0;
 
-    const habitsMetCount = habitFasting + habitReading + habitFinance + habitWater;
+    const habitsMetCount = habitFasting + habitReading + habitFinance + habitWater + habitCustom;
 
     // Dominant Level (0: boş, 1: hafif, 2: orta, 3: mükemmel gün)
     let dominantLevel = 0;
@@ -220,7 +238,8 @@ export function calculateHeatmapMatrix(
       habitsMetCount,
       dominantLevel,
       completedTasksCount: taskInfo.tasks,
-      completedMitsCount: taskInfo.mits
+      completedMitsCount: taskInfo.mits,
+      completedHabitsCount
     });
   }
 

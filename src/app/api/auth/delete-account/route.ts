@@ -43,6 +43,12 @@ import {
   homeAppliances,
   shoppingListItems,
   recurringBills,
+  habits,
+  habitLogs,
+  noteFolders,
+  notes,
+  workoutRoutines,
+  bookBookmarks,
   tasks,
   appSettings
 } from '@/db/schema';
@@ -82,11 +88,18 @@ export async function POST(req: Request) {
       for (const b of userBooks) {
         await tx.delete(readingSessions).where(eq(readingSessions.book_id, b.id));
         await tx.delete(bookQuotes).where(eq(bookQuotes.book_id, b.id));
+        await tx.delete(bookBookmarks).where(eq(bookBookmarks.book_id, b.id));
       }
+      await tx.delete(bookBookmarks).where(eq(bookBookmarks.user_id, userId));
       await tx.delete(readingSessions).where(eq(readingSessions.user_id, userId));
       await tx.delete(bookQuotes).where(eq(bookQuotes.user_id, userId));
       await tx.delete(books).where(eq(books.user_id, userId));
       await tx.delete(userReadingProfile).where(eq(userReadingProfile.user_id, userId));
+      await tx.delete(notes).where(eq(notes.user_id, userId));
+      await tx.delete(noteFolders).where(eq(noteFolders.user_id, userId));
+      await tx.delete(habitLogs).where(eq(habitLogs.user_id, userId));
+      await tx.delete(habits).where(eq(habits.user_id, userId));
+      await tx.delete(workoutRoutines).where(eq(workoutRoutines.user_id, userId));
 
       // 2. Beslenme, Sağlık & Spor
       const userMeals = await tx.select({ id: nutritionMeals.id }).from(nutritionMeals).where(eq(nutritionMeals.user_id, userId));

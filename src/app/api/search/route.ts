@@ -10,7 +10,8 @@ import {
   digitalVaultItems,
   vehicles,
   homeAppliances,
-  shoppingListItems
+  shoppingListItems,
+  notes
 } from '@/db/schema';
 import { eq, and, or, desc } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
@@ -18,7 +19,7 @@ import { matchesTurkishQuery } from '@/lib/date-utils';
 
 export interface SearchResultItem {
   id: string;
-  category: 'tasks' | 'library' | 'finance' | 'vault_vehicle' | 'shopping';
+  category: 'tasks' | 'library' | 'finance' | 'vault_vehicle' | 'shopping' | 'notes';
   categoryLabel: string;
   title: string;
   subtitle: string;
@@ -55,7 +56,8 @@ export async function GET(req: Request) {
       vaultRows,
       vehicleRows,
       applianceRows,
-      shoppingRows
+      shoppingRows,
+      noteRows
     ] = await Promise.all([
       db.select({
         id: tasks.id,
@@ -166,7 +168,16 @@ export async function GET(req: Request) {
         is_checked: shoppingListItems.is_checked
       }).from(shoppingListItems).where(
         or(eq(shoppingListItems.user_id, userId), eq(shoppingListItems.family_id, familyId))
-      ).limit(80)
+      ).limit(80),
+
+      db.select({
+        id: notes.id,
+        title: notes.title,
+        content: notes.content,
+        tags_json: notes.tags_json
+      }).from(notes).where(
+        or(eq(notes.user_id, userId), and(eq(notes.family_id, familyId), eq(notes.is_family_shared, 1)))
+      ).orderBy(desc(notes.updated_at)).limit(80)
     ]);
 
     const results: SearchResultItem[] = [];
@@ -334,6 +345,24 @@ export async function GET(req: Request) {
           href: '/shopping'
         });
         shopCount++;
+      }
+    }
+
+    // 6. Notlar & İkinci Beyin (Maks 5)
+    let noteCount = 0;
+    for (const n of noteRows) {
+      if (noteCount >= 5) break;
+      if (matchesTurkishQuery(query, [n.title, n.content, n.tags_json])) {
+        results.push({
+          id: `note-${n.id}`,
+          category: 'notes',
+          categoryLabel: 'Notlar & İkinci Beyin',
+          title: n.title,
+          subtitle: n.content.slice(0, 60).replace(/\s+/g, ' ').trim() || 'Not',
+          icon: '📝',
+          href: '/notes'
+        });
+        noteCount++;
       }
     }
 

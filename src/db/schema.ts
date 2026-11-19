@@ -929,3 +929,117 @@ export const tasks = pgTable('tasks', {
   index('idx_tasks_due_date').on(table.due_date),
   index('idx_tasks_status').on(table.status)
 ]);
+
+// ==========================================
+// 🔁 FAZ 18: ESNEK ALIŞKANLIK & RUTİN MOTORU (HABIT OS)
+// ==========================================
+
+export const habits = pgTable('habits', {
+  id: text('id').primaryKey(),
+  user_id: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  description: text('description').default(''),
+  category: text('category').notNull().default('Sağlık & Beden'),
+  color: text('color').notNull().default('#10B981'),
+  icon: text('icon').notNull().default('check'),
+  target_type: text('target_type').notNull().default('boolean'),
+  target_value: doublePrecision('target_value').notNull().default(1),
+  unit_label: text('unit_label').notNull().default('kez'),
+  frequency_type: text('frequency_type').notNull().default('daily'),
+  frequency_days_json: text('frequency_days_json').default('[]'),
+  weekly_target_count: integer('weekly_target_count').notNull().default(7),
+  time_of_day: text('time_of_day').notNull().default('all_day'),
+  linked_module: text('linked_module'),
+  is_archived: integer('is_archived').notNull().default(0),
+  sort_order: integer('sort_order').notNull().default(0),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+}, (table) => [
+  index('idx_habits_user_id').on(table.user_id)
+]);
+
+export const habitLogs = pgTable('habit_logs', {
+  id: text('id').primaryKey(),
+  habit_id: text('habit_id').notNull().references(() => habits.id, { onDelete: 'cascade' }),
+  user_id: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  date: text('date').notNull(),
+  value: doublePrecision('value').notNull().default(1),
+  is_completed: integer('is_completed').notNull().default(0),
+  note: text('note'),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+}, (table) => [
+  index('idx_habit_logs_habit_date').on(table.habit_id, table.date),
+  index('idx_habit_logs_user_date').on(table.user_id, table.date)
+]);
+
+// ==========================================
+// 📝 FAZ 18: İKİNCİ BEYİN & MARKDOWN NOTLAR (NOTES OS)
+// ==========================================
+
+export const noteFolders = pgTable('note_folders', {
+  id: text('id').primaryKey(),
+  user_id: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  icon: text('icon').notNull().default('📁'),
+  color: text('color').notNull().default('#6366F1'),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+}, (table) => [
+  index('idx_note_folders_user_id').on(table.user_id)
+]);
+
+export const notes = pgTable('notes', {
+  id: text('id').primaryKey(),
+  user_id: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
+  folder_id: text('folder_id').references(() => noteFolders.id, { onDelete: 'set null' }),
+  title: text('title').notNull(),
+  content: text('content').notNull().default(''),
+  tags_json: text('tags_json').notNull().default('[]'),
+  is_pinned: integer('is_pinned').notNull().default(0),
+  is_archived: integer('is_archived').notNull().default(0),
+  is_family_shared: integer('is_family_shared').notNull().default(0),
+  linked_book_id: text('linked_book_id').references(() => books.id, { onDelete: 'set null' }),
+  linked_task_id: text('linked_task_id').references(() => tasks.id, { onDelete: 'set null' }),
+  linked_sinking_fund_id: text('linked_sinking_fund_id').references(() => sinkingFunds.id, { onDelete: 'set null' }),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+}, (table) => [
+  index('idx_notes_user_id').on(table.user_id),
+  index('idx_notes_family_id').on(table.family_id),
+  index('idx_notes_folder_id').on(table.folder_id)
+]);
+
+// ==========================================
+// 🏋️🔖 FAZ 18: ANTRENMAN RUTİN ŞABLONLARI & KİTAP AYRAÇLARI
+// ==========================================
+
+export const workoutRoutines = pgTable('workout_routines', {
+  id: text('id').primaryKey(),
+  user_id: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  sport_type: text('sport_type').notNull().default('strength'),
+  exercises_json: text('exercises_json').notNull().default('[]'),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+}, (table) => [
+  index('idx_workout_routines_user_id').on(table.user_id)
+]);
+
+export const bookBookmarks = pgTable('book_bookmarks', {
+  id: text('id').primaryKey(),
+  book_id: text('book_id').notNull().references(() => books.id, { onDelete: 'cascade' }),
+  user_id: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  page_number: integer('page_number').notNull(),
+  title: text('title').notNull(),
+  note: text('note'),
+  color: text('color').notNull().default('#F59E0B'),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+}, (table) => [
+  index('idx_book_bookmarks_book_id').on(table.book_id),
+  index('idx_book_bookmarks_user_id').on(table.user_id)
+]);

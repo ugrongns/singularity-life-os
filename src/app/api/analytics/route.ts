@@ -17,7 +17,10 @@ import {
   readingSessions,
   bookQuotes,
   tasks,
-  appSettings
+  appSettings,
+  habits,
+  habitLogs,
+  notes
 } from '@/db/schema';
 import { eq, and, or, desc, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
@@ -281,13 +284,23 @@ export async function GET() {
         else if (avgMood >= 3) wellnessScore += 2;
       }
 
-      // Takviye / İlaç Rutinleri (Lazy self-healing uyumu: yalnızca bugün alınanlar puanlanır)
+      // Takviye / İlaç Rutinleri veya Özel Alışkanlıklar (Geriye uyumlu, max 25 puan)
       const supps = await db.select().from(supplementRoutines).where(and(eq(supplementRoutines.user_id, userId), eq(supplementRoutines.is_active, 1)));
       if (supps.length > 0) {
         wellnessScore += 4;
         const takenToday = supps.filter((s: any) => s.is_taken_today === 1 && s.last_taken_date === today).length;
         if (takenToday > 0) wellnessScore += 3;
+      } else {
+        const activeHabits = await db.select().from(habits).where(and(eq(habits.user_id, userId), eq(habits.is_archived, 0)));
+        if (activeHabits.length > 0) {
+          wellnessScore += 4;
+          const recentHabitDone = await db.select().from(habitLogs).where(
+            and(eq(habitLogs.user_id, userId), eq(habitLogs.is_completed, 1), sql`${habitLogs.date} >= ${last7Days}`)
+          ).limit(1);
+          if (recentHabitDone.length > 0) wellnessScore += 3;
+        }
       }
+      wellnessScore = Math.min(25, wellnessScore);
     } catch (e) {
       console.error('Analytics wellness error:', e);
     }
@@ -307,7 +320,13 @@ export async function GET() {
       if (sessions.length > 0) mindScore += 7; // Okuma seansı yapılmış
 
       const quotes = await db.select().from(bookQuotes).where(eq(bookQuotes.user_id, userId)).limit(1);
-      if (quotes.length > 0) mindScore += 5; // Alıntı kaydedilmiş
+      if (quotes.length > 0) {
+        mindScore += 5; // Alıntı kaydedilmiş
+      } else {
+        const recentNotes = await db.select().from(notes).where(eq(notes.user_id, userId)).limit(1);
+        if (recentNotes.length > 0) mindScore += 5; // İkinci Beyin notu kaydedilmiş
+      }
+      mindScore = Math.min(25, mindScore);
     } catch (e) {
       console.error('Analytics mind error:', e);
     }

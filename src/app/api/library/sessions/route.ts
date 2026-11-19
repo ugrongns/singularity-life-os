@@ -5,6 +5,7 @@ import { eq, desc } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { clampWpm } from '@/lib/module4-utils';
 import { getTodayTurkeyDate } from '@/lib/date-utils';
+import { eventBus, EVENTS } from '@/lib/events';
 
 export async function POST(req: Request) {
   try {
@@ -166,6 +167,14 @@ export async function POST(req: Request) {
         updated_at: now
       });
     }
+
+    await eventBus.emit(EVENTS.READING_SESSION_COMPLETED, {
+      userId: user.id,
+      bookId: book_id,
+      pagesRead,
+      durationMinutes: duration,
+      date: getTodayTurkeyDate()
+    });
 
     return NextResponse.json({
       success: true,

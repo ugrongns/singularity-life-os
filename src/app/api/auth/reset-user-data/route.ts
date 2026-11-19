@@ -43,6 +43,12 @@ import {
   walletsAccounts,
   categories,
   recurringBills,
+  habits,
+  habitLogs,
+  noteFolders,
+  notes,
+  workoutRoutines,
+  bookBookmarks,
   tasks
 } from '@/db/schema';
 import { ensureFamilyCategories } from '@/lib/budget-categories';
@@ -107,6 +113,12 @@ export async function POST(req: Request) {
       
       await tx.delete(personalDebtsReceivables).where(eq(personalDebtsReceivables.user_id, userId));
       await tx.delete(userHealthProfile).where(eq(userHealthProfile.user_id, userId));
+      await tx.delete(habitLogs).where(eq(habitLogs.user_id, userId));
+      await tx.delete(habits).where(eq(habits.user_id, userId));
+      await tx.delete(notes).where(eq(notes.user_id, userId));
+      await tx.delete(noteFolders).where(eq(noteFolders.user_id, userId));
+      await tx.delete(workoutRoutines).where(eq(workoutRoutines.user_id, userId));
+      await tx.delete(bookBookmarks).where(eq(bookBookmarks.user_id, userId));
 
       // Kişisel profilleri sıfır değerlerle yeniden başlat
       try {

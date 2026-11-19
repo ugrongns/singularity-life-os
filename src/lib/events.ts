@@ -3,10 +3,10 @@ import { db, initDatabase } from '@/db';
 import { 
   transactions, categories, walletsAccounts, 
   vehicles, vehicleMaintenanceRecords, 
-  nutritionMeals, userHealthProfile 
+  nutritionMeals, userHealthProfile,
+  habits, habitLogs
 } from '@/db/schema';
 import { eq, and, or, gte, lte } from 'drizzle-orm';
-import { localYYYYMMDD } from '@/lib/bill-schedule';
 import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 export type DomainEvent =
@@ -165,6 +165,9 @@ export const EVENTS = {
   VEHICLE_MAINTENANCE_RECORDED: 'vehicle:maintenance_recorded',
   DIET_MEAL_RECORDED: 'health:meal_recorded',
   TASK_COMPLETED: 'task:completed',
+  READING_SESSION_COMPLETED: 'library:reading_session_completed',
+  WORKOUT_COMPLETED: 'health:workout_completed',
+  WATER_GOAL_REACHED: 'health:water_goal_reached',
   BACKUP_REQUESTED: 'system:backup_requested',
 };
 
@@ -192,10 +195,13 @@ eventBus.subscribe(EVENTS.TRANSACTION_CREATED, async (data: any) => {
     const cat = catList[0];
     if (!cat || !cat.monthly_budget_limit || cat.monthly_budget_limit <= 0) return;
 
-    // Bu ayın toplam harcamasını hesapla
-    const now = new Date();
-    const startOfMonth = localYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1));
-    const endOfMonth = localYYYYMMDD(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    // Bu ayın toplam harcamasını hesapla (Europe/Istanbul takvim ayı)
+    const todayTr = getTodayTurkeyDate();
+    const ym = todayTr.slice(0, 7);
+    const [yNum, mNum] = ym.split('-').map(Number);
+    const lastDay = new Date(Date.UTC(yNum, mNum, 0)).getUTCDate();
+    const startOfMonth = `${ym}-01`;
+    const endOfMonth = `${ym}-${String(lastDay).padStart(2, '0')}`;
 
     const userFilter = familyId
       ? (userId ? or(eq(transactions.family_id, familyId), eq(transactions.user_id, userId)) : eq(transactions.family_id, familyId))
@@ -308,4 +314,69 @@ eventBus.subscribe(EVENTS.TASK_COMPLETED, async (data: any) => {
   } catch (err) {
     console.error('[EventBus Error - TASK_COMPLETED]:', err);
   }
+});
+
+// 5. Alışkanlık Otomasyonu: Okuma, Antrenman veya Su Hedefi tamamlandığında bağlı alışkanlıkları işaretle
+async function autoCompleteLinkedHabits(
+  userId: string | undefined,
+  linkedModule: 'reading' | 'workout' | 'water',
+  dateStr?: string
+) {
+  if (!userId) return;
+  try {
+    await initDatabase();
+    const targetDate = dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : getTodayTurkeyDate();
+    const linkedHabits = await db
+      .select()
+      .from(habits)
+      .where(and(eq(habits.user_id, userId), eq(habits.linked_module, linkedModule), eq(habits.is_archived, 0)));
+
+    if (!Array.isArray(linkedHabits) || linkedHabits.length === 0) return;
+    const now = new Date().toISOString();
+
+    for (const h of linkedHabits) {
+      if (!h || h.linked_module !== linkedModule) continue;
+      const existing = (
+        await db
+          .select()
+          .from(habitLogs)
+          .where(and(eq(habitLogs.habit_id, h.id), eq(habitLogs.date, targetDate)))
+          .limit(1)
+      )[0];
+
+      if (existing) {
+        if (existing.is_completed !== 1) {
+          await db
+            .update(habitLogs)
+            .set({ is_completed: 1, value: h.target_value, updated_at: now })
+            .where(eq(habitLogs.id, existing.id));
+        }
+      } else {
+        await db.insert(habitLogs).values({
+          id: `hlog-auto-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          habit_id: h.id,
+          user_id: userId,
+          date: targetDate,
+          value: h.target_value,
+          is_completed: 1,
+          created_at: now,
+          updated_at: now
+        });
+      }
+    }
+  } catch (err) {
+    console.error(`[EventBus Error - Habit AutoComplete ${linkedModule}]:`, err);
+  }
+}
+
+eventBus.subscribe(EVENTS.READING_SESSION_COMPLETED, async (data: any) => {
+  await autoCompleteLinkedHabits(data?.userId || data?.user_id, 'reading', data?.date);
+});
+
+eventBus.subscribe(EVENTS.WORKOUT_COMPLETED, async (data: any) => {
+  await autoCompleteLinkedHabits(data?.userId || data?.user_id, 'workout', data?.date);
+});
+
+eventBus.subscribe(EVENTS.WATER_GOAL_REACHED, async (data: any) => {
+  await autoCompleteLinkedHabits(data?.userId || data?.user_id, 'water', data?.date);
 });

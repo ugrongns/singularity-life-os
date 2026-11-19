@@ -91,6 +91,8 @@ export default function HomeWorkoutModal({ isOpen, memberId, onClose, onSuccess 
   // Kuvvet egzersizleri
   const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([]);
   const [exerciseHistoryMap, setExerciseHistoryMap] = useState<Record<string, { prWeightKg: number; lastSets: SetItem[] }>>({});
+  const [savedRoutines, setSavedRoutines] = useState<Array<{ id: string; title: string; exercises: ExerciseEntry[] }>>([]);
+  const [savingRoutine, setSavingRoutine] = useState(false);
 
   // Dinlenme sayacı
   const [restSeconds, setRestSeconds] = useState<number | null>(null);
@@ -126,6 +128,15 @@ export default function HomeWorkoutModal({ isOpen, memberId, onClose, onSuccess 
           }
         }
         setExerciseHistoryMap(map);
+      })
+      .catch(() => {});
+
+    fetch('/api/health/workout-routines')
+      .then(res => res.json())
+      .then(json => {
+        if (json.success && Array.isArray(json.data)) {
+          setSavedRoutines(json.data);
+        }
       })
       .catch(() => {});
   }, [isOpen, memberId]);
@@ -725,6 +736,38 @@ export default function HomeWorkoutModal({ isOpen, memberId, onClose, onSuccess 
           ) : (
             /* Kuvvet / Ağırlık Alanları */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Kayıtlı Rutin Şablonları Barı */}
+              {savedRoutines.length > 0 && (
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', padding: '8px 10px', borderRadius: '10px', background: 'var(--surface-subtle)', border: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)' }}>📋 Şablon Yükle:</span>
+                  {savedRoutines.map(r => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => {
+                        setTitle(r.title);
+                        setExerciseEntries((r.exercises || []).map(ex => ({
+                          ...ex,
+                          sets: (ex.sets || []).map(s => ({ ...s }))
+                        })));
+                      }}
+                      style={{
+                        padding: '4px 9px',
+                        borderRadius: '999px',
+                        border: '1px solid rgba(99, 102, 241, 0.35)',
+                        background: 'var(--indigo-bg)',
+                        color: 'var(--indigo)',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {r.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Dinlenme Barı */}
               <div style={{ background: 'var(--indigo-bg)', border: '1px solid var(--indigo)', padding: '10px 14px', borderRadius: 'var(--radius-md)', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '160px' }}>
@@ -867,20 +910,52 @@ export default function HomeWorkoutModal({ isOpen, memberId, onClose, onSuccess 
                 );
               })}
 
-              <button
-                type="button"
-                onClick={() => {
-                  const defaultEx = PRESET_EXERCISES[0];
-                  const hist = exerciseHistoryMap[defaultEx.name];
-                  const initialSets = hist && hist.lastSets.length > 0
-                    ? hist.lastSets.map(s => ({ ...s }))
-                    : [{ set_number: 1, weight_kg: '', reps: '' }];
-                  setExerciseEntries([...exerciseEntries, { exercise_name: defaultEx.name, category: defaultEx.category, equipment: defaultEx.equipment, sets: initialSets }]);
-                }}
-                style={{ padding: '8px', fontSize: '12px', fontWeight: 800, borderRadius: '8px', border: '1px dashed var(--primary)', background: 'var(--indigo-bg)', color: 'var(--primary)', cursor: 'pointer' }}
-              >
-                ➕ Yeni Hareket Ekle
-              </button>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const defaultEx = PRESET_EXERCISES[0];
+                    const hist = exerciseHistoryMap[defaultEx.name];
+                    const initialSets = hist && hist.lastSets.length > 0
+                      ? hist.lastSets.map(s => ({ ...s }))
+                      : [{ set_number: 1, weight_kg: '', reps: '' }];
+                    setExerciseEntries([...exerciseEntries, { exercise_name: defaultEx.name, category: defaultEx.category, equipment: defaultEx.equipment, sets: initialSets }]);
+                  }}
+                  style={{ flex: 1, padding: '8px', fontSize: '12px', fontWeight: 800, borderRadius: '8px', border: '1px dashed var(--primary)', background: 'var(--indigo-bg)', color: 'var(--primary)', cursor: 'pointer' }}
+                >
+                  ➕ Yeni Hareket Ekle
+                </button>
+                {exerciseEntries.length > 0 && (
+                  <button
+                    type="button"
+                    disabled={savingRoutine}
+                    onClick={async () => {
+                      const routineName = window.prompt('Bu antrenman rutin şablonuna bir ad verin:', title || 'Kuvvet Rutinim');
+                      if (!routineName || !routineName.trim()) return;
+                      setSavingRoutine(true);
+                      try {
+                        const res = await fetch('/api/health/workout-routines', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action: 'create', title: routineName.trim(), sport_type: 'strength', exercises: exerciseEntries })
+                        });
+                        const json = await res.json();
+                        if (json.success) {
+                          const listRes = await fetch('/api/health/workout-routines');
+                          const listJson = await listRes.json();
+                          if (listJson.success) setSavedRoutines(listJson.data || []);
+                          alert(json.message);
+                        }
+                      } finally {
+                        setSavingRoutine(false);
+                      }
+                    }}
+                    style={{ padding: '8px 12px', fontSize: '12px', fontWeight: 800, borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', color: 'var(--text-main)', cursor: 'pointer' }}
+                  >
+                    💾 Şablon Kaydet
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

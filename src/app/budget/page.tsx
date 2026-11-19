@@ -14,6 +14,7 @@ import ManualExpenseModal, { ManualExpenseDraft } from '@/components/modals/Manu
 import CreditCardStatementModal from '@/components/modals/CreditCardStatementModal';
 import CategoryDetailModal from '@/components/modals/CategoryDetailModal';
 import TransferModal from '@/components/modals/TransferModal';
+import BankCsvImportModal from '@/components/modals/BankCsvImportModal';
 import MarketRatesBar from '@/components/budget/MarketRatesBar';
 import SavingsGoalsCard from '@/components/budget/SavingsGoalsCard';
 import PageLoadingState from '@/components/ui/PageLoadingState';
@@ -30,6 +31,7 @@ export default function BudgetPage() {
   const [loading, setLoading] = useState(true);
   const [ratesLoading, setRatesLoading] = useState(false);
   const [isScanOpen, setIsScanOpen] = useState(false);
+  const [isCsvImportOpen, setIsCsvImportOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [manualDraft, setManualDraft] = useState<ManualExpenseDraft | null>(null);
   const [quickFinanceText, setQuickFinanceText] = useState('');
@@ -145,6 +147,21 @@ export default function BudgetPage() {
         
         {/* İşlem Butonları Toolbar */}
         <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setIsCsvImportOpen(true)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              height: '36px', padding: '0 12px', borderRadius: 'var(--radius-full)',
+              background: 'var(--surface-subtle)', border: '1px solid var(--border)',
+              fontSize: '12px', fontWeight: 700, color: 'var(--text-main)',
+              cursor: 'pointer', whiteSpace: 'nowrap', width: 'auto', margin: 0
+            }}
+          >
+            <span>📥</span>
+            <span>Banka CSV</span>
+          </button>
+
           <button
             type="button"
             onClick={async () => {
@@ -736,6 +753,15 @@ export default function BudgetPage() {
         onClose={() => { setIsTransferOpen(false); setTransferDefaultTargetId(null); }}
         accounts={data?.accounts || []}
         defaultToAccountId={transferDefaultTargetId}
+        onSuccess={(msg) => handleUpdate(msg)}
+      />
+
+      <BankCsvImportModal
+        isOpen={isCsvImportOpen}
+        accounts={data?.accounts || []}
+        categories={data?.categories || []}
+        existingTransactions={data?.recentTransactions || []}
+        onClose={() => setIsCsvImportOpen(false)}
         onSuccess={(msg) => handleUpdate(msg)}
       />
     </SharedLayout>

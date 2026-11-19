@@ -9,6 +9,7 @@ import {
   syncDailyWaterIntake,
   updateScopedWaterTarget,
 } from '@/lib/health-water';
+import { eventBus, EVENTS } from '@/lib/events';
 
 export async function GET(): Promise<NextResponse>;
 export async function GET(req: Request): Promise<NextResponse>;
@@ -88,6 +89,15 @@ export async function POST(req: Request) {
       defaultAddMl: 250,
       scope,
     });
+
+    if (!reset && targetMl > 0 && consumedMl >= targetMl) {
+      await eventBus.emit(EVENTS.WATER_GOAL_REACHED, {
+        userId: user.id,
+        consumedMl,
+        targetMl,
+        date: getTodayTurkeyDate()
+      });
+    }
 
     return NextResponse.json({
       success: true,

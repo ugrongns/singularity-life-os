@@ -773,6 +773,92 @@ async function _runInit(): Promise<void> {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS habits (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        family_id TEXT REFERENCES families(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        category TEXT NOT NULL DEFAULT 'Sağlık & Beden',
+        color TEXT NOT NULL DEFAULT '#10B981',
+        icon TEXT NOT NULL DEFAULT 'check',
+        target_type TEXT NOT NULL DEFAULT 'boolean',
+        target_value DOUBLE PRECISION NOT NULL DEFAULT 1,
+        unit_label TEXT NOT NULL DEFAULT 'kez',
+        frequency_type TEXT NOT NULL DEFAULT 'daily',
+        frequency_days_json TEXT DEFAULT '[]',
+        weekly_target_count INTEGER NOT NULL DEFAULT 7,
+        time_of_day TEXT NOT NULL DEFAULT 'all_day',
+        linked_module TEXT,
+        is_archived INTEGER NOT NULL DEFAULT 0,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS habit_logs (
+        id TEXT PRIMARY KEY,
+        habit_id TEXT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        date TEXT NOT NULL,
+        value DOUBLE PRECISION NOT NULL DEFAULT 1,
+        is_completed INTEGER NOT NULL DEFAULT 0,
+        note TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS note_folders (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        family_id TEXT REFERENCES families(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        icon TEXT NOT NULL DEFAULT '📁',
+        color TEXT NOT NULL DEFAULT '#6366F1',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS notes (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        family_id TEXT REFERENCES families(id) ON DELETE CASCADE,
+        folder_id TEXT REFERENCES note_folders(id) ON DELETE SET NULL,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        is_pinned INTEGER NOT NULL DEFAULT 0,
+        is_archived INTEGER NOT NULL DEFAULT 0,
+        is_family_shared INTEGER NOT NULL DEFAULT 0,
+        linked_book_id TEXT REFERENCES books(id) ON DELETE SET NULL,
+        linked_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+        linked_sinking_fund_id TEXT REFERENCES sinking_funds(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS workout_routines (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        sport_type TEXT NOT NULL DEFAULT 'strength',
+        exercises_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS book_bookmarks (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        page_number INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        note TEXT,
+        color TEXT NOT NULL DEFAULT '#F59E0B',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `;
 
     const migrateGlobalCategoriesSQL = `
@@ -1041,6 +1127,16 @@ async function _runInit(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_food_nutrient_profiles_user_id ON food_nutrient_profiles (user_id);
       CREATE INDEX IF NOT EXISTS idx_diet_meal_options_user_id ON diet_meal_options (user_id);
       CREATE INDEX IF NOT EXISTS idx_diet_meal_options_family_id ON diet_meal_options (family_id);
+      CREATE INDEX IF NOT EXISTS idx_habits_user_id ON habits (user_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_habit_logs_habit_date ON habit_logs (habit_id, date);
+      CREATE INDEX IF NOT EXISTS idx_habit_logs_user_date ON habit_logs (user_id, date);
+      CREATE INDEX IF NOT EXISTS idx_note_folders_user_id ON note_folders (user_id);
+      CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes (user_id);
+      CREATE INDEX IF NOT EXISTS idx_notes_family_id ON notes (family_id);
+      CREATE INDEX IF NOT EXISTS idx_notes_folder_id ON notes (folder_id);
+      CREATE INDEX IF NOT EXISTS idx_workout_routines_user_id ON workout_routines (user_id);
+      CREATE INDEX IF NOT EXISTS idx_book_bookmarks_book_id ON book_bookmarks (book_id);
+      CREATE INDEX IF NOT EXISTS idx_book_bookmarks_user_id ON book_bookmarks (user_id);
     `;
 
     await pgClient.unsafe(createTablesSQL);

@@ -7,7 +7,9 @@ import {
   transactions,
   categories,
   waterIntakeLogs,
-  tasks
+  tasks,
+  habits,
+  habitLogs
 } from '@/db/schema';
 import { eq, and, gte, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
@@ -120,12 +122,32 @@ export async function GET(req: Request) {
       )
       .limit(1000);
 
+    // 6. Alışkanlık Logları (OWASP BOLA — kişisel)
+    let rawHabits: Array<{ id: string }> = [];
+    let rawHabitLogs: Array<{ date: string; is_completed: number }> = [];
+    try {
+      const [hRows, lRows] = await Promise.all([
+        db.select({ id: habits.id }).from(habits).where(and(eq(habits.user_id, user.id), eq(habits.is_archived, 0))),
+        db.select({ date: habitLogs.date, is_completed: habitLogs.is_completed })
+          .from(habitLogs)
+          .where(and(eq(habitLogs.user_id, user.id), eq(habitLogs.is_completed, 1), gte(habitLogs.date, startDateStr)))
+          .limit(2000)
+      ]);
+      if (Array.isArray(hRows)) rawHabits = hRows;
+      if (Array.isArray(lRows)) rawHabitLogs = lRows;
+    } catch {
+      rawHabits = [];
+      rawHabitLogs = [];
+    }
+
     const rawData: RawHeatmapData = {
       fastingSessions: rawFasting,
       readingSessions: rawReading,
       transactions: rawTransactions,
       waterLogs: rawWater,
-      completedTasks: rawTasks
+      completedTasks: rawTasks,
+      habitLogs: rawHabitLogs,
+      activeHabitsCount: rawHabits.length
     };
 
     const summary = calculateHeatmapMatrix(rawData, daysCount, today);

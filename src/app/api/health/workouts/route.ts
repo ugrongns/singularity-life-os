@@ -5,6 +5,7 @@ import { getAuthUser } from '@/lib/auth';
 import { getTodayTurkeyDate } from '@/lib/date-utils';
 import { resolveOptionalHealthMemberScope } from '@/lib/nutrition-memory';
 import { buildHealthMemberFilter } from '@/lib/health-water';
+import { eventBus, EVENTS } from '@/lib/events';
 import { desc, eq, and, inArray } from 'drizzle-orm';
 
 export async function GET(req: Request) {
@@ -285,6 +286,13 @@ export async function POST(req: Request) {
         created_at: now,
         updated_at: now,
         user_id: user.id
+      });
+
+      await eventBus.emit(EVENTS.WORKOUT_COMPLETED, {
+        userId: user.id,
+        workoutId,
+        sportType: sport_type,
+        date: workoutDate
       });
 
       return NextResponse.json({
