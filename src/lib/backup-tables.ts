@@ -50,4 +50,8 @@ export const SAFE_EXPORT_TABLES = [
   { name: 'notes', table: schema.notes },
   { name: 'workout_routines', table: schema.workoutRoutines },
   { name: 'book_bookmarks', table: schema.bookBookmarks },
+  { name: 'time_blocks', table: schema.timeBlocks },
+  { name: 'okr_objectives', table: schema.okrObjectives },
+  { name: 'okr_key_results', table: schema.okrKeyResults },
+  { name: 'okr_check_ins', table: schema.okrCheckIns },
 ];

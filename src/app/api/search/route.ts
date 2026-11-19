@@ -11,7 +11,9 @@ import {
   vehicles,
   homeAppliances,
   shoppingListItems,
-  notes
+  notes,
+  timeBlocks,
+  okrObjectives
 } from '@/db/schema';
 import { eq, and, or, desc } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
@@ -19,7 +21,7 @@ import { matchesTurkishQuery } from '@/lib/date-utils';
 
 export interface SearchResultItem {
   id: string;
-  category: 'tasks' | 'library' | 'finance' | 'vault_vehicle' | 'shopping' | 'notes';
+  category: 'tasks' | 'library' | 'finance' | 'vault_vehicle' | 'shopping' | 'notes' | 'calendar' | 'okr';
   categoryLabel: string;
   title: string;
   subtitle: string;
@@ -364,6 +366,82 @@ export async function GET(req: Request) {
         });
         noteCount++;
       }
+    }
+
+    // 7 & 8. Zaman Blokları & OKR Hedefleri (Maks 5 + 5)
+    try {
+      const [blockRows, okrRows] = await Promise.all([
+        db
+          .select({
+            id: timeBlocks.id,
+            title: timeBlocks.title,
+            date: timeBlocks.date,
+            start_time: timeBlocks.start_time,
+            end_time: timeBlocks.end_time,
+            notes: timeBlocks.notes,
+          })
+          .from(timeBlocks)
+          .where(
+            or(
+              eq(timeBlocks.user_id, userId),
+              and(eq(timeBlocks.family_id, familyId), eq(timeBlocks.is_family_shared, 1))
+            )
+          )
+          .orderBy(desc(timeBlocks.date))
+          .limit(50),
+        db
+          .select({
+            id: okrObjectives.id,
+            title: okrObjectives.title,
+            description: okrObjectives.description,
+            period: okrObjectives.period,
+          })
+          .from(okrObjectives)
+          .where(
+            or(
+              eq(okrObjectives.user_id, userId),
+              and(eq(okrObjectives.family_id, familyId), eq(okrObjectives.is_family_shared, 1))
+            )
+          )
+          .orderBy(desc(okrObjectives.updated_at))
+          .limit(50),
+      ]);
+
+      let blockCount = 0;
+      for (const b of blockRows) {
+        if (blockCount >= 5) break;
+        if (matchesTurkishQuery(query, [b.title, b.notes || ''])) {
+          results.push({
+            id: `block-${b.id}`,
+            category: 'calendar',
+            categoryLabel: 'Zaman Bloklama',
+            title: b.title,
+            subtitle: `${b.date} • ${b.start_time}-${b.end_time}`,
+            icon: '📅',
+            href: '/calendar',
+          });
+          blockCount++;
+        }
+      }
+
+      let okrCount = 0;
+      for (const o of okrRows) {
+        if (okrCount >= 5) break;
+        if (matchesTurkishQuery(query, [o.title, o.description || ''])) {
+          results.push({
+            id: `okr-${o.id}`,
+            category: 'okr',
+            categoryLabel: 'OKR & Vizyon',
+            title: o.title,
+            subtitle: `${o.period} • Stratejik Hedef`,
+            icon: '🎯',
+            href: '/okr',
+          });
+          okrCount++;
+        }
+      }
+    } catch {
+      // Non-fatal fallback
     }
 
     return NextResponse.json({ success: true, data: { results } });

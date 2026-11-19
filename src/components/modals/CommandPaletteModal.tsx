@@ -28,6 +28,8 @@ interface CommandPaletteModalProps {
 const PAGE_ITEMS = [
   { href: '/', label: 'Ana Sayfa (Özet Panel)', icon: '🏠', keywords: 'dashboard ozet home' },
   { href: '/tasks', label: 'Görevler & Odak (MIT & Kanban)', icon: '✅', keywords: 'gorev mit odak pomodoro kanban' },
+  { href: '/calendar', label: 'Zaman Bloklama & Ajanda', icon: '📅', keywords: 'takvim ajanda zaman bloklama calendar' },
+  { href: '/okr', label: 'OKR & Yaşam Vizyonu', icon: '🎯', keywords: 'okr hedef vizyon key result strateji' },
   { href: '/budget', label: 'Finans & Bütçe', icon: '💰', keywords: 'butce finans para kart kredi fatura birikim' },
   { href: '/vehicles', label: 'Araç & Ev Filosu', icon: '🚗', keywords: 'arac ev bakim yakit muayene' },
   { href: '/library', label: 'Kütüphane & Okuma', icon: '📚', keywords: 'kitap kutuphane okuma alinti wpm' },

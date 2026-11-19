@@ -49,6 +49,10 @@ import {
   notes,
   workoutRoutines,
   bookBookmarks,
+  timeBlocks,
+  okrObjectives,
+  okrKeyResults,
+  okrCheckIns,
   tasks,
   appSettings
 } from '@/db/schema';
@@ -100,6 +104,10 @@ export async function POST(req: Request) {
       await tx.delete(habitLogs).where(eq(habitLogs.user_id, userId));
       await tx.delete(habits).where(eq(habits.user_id, userId));
       await tx.delete(workoutRoutines).where(eq(workoutRoutines.user_id, userId));
+      await tx.delete(timeBlocks).where(eq(timeBlocks.user_id, userId));
+      await tx.delete(okrCheckIns).where(eq(okrCheckIns.user_id, userId));
+      await tx.delete(okrKeyResults).where(eq(okrKeyResults.user_id, userId));
+      await tx.delete(okrObjectives).where(eq(okrObjectives.user_id, userId));
 
       // 2. Beslenme, Sağlık & Spor
       const userMeals = await tx.select({ id: nutritionMeals.id }).from(nutritionMeals).where(eq(nutritionMeals.user_id, userId));

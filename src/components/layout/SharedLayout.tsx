@@ -27,7 +27,9 @@ import {
   CheckSquare,
   Search,
   Repeat,
-  FileText
+  FileText,
+  Calendar,
+  Target
 } from 'lucide-react';
 import NotificationHub from './NotificationHub';
 import ReceiptScanModal from '@/components/modals/ReceiptScanModal';
@@ -246,6 +248,8 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
   const sidebarPages = [
     { href: '/',          icon: Home,         color: 'blue',    label: 'Ana Sayfa' },
     { href: '/tasks',     icon: CheckSquare,  color: 'emerald', label: 'Görevler & Odak' },
+    { href: '/calendar',  icon: Calendar,     color: 'indigo',  label: 'Zaman Bloklama' },
+    { href: '/okr',       icon: Target,       color: 'teal',    label: 'OKR & Vizyon' },
     { href: '/budget',    icon: Wallet,       color: 'emerald', label: 'Finans & Bütçe' },
     { href: '/vehicles',  icon: Car,          color: 'cyan',    label: 'Araç & Ev' },
     { href: '/library',   icon: BookOpen,     color: 'amber',   label: 'Kütüphane' },

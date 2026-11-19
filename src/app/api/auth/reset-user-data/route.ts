@@ -49,6 +49,10 @@ import {
   notes,
   workoutRoutines,
   bookBookmarks,
+  timeBlocks,
+  okrObjectives,
+  okrKeyResults,
+  okrCheckIns,
   tasks
 } from '@/db/schema';
 import { ensureFamilyCategories } from '@/lib/budget-categories';
@@ -119,6 +123,10 @@ export async function POST(req: Request) {
       await tx.delete(noteFolders).where(eq(noteFolders.user_id, userId));
       await tx.delete(workoutRoutines).where(eq(workoutRoutines.user_id, userId));
       await tx.delete(bookBookmarks).where(eq(bookBookmarks.user_id, userId));
+      await tx.delete(timeBlocks).where(eq(timeBlocks.user_id, userId));
+      await tx.delete(okrCheckIns).where(eq(okrCheckIns.user_id, userId));
+      await tx.delete(okrKeyResults).where(eq(okrKeyResults.user_id, userId));
+      await tx.delete(okrObjectives).where(eq(okrObjectives.user_id, userId));
 
       // Kişisel profilleri sıfır değerlerle yeniden başlat
       try {

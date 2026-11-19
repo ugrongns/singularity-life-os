@@ -1043,3 +1043,86 @@ export const bookBookmarks = pgTable('book_bookmarks', {
   index('idx_book_bookmarks_book_id').on(table.book_id),
   index('idx_book_bookmarks_user_id').on(table.user_id)
 ]);
+
+// ==========================================
+// 📅 FAZ 19: ZAMAN BLOKLAMA & AJANDA (TIME-BLOCKING)
+// ==========================================
+
+export const timeBlocks = pgTable('time_blocks', {
+  id: text('id').primaryKey(),
+  user_id: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  category: text('category').notNull().default('deep_work'),
+  date: text('date').notNull(), // YYYY-MM-DD (TR)
+  start_time: text('start_time').notNull(), // HH:mm
+  end_time: text('end_time').notNull(), // HH:mm
+  color: text('color').notNull().default('#3B82F6'),
+  is_completed: integer('is_completed').notNull().default(0),
+  is_family_shared: integer('is_family_shared').notNull().default(0),
+  linked_task_id: text('linked_task_id').references(() => tasks.id, { onDelete: 'set null' }),
+  linked_book_id: text('linked_book_id').references(() => books.id, { onDelete: 'set null' }),
+  linked_habit_id: text('linked_habit_id').references(() => habits.id, { onDelete: 'set null' }),
+  notes: text('notes'),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+}, (table) => [
+  index('idx_time_blocks_user_date').on(table.user_id, table.date),
+  index('idx_time_blocks_family_date').on(table.family_id, table.date)
+]);
+
+// ==========================================
+// 🎯 FAZ 19: OKR & STRATEJİK YAŞAM VİZYONU
+// ==========================================
+
+export const okrObjectives = pgTable('okr_objectives', {
+  id: text('id').primaryKey(),
+  user_id: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
+  pillar_id: text('pillar_id').notNull().default('pillar_career'),
+  period: text('period').notNull().default('2026-Q4'),
+  title: text('title').notNull(),
+  description: text('description').default(''),
+  status: text('status').notNull().default('in_progress'),
+  confidence: text('confidence').notNull().default('on_track'),
+  is_family_shared: integer('is_family_shared').notNull().default(0),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+}, (table) => [
+  index('idx_okr_objectives_user_id').on(table.user_id),
+  index('idx_okr_objectives_family_id').on(table.family_id)
+]);
+
+export const okrKeyResults = pgTable('okr_key_results', {
+  id: text('id').primaryKey(),
+  objective_id: text('objective_id').notNull().references(() => okrObjectives.id, { onDelete: 'cascade' }),
+  user_id: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  kr_type: text('kr_type').notNull().default('numeric'),
+  start_value: doublePrecision('start_value').notNull().default(0),
+  target_value: doublePrecision('target_value').notNull().default(100),
+  current_value: doublePrecision('current_value').notNull().default(0),
+  unit: text('unit').notNull().default('adet'),
+  weight: doublePrecision('weight').notNull().default(1),
+  confidence: text('confidence').notNull().default('on_track'),
+  linked_module: text('linked_module'),
+  linked_ref_id: text('linked_ref_id'),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+}, (table) => [
+  index('idx_okr_key_results_obj_id').on(table.objective_id)
+]);
+
+export const okrCheckIns = pgTable('okr_check_ins', {
+  id: text('id').primaryKey(),
+  key_result_id: text('key_result_id').notNull().references(() => okrKeyResults.id, { onDelete: 'cascade' }),
+  user_id: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  previous_value: doublePrecision('previous_value').notNull().default(0),
+  new_value: doublePrecision('new_value').notNull().default(0),
+  confidence: text('confidence').notNull().default('on_track'),
+  note: text('note').default(''),
+  check_in_date: text('check_in_date').notNull(),
+  created_at: text('created_at').notNull()
+}, (table) => [
+  index('idx_okr_check_ins_kr_id').on(table.key_result_id)
+]);

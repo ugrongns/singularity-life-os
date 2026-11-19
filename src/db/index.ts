@@ -859,6 +859,71 @@ async function _runInit(): Promise<void> {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS time_blocks (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        family_id TEXT REFERENCES families(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'deep_work',
+        date TEXT NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        color TEXT NOT NULL DEFAULT '#3B82F6',
+        is_completed INTEGER NOT NULL DEFAULT 0,
+        is_family_shared INTEGER NOT NULL DEFAULT 0,
+        linked_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+        linked_book_id TEXT REFERENCES books(id) ON DELETE SET NULL,
+        linked_habit_id TEXT REFERENCES habits(id) ON DELETE SET NULL,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS okr_objectives (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        family_id TEXT REFERENCES families(id) ON DELETE CASCADE,
+        pillar_id TEXT NOT NULL DEFAULT 'pillar_career',
+        period TEXT NOT NULL DEFAULT '2026-Q4',
+        title TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'in_progress',
+        confidence TEXT NOT NULL DEFAULT 'on_track',
+        is_family_shared INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS okr_key_results (
+        id TEXT PRIMARY KEY,
+        objective_id TEXT NOT NULL REFERENCES okr_objectives(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        kr_type TEXT NOT NULL DEFAULT 'numeric',
+        start_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+        target_value DOUBLE PRECISION NOT NULL DEFAULT 100,
+        current_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+        unit TEXT NOT NULL DEFAULT 'adet',
+        weight DOUBLE PRECISION NOT NULL DEFAULT 1,
+        confidence TEXT NOT NULL DEFAULT 'on_track',
+        linked_module TEXT,
+        linked_ref_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS okr_check_ins (
+        id TEXT PRIMARY KEY,
+        key_result_id TEXT NOT NULL REFERENCES okr_key_results(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        previous_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+        new_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+        confidence TEXT NOT NULL DEFAULT 'on_track',
+        note TEXT DEFAULT '',
+        check_in_date TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
     `;
 
     const migrateGlobalCategoriesSQL = `
@@ -1137,6 +1202,12 @@ async function _runInit(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_workout_routines_user_id ON workout_routines (user_id);
       CREATE INDEX IF NOT EXISTS idx_book_bookmarks_book_id ON book_bookmarks (book_id);
       CREATE INDEX IF NOT EXISTS idx_book_bookmarks_user_id ON book_bookmarks (user_id);
+      CREATE INDEX IF NOT EXISTS idx_time_blocks_user_date ON time_blocks (user_id, date);
+      CREATE INDEX IF NOT EXISTS idx_time_blocks_family_date ON time_blocks (family_id, date);
+      CREATE INDEX IF NOT EXISTS idx_okr_objectives_user_id ON okr_objectives (user_id);
+      CREATE INDEX IF NOT EXISTS idx_okr_objectives_family_id ON okr_objectives (family_id);
+      CREATE INDEX IF NOT EXISTS idx_okr_key_results_obj_id ON okr_key_results (objective_id);
+      CREATE INDEX IF NOT EXISTS idx_okr_check_ins_kr_id ON okr_check_ins (key_result_id);
     `;
 
     await pgClient.unsafe(createTablesSQL);
