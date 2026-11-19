@@ -773,18 +773,122 @@ async function _runInit(): Promise<void> {
       );
     `;
 
-    const seedCategoriesSQL = `
-      INSERT INTO categories (id, name, type, monthly_budget_limit, group_50_30_20, icon, color, is_family_shared, created_at, updated_at)
-      VALUES 
-        ('cat-maas', 'Maaş & Gelir', 'income', 0, 'income', '💰', '#10B981', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        ('cat-market', 'Market & Gıda', 'expense', 0, 'needs', '🛒', '#F59E0B', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        ('cat-kira', 'Kira & Konut', 'expense', 0, 'needs', '🏠', '#EF4444', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        ('cat-fatura', 'Faturalar & Abonelikler', 'expense', 0, 'needs', '⚡', '#3B82F6', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        ('cat-ulasim', 'Ulaşım & Yakıt', 'expense', 0, 'needs', '🚗', '#8B5CF6', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        ('cat-eeglence', 'Eğlence & Dışarıda Yeme', 'expense', 0, 'wants', '🍔', '#EC4899', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        ('cat-saglik', 'Sağlık & Kişisel Bakım', 'expense', 0, 'needs', '💊', '#06B6D4', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        ('cat-diger', 'Diğer Harcamalar', 'expense', 0, 'wants', '🏷️', '#6B7280', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')
-      ON CONFLICT (id) DO NOTHING;
+    const migrateGlobalCategoriesSQL = `
+      DO $$
+      DECLARE
+        fam_rec RECORD;
+        tmpl RECORD;
+        target_id TEXT;
+        legacy_row categories%ROWTYPE;
+        has_legacy_row BOOLEAN;
+        should_keep_custom BOOLEAN;
+        family_count INTEGER;
+      BEGIN
+        SELECT COUNT(DISTINCT id) INTO family_count FROM families;
+
+        FOR fam_rec IN
+          SELECT DISTINCT fid FROM (
+            SELECT id AS fid FROM families WHERE id IS NOT NULL AND id <> ''
+            UNION
+            SELECT COALESCE(NULLIF(family_id, ''), 'fam-' || id) AS fid FROM users WHERE id IS NOT NULL AND id <> ''
+            UNION
+            SELECT family_id AS fid FROM wallets_accounts WHERE family_id IS NOT NULL AND family_id <> ''
+            UNION
+            SELECT family_id AS fid FROM transactions WHERE family_id IS NOT NULL AND family_id <> ''
+            UNION
+            SELECT family_id AS fid FROM recurring_bills WHERE family_id IS NOT NULL AND family_id <> ''
+          ) AS all_fams
+        LOOP
+          FOR tmpl IN
+            SELECT * FROM (VALUES
+              ('cat-maas', 'Maaş & Gelir', 'income', 0::double precision, 'income', '💰', '#10B981'),
+              ('cat-market', 'Market & Gıda', 'expense', 0::double precision, 'needs', '🛒', '#F59E0B'),
+              ('cat-kira', 'Kira & Konut', 'expense', 0::double precision, 'needs', '🏠', '#EF4444'),
+              ('cat-fatura', 'Faturalar & Abonelikler', 'expense', 0::double precision, 'needs', '⚡', '#3B82F6'),
+              ('cat-ulasim', 'Ulaşım & Yakıt', 'expense', 0::double precision, 'needs', '🚗', '#8B5CF6'),
+              ('cat-eeglence', 'Eğlence & Dışarıda Yeme', 'expense', 0::double precision, 'wants', '🍔', '#EC4899'),
+              ('cat-saglik', 'Sağlık & Kişisel Bakım', 'expense', 0::double precision, 'needs', '💊', '#06B6D4'),
+              ('cat-diger', 'Diğer Harcamalar', 'expense', 0::double precision, 'wants', '🏷️', '#6B7280')
+            ) AS t(base_id, name, type, monthly_budget_limit, group_50_30_20, icon, color)
+          LOOP
+            target_id := tmpl.base_id || '-' || fam_rec.fid;
+
+            SELECT * INTO legacy_row FROM categories WHERE id = tmpl.base_id AND (family_id IS NULL OR family_id = '') LIMIT 1;
+            has_legacy_row := FOUND;
+
+            should_keep_custom := has_legacy_row AND (
+              family_count <= 1
+              OR EXISTS (
+                SELECT 1 FROM transactions t
+                WHERE t.category_id = tmpl.base_id
+                  AND (
+                    t.family_id = fam_rec.fid
+                    OR ((t.family_id IS NULL OR t.family_id = '') AND t.user_id IN (
+                      SELECT id FROM users WHERE COALESCE(NULLIF(family_id, ''), 'fam-' || id) = fam_rec.fid
+                    ))
+                  )
+              )
+              OR EXISTS (
+                SELECT 1 FROM recurring_bills r
+                WHERE r.category_id = tmpl.base_id
+                  AND (
+                    r.family_id = fam_rec.fid
+                    OR ((r.family_id IS NULL OR r.family_id = '') AND r.user_id IN (
+                      SELECT id FROM users WHERE COALESCE(NULLIF(family_id, ''), 'fam-' || id) = fam_rec.fid
+                    ))
+                  )
+              )
+            );
+
+            INSERT INTO categories (
+              id, name, type, monthly_budget_limit, group_50_30_20, icon, color,
+              is_family_shared, family_id, created_at, updated_at, sync_status, device_id
+            ) VALUES (
+              target_id,
+              CASE WHEN should_keep_custom THEN COALESCE(legacy_row.name, tmpl.name) ELSE tmpl.name END,
+              CASE WHEN should_keep_custom THEN COALESCE(legacy_row.type, tmpl.type) ELSE tmpl.type END,
+              CASE WHEN should_keep_custom THEN COALESCE(legacy_row.monthly_budget_limit, tmpl.monthly_budget_limit) ELSE tmpl.monthly_budget_limit END,
+              CASE WHEN should_keep_custom THEN COALESCE(legacy_row.group_50_30_20, tmpl.group_50_30_20) ELSE tmpl.group_50_30_20 END,
+              CASE WHEN should_keep_custom THEN COALESCE(legacy_row.icon, tmpl.icon) ELSE tmpl.icon END,
+              CASE WHEN should_keep_custom THEN COALESCE(legacy_row.color, tmpl.color) ELSE tmpl.color END,
+              1,
+              fam_rec.fid,
+              CASE WHEN has_legacy_row THEN COALESCE(legacy_row.created_at, '2026-01-01T00:00:00.000Z') ELSE '2026-01-01T00:00:00.000Z' END,
+              NOW()::text,
+              'synced',
+              'migration'
+            )
+            ON CONFLICT (id) DO NOTHING;
+
+            UPDATE transactions
+            SET category_id = target_id
+            WHERE category_id = tmpl.base_id
+              AND (
+                family_id = fam_rec.fid
+                OR ((family_id IS NULL OR family_id = '') AND user_id IN (
+                  SELECT id FROM users WHERE COALESCE(NULLIF(family_id, ''), 'fam-' || id) = fam_rec.fid
+                ))
+              );
+
+            UPDATE recurring_bills
+            SET category_id = target_id
+            WHERE category_id = tmpl.base_id
+              AND (
+                family_id = fam_rec.fid
+                OR ((family_id IS NULL OR family_id = '') AND user_id IN (
+                  SELECT id FROM users WHERE COALESCE(NULLIF(family_id, ''), 'fam-' || id) = fam_rec.fid
+                ))
+              );
+          END LOOP;
+        END LOOP;
+
+        -- Sahipliği taşınmış ve artık hiçbir işlem/fatura tarafından kullanılmayan küresel seed kategorileri temizle
+        DELETE FROM categories c
+        WHERE (c.family_id IS NULL OR c.family_id = '')
+          AND c.id IN ('cat-maas', 'cat-market', 'cat-kira', 'cat-fatura', 'cat-ulasim', 'cat-eeglence', 'cat-saglik', 'cat-diger')
+          AND NOT EXISTS (SELECT 1 FROM transactions t WHERE t.category_id = c.id)
+          AND NOT EXISTS (SELECT 1 FROM recurring_bills r WHERE r.category_id = c.id);
+      END $$;
     `;
 
     const alterMissingColumnsSQL = `
@@ -917,6 +1021,7 @@ async function _runInit(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_transactions_category_id ON transactions (category_id);
       CREATE INDEX IF NOT EXISTS idx_transactions_parent_id ON transactions (parent_transaction_id);
       CREATE INDEX IF NOT EXISTS idx_wallets_family_id ON wallets_accounts (family_id);
+      CREATE INDEX IF NOT EXISTS idx_categories_family_id ON categories (family_id);
       CREATE INDEX IF NOT EXISTS idx_recurring_bills_family_id ON recurring_bills (family_id);
       CREATE INDEX IF NOT EXISTS idx_personal_debts_family_id ON personal_debts_receivables (family_id);
       CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks (user_id);
@@ -933,7 +1038,7 @@ async function _runInit(): Promise<void> {
 
     await pgClient.unsafe(createTablesSQL);
     await pgClient.unsafe(alterMissingColumnsSQL);
-    await pgClient.unsafe(seedCategoriesSQL);
+    await pgClient.unsafe(migrateGlobalCategoriesSQL);
     await pgClient.unsafe(createIndexesSQL);
   } catch (err) {
     _initPromise = null; // Hata durumunda sıfırla, bir sonraki istekte tekrar denensin

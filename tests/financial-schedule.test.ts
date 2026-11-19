@@ -10,6 +10,7 @@ vi.mock('@/db', () => ({
   initDatabase: vi.fn().mockResolvedValue(undefined),
 }));
 
+import { isFamilySeedCategory } from '../src/lib/budget-categories';
 import { 
   calculateBillSchedule, 
   calculateCreditCardSchedule,
@@ -563,25 +564,24 @@ describe('Financial Schedule, Installment & Security Calculations', () => {
       expect(isCardDebtDownIncome).toBe(true); // Income / Payment
     });
 
-    it('category BOLA and seed category protection blocks unauthorized mutation and deletion', () => {
+    it('category BOLA and per-family seed category protection blocks unauthorized mutation and deletion', () => {
       const userFamilyId = 'fam-user-1';
       const foreignFamilyId = 'fam-user-2';
 
-      const ownCategory = { id: 'cat-custom-1', family_id: 'fam-user-1', name: 'Evcil Hayvan' };
-      const foreignCategory = { id: 'cat-custom-2', family_id: 'fam-user-2', name: 'Özel Harcama' };
-      const systemCategory = { id: 'cat-market', family_id: null, name: 'Market' };
+      const ownCategory = { id: 'cat-custom-1', family_id: userFamilyId, name: 'Evcil Hayvan' };
+      const foreignCategory = { id: 'cat-custom-2', family_id: foreignFamilyId, name: 'Özel Harcama' };
+      const ownSeedCategory = { id: `cat-market-${userFamilyId}`, family_id: userFamilyId, name: 'Market' };
 
-      // Check family mutation permission
-      const canMutateOwn = !ownCategory.family_id || ownCategory.family_id === userFamilyId;
+      // Check family mutation permission (Strict tenant match: null family_id cannot be mutated!)
+      const canMutateOwn = Boolean(ownCategory.family_id && ownCategory.family_id === userFamilyId);
       expect(canMutateOwn).toBe(true);
 
-      const canMutateForeign = !foreignCategory.family_id || foreignCategory.family_id === userFamilyId;
+      const canMutateForeign = Boolean(foreignCategory.family_id && foreignCategory.family_id === userFamilyId);
       expect(canMutateForeign).toBe(false); // REJECTED with 403
 
-      // Seed / System Category deletion permission (Must be blocked for all users)
-      const seedCategories = ['cat-maas', 'cat-market', 'cat-kira', 'cat-fatura', 'cat-ulasim', 'cat-eeglence', 'cat-saglik', 'cat-diger'];
-      const canDeleteSystemCat = !seedCategories.includes(systemCategory.id) && systemCategory.family_id !== null;
-      expect(canDeleteSystemCat).toBe(false); // BLOCKED
+      // Per-family seed category deletion permission (Must be blocked for all users)
+      expect(isFamilySeedCategory(ownSeedCategory.id, userFamilyId)).toBe(true);
+      expect(isFamilySeedCategory(ownCategory.id, userFamilyId)).toBe(false);
     });
   });
 

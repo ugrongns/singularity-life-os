@@ -369,8 +369,8 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
                 style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: '1 1 auto', overflow: 'hidden' }}
                 title="Singularity Özellik Vitrini"
               >
-                <div className="icon-badge" style={{ width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0 }}>
-                  <img src="/icon.svg" alt="Singularity" style={{ width: '22px', height: '22px' }} />
+                <div className="icon-badge header-brand-icon" style={{ width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0 }}>
+                  <img src="/icon.svg" alt="Singularity" className="header-brand-logo" style={{ width: '22px', height: '22px' }} />
                 </div>
                 <div style={{ minWidth: 0, overflow: 'hidden', flex: '1 1 auto' }}>
                   <div className="brand-title header-brand-title" style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', overflow: 'hidden' }}>

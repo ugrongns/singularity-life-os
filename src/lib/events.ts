@@ -5,7 +5,7 @@ import {
   vehicles, vehicleMaintenanceRecords, 
   nutritionMeals, userHealthProfile 
 } from '@/db/schema';
-import { eq, sql, and, or, gte, lte, isNull } from 'drizzle-orm';
+import { eq, and, or, gte, lte } from 'drizzle-orm';
 import { localYYYYMMDD } from '@/lib/bill-schedule';
 import { getTodayTurkeyDate } from '@/lib/date-utils';
 
@@ -181,12 +181,14 @@ eventBus.subscribe(EVENTS.TRANSACTION_CREATED, async (data: any) => {
     const familyId = data.family_id || data.familyId;
     if (!userId && !familyId) return;
 
-    const catList = await db.select().from(categories).where(
-      and(
-        eq(categories.id, data.category_id),
-        familyId ? or(eq(categories.family_id, familyId), isNull(categories.family_id)) : isNull(categories.family_id)
-      )
-    );
+    const catList = familyId
+      ? await db.select().from(categories).where(
+          and(
+            eq(categories.id, data.category_id),
+            eq(categories.family_id, familyId)
+          )
+        )
+      : [];
     const cat = catList[0];
     if (!cat || !cat.monthly_budget_limit || cat.monthly_budget_limit <= 0) return;
 

@@ -319,6 +319,8 @@ body {
     gap: 6px !important;
   }
   .header-action-btn {
+    min-width: 32px !important;
+    min-height: 32px !important;
     width: 32px !important;
     height: 32px !important;
     font-size: 14px !important;
@@ -330,8 +332,40 @@ body {
     display: none !important;
   }
   .mobile-hamburger-btn {
+    min-width: 36px !important;
+    min-height: 36px !important;
     width: 36px !important;
     height: 36px !important;
+  }
+  .brand-badge {
+    gap: 6px !important;
+  }
+  .header-brand-icon {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 8px !important;
+  }
+  .header-brand-logo {
+    width: 17px !important;
+    height: 17px !important;
+  }
+  .header-brand-title {
+    font-size: 13px !important;
+    gap: 4px !important;
+  }
+  .header-version-badge {
+    font-size: 9px !important;
+    padding: 1px 4px !important;
+  }
+  .header-actions {
+    gap: 4px !important;
+  }
+  .header-action-btn {
+    min-width: 32px !important;
+    min-height: 32px !important;
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 13px !important;
   }
 }
 

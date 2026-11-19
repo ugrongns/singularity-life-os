@@ -4,6 +4,7 @@ import { categories, transactions, walletsAccounts, familyMembers } from '@/db/s
 import { eq, desc, sql, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { getTodayTurkeyDate, parseTurkeyCalendarDate } from '@/lib/date-utils';
+import { resolveCategoryIdForFamily } from '@/lib/budget-categories';
 
 export async function GET(req: Request) {
   try {
@@ -25,13 +26,14 @@ export async function GET(req: Request) {
     const todayTurkeyStr = getTodayTurkeyDate();
     const currentMonthStr = monthParam || todayTurkeyStr.slice(0, 7);
 
-    // Kategori Detayı - Kullanıcının ailesine ait veya sistem/ortak kategori olmalı
-    const category = (await db.select().from(categories).where(eq(categories.id, categoryId)))[0];
+    // Kategori Detayı - Yalnızca kullanıcının kendi ailesine ait olmalı
+    const resolvedCategoryId = familyId ? resolveCategoryIdForFamily(familyId, categoryId) : categoryId;
+    const category = (await db.select().from(categories).where(eq(categories.id, resolvedCategoryId)))[0];
     if (!category) {
       return NextResponse.json({ success: false, error: 'Kategori bulunamadı.' }, { status: 404 });
     }
 
-    if (category.family_id && (!familyId || category.family_id !== familyId)) {
+    if (!category.family_id || !familyId || category.family_id !== familyId) {
       return NextResponse.json({ success: false, error: 'Bu kategoriye erişim yetkiniz yok.' }, { status: 403 });
     }
 

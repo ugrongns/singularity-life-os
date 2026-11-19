@@ -77,12 +77,14 @@ export async function POST(req: Request) {
 
     // Tüm silme işlemlerini atomik transaction içerisinde gerçekleştir
     await db.transaction(async (tx) => {
-      // 1. Kütüphane & İkinci Beyin
+      // 1. Kütüphane & İkinci Beyin (Paylaşılan aile kitaplarındaki kişisel seans/alıntılar dahil)
       const userBooks = await tx.select({ id: books.id }).from(books).where(eq(books.user_id, userId));
       for (const b of userBooks) {
         await tx.delete(readingSessions).where(eq(readingSessions.book_id, b.id));
         await tx.delete(bookQuotes).where(eq(bookQuotes.book_id, b.id));
       }
+      await tx.delete(readingSessions).where(eq(readingSessions.user_id, userId));
+      await tx.delete(bookQuotes).where(eq(bookQuotes.user_id, userId));
       await tx.delete(books).where(eq(books.user_id, userId));
       await tx.delete(userReadingProfile).where(eq(userReadingProfile.user_id, userId));
 
@@ -155,11 +157,19 @@ export async function POST(req: Request) {
       await tx.delete(authSessions).where(eq(authSessions.user_id, userId));
       await tx.delete(users).where(eq(users.id, userId));
 
-      // Master admin hesabını silerken haneyi de tamamen temizle
+      // Master admin hesabını silerken haneyi, aile kategorilerini ve yalnızca bu kullanıcı/aileye ait ayarları temizle
       if (isMasterAdmin) {
+        await tx.delete(categories).where(eq(categories.family_id, familyId));
         await tx.delete(families).where(eq(families.id, familyId));
-        await tx.delete(appSettings).where(like(appSettings.key, 'telegram_%'));
-        await tx.delete(appSettings).where(eq(appSettings.key, `tuik_tufe_rate_${familyId}`));
+        await tx.delete(appSettings).where(
+          or(
+            eq(appSettings.key, `tuik_tufe_rate_${familyId}`),
+            like(appSettings.key, `telegram_%_${userId}`),
+            like(appSettings.key, `telegram_%_${familyId}`)
+          )
+        );
+      } else {
+        await tx.delete(appSettings).where(like(appSettings.key, `telegram_%_${userId}`));
       }
     });
 

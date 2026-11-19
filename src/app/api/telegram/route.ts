@@ -6,6 +6,7 @@ import { eq, sql, or, and, ne } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { getTodayTurkeyDate } from '@/lib/date-utils';
 import { summarizeTodayMit } from '@/lib/tasks-engine';
+import { ensureFamilyCategories, resolveCategoryIdForFamily } from '@/lib/budget-categories';
 
 const isNumericChatId = (val: unknown): boolean =>
   typeof val === 'string' && /^-?\d+$/.test(val.trim());
@@ -453,10 +454,19 @@ export async function POST(req: Request) {
               }
               const walletId = userWallets[0].id;
 
+              const resolvedCategoryId = familyId
+                ? resolveCategoryIdForFamily(familyId, parsed.category_id || 'cat-market')
+                : (parsed.category_id || 'cat-market');
+              if (familyId) {
+                try {
+                  await ensureFamilyCategories(familyId);
+                } catch {}
+              }
+
               await db.insert(transactions).values({
                 id: txId,
                 wallet_id: walletId,
-                category_id: parsed.category_id || 'cat-market',
+                category_id: resolvedCategoryId,
                 user_id: targetUser.id,
                 family_id: familyId,
                 merchant: parsed.merchant || 'Fiş Harcaması',

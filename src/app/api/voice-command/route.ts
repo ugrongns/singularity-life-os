@@ -6,6 +6,7 @@ import { getAuthUser } from '@/lib/auth';
 import { parseTurkishNumber } from '@/lib/ebelge-parser';
 import { getTodayTurkeyDate, shiftTurkeyDate } from '@/lib/date-utils';
 import { validateMitConstraint } from '@/lib/tasks-engine';
+import { ensureFamilyCategories, normalizeCategoryTemplateBaseId, resolveCategoryIdForFamily } from '@/lib/budget-categories';
 
 interface ParsedAction {
   type: 'expense' | 'water' | 'reading' | 'shopping' | 'supplement' | 'mood' | 'fasting' | 'task';
@@ -108,10 +109,20 @@ export async function POST(req: Request) {
             walletId = wallet.id;
           }
           
+          const rawCatId = act.details.category_id || 'cat-market';
+          const resolvedCatId = currentFamilyId
+            ? resolveCategoryIdForFamily(currentFamilyId, rawCatId)
+            : rawCatId;
+          if (currentFamilyId && normalizeCategoryTemplateBaseId(rawCatId)) {
+            try {
+              await ensureFamilyCategories(currentFamilyId);
+            } catch {}
+          }
+
           await db.insert(transactions).values({
             id,
             wallet_id: walletId,
-            category_id: act.details.category_id || 'cat-market',
+            category_id: resolvedCatId,
             user_id: currentUserId,
             family_id: currentFamilyId,
             merchant: act.details.merchant || 'Sesli Harcama',
@@ -159,17 +170,31 @@ export async function POST(req: Request) {
           }
           results.push(`💧 +${amount} ml Su (Toplam: ${current} ml)`);
         } else if (act.type === 'reading') {
-          const pages = Number(act.details.pages) || 10;
-          const activeBook = currentUserId
-            ? ((await db.select().from(books).where(and(eq(books.user_id, currentUserId), eq(books.status, 'reading'))).limit(1))[0]
-               || (await db.select().from(books).where(eq(books.user_id, currentUserId)).limit(1))[0]
-               || (await db.select().from(books).where(eq(books.status, 'reading')).limit(1))[0])
-            : (await db.select().from(books).where(eq(books.status, 'reading')).limit(1))[0];
+          const pages = Math.max(1, Number(act.details.pages) || 10);
+          if (currentUserId) {
+            const visibleBookScope = currentFamilyId
+              ? or(eq(books.user_id, currentUserId), and(eq(books.family_id, currentFamilyId), eq(books.is_family_shared, 1)))
+              : eq(books.user_id, currentUserId);
+            const activeBook =
+              (await db.select().from(books).where(and(visibleBookScope, eq(books.status, 'reading'))).limit(1))[0]
+              || (await db.select().from(books).where(visibleBookScope).limit(1))[0];
 
-          if (activeBook) {
-            const newPage = Math.min(activeBook.total_pages, (activeBook.current_page || 0) + pages);
-            await db.update(books).set({ current_page: newPage, updated_at: nowISO }).where(eq(books.id, activeBook.id));
-            results.push(`📚 ${activeBook.title} (+${pages} sayfa ➔ ${newPage}. sayfa)`);
+            if (activeBook) {
+              const rawTarget = (activeBook.current_page || 0) + pages;
+              const newPage = activeBook.total_pages > 0
+                ? Math.min(activeBook.total_pages, rawTarget)
+                : rawTarget;
+              const isCompleted = activeBook.total_pages > 0 && newPage >= activeBook.total_pages;
+              const todayTr = getTodayTurkeyDate();
+              await db.update(books).set({
+                current_page: newPage,
+                status: isCompleted ? 'completed' : 'reading',
+                start_date: activeBook.start_date || todayTr,
+                finish_date: isCompleted ? (activeBook.finish_date || todayTr) : activeBook.finish_date,
+                updated_at: nowISO
+              }).where(eq(books.id, activeBook.id));
+              results.push(`📚 ${activeBook.title} (+${pages} sayfa ➔ ${newPage}. sayfa)`);
+            }
           }
         } else if (act.type === 'shopping') {
           const id = `shop-voice-${Date.now()}`;
@@ -323,17 +348,17 @@ function parseVoiceCommandText(rawText: string): ParsedAction[] {
       }
       if (text.includes('benzin') || text.includes('yakıt') || text.includes('shell') || text.includes('opet') || text.includes('petrol')) {
         merchant = merchant === 'Genel Harcama' ? 'Akaryakıt Harcaması' : merchant;
-        categoryId = 'cat-arac';
+        categoryId = 'cat-ulasim';
       } else if (text.includes('fatura') || text.includes('elektrik') || text.includes('su') || text.includes('internet')) {
         categoryId = 'cat-fatura';
       } else if (text.includes('kahve') || text.includes('yemek') || text.includes('restoran') || text.includes('cafe')) {
-        categoryId = 'cat-sosyal';
+        categoryId = 'cat-eeglence';
       }
 
       actions.push({
         type: 'expense',
         title: `${merchant} Harcaması`,
-        icon: categoryId === 'cat-arac' ? '⛽' : categoryId === 'cat-fatura' ? '⚡' : '💳',
+        icon: categoryId === 'cat-ulasim' ? '⛽' : categoryId === 'cat-fatura' ? '⚡' : '💳',
         details: {
           merchant,
           amount,

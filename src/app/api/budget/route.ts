@@ -12,6 +12,7 @@ import {
   localYYYYMM
 } from '@/lib/bill-schedule';
 import { diffTurkeyCalendarDays, getTodayTurkeyDate, parseTurkeyCalendarDate } from '@/lib/date-utils';
+import { ensureFamilyCategories } from '@/lib/budget-categories';
 import { fetchLiveExchangeRates } from '@/lib/market-data';
 
 export async function GET(req: Request) {
@@ -80,12 +81,13 @@ export async function GET(req: Request) {
       };
     });
 
-    // 2. Kategoriler (Sadece çekirdek kategoriler ve bu aileye ait özel kategoriler)
-    const allCategories = await db.select().from(categories).where(
-      familyId
-        ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
-        : or(sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
-    );
+    // 2. Kategoriler (Yalnızca bu aileye ait izole kategoriler; boşsa çekirdek şablonları ilk kez oluştur)
+    let allCategories = familyId
+      ? await db.select().from(categories).where(eq(categories.family_id, familyId))
+      : [];
+    if (allCategories.length === 0 && familyId) {
+      allCategories = await ensureFamilyCategories(familyId);
+    }
     const categoryMap = new Map((allCategories).map((c: any) => [c.id, c]));
     const accountMap = new Map((accounts).map((a: any) => [a.id, a]));
 

@@ -5,7 +5,7 @@ import {
   vehicleLegalReminders, homeMaintenanceRecords,
   walletsAccounts, recurringBills, vehicles, transactions, categories
 } from '@/db/schema';
-import { eq, sql, or, and, inArray } from 'drizzle-orm';
+import { eq, or, and, inArray } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { calculateCreditCardSchedule, localYYYYMMDD } from '@/lib/bill-schedule';
 
@@ -195,13 +195,11 @@ export async function GET() {
           })
           .from(transactions)
           .where(inArray(transactions.wallet_id, creditCardIds)),
-          db.select({ id: categories.id, type: categories.type })
-            .from(categories)
-            .where(
-              familyId
-                ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
-                : or(sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
-            )
+          familyId
+            ? db.select({ id: categories.id, type: categories.type })
+                .from(categories)
+                .where(eq(categories.family_id, familyId))
+            : Promise.resolve([])
         ])
       : [[], []];
 

@@ -416,13 +416,11 @@ export async function GET(req: Request) {
               notes: transactions.notes,
               category_id: transactions.category_id
             }).from(transactions).where(inArray(transactions.wallet_id, ccIds)),
-            db.select({ id: categories.id, type: categories.type })
-              .from(categories)
-              .where(
-                familyId
-                  ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
-                  : or(sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
-              )
+            familyId
+              ? db.select({ id: categories.id, type: categories.type })
+                  .from(categories)
+                  .where(eq(categories.family_id, familyId))
+              : Promise.resolve([])
           ])
         : [[], []];
 

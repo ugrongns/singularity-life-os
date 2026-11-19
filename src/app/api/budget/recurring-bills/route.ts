@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db, initDatabase } from '@/db';
 import { recurringBills, walletsAccounts, categories, transactions } from '@/db/schema';
-import { eq, and, or, sql } from 'drizzle-orm';
+import { eq, and, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { calculateBillSchedule, localYYYYMM } from '@/lib/bill-schedule';
+import { ensureFamilyCategories, normalizeCategoryTemplateBaseId, resolveCategoryIdForFamily } from '@/lib/budget-categories';
 import { getTodayTurkeyDate, parseTurkeyCalendarDate } from '@/lib/date-utils';
 
 export async function GET(req: Request) {
@@ -47,11 +48,9 @@ export async function GET(req: Request) {
         );
     const walletMap = new Map((rawWallets).map((w: any) => [w.id, w.name]));
 
-    const rawCats = await db.select().from(categories).where(
-      familyId
-        ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
-        : or(sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
-    );
+    const rawCats = familyId
+      ? await db.select().from(categories).where(eq(categories.family_id, familyId))
+      : [];
     const categoryMap = new Map((rawCats).map((c: any) => [c.id, { name: c.name, icon: c.icon, color: c.color }]));
 
     let totalMonthly = 0;
@@ -154,6 +153,19 @@ export async function POST(req: Request) {
       }
     }
 
+    let resolvedCategoryId: string | null = category_id || null;
+    if (category_id && familyId) {
+      resolvedCategoryId = resolveCategoryIdForFamily(familyId, category_id);
+      let catRow = (await db.select().from(categories).where(and(eq(categories.id, resolvedCategoryId), eq(categories.family_id, familyId))))[0];
+      if (!catRow && normalizeCategoryTemplateBaseId(category_id)) {
+        await ensureFamilyCategories(familyId);
+        catRow = (await db.select().from(categories).where(and(eq(categories.id, resolvedCategoryId), eq(categories.family_id, familyId))))[0];
+      }
+      if (!catRow) {
+        return NextResponse.json({ success: false, error: 'Seçilen kategoriye erişim yetkiniz yok.' }, { status: 403 });
+      }
+    }
+
     const todayISO = getTodayTurkeyDate();
     const today = parseTurkeyCalendarDate(todayISO);
     const currentMonth = localYYYYMM(today);
@@ -172,7 +184,7 @@ export async function POST(req: Request) {
       amount_type: amount_type === 'variable' ? 'variable' : 'fixed',
       is_auto_pay: is_auto_pay ? 1 : 0,
       auto_pay_wallet_id: auto_pay_wallet_id || null,
-      category_id: category_id || null,
+      category_id: resolvedCategoryId,
       last_paid_month: is_paid_current_period ? currentMonth : null,
       last_paid_date: is_paid_current_period ? todayISO : null,
       notes: notes?.trim() || null,
@@ -243,6 +255,19 @@ export async function PUT(req: Request) {
       }
     }
 
+    let resolvedCategoryId: string | null = category_id || null;
+    if (category_id && familyId) {
+      resolvedCategoryId = resolveCategoryIdForFamily(familyId, category_id);
+      let catRow = (await db.select().from(categories).where(and(eq(categories.id, resolvedCategoryId), eq(categories.family_id, familyId))))[0];
+      if (!catRow && normalizeCategoryTemplateBaseId(category_id)) {
+        await ensureFamilyCategories(familyId);
+        catRow = (await db.select().from(categories).where(and(eq(categories.id, resolvedCategoryId), eq(categories.family_id, familyId))))[0];
+      }
+      if (!catRow) {
+        return NextResponse.json({ success: false, error: 'Seçilen kategoriye erişim yetkiniz yok.' }, { status: 403 });
+      }
+    }
+
     const todayISO = getTodayTurkeyDate();
     const today = parseTurkeyCalendarDate(todayISO);
     const currentMonth = localYYYYMM(today);
@@ -259,7 +284,7 @@ export async function PUT(req: Request) {
       amount_type: amount_type === 'variable' ? 'variable' : 'fixed',
       is_auto_pay: is_auto_pay ? 1 : 0,
       auto_pay_wallet_id: auto_pay_wallet_id || null,
-      category_id: category_id || null,
+      category_id: resolvedCategoryId,
       notes: notes !== undefined ? (notes?.trim() || null) : undefined,
       status: status || 'active',
       updated_at: now

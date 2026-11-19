@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { db, initDatabase } from '@/db';
 import { users, families, authSessions, appSettings, userHealthProfile, userReadingProfile, walletsAccounts, familyInvites, familyMembers } from '@/db/schema';
 import { hashPassword, hashPin, generateSessionToken } from '@/lib/auth';
+import { ensureFamilyCategories } from '@/lib/budget-categories';
 import { eq, and, gt } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
@@ -123,6 +124,10 @@ export async function POST(req: Request) {
         created_at: now,
         updated_at: now
       });
+
+      try {
+        await ensureFamilyCategories(familyId);
+      } catch {}
     }
 
     // Hash password & PIN (asenkron, bağımsız salt)

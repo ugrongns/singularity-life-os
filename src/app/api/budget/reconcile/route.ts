@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { walletsAccounts, transactions, categories } from '@/db/schema';
-import { eq, and, or, sql } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { eventBus, EVENTS } from '@/lib/events';
 import { getAuthUser } from '@/lib/auth';
 import { getTodayTurkeyDate } from '@/lib/date-utils';
@@ -74,12 +74,12 @@ export async function POST(req: Request) {
     const targetType = isIncome ? 'income' : 'expense';
 
     if (diff !== 0) {
-      // Mutabakat kategorisini bul veya oluştur (Hane izolasyonu denetimli)
+      // Mutabakat kategorisini bul veya oluştur (Sadece kullanıcının kendi ailesi için izole)
       let cat = (await db.select().from(categories).where(
         and(
           eq(categories.name, 'Bakiye Mutabakatı'),
           eq(categories.type, targetType),
-          familyId ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`) : sql`1=1`
+          eq(categories.family_id, familyId)
         )
       ).limit(1))[0];
 

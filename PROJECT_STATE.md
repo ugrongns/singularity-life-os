@@ -1,7 +1,7 @@
 # Singularity Life OS — Canlı Proje Durumu (`PROJECT_STATE.md`)
 
 > **Son Güncelleme:** 2026-11-19  
-> **Aktif Dal:** `main` (`!denetle analitik` denetim, mahremiyet, finans/TR saat dilimi doğrulaması, isteğe bağlı TÜFE ayarı ve canlı responsive UI kapanışı)  
+> **Aktif Dal:** `main` (Çok kiracılı aile-izole kategori göçü, mobil header, dev rozeti & hesap silme kapsam düzeltmesi)  
 > **Canlı Ortam:** Vercel (`https://singularity-life-os.vercel.app`) + Supabase PostgreSQL (`eu-central-1`)
 
 ---
@@ -13,13 +13,16 @@
   - `/` (Ana Akış & Özet), `/budget` (Bütçe & Nakit Akışı), `/analytics` (5x20 Holistik Skor, FIRE & Yaşam Takvimi Isı Haritası), `/tasks` (Görevler, MIT, Alt Görevler, Yinelenme, Pomodoro/Odak, Aylık Takvim), `/vehicles` (Araç & Ev), `/library` (Kütüphane), `/health` (Beslenme, Oruç, Antrenman), `/wellness` & `/boost` (Wellness, Takviye, Uyku, Tartı), `/vault` (Dijital Kasa), `/shopping` (Alışveriş Listesi), `/settings`, `/welcome`, `/auth`.
 - **Doğrulama Durumu (`2026-11-19` itibarıyla):**
   - `npm run typecheck` (`tsc --noEmit`): Geçiyor (`exit 0`).
-  - `npm run lint` (`eslint .` — `eslint.config.mjs`): Sıfır hata (`exit 0`).
-  - `npm run test` (`vitest run`): `23` dosya / `350` test geçiyor (`exit 0`; yeni `tests/analytics-audit.test.ts` içinde `7` analitik regresyon testi).
+  - `npm run lint` (`eslint .` — `eslint.config.mjs`): Sıfır hata (`exit 0`, `260` legacy uyarı).
+  - `npm run test` (`vitest run`): Çalışma ağacında `23` dosya / `351` test geçiyor (`exit 0`; `tests/budget-audit.test.ts` içinde `8`, `tests/analytics-audit.test.ts` içinde `7` test).
   - `npm run verify` / `npm run verify:full` (`next build` dahil): Geçiyor (`exit 0`).
 
 ---
 
 ## 2. Son Tamamlanan İşler
+- **[2026-11-19]** **Çok Kiracılı Aile-İzole Kategori Mimarisi & İsteğe Bağlı Kapanış İyileştirmeleri (`src/lib/budget-categories.ts`, `src/db/index.ts`, `next.config.mjs`):**
+  - *Çok Kiracılı Kategori Göçü & İzolasyonu:* Küresel `family_id IS NULL` seed kategorileri (`cat-maas ... cat-diger`) `src/db/index.ts` içinde idempotent PostgreSQL bloklarıyla her aileye kopyalanıp (`cat-<slug>-<familyId>`) mevcut `transactions.category_id` ve `recurring_bills.category_id` kayıtlarına aktarıldı (`register`, `reset-user-data`, `delete-account` yaşam döngüleri dahil). `categories`, `category-details`, `budget`, `card-statement`, `reconcile`, `recurring-bills`, `transactions`, `analytics`, `notifications`, `tasks`, `shopping-list`, `telegram`, `voice-command` ve `events.ts` uçlarından `family_id IS NULL` paylaşımı kaldırılıp şablon eşleştirmesi `resolveCategoryIdForFamily` ile aile sınırına alındı (ayrıca `voice-command` içindeki `cat-arac`/`cat-sosyal` alias'ları `cat-ulasim`/`cat-eeglence`'ye bağlandı).
+  - *`delete-account` & İyileştirmeler:* [delete-account/route.ts](file:///C:/Users/uguro/Documents/Projeler/singularity/src/app/api/auth/delete-account/route.ts) içindeki küresel `like(appSettings.key, 'telegram_%')` silme işlemi yalnızca kullanıcı/aile anahtarlarıyla sınırlandırılıp aile `categories` temizliği eklendi; [next.config.mjs](file:///C:/Users/uguro/Documents/Projeler/singularity/next.config.mjs) içinde `devIndicators: false` ile dev `N` rozeti kaldırıldı; [SharedLayout.tsx](file:///C:/Users/uguro/Documents/Projeler/singularity/src/components/layout/SharedLayout.tsx) & [globals.css](file:///C:/Users/uguro/Documents/Projeler/singularity/src/styles/globals.css) üzerinde `390px` mobil header aksiyonları `32px` yapılarak `"Singularity v2.1"` başlığının kesintisiz sığması sağlandı (`npm run verify:full`, `351/351` test ve canlı Supabase kategori detayı/CRUD + `390x844` doğrulandı).
 - **[2026-11-19]** `!denetle analitik` modül denetimi, opsiyonel iyileştirmeler & kapanış düzeltmeleri (`tests/analytics-audit.test.ts`):
   - *BOLA & Kişisel Mahremiyet:* `/api/analytics/calendar` içinde `waterIntakeLogs` sorgusu `family_id` sızıntısından arındırılıp yalnızca `user_id` ile sınırlandı; `/api/analytics` `walletsAccounts` ortak (`user_id IS NULL`) hesapları ve `categories` küresel seed (`family_id IS NULL`) kategorilerini (`income` limitleri gider bütçesinden ayrılarak) kapsadı.
   - *Finansal Matematik, TR Takvim & Lazy Reset:* `📥 Gelen Transfer`, `💳 Kart Ödeme Tahsilatı`, `Vadeli Mevduat Açılışı/Dönüşü`, `Kredi Çekim Anaparası` ve `🤝 Şahıs/Şahsa` satırları gider/enflasyondan ayrıştırıldı; `💵 Vadeli Mevduat Faiz Geliri`, dövizli `time_deposit` pasif getirileri ve yabancı para birimli işlemler TRY'ye çevrildi. Sentetik `totalBudgetLimit * 1.2` geliri kaldırılıp son 3 ay gerçek ortalama geliri bağlandı. `calendar-heatmap.ts` oruç bitişleri `toTurkeyDay` (`Europe/Istanbul`) gününe ve `supplementRoutines` `last_taken_date === today` kontrolüne çekildi.
@@ -47,8 +50,7 @@
 ---
 
 ## 3. Bilinen Açıklar & Sonraki Öncelikli Adımlar
-1. **Küresel Seed Kategoriler (`family_id IS NULL`) Çok Kiracılı İzolasyonu (Onay Gerektirir):** `src/db/index.ts` içinde seed edilen 8 varsayılan kategori (`cat-maas`, `cat-market` vb.) `family_id = NULL` ortak kayıt olarak tutulduğundan `categories/route.ts` lider güncellemelerinin aile bazlı şablon kopyalamasına taşınması için mimari/veri göçü planı onaylanmalıdır.
-2. **ESLint Uyarıları & Tip Sıkılaştırma:** Mevcut legacy uyarılarda (`no-unused-vars`, `exhaustive-deps`, `no-img-element`) hata yok; ileride ayrı küçük adımlarla temizlenip `@typescript-eslint/no-explicit-any` kademeli açılabilir.
-3. **Test Kapsamı Gerçekliği:** Mevcut test dosyaları `@/db` katmanını bellek içi mock'larla çalıştırıyor; kritik kullanıcı akışları için canlı UI/E2E smoke kontrolleri artırılmalı.
-4. **Büyük Dosyaların Bölünmesi:** `src/components/tasks/TasksClient.tsx`, `src/app/api/tasks/route.ts` ve `src/lib/tasks-engine.ts` sonraki görevlerde küçük parçalara ayrılabilir.
-5. **Vercel Serverless Kütüphane ISBN Sorunu:** Bazı ISBN'lerde (ör. `9786254416170`) canlı Vercel ortamında dış kaynak timeout/IP kısıtı yaşanabiliyor.
+1. **ESLint Uyarıları & Tip Sıkılaştırma:** Mevcut legacy uyarılarda (`no-unused-vars`, `exhaustive-deps`, `no-img-element`) hata yok; ileride ayrı küçük adımlarla temizlenip `@typescript-eslint/no-explicit-any` kademeli açılabilir.
+2. **Test Kapsamı Gerçekliği:** Mevcut test dosyaları `@/db` katmanını bellek içi mock'larla çalıştırıyor; kritik kullanıcı akışları için canlı UI/E2E smoke kontrolleri artırılmalı.
+3. **Büyük Dosyaların Bölünmesi:** `src/components/tasks/TasksClient.tsx`, `src/app/api/tasks/route.ts` ve `src/lib/tasks-engine.ts` sonraki görevlerde küçük parçalara ayrılabilir.
+4. **Vercel Serverless Kütüphane ISBN Sorunu:** Bazı ISBN'lerde (ör. `9786254416170`) canlı Vercel ortamında dış kaynak timeout/IP kısıtı yaşanabiliyor.

@@ -41,9 +41,11 @@ import {
   sinkingFunds,
   transactions,
   walletsAccounts,
+  categories,
   recurringBills,
   tasks
 } from '@/db/schema';
+import { ensureFamilyCategories } from '@/lib/budget-categories';
 import { eq, and, or } from 'drizzle-orm';
 
 export async function POST(req: Request) {
@@ -64,12 +66,14 @@ export async function POST(req: Request) {
     await db.transaction(async (tx) => {
       // 1. KİŞİSEL VERİLERİN GÜVENLİ TEMİZLİĞİ (Tüm reset işlemlerinde o kullanıcının kişisel verileri temizlenir)
       
-      // Kitaplar ve okuma seansları
+      // Kitaplar ve okuma seansları (Paylaşılan kitaplara eklenen kişisel seans/alıntılar dahil)
       const userBooks = await tx.select({ id: books.id }).from(books).where(eq(books.user_id, userId));
       for (const b of userBooks) {
         await tx.delete(readingSessions).where(eq(readingSessions.book_id, b.id));
         await tx.delete(bookQuotes).where(eq(bookQuotes.book_id, b.id));
       }
+      await tx.delete(readingSessions).where(eq(readingSessions.user_id, userId));
+      await tx.delete(bookQuotes).where(eq(bookQuotes.user_id, userId));
       await tx.delete(books).where(eq(books.user_id, userId));
       await tx.delete(userReadingProfile).where(eq(userReadingProfile.user_id, userId));
 
@@ -146,14 +150,19 @@ export async function POST(req: Request) {
         await tx.delete(importantDates).where(eq(importantDates.family_id, familyId));
         await tx.delete(petRecords).where(eq(petRecords.family_id, familyId));
 
-        // Market listesi, Kumbaralar & Görevler
+        // Market listesi, Kumbaralar, Kütüphane & Görevler
+        await tx.delete(readingSessions).where(eq(readingSessions.family_id, familyId));
+        await tx.delete(bookQuotes).where(eq(bookQuotes.family_id, familyId));
+        await tx.delete(books).where(eq(books.family_id, familyId));
         await tx.delete(shoppingListItems).where(eq(shoppingListItems.family_id, familyId));
         await tx.delete(sinkingFunds).where(eq(sinkingFunds.family_id, familyId));
         await tx.delete(tasks).where(or(eq(tasks.user_id, userId), eq(tasks.family_id, familyId)));
 
-        // Bütçe işlemleri, Periyodik Faturalar ve Cüzdanlar (Önce transactions, sonra cüzdanlar)
+        // Bütçe işlemleri, Periyodik Faturalar, Kategoriler ve Cüzdanlar (Önce transactions & bills, sonra kategoriler & cüzdanlar)
         await tx.delete(transactions).where(eq(transactions.family_id, familyId));
         await tx.delete(recurringBills).where(eq(recurringBills.family_id, familyId));
+        await tx.delete(categories).where(eq(categories.family_id, familyId));
+        await ensureFamilyCategories(familyId, tx);
         await tx.delete(walletsAccounts).where(eq(walletsAccounts.family_id, familyId));
 
         // Admin için varsayılan boş cüzdan aç

@@ -22,6 +22,12 @@ const {
 
 vi.mock('@/lib/auth', () => ({
   getAuthUser: mockGetAuthUser,
+  verifyPassword: vi.fn().mockResolvedValue(true),
+  clearAuthSessionCache: vi.fn(),
+}));
+
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({ delete: vi.fn() }),
 }));
 
 vi.mock('@/lib/market-data', () => ({
@@ -42,8 +48,10 @@ vi.mock('@/db', () => ({
 import { GET as getBudget } from '../src/app/api/budget/route';
 import { POST as postTransaction, DELETE as deleteTransaction } from '../src/app/api/transactions/route';
 import { POST as postAccount } from '../src/app/api/budget/accounts/route';
-import { POST as postCategory } from '../src/app/api/budget/categories/route';
+import { POST as postCategory, DELETE as deleteCategory } from '../src/app/api/budget/categories/route';
+import { GET as getCategoryDetails } from '../src/app/api/budget/category-details/route';
 import { PATCH as patchRecurringBill } from '../src/app/api/budget/recurring-bills/route';
+import { POST as postDeleteAccount } from '../src/app/api/auth/delete-account/route';
 import {
   GET as getPersonalDebts,
   POST as postPersonalDebt,
@@ -112,7 +120,13 @@ function createMockDbHarness(tableQueues: TableDataMap) {
   const makeInsert = (table: unknown) => ({
     values: (vals: unknown) => {
       inserted.push({ table, values: vals });
-      return Promise.resolve(Array.isArray(vals) ? vals : [vals]);
+      const resolved = Array.isArray(vals) ? vals : [vals];
+      const ret: Record<string, unknown> = {
+        onConflictDoNothing: () => Promise.resolve(resolved),
+        then: (onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) =>
+          Promise.resolve(resolved).then(onFulfilled, onRejected),
+      };
+      return ret;
     },
   });
 
@@ -198,7 +212,7 @@ describe('💰 Bütçe Modülü (!denetle bütçe) Regresyon & Güvenlik Testler
       id: `tx-fill-${idx}`,
       user_id: 'user-1',
       wallet_id: 'w-1',
-      category_id: 'cat-market',
+      category_id: 'cat-market-fam-1',
       amount: 100,
       merchant: `Market ${idx}`,
       transaction_date: `${currentMonth}-02`,
@@ -216,8 +230,8 @@ describe('💰 Bütçe Modülü (!denetle bütçe) Regresyon & Güvenlik Testler
         schema.categories,
         [
           [
-            { id: 'cat-market', family_id: null, name: 'Market', icon: '🛒', monthly_budget_limit: 5000, group_50_30_20: 'needs' },
-            { id: 'cat-maas', family_id: null, name: 'Maaş & Gelir', icon: '💰', monthly_budget_limit: 0, group_50_30_20: 'savings' },
+            { id: 'cat-market-fam-1', family_id: 'fam-1', name: 'Market', icon: '🛒', monthly_budget_limit: 5000, group_50_30_20: 'needs' },
+            { id: 'cat-maas-fam-1', family_id: 'fam-1', name: 'Maaş & Gelir', icon: '💰', monthly_budget_limit: 0, group_50_30_20: 'savings' },
           ],
         ],
       ],
@@ -608,5 +622,126 @@ describe('💰 Bütçe Modülü (!denetle bütçe) Regresyon & Güvenlik Testler
     expect(delRes.status).toBe(200);
     // Verilen borç (receivable) silinirken başlangıçta düşülen 2500 TRY geri eklenir -> 5000 + 2500 = 7500
     expect(harnessDel.updated[0].set).toMatchObject({ balance: 7500 });
+  });
+
+  it('Çok kiracılı kategori izolasyonu: aileler arası seed güncelleme/detay BOLA engeli, şablon çözümü ve delete-account telegram_% izolasyonu', async () => {
+    // 1. Aile B yöneticisi yalnızca kendi cat-market-fam-2 kopyasını güncelleyebilir; başka ailenin kategorisi ve null family_id reddedilir (403)
+    mockGetAuthUser.mockResolvedValue({
+      id: 'user-b',
+      family_id: 'fam-2',
+      role: 'admin',
+      is_master_account: 1,
+    });
+
+    const catUpdateQueues = new Map<unknown, unknown[][]>([
+      [schema.walletsAccounts, [[]]],
+      [
+        schema.categories,
+        [
+          [{ id: 'cat-market-fam-2', family_id: 'fam-2', name: 'Market', type: 'expense', monthly_budget_limit: 0 }],
+          [{ id: 'cat-market-fam-2', family_id: 'fam-2', name: 'Market', type: 'expense', monthly_budget_limit: 0 }],
+        ],
+      ],
+    ]);
+    const harnessCatB = createMockDbHarness(catUpdateQueues);
+    const ownSeedUpdate = await postCategory(
+      new Request('http://localhost/api/budget/categories', {
+        method: 'POST',
+        body: JSON.stringify({ id: 'cat-market', name: 'Aile B Market', monthly_budget_limit: 2500 }),
+      })
+    );
+    expect(ownSeedUpdate.status).toBe(200);
+    expect(harnessCatB.updated[0].whereSql).toContain('cat-market-fam-2');
+    expect(harnessCatB.updated[0].whereSql).toContain('fam-2');
+
+    // Başka aile kategorisi veya family_id: null kategori güncellemesi 403 dönmeli
+    const foreignCatQueues = new Map<unknown, unknown[][]>([
+      [schema.walletsAccounts, [[]]],
+      [
+        schema.categories,
+        [
+          [],
+          [{ id: 'cat-market-fam-1', family_id: 'fam-1', name: 'Aile A Market', type: 'expense', monthly_budget_limit: 5000 }],
+        ],
+      ],
+    ]);
+    createMockDbHarness(foreignCatQueues);
+    const foreignUpdate = await postCategory(
+      new Request('http://localhost/api/budget/categories', {
+        method: 'POST',
+        body: JSON.stringify({ id: 'cat-market-fam-1', name: 'Sızma', monthly_budget_limit: 100 }),
+      })
+    );
+    expect(foreignUpdate.status).toBe(403);
+
+    // 2. DELETE /api/budget/categories aile çekirdek kategorisini 400 ile engeller
+    createMockDbHarness(
+      new Map<unknown, unknown[][]>([
+        [schema.categories, [[{ id: 'cat-market-fam-2', family_id: 'fam-2', name: 'Market' }]]],
+      ])
+    );
+    const delSeedRes = await deleteCategory(
+      new Request('http://localhost/api/budget/categories?id=cat-market-fam-2', { method: 'DELETE' })
+    );
+    expect(delSeedRes.status).toBe(400);
+
+    // 3. GET /api/budget/category-details family_id: null olan kayda 403 döner
+    createMockDbHarness(
+      new Map<unknown, unknown[][]>([
+        [schema.categories, [[{ id: 'cat-orphan', family_id: null, name: 'Yetim Kategori', type: 'expense' }]]],
+      ])
+    );
+    const detRes = await getCategoryDetails(
+      new Request('http://localhost/api/budget/category-details?category_id=cat-orphan')
+    );
+    expect(detRes.status).toBe(403);
+
+    // 4. POST /api/transactions template 'cat-market' geldiğinde eksikse aile kategorilerini seed edip 'cat-market-fam-2' olarak kaydeder
+    const txSeedQueues = new Map<unknown, unknown[][]>([
+      [
+        schema.walletsAccounts,
+        [[{ id: 'w-b1', user_id: 'user-b', family_id: 'fam-2', name: 'B Bankası', type: 'bank', balance: 5000, is_active: 1, is_family_shared: 1 }]],
+      ],
+      [schema.categories, [[]]],
+    ]);
+    const harnessTxSeed = createMockDbHarness(txSeedQueues);
+    const txRes = await postTransaction(
+      new Request('http://localhost/api/transactions', {
+        method: 'POST',
+        body: JSON.stringify({ wallet_id: 'w-b1', category_id: 'cat-market', amount: 120, merchant: 'Migros', type: 'expense' }),
+      })
+    );
+    expect(txRes.status).toBe(200);
+    const catSeedInsert = harnessTxSeed.inserted.find(e => e.table === schema.categories);
+    expect(catSeedInsert).toBeDefined();
+    const txInsert = harnessTxSeed.inserted.find(e => e.table === schema.transactions);
+    expect((txInsert?.values as { category_id: string }).category_id).toBe('cat-market-fam-2');
+
+    // 5. POST /api/auth/delete-account küresel 'telegram_%' silmemeli ve ailenin categories kayıtlarını temizlemeli
+    mockGetAuthUser.mockResolvedValue({
+      id: 'user-1',
+      family_id: 'fam-1',
+      role: 'admin',
+      password_hash: 'h',
+      password_salt: 's',
+    });
+    const delAccHarness = createMockDbHarness(new Map<unknown, unknown[][]>());
+    const delAccRes = await postDeleteAccount(
+      new Request('http://localhost/api/auth/delete-account', {
+        method: 'POST',
+        body: JSON.stringify({ password: 'secret-password' }),
+      })
+    );
+    expect(delAccRes.status).toBe(200);
+
+    const catDeletes = delAccHarness.deleted.filter(d => d.table === schema.categories);
+    expect(catDeletes.length).toBe(1);
+    expect(catDeletes[0].whereSql).toContain('fam-1');
+
+    const appSettingsDeletes = delAccHarness.deleted.filter(d => d.table === schema.appSettings);
+    expect(appSettingsDeletes.length).toBe(1);
+    expect(appSettingsDeletes[0].whereSql).not.toContain('"telegram_%"');
+    expect(appSettingsDeletes[0].whereSql).toContain('fam-1');
+    expect(appSettingsDeletes[0].whereSql).toContain('user-1');
   });
 });

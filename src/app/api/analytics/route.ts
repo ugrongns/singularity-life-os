@@ -158,11 +158,9 @@ export async function GET() {
     let txCountThisMonth = 0;
 
     try {
-      const allCats = await db.select().from(categories).where(
-        familyId
-          ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
-          : or(sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
-      );
+      const allCats = familyId
+        ? await db.select().from(categories).where(eq(categories.family_id, familyId))
+        : [];
       totalBudgetLimit = allCats
         .filter((c: any) => c.type !== 'income')
         .reduce((sum: number, c: any) => sum + (Number(c.monthly_budget_limit) || 0), 0);

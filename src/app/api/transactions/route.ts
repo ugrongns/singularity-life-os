@@ -4,8 +4,9 @@ import { getAuthUser } from '@/lib/auth';
 import { db, initDatabase } from '@/db';
 import { transactions, walletsAccounts, categories, familyMembers } from '@/db/schema';
 import { eventBus, EVENTS } from '@/lib/events';
-import { eq, or, and, like, sql } from 'drizzle-orm';
+import { eq, and, like } from 'drizzle-orm';
 import { addMonthsSafe, parseLocalYYYYMMDD } from '@/lib/bill-schedule';
+import { ensureFamilyCategories, normalizeCategoryTemplateBaseId, resolveCategoryIdForFamily } from '@/lib/budget-categories';
 import { getTodayTurkeyDate, parseTurkeyCalendarDate } from '@/lib/date-utils';
 
 export async function POST(req: Request) {
@@ -48,17 +49,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu hesap sizin veya ailenizin paylaşımlı hesabına ait değil.' }, { status: 403 });
     }
 
-    // 1. İşlemin Gelir mi Gider mi Olduğunu Belirle (Kategori aile/sistem sınırı kontrollü)
+    // 1. İşlemin Gelir mi Gider mi Olduğunu Belirle (Yalnızca aileye ait izole kategoriler)
     let category: any = null;
     if (category_id) {
+      const targetCatId = familyId ? resolveCategoryIdForFamily(familyId, category_id) : category_id;
       category = (await db.select().from(categories).where(
-        and(
-          eq(categories.id, category_id),
-          familyId
-            ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
-            : or(sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
-        )
+        familyId
+          ? and(eq(categories.id, targetCatId), eq(categories.family_id, familyId))
+          : eq(categories.id, targetCatId)
       ))[0] || null;
+      if (!category && familyId && normalizeCategoryTemplateBaseId(category_id)) {
+        const seeded = await ensureFamilyCategories(familyId);
+        category = seeded.find(c => c.id === targetCatId) || null;
+      }
       if (!category) {
         return NextResponse.json({ success: false, error: 'Seçilen kategori bulunamadı veya erişim yetkiniz yok.' }, { status: 403 });
       }

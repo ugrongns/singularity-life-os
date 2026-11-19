@@ -5,6 +5,7 @@ import { eq, and, or, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { eventBus, EVENTS } from '@/lib/events';
 import { getTodayTurkeyDate } from '@/lib/date-utils';
+import { ensureFamilyCategories, getFamilySeedCategoryId } from '@/lib/budget-categories';
 
 export async function GET() {
   try {
@@ -222,15 +223,32 @@ export async function POST(request: Request) {
         newBalance = Math.max(0, (wallet.balance || 0) - totalAmount);
       }
 
-      // Kategori eşleştirme (Doğru ID: cat-market / 'Market & Gıda')
+      // Kategori eşleştirme (Aileye izole 'Market & Gıda' kategorisi)
+      const expectedMarketCatId = familyId ? getFamilySeedCategoryId('cat-market', familyId) : 'cat-market';
       const marketCat = (await db.select().from(categories).where(
-        or(
-          eq(categories.id, 'cat-market'),
-          eq(categories.name, 'Market & Gıda'),
-          eq(categories.name, 'Market'),
-          eq(categories.name, 'Gıda & Mutfak')
-        )
+        familyId
+          ? and(
+              eq(categories.family_id, familyId),
+              or(
+                eq(categories.id, expectedMarketCatId),
+                eq(categories.name, 'Market & Gıda'),
+                eq(categories.name, 'Market'),
+                eq(categories.name, 'Gıda & Mutfak')
+              )
+            )
+          : or(
+              eq(categories.id, 'cat-market'),
+              eq(categories.name, 'Market & Gıda'),
+              eq(categories.name, 'Market'),
+              eq(categories.name, 'Gıda & Mutfak')
+            )
       ).limit(1))[0];
+
+      let resolvedMarketCatId = marketCat?.id || null;
+      if (!resolvedMarketCatId && familyId) {
+        await ensureFamilyCategories(familyId);
+        resolvedMarketCatId = expectedMarketCatId;
+      }
 
       const txId = `tx-shop-${Date.now()}`;
       const itemNames = (checkedItems).map((i: any) => i.name).join(', ');
@@ -249,7 +267,7 @@ export async function POST(request: Request) {
         await tx.insert(transactions).values({
           id: txId,
           wallet_id: walletId,
-          category_id: marketCat?.id || 'cat-market',
+          category_id: resolvedMarketCatId,
           merchant: 'Market Alışverişi',
           amount: totalAmount,
           currency: wallet.currency || 'TRY',
@@ -277,7 +295,7 @@ export async function POST(request: Request) {
         amount: totalAmount,
         merchant: 'Market Alışverişi',
         wallet_id: walletId,
-        category_id: marketCat?.id || 'cat-market',
+        category_id: resolvedMarketCatId,
         userId: user.id,
         familyId
       });

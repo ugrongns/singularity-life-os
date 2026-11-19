@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { db, initDatabase } from '@/db';
-import { categories } from '@/db/schema';
-import { eq, or, and, sql } from 'drizzle-orm';
-
-import { walletsAccounts } from '@/db/schema';
+import { categories, walletsAccounts } from '@/db/schema';
+import { eq, and, or } from 'drizzle-orm';
+import { ensureFamilyCategories, isFamilySeedCategory, resolveCategoryIdForFamily } from '@/lib/budget-categories';
 
 export async function POST(req: Request) {
   try {
@@ -44,12 +43,13 @@ export async function POST(req: Request) {
       }
     }
 
-    // Kullanıcının yalnızca kendi hane kategorileri veya ortak sistem seed kategorileri çekilir (Cross-tenant izolasyon)
-    const allCategories = await db.select().from(categories).where(
-      familyId
-        ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
-        : or(sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
-    );
+    // Kullanıcının yalnızca kendi hanesine ait kategoriler çekilir (Çok kiracılı tam izolasyon)
+    let allCategories = familyId
+      ? await db.select().from(categories).where(eq(categories.family_id, familyId))
+      : [];
+    if (allCategories.length === 0 && familyId) {
+      allCategories = await ensureFamilyCategories(familyId);
+    }
 
     let calculatedIncome = 0;
     let currentTotalLimitExceptTarget = 0;
@@ -78,18 +78,22 @@ export async function POST(req: Request) {
 
     if (id) {
       // Güncelle
-      const seedCategories = ['cat-maas', 'cat-market', 'cat-kira', 'cat-fatura', 'cat-ulasim', 'cat-eeglence', 'cat-saglik', 'cat-diger'];
-      const existing = (await db.select().from(categories).where(eq(categories.id, id)))[0];
+      const targetId = familyId ? resolveCategoryIdForFamily(familyId, id) : id;
+      let existing = (await db.select().from(categories).where(eq(categories.id, targetId)))[0];
+      if (!existing && targetId !== id && familyId) {
+        await ensureFamilyCategories(familyId);
+        existing = (await db.select().from(categories).where(eq(categories.id, targetId)))[0];
+      }
       if (!existing) {
         return NextResponse.json({ success: false, error: 'Kategori bulunamadı.' }, { status: 404 });
       }
-      // OWASP BOLA: Özel kategoriyi sadece ait olduğu aile güncelleyebilir
-      if (existing.family_id && existing.family_id !== familyId) {
+      // OWASP BOLA: Kategori mutlaka kullanıcının kendi ailesine ait olmalıdır
+      if (!existing.family_id || existing.family_id !== familyId) {
         return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu kategori ailenize ait değil.' }, { status: 403 });
       }
 
-      // Sistem genel seed kategorilerini sadece Aile Lideri / Yönetici değiştirebilir
-      if ((!existing.family_id || seedCategories.includes(id)) && user.is_master_account !== 1 && user.role !== 'admin') {
+      // Ailenin çekirdek seed kategorilerini yalnızca Aile Lideri / Yönetici düzenleyebilir
+      if (isFamilySeedCategory(targetId, familyId) && user.is_master_account !== 1 && user.role !== 'admin') {
         return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Sistem temel kategorilerini yalnızca Aile Yöneticisi düzenleyebilir.' }, { status: 403 });
       }
 
@@ -103,8 +107,7 @@ export async function POST(req: Request) {
           color: color || '#10B981',
           updated_at: now
         })
-        .where(eq(categories.id, id))
-        ;
+        .where(and(eq(categories.id, targetId), eq(categories.family_id, familyId)));
 
       return NextResponse.json({ success: true, message: 'Kategori ve bütçe limiti güncellendi!' });
     } else {
@@ -145,24 +148,25 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Kategori ID zorunludur.' }, { status: 400 });
     }
 
+    const familyId = user.family_id || `fam-${user.id}`;
+    const targetId = resolveCategoryIdForFamily(familyId, id);
+
     // OWASP BOLA: Özel kategoriyi sadece sahibi olan aile silebilir
-    const existing = (await db.select().from(categories).where(eq(categories.id, id)))[0];
+    const existing = (await db.select().from(categories).where(eq(categories.id, targetId)))[0];
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Kategori bulunamadı.' }, { status: 404 });
     }
 
-    // Sistem çekirdek kategorileri (cat-maas, cat-market, vb.) veya global şablonlar silinemez
-    const seedCategories = ['cat-maas', 'cat-market', 'cat-kira', 'cat-fatura', 'cat-ulasim', 'cat-eeglence', 'cat-saglik', 'cat-diger'];
-    if (seedCategories.includes(id) || !existing.family_id) {
-      return NextResponse.json({ success: false, error: 'Sistem temel kategorileri silinemez. Dilerseniz bütçe limitini 0 yapabilirsiniz.' }, { status: 400 });
-    }
-
-    const familyId = user.family_id || `fam-${user.id}`;
-    if (existing.family_id && existing.family_id !== familyId) {
+    if (!existing.family_id || existing.family_id !== familyId) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu kategori ailenize ait değil.' }, { status: 403 });
     }
 
-    await db.delete(categories).where(and(eq(categories.id, id), eq(categories.family_id, familyId)));
+    // Sistem çekirdek kategorileri (aile kopyaları dahil) silinemez
+    if (isFamilySeedCategory(targetId, familyId)) {
+      return NextResponse.json({ success: false, error: 'Sistem temel kategorileri silinemez. Dilerseniz bütçe limitini 0 yapabilirsiniz.' }, { status: 400 });
+    }
+
+    await db.delete(categories).where(and(eq(categories.id, targetId), eq(categories.family_id, familyId)));
 
     return NextResponse.json({ success: true, message: 'Kategori başarıyla silindi.' });
   } catch (error: any) {

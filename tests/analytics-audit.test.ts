@@ -194,7 +194,7 @@ describe('📊 Analitik Modülü (!denetle analitik) Denetim & Regresyon Testler
     expect(summary.days[0].isNoSpend).toBe(true);
   });
 
-  it('GET /api/analytics küresel seed kategorilerini (family_id IS NULL) kapsamalı, gelir limitini gider bütçesine eklememeli ve döviz/transfer/faiz gelirini doğru hesaplamalıdır', async () => {
+  it('GET /api/analytics yalnızca aileye izole kategorileri (family_id = fam-1) kapsamalı, gelir limitini gider bütçesine eklememeli ve döviz/transfer/faiz gelirini doğru hesaplamalıdır', async () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date('2026-11-18T12:00:00Z'));
@@ -206,17 +206,17 @@ describe('📊 Analitik Modülü (!denetle analitik) Denetim & Regresyon Testler
           { id: 'w-usd-td', type: 'time_deposit', balance: 10000, currency: 'USD', interest_rate: 6, is_active: 1, user_id: null, family_id: 'fam-1', is_family_shared: 1 },
         ]],
         [schema.categories, [
-          { id: 'cat-maas', name: 'Maaş & Gelir', type: 'income', monthly_budget_limit: 90000, family_id: null },
-          { id: 'cat-market', name: 'Market & Gıda', type: 'expense', monthly_budget_limit: 20000, family_id: null },
+          { id: 'cat-maas-fam-1', name: 'Maaş & Gelir', type: 'income', monthly_budget_limit: 90000, family_id: 'fam-1' },
+          { id: 'cat-market-fam-1', name: 'Market & Gıda', type: 'expense', monthly_budget_limit: 20000, family_id: 'fam-1' },
         ]],
         [schema.transactions, [
-          // Küresel seed gelir kategorili ama merchant adında 'Maaş' geçmeyen gelir
-          { id: 'tx-sal', amount: 80000, currency: 'TRY', transaction_date: '2026-11-05', category_id: 'cat-maas', merchant: 'Acme Teknoloji A.Ş.' },
+          // Aileye izole gelir kategorili ama merchant adında 'Maaş' geçmeyen gelir
+          { id: 'tx-sal', amount: 80000, currency: 'TRY', transaction_date: '2026-11-05', category_id: 'cat-maas-fam-1', merchant: 'Acme Teknoloji A.Ş.' },
           // Vadeli mevduat faiz geliri
           { id: 'tx-int', amount: 1500, currency: 'TRY', transaction_date: '2026-11-10', category_id: null, merchant: '💵 Vadeli Mevduat Faiz Geliri', notes: 'net faiz getirisi' },
           // Gerçek giderler (Bu ay 10.000 TL, Geçen ay 8.000 TL -> +%25 enflasyon)
-          { id: 'tx-exp-cur', amount: 10000, currency: 'TRY', transaction_date: '2026-11-12', category_id: 'cat-market', merchant: 'Migros' },
-          { id: 'tx-exp-prev', amount: 8000, currency: 'TRY', transaction_date: '2026-10-12', category_id: 'cat-market', merchant: 'Migros' },
+          { id: 'tx-exp-cur', amount: 10000, currency: 'TRY', transaction_date: '2026-11-12', category_id: 'cat-market-fam-1', merchant: 'Migros' },
+          { id: 'tx-exp-prev', amount: 8000, currency: 'TRY', transaction_date: '2026-10-12', category_id: 'cat-market-fam-1', merchant: 'Migros' },
           // Geçen ay ve bu ay hariç tutulması gereken virman / anapara / tahsilat / gelir satırları
           { id: 'tx-trf-in', amount: 30000, currency: 'TRY', transaction_date: '2026-11-13', category_id: null, merchant: '📥 Gelen Transfer: Banka -> Kasa', notes: 'Özel aktarım [from_wallet:w-try]' },
           { id: 'tx-cc-col', amount: 12000, currency: 'TRY', transaction_date: '2026-11-14', category_id: null, merchant: '💳 Kart Ödeme Tahsilatı: Banka', notes: 'Ödeme [from_wallet:w-try]' },
@@ -231,9 +231,10 @@ describe('📊 Analitik Modülü (!denetle analitik) Denetim & Regresyon Testler
       expect(res.status).toBe(200);
       expect(json.success).toBe(true);
 
-      // Categories sorgusu küresel seed (family_id IS NULL) kayıtlarını da içermeli
+      // Categories sorgusu yalnızca aileye (family_id = fam-1) izole olmalı, family_id IS NULL içermemeli
       const catQuery = queries.find(q => q.table === schema.categories);
-      expect(catQuery!.sql.toLowerCase()).toContain('"categories"."family_id" is null');
+      expect(catQuery!.sql.toLowerCase()).toContain('"categories"."family_id" =');
+      expect(catQuery!.sql.toLowerCase()).not.toContain('"categories"."family_id" is null');
 
       // Wallets sorgusu ortak (user_id IS NULL) hesapları da içermeli
       const walletQuery = queries.find(q => q.table === schema.walletsAccounts);

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { walletsAccounts, transactions, categories } from '@/db/schema';
-import { eq, desc, or, sql } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { calculateCreditCardSchedule, isCardNonPurchaseTx } from '@/lib/bill-schedule';
 import { getTodayTurkeyDate, parseTurkeyCalendarDate } from '@/lib/date-utils';
@@ -45,13 +45,10 @@ export async function GET(req: Request) {
       .where(eq(transactions.wallet_id, accountId))
       .orderBy(desc(transactions.transaction_date))) as any[];
 
-    // Kategorileri çek (Sistem geneli veya aileye ait kategoriler)
-    const allCategories = await db.select().from(categories).where(
-      or(
-        sql`${categories.family_id} IS NULL`,
-        familyId ? eq(categories.family_id, familyId) : sql`1=1`
-      )
-    );
+    // Kategorileri çek (Yalnızca aileye ait kategoriler)
+    const allCategories = familyId
+      ? await db.select().from(categories).where(eq(categories.family_id, familyId))
+      : [];
     const categoryMap = new Map((allCategories).map((c: any) => [c.id, { name: c.name, type: c.type }]));
 
     const enrichedCardTx = allCardTx.map((tx: any) => {
