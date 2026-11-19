@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { readingSessions, books, userReadingProfile } from '@/db/schema';
-import { eq, desc , or } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { clampWpm } from '@/lib/module4-utils';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 export async function POST(req: Request) {
   try {
@@ -22,32 +23,66 @@ export async function POST(req: Request) {
       duration_minutes
     } = body;
 
+    if (!book_id || typeof book_id !== 'string') {
+      return NextResponse.json({ success: false, error: 'Kitap seçimi zorunludur.' }, { status: 400 });
+    }
+
     const familyId = user.family_id || `fam-${user.id}`;
     const book = (await db.select().from(books).where(eq(books.id, book_id)))[0];
     if (!book) {
       return NextResponse.json({ success: false, error: 'Kitap bulunamadı.' }, { status: 404 });
     }
 
-    // OWASP BOLA: Kitabın kullanıcıya veya ailesine ait olduğunu doğrula
-    const isOwner = book.user_id === user.id || (book.family_id && book.family_id === familyId);
+    // OWASP BOLA: Kitabın kullanıcıya veya ailesinin ortak kütüphanesine ait olduğunu doğrula
+    const isOwner = book.user_id === user.id || (book.family_id && book.family_id === familyId && book.is_family_shared === 1);
     if (!isOwner) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu kitap hesabınıza ait değil.' }, { status: 403 });
     }
 
     const currentBookPage = book.current_page || 0;
-    const start = !isNaN(parseInt(start_page, 10)) ? parseInt(start_page, 10) : currentBookPage;
-    let end = parseInt(end_page, 10);
+    const rawStart = start_page !== undefined && start_page !== null && start_page !== ''
+      ? parseInt(start_page, 10)
+      : currentBookPage;
+    if (!Number.isFinite(rawStart) || rawStart < 0) {
+      return NextResponse.json({ success: false, error: 'Başlangıç sayfası geçersiz.' }, { status: 400 });
+    }
+    const start = rawStart;
+
+    const hasExplicitEnd = end_page !== undefined && end_page !== null && end_page !== '';
+    const hasPagesCount = body.pages_read !== undefined || body.pagesRead !== undefined;
+    let end = hasExplicitEnd ? parseInt(end_page, 10) : NaN;
     let pagesRead = 0;
 
-    if (!isNaN(end) && end >= start) {
-      pagesRead = Math.max(1, end - start);
+    if (hasExplicitEnd && !hasPagesCount) {
+      if (!Number.isFinite(end) || end <= start) {
+        return NextResponse.json({ success: false, error: 'Bitiş sayfası başlangıç sayfasından büyük olmalıdır.' }, { status: 400 });
+      }
+      pagesRead = end - start;
+    } else if (!isNaN(end) && end > start) {
+      pagesRead = end - start;
     } else {
-      pagesRead = Math.max(1, parseInt(body.pages_read || body.pagesRead, 10) || 1);
-      end = Math.min(book.total_pages || 9999, start + pagesRead);
+      const rawPages = parseInt(body.pages_read ?? body.pagesRead, 10);
+      if (!Number.isFinite(rawPages) || rawPages < 1) {
+        return NextResponse.json({ success: false, error: 'Okunan sayfa sayısı en az 1 olmalıdır.' }, { status: 400 });
+      }
+      pagesRead = rawPages;
+      end = book.total_pages > 0 ? Math.min(book.total_pages, start + pagesRead) : start + pagesRead;
     }
 
-    const duration = parseFloat(duration_minutes) || Math.max(1, Math.round(pagesRead * 1.5));
+    let duration: number;
+    if (duration_minutes !== undefined && duration_minutes !== null && duration_minutes !== '') {
+      const parsedDuration = Number(duration_minutes);
+      if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+        return NextResponse.json({ success: false, error: 'Okuma süresi 0 dakikadan büyük olmalıdır.' }, { status: 400 });
+      }
+      duration = parsedDuration;
+    } else {
+      duration = Math.max(1, Math.round(pagesRead * 1.5));
+    }
+
     const now = new Date().toISOString();
+    const todayTr = getTodayTurkeyDate();
+    const clampedEnd = book.total_pages > 0 ? Math.min(book.total_pages, end) : end;
     const sessionId = `session-${Date.now()}`;
 
     // 1. Seans Kaydet
@@ -55,28 +90,29 @@ export async function POST(req: Request) {
       id: sessionId,
       book_id,
       start_page: start,
-      end_page: end,
+      end_page: clampedEnd,
       pages_read: pagesRead,
       duration_minutes: duration,
-      session_date: now.split('T')[0],
+      session_date: todayTr,
       user_id: user.id,
       family_id: familyId,
       created_at: now,
       updated_at: now
     });
 
-    // 2. Kitabın güncel sayfasını ilerlet
-    if (end > currentBookPage) {
-      const isFinished = book.total_pages ? end >= book.total_pages : false;
+    // 2. Kitabın güncel sayfasını ilerlet (total_pages tavanını aşmadan)
+    if (clampedEnd > currentBookPage) {
+      const isFinished = book.total_pages > 0 ? clampedEnd >= book.total_pages : false;
+      const nextStatus = isFinished ? 'completed' : book.status === 'wishlist' ? 'reading' : book.status;
       await db.update(books)
         .set({
-          current_page: end,
-          status: isFinished ? 'completed' : book.status,
-          finish_date: isFinished ? now.split('T')[0] : book.finish_date,
+          current_page: clampedEnd,
+          status: nextStatus,
+          start_date: book.start_date || todayTr,
+          finish_date: isFinished ? (book.finish_date || todayTr) : book.finish_date,
           updated_at: now
         })
-        .where(eq(books.id, book_id))
-        ;
+        .where(eq(books.id, book_id));
     }
 
     // 3. WPM ve Sayfa Başı Saniye Kalibrasyonu (Kullanıcının Son 100 Seansı)

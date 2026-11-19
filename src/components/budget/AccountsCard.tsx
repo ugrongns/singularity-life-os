@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import TimeDepositCloseModal from '@/components/modals/TimeDepositCloseModal';
 import ReconcileModal from '@/components/modals/ReconcileModal';
+import LoanAmortizationModal from '@/components/modals/LoanAmortizationModal';
 
 interface Account {
   id: string;
@@ -90,6 +91,9 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
   // Bakiye Mutabakatı Modalı
   const [reconcileAcc, setReconcileAcc] = useState<Account | null>(null);
   const [isReconcileModalOpen, setIsReconcileModalOpen] = useState(false);
+
+  // Kredi İtfa & Erken Kapama Modalı
+  const [loanModalAcc, setLoanModalAcc] = useState<Account | null>(null);
 
   // Segmented Control (Hesap Türü Sekmesi)
   type AccountTab = 'all' | 'cash_bank' | 'time_deposit' | 'fx_gold' | 'credit_card' | 'kmh_loan';
@@ -710,6 +714,31 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
                   </button>
                 )}
 
+                {acc.type === 'loan' && (
+                  <button
+                    onClick={() => setLoanModalAcc(acc)}
+                    style={{
+                      background: 'rgba(59, 130, 246, 0.08)',
+                      border: '1px solid rgba(59, 130, 246, 0.25)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '6px 8px',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#2563EB',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      minHeight: '36px'
+                    }}
+                    title="Fransız İtfa Tablosu ve Erken Kapama Simülatörü"
+                  >
+                    <span>📊</span>
+                    <span>İtfa & Erken Kapama</span>
+                  </button>
+                )}
+
                 {(acc as any).can_edit !== false && (
                   <>
                     <button
@@ -1217,6 +1246,12 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
         onSuccess={(msg) => {
           if (onUpdate) onUpdate(msg);
         }}
+      />
+
+      <LoanAmortizationModal
+        isOpen={Boolean(loanModalAcc)}
+        account={loanModalAcc}
+        onClose={() => setLoanModalAcc(null)}
       />
     </div>
   );

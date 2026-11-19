@@ -24,7 +24,8 @@ import {
   CreditCard,
   Camera,
   ScanLine,
-  CheckSquare
+  CheckSquare,
+  Search
 } from 'lucide-react';
 import NotificationHub from './NotificationHub';
 import ReceiptScanModal from '@/components/modals/ReceiptScanModal';
@@ -34,6 +35,7 @@ import ManualExpenseModal from '@/components/modals/ManualExpenseModal';
 import VoiceCommandModal from '@/components/modals/VoiceCommandModal';
 import FeatureShowcaseModal from '@/components/modals/FeatureShowcaseModal';
 import AddTaskModal from '@/components/modals/AddTaskModal';
+import CommandPaletteModal from '@/components/modals/CommandPaletteModal';
 import PwaManager from './PwaManager';
 import OnboardingModal from '@/components/auth/OnboardingModal';
 import LockScreenModal from '@/components/auth/LockScreenModal';
@@ -52,6 +54,7 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
   const [mounted, setMounted] = useState(false);
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [activeModal, setActiveModal] = useState<'receipt' | 'barcode' | 'plate' | 'manual' | 'voice' | 'showcase' | 'task' | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
@@ -163,7 +166,7 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
 
   // Modaller veya Drawer açıkken arkadaki sayfanın kaymasını engelle
   useEffect(() => {
-    if (activeModal || isQuickMenuOpen || isMobileDrawerOpen || isScreenLocked) {
+    if (activeModal || isQuickMenuOpen || isMobileDrawerOpen || isScreenLocked || isCommandPaletteOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -171,13 +174,22 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
     return () => {
       document.body.style.overflow = '';
     };
-  }, [activeModal, isQuickMenuOpen, isMobileDrawerOpen, isScreenLocked]);
+  }, [activeModal, isQuickMenuOpen, isMobileDrawerOpen, isScreenLocked, isCommandPaletteOpen]);
 
-  // Klavye Ergonomisi: ESC tuşuna basıldığında açık modal, quick menu ve drawer'ı kapat
+  // Klavye Ergonomisi: Ctrl+K / Cmd+K Komut Paleti & ESC kapatma
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsQuickMenuOpen(false);
+        setIsMobileDrawerOpen(false);
+        setIsCommandPaletteOpen(prev => !prev);
+        return;
+      }
       if (e.key === 'Escape') {
-        if (activeModal) {
+        if (isCommandPaletteOpen) {
+          setIsCommandPaletteOpen(false);
+        } else if (activeModal) {
           setActiveModal(null);
         } else if (isQuickMenuOpen) {
           setIsQuickMenuOpen(false);
@@ -188,7 +200,26 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeModal, isQuickMenuOpen, isMobileDrawerOpen]);
+  }, [activeModal, isQuickMenuOpen, isMobileDrawerOpen, isCommandPaletteOpen]);
+
+  const handleQuickWater = async () => {
+    try {
+      const res = await fetch('/api/health/water', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'log_water', amount_ml: 250 })
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast('💧 +250 ml su tüketimi kaydedildi!');
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      } else {
+        showToast(json.error || 'Su kaydı eklenemedi.');
+      }
+    } catch {
+      showToast('Su kaydı eklenirken bağlantı hatası oluştu.');
+    }
+  };
 
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
@@ -268,6 +299,47 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Life Management</div>
           </div>
         </div>
+
+        {/* Global Arama & Komut Paleti Tetikleyici */}
+        <button
+          type="button"
+          onClick={() => setIsCommandPaletteOpen(true)}
+          aria-label="Global Arama ve Komut Paleti (Ctrl+K)"
+          style={{
+            width: '100%',
+            padding: '8px 10px',
+            marginBottom: '8px',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border)',
+            background: 'var(--surface-subtle)',
+            color: 'var(--text-muted)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            cursor: 'pointer',
+            fontSize: '12px',
+            fontWeight: 600
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px' }}>
+            <Search size={14} />
+            <span>Ara veya komut...</span>
+          </span>
+          <kbd
+            style={{
+              fontSize: '10px',
+              fontWeight: 800,
+              padding: '2px 5px',
+              borderRadius: '5px',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-main)'
+            }}
+          >
+            Ctrl+K
+          </kbd>
+        </button>
 
         {/* Hızlı Ekle / Tara Butonu */}
         <button
@@ -389,6 +461,29 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
             </div>
 
             <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              {/* 🔍 Global Arama & Komut Paleti Butonu */}
+              <button
+                className="header-action-btn"
+                onClick={() => setIsCommandPaletteOpen(true)}
+                style={{
+                  background: 'var(--surface-subtle)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '50%',
+                  width: '44px',
+                  height: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: 'var(--text-main)',
+                  transition: 'all 0.15s'
+                }}
+                title="Ara veya Komut Çalıştır (Ctrl+K)"
+                aria-label="Global Arama ve Komut Paleti"
+              >
+                <Search size={18} strokeWidth={1.75} />
+              </button>
+
               {/* 🌙 / ☀️ Dark/Light Tema Butonu */}
               <button
                 className="header-action-btn"
@@ -510,6 +605,51 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
                 <X size={16} strokeWidth={1.75} />
               </button>
             </div>
+
+            {/* Sayfaya Duyarlı Önerilen Hızlı İşlem */}
+            {(() => {
+              const contextual = pathname.startsWith('/budget')
+                ? { label: 'Hızlı Harcama / Gelir Ekle', desc: 'Bütçe sayfası için önerilen işlem', icon: '💸', action: () => { setIsQuickMenuOpen(false); setActiveModal('manual'); } }
+                : pathname.startsWith('/library')
+                ? { label: 'Kitap Barkodu / ISBN Tara', desc: 'Kütüphane için önerilen işlem', icon: '📚', action: () => { setIsQuickMenuOpen(false); setActiveModal('barcode'); } }
+                : pathname.startsWith('/vehicles')
+                ? { label: 'Plaka / Akaryakıt Fişi Tara', desc: 'Araç & Ev için önerilen işlem', icon: '🚗', action: () => { setIsQuickMenuOpen(false); setActiveModal('plate'); } }
+                : pathname.startsWith('/health') || pathname.startsWith('/wellness')
+                ? { label: '+250 ml Su Ekle', desc: 'Sağlık & Wellness için önerilen işlem', icon: '💧', action: () => { setIsQuickMenuOpen(false); handleQuickWater(); } }
+                : { label: 'Yeni Görev / MIT Ekle', desc: 'Hızlı planlama için önerilen işlem', icon: '✅', action: () => { loadQuickData(); setIsQuickMenuOpen(false); setActiveModal('task'); } };
+
+              return (
+                <button
+                  onClick={contextual.action}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(59, 130, 246, 0.1)',
+                    border: '1px solid rgba(59, 130, 246, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '10px',
+                    cursor: 'pointer',
+                    textAlign: 'left'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    <span style={{ fontSize: '20px' }}>{contextual.icon}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+                        ⚡ {contextual.label}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{contextual.desc}</div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#3B82F6', background: 'rgba(59, 130, 246, 0.14)', padding: '3px 8px', borderRadius: '999px', flexShrink: 0 }}>
+                    Önerilen
+                  </span>
+                </button>
+              );
+            })()}
 
             {/* Sesli Komut Hero Banner */}
             <button
@@ -926,6 +1066,17 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
           showToast(msg || '🎯 Görev kaydedildi!');
           window.dispatchEvent(new CustomEvent('singularity-refresh'));
         }}
+      />
+      <CommandPaletteModal
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        pathname={pathname}
+        onTriggerAction={(actionKey) => {
+          loadQuickData();
+          setActiveModal(actionKey);
+        }}
+        onQuickWater={handleQuickWater}
+        onToggleTheme={toggleTheme}
       />
       <PwaManager />
 

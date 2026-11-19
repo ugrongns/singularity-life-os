@@ -17,16 +17,25 @@ interface Category {
   icon?: string;
 }
 
+export interface ManualExpenseDraft {
+  txType?: 'expense' | 'income';
+  amount?: string;
+  merchant?: string;
+  walletId?: string;
+  categoryId?: string;
+}
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   accounts: Account[];
   categories: Category[];
   initialCategoryId?: string | null;
+  initialDraft?: ManualExpenseDraft | null;
   onSuccess: (msg?: string) => void;
 }
 
-export default function ManualExpenseModal({ isOpen, onClose, accounts, categories, initialCategoryId, onSuccess }: Props) {
+export default function ManualExpenseModal({ isOpen, onClose, accounts, categories, initialCategoryId, initialDraft, onSuccess }: Props) {
   const [txType, setTxType] = useState<'expense' | 'income'>('expense');
   const [amount, setAmount] = useState('');
   const [merchant, setMerchant] = useState('');
@@ -69,14 +78,26 @@ export default function ManualExpenseModal({ isOpen, onClose, accounts, categori
     }
   }, [initialCategoryId]);
 
+  useEffect(() => {
+    if (isOpen && initialDraft) {
+      if (initialDraft.txType) setTxType(initialDraft.txType);
+      if (initialDraft.amount !== undefined) setAmount(initialDraft.amount);
+      if (initialDraft.merchant !== undefined) setMerchant(initialDraft.merchant);
+      if (initialDraft.walletId) setWalletId(initialDraft.walletId);
+      if (initialDraft.categoryId) setCategoryId(initialDraft.categoryId);
+    }
+  }, [isOpen, initialDraft]);
+
   // Başlangıç veya sekme değiştiğinde kategori seç
   useEffect(() => {
-    if (initialCategoryId && filteredCategories.some(c => c.id === initialCategoryId)) {
+    if (initialDraft?.categoryId && filteredCategories.some(c => c.id === initialDraft.categoryId)) {
+      setCategoryId(initialDraft.categoryId);
+    } else if (initialCategoryId && filteredCategories.some(c => c.id === initialCategoryId)) {
       setCategoryId(initialCategoryId);
-    } else if (filteredCategories.length > 0) {
+    } else if (filteredCategories.length > 0 && !filteredCategories.some(c => c.id === categoryId)) {
       setCategoryId(filteredCategories[0].id);
     }
-  }, [txType, isOpen, initialCategoryId]);
+  }, [txType, isOpen, initialCategoryId, initialDraft]);
 
   const handleClose = () => {
     setAmount('');

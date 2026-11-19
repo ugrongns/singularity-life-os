@@ -465,6 +465,48 @@ export default function ReadingProgressTrendCard({
         </div>
       )}
 
+      {/* 4.5. Günün Saat Dilimine Göre Okuma Verimi */}
+      {summary.timeOfDayBreakdown && summary.timeOfDayBreakdown.some(t => t.sessionCount > 0) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+              🕒 Günün Saat Dilimine Göre Okuma Verimi
+            </div>
+            {summary.bestTimeSlotLabel && (
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#10B981', background: 'rgba(16, 185, 129, 0.12)', padding: '3px 8px', borderRadius: '999px' }}>
+                ⚡ En Verimli: {summary.bestTimeSlotLabel}
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+            {summary.timeOfDayBreakdown.map(slot => (
+              <div
+                key={slot.slot}
+                style={{
+                  padding: '10px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface-subtle)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '3px'
+                }}
+              >
+                <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-main)' }}>
+                  {slot.icon} {slot.label}
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: 900, color: slot.avgWpm > 0 ? '#3B82F6' : 'var(--text-muted)' }}>
+                  {slot.avgWpm > 0 ? `${slot.avgWpm} WPM` : '—'}
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                  {slot.totalPages} sayfa • {slot.sessionCount} seans
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 5. Son Seanslar Listesi */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>

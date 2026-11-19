@@ -1,8 +1,9 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import LiveBarcodeScannerModal from './LiveBarcodeScannerModal';
 import PageCalibrationModal from './PageCalibrationModal';
 import { BOOK_CATEGORIES, sortCategoriesInTurkish } from '@/lib/book-categories';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 interface AddBookModalProps {
   isOpen: boolean;
@@ -32,7 +33,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
   // Emanet Takip
   const [isLentOut, setIsLentOut] = useState(false);
   const [lentToName, setLentToName] = useState('');
-  const [lentDate, setLentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [lentDate, setLentDate] = useState(() => getTodayTurkeyDate());
 
   // Mükerrer Kitap Tespiti & İkinci Kopya Onayı
   const [existingBook, setExistingBook] = useState<any | null>(null);
@@ -48,16 +49,25 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
   const fileInputRef = useRef<HTMLInputElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
+  const handleCloseModal = useCallback(() => {
+    setExistingBook(null);
+    setAllowDuplicate(false);
+    setErrorMessage(null);
+    setSuccessNotice(null);
+    setIsBarcodeScannerOpen(false);
+    onClose();
+  }, [onClose]);
+
   // ESC tuşuyla kapatma
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
-        onClose();
+        handleCloseModal();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, handleCloseModal]);
 
   if (!isOpen) return null;
 
@@ -92,7 +102,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
     setCoverUrl('');
     setIsLentOut(false);
     setLentToName('');
-    setLentDate(new Date().toISOString().split('T')[0]);
+    setLentDate(getTodayTurkeyDate());
     setExistingBook(null);
     setAllowDuplicate(false);
     setErrorMessage(null);
@@ -231,7 +241,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
       } else {
         setErrorMessage(json.error || `ISBN (${clean}) veritabanında bulunamadı. Lütfen detayları manuel doldurun.`);
       }
-    } catch (err: any) {
+    } catch {
       setErrorMessage('Sorgulama yapılırken bağlantı hatası oluştu.');
     } finally {
       setIsAnalyzing(false);
@@ -284,7 +294,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
       } else {
         setErrorMessage(json.error || `"${queryTitle}" kataloglarda bulunamadı. Lütfen bilgileri manuel tamamlayın.`);
       }
-    } catch (err: any) {
+    } catch {
       setErrorMessage('Arama yapılırken bağlantı hatası oluştu.');
     } finally {
       setIsAnalyzing(false);
@@ -342,7 +352,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
       } else if (json.is_duplicate && json.existing_book) {
         setExistingBook(json.existing_book);
         setAllowDuplicate(false);
-        setErrorMessage(json.error);
+        setErrorMessage(null);
       } else {
         setErrorMessage(json.error || 'Kitap eklenirken bir hata oluştu.');
       }
@@ -355,8 +365,8 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
 
   return (
     <>
-      <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000 }}>
-        <div className="bottom-sheet modal-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: '680px' }}>
+      <div className="modal-overlay" onClick={handleCloseModal} style={{ zIndex: 1000 }}>
+        <div className="bottom-sheet modal-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: '680px', overflowX: 'hidden' }}>
           <div className="sheet-handle" />
 
           {/* Header */}
@@ -378,7 +388,8 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
               </div>
             </div>
             <button
-              onClick={onClose}
+              type="button"
+              onClick={handleCloseModal}
               style={{
                 background: 'var(--surface-subtle)', border: '1px solid var(--border)', color: 'var(--text-main)',
                 fontSize: '16px', fontWeight: 600, cursor: 'pointer',
@@ -699,8 +710,8 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
               <h3 style={{ fontSize: '13px', fontWeight: 800, color: 'var(--indigo)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 1. Temel Kitap Bilgileri
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div style={{ gridColumn: 'span 2' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px' }}>
+                <div style={{ gridColumn: '1 / -1', minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Kitap Adı *</label>
                     {title.trim().length >= 2 && (
@@ -741,7 +752,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                   />
                 </div>
 
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Yazar *</label>
                   <input
                     type="text"
@@ -756,7 +767,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                   />
                 </div>
 
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Yayınevi</label>
                   <input
                     type="text"
@@ -770,7 +781,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                   />
                 </div>
 
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>ISBN Numarası</label>
                   <input
                     type="text"
@@ -784,7 +795,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                   />
                 </div>
 
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Kategori</label>
                   <select
                     value={category}
@@ -800,7 +811,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                   </select>
                 </div>
 
-                <div style={{ gridColumn: 'span 2' }}>
+                <div style={{ gridColumn: '1 / -1', minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Kapak Resmi URL (İsteğe Bağlı)</label>
                   <input
                     type="text"
@@ -821,12 +832,13 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
               <h3 style={{ fontSize: '13px', fontWeight: 800, color: 'var(--indigo)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 2. Okuma & Format Bilgileri
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: '12px' }}>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Toplam Sayfa *</label>
                   <input
                     type="number"
                     inputMode="numeric"
+                    min="1"
                     value={totalPages}
                     onChange={e => setTotalPages(e.target.value)}
                     style={{
@@ -837,11 +849,12 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                   />
                 </div>
 
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Okunan Sayfa</label>
                   <input
                     type="number"
                     inputMode="numeric"
+                    min="0"
                     value={currentPage}
                     onChange={e => setCurrentPage(e.target.value)}
                     style={{
@@ -851,7 +864,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                   />
                 </div>
 
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Okuma Durumu</label>
                   <select
                     value={status}
@@ -867,7 +880,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                   </select>
                 </div>
 
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Kitap Formatı</label>
                   <select
                     value={format}
@@ -883,7 +896,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                   </select>
                 </div>
 
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Raf / Konum</label>
                   <input
                     type="text"
@@ -897,7 +910,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                   />
                 </div>
 
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Puan (1 - 5)</label>
                   <select
                     value={rating}
@@ -916,7 +929,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                 </div>
 
                 {/* Sayfa Başı Ortalama Kelime (WPP) & Kalibrasyon */}
-                <div style={{ gridColumn: 'span 3', background: 'var(--surface-subtle)', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ gridColumn: '1 / -1', minWidth: 0, background: 'var(--surface-subtle)', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
                       ⚡ Sayfa Başı Ortalama Kelime (WPP)
@@ -992,12 +1005,12 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
               </label>
 
               {isLentOut && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px' }}>
-                  <div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginTop: '12px' }}>
+                  <div style={{ minWidth: 0 }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Emanet Edilen Kişi</label>
                     <input
                       type="text"
-                      placeholder="Örn: John Doe"
+                      placeholder="Örn: Ahmet Yılmaz"
                       value={lentToName}
                       onChange={e => setLentToName(e.target.value)}
                       style={{
@@ -1006,7 +1019,7 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
                       }}
                     />
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Emanet Tarihi</label>
                     <input
                       type="date"
@@ -1023,10 +1036,10 @@ export default function AddBookModal({ isOpen, onClose, onSuccess, onOpenBookDet
             </div>
 
             {/* Footer Buttons */}
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleCloseModal}
                 style={{
                   background: 'var(--surface-subtle)', color: 'var(--text-main)', border: '1px solid var(--border)', padding: '12px 20px',
                   borderRadius: '12px', cursor: 'pointer', fontSize: '14px', fontWeight: 600

@@ -52,11 +52,26 @@ const CAT_ICONS: Record<string, string> = {
   Manav: '🥦', 
   Kasap: '🥩', 
   Fırın: '🥖', 
+  'Süt & Kahvaltılık': '🧀',
   Market: '🛒',
   Aktariye: '🌿', 
+  Temizlik: '🧼',
+  'Kişisel Bakım': '🧴',
   Eczane: '💊', 
   Diğer: '📦'
 };
+
+const FREQUENT_GROCERY_CHIPS = [
+  'Ekmek',
+  'Süt 1 lt',
+  'Yumurta 10 adet',
+  'Yoğurt',
+  'Beyaz Peynir',
+  'Domates 1 kg',
+  'Muz 1 kg',
+  'Su 5 lt',
+  'Tuvalet Kağıdı'
+];
 
 const formatTRY = (v: number) => 
   new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(v);
@@ -92,12 +107,18 @@ function parseQuickItem(input: string) {
   const MANAV_WORDS = ['domates', 'salatalık', 'biber', 'patates', 'soğan', 'marul', 'havuç', 'elma', 'muz', 'portakal', 'mandalina', 'limon', 'çilek', 'üzüm', 'maydanoz', 'ıspanak', 'avokado'];
   const FIRIN_WORDS = ['ekmek', 'simit', 'poğaça', 'börek', 'pide', 'lavaş', 'baget'];
   const KASAP_WORDS = ['kıyma', 'kuşbaşı', 'antrikot', 'bonfile', 'tavuk', 'pirzola', 'köfte', 'sucuk', 'sosis', 'balık', 'somon'];
+  const SUT_WORDS = ['süt', 'peynir', 'yoğurt', 'tereyağı', 'yumurta', 'zeytin', 'kefir', 'ayran', 'kaymak', 'kaşar'];
+  const TEMIZLIK_WORDS = ['deterjan', 'çamaşır suyu', 'bulaşık', 'yumuşatıcı', 'peçete', 'kağıt havlu', 'sünger'];
+  const BAKIM_WORDS = ['şampuan', 'sabun', 'diş macunu', 'deodorant', 'tuvalet kağıdı', 'ıslak mendil', 'tıraş'];
   const AKTARIYE_WORDS = ['ceviz', 'fındık', 'badem', 'fıstık', 'kaju', 'yulaf', 'chia', 'kinoa', 'baharat', 'kekik', 'nane', 'ıhlamur'];
   const ECZANE_WORDS = ['vitamin', 'aspirin', 'parol', 'şurup', 'krem', 'bandaj', 'takviye'];
 
   if (MANAV_WORDS.some(w => nameLower.includes(w))) category = 'Manav';
   else if (FIRIN_WORDS.some(w => nameLower.includes(w))) category = 'Fırın';
   else if (KASAP_WORDS.some(w => nameLower.includes(w))) category = 'Kasap';
+  else if (SUT_WORDS.some(w => nameLower.includes(w))) category = 'Süt & Kahvaltılık';
+  else if (TEMIZLIK_WORDS.some(w => nameLower.includes(w))) category = 'Temizlik';
+  else if (BAKIM_WORDS.some(w => nameLower.includes(w))) category = 'Kişisel Bakım';
   else if (AKTARIYE_WORDS.some(w => nameLower.includes(w))) category = 'Aktariye';
   else if (ECZANE_WORDS.some(w => nameLower.includes(w))) category = 'Eczane';
 
@@ -422,6 +443,65 @@ export default function ShoppingListCard({
               {addingQuick ? '...' : 'Ekle'}
             </button>
           </form>
+
+          {/* ⚡ Sık Alınanlar Tek Tıkla Çipleri */}
+          <div className="no-scrollbar" style={{ display: 'flex', gap: '6px', alignItems: 'center', overflowX: 'auto', paddingBottom: '2px', width: '100%' }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              🛒 Sık Alınanlar:
+            </span>
+            {FREQUENT_GROCERY_CHIPS.map(chip => {
+              const parsedChip = parseQuickItem(chip);
+              const alreadyInList = parsedChip && localItems.some(i => i.name.toLocaleLowerCase('tr-TR') === parsedChip.name.toLocaleLowerCase('tr-TR') && i.is_checked === 0);
+              return (
+                <button
+                  key={chip}
+                  type="button"
+                  disabled={addingQuick || Boolean(alreadyInList)}
+                  onClick={async () => {
+                    if (!parsedChip || addingQuick || alreadyInList) return;
+                    setAddingQuick(true);
+                    try {
+                      const res = await fetch('/api/shopping-list', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          action: 'add',
+                          name: parsedChip.name,
+                          quantity: parsedChip.quantity,
+                          unit: parsedChip.unit,
+                          category: parsedChip.category,
+                          source: 'quick_chip'
+                        })
+                      });
+                      const json = await res.json();
+                      if (json.success) {
+                        window.dispatchEvent(new CustomEvent('singularity-refresh'));
+                        if (onRefresh) onRefresh();
+                        if (onToast) onToast(`🛒 "${parsedChip.name}" listeye eklendi!`);
+                      }
+                    } finally {
+                      setAddingQuick(false);
+                    }
+                  }}
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '6px 10px',
+                    minHeight: '34px',
+                    borderRadius: '999px',
+                    border: `1px solid ${alreadyInList ? 'rgba(16, 185, 129, 0.4)' : 'var(--border)'}`,
+                    background: alreadyInList ? 'var(--emerald-bg)' : 'var(--surface-subtle)',
+                    color: alreadyInList ? 'var(--emerald)' : 'var(--text-main)',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    cursor: alreadyInList ? 'default' : 'pointer'
+                  }}
+                >
+                  {alreadyInList ? `✓ ${parsedChip?.name}` : `+ ${chip}`}
+                </button>
+              );
+            })}
+          </div>
 
           {/* Hazır Paket Hapları & Filtreler */}
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', width: '100%', minWidth: 0 }}>

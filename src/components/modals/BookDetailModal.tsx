@@ -1,7 +1,8 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { BOOK_CATEGORIES, sortCategoriesInTurkish } from '@/lib/book-categories';
 import PageCalibrationModal from '@/components/modals/PageCalibrationModal';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 interface Book {
   id: string;
@@ -81,8 +82,15 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
     return sortCategoriesInTurkish(base);
   }, [category]);
 
+  const syncedBookIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (book) {
+    if (!isOpen) {
+      syncedBookIdRef.current = null;
+      return;
+    }
+    if (book && syncedBookIdRef.current !== book.id) {
+      syncedBookIdRef.current = book.id;
       setTitle(book.title || '');
       setAuthor(book.author || '');
       setPublisher(book.publisher || '');
@@ -103,10 +111,20 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
       setNotes(book.notes || '');
       setIsLentOut(Boolean(book.is_lent_out));
       setLentToName(book.lent_to_name || '');
-      setLentDate(book.lent_date || new Date().toISOString().split('T')[0]);
+      setLentDate(book.lent_date || getTodayTurkeyDate());
       setErrorMsg(null);
     }
-  }, [book?.id]);
+  }, [isOpen, book]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !isCalibrationOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isCalibrationOpen, onClose]);
 
   if (!isOpen || !book) return null;
 
@@ -152,7 +170,7 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
           notes: notes.trim(),
           is_lent_out: isLentOut ? 1 : 0,
           lent_to_name: isLentOut ? lentToName.trim() : null,
-          lent_date: isLentOut ? (lentDate || new Date().toISOString().split('T')[0]) : null
+          lent_date: isLentOut ? (lentDate || getTodayTurkeyDate()) : null
         })
       });
 
@@ -172,6 +190,57 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
     }
   };
 
+  const compressCoverFile = (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/')) {
+        resolve(file);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 1024;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(file);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(new File([blob], 'cover.jpg', { type: 'image/jpeg' }));
+              } else {
+                resolve(file);
+              }
+            },
+            'image/jpeg',
+            0.78
+          );
+        };
+        img.onerror = () => resolve(file);
+        img.src = ev.target?.result as string;
+      };
+      reader.onerror = () => resolve(file);
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -179,10 +248,11 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
     setUploadingCover(true);
     setErrorMsg(null);
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
+      const processedFile = await compressCoverFile(file);
+      const formData = new FormData();
+      formData.append('file', processedFile);
+
       const res = await fetch('/api/library/upload-cover', {
         method: 'POST',
         body: formData
@@ -352,47 +422,47 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
 
         <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {/* Temel Kitap Bilgileri */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))', gap: '10px' }}>
+            <div style={{ minWidth: 0 }}>
               <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>KİTAP ADI *</label>
               <input
                 type="text"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
                 required
               />
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>YAZAR *</label>
               <input
                 type="text"
                 value={author}
                 onChange={e => setAuthor(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
                 required
               />
             </div>
           </div>
 
           {/* Yayınevi & Kategori (2 Sütun - Metin Kesilmesini Önler) */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))', gap: '10px' }}>
+            <div style={{ minWidth: 0 }}>
               <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>YAYINEVİ</label>
               <input
                 type="text"
                 placeholder="Ör. Pegasus Yayınları"
                 value={publisher}
                 onChange={e => setPublisher(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
               />
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>KATEGORİ</label>
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
               >
                 {categoriesList.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
@@ -402,27 +472,27 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
           </div>
 
           {/* Format & Raf Konumu (2 Sütun) */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))', gap: '10px' }}>
+            <div style={{ minWidth: 0 }}>
               <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>FORMAT</label>
               <select
                 value={format}
                 onChange={e => setFormat(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
               >
                 <option value="physical">📚 Fiziki Kitap</option>
                 <option value="ebook">📱 E-Kitap (Kindle)</option>
                 <option value="audiobook">🎧 Sesli Kitap</option>
               </select>
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>RAF KONUMU</label>
               <input
                 type="text"
                 placeholder="Ör. Salon Kitaplığı"
                 value={shelfLocation}
                 onChange={e => setShelfLocation(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '2px' }}
               />
             </div>
           </div>
@@ -709,7 +779,6 @@ export default function BookDetailModal({ isOpen, book, onClose, onSuccess, onOp
           currentWordsPerPage={Number(wordsPerPage) || 250}
           onCalibrated={(newCount) => {
             setWordsPerPage(newCount);
-            if (book) book.words_per_page = newCount;
           }}
           onSuccess={(msg) => {
             window.dispatchEvent(new CustomEvent('singularity-refresh'));

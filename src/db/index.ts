@@ -911,6 +911,9 @@ async function _runInit(): Promise<void> {
       ALTER TABLE personal_debts_receivables ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE categories ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE sinking_funds ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE sinking_funds ADD COLUMN IF NOT EXISTS user_id TEXT;
+      ALTER TABLE sinking_funds ADD COLUMN IF NOT EXISTS color TEXT DEFAULT '#10B981';
+      ALTER TABLE books ADD COLUMN IF NOT EXISTS target_finish_date TEXT;
       ALTER TABLE home_maintenance_records ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE home_appliances ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE digital_vault_items ADD COLUMN IF NOT EXISTS family_id TEXT;

@@ -78,6 +78,7 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal, onDeleteLog }:
   const [hoveredMulti, setHoveredMulti] = useState<{ label: string; valueText: string; date: string; x: number; y: number; color: string } | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [targetFatPct, setTargetFatPct] = useState<number>(15);
 
   // Çoklu metrik karşılaştırma state'i
   const [selectedMultiMetrics, setSelectedMultiMetrics] = useState<string[]>([
@@ -300,6 +301,83 @@ export function SmartScaleTrendDashboard({ logs, onOpenScanModal, onDeleteLog }:
           ))}
         </div>
       </div>
+
+      {/* ------------------ 🧬 BIA LBM HEDEF KİLO & PROTEİN KOÇ BANDI ------------------ */}
+      {latestLog && latestLog.weight_kg > 0 && (latestLog.fat_free_mass_kg || latestLog.body_fat_percent) && (() => {
+        const lbmKg = latestLog.fat_free_mass_kg && latestLog.fat_free_mass_kg > 0
+          ? latestLog.fat_free_mass_kg
+          : latestLog.weight_kg * (1 - (latestLog.body_fat_percent || 20) / 100);
+        const targetWeightKg = lbmKg / (1 - targetFatPct / 100);
+        const fatToLoseKg = Math.max(0, latestLog.weight_kg - targetWeightKg);
+        const dailyProteinG = Math.round(lbmKg * 1.8);
+        return (
+          <div
+            className="glass-card"
+            style={{
+              padding: '14px 16px',
+              marginBottom: '12px',
+              borderLeft: '4px solid #10B981',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>
+                  🧬 BIA Vücut Kompozisyonu &amp; LBM Hedef Koçu
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  Sıfır AI kotalı deterministik analiz • Kas kütlesini (LBM) koruyarak yağ yakım hedefi
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)', marginRight: '4px' }}>Hedef Yağ:</span>
+                {[12, 15, 18, 20, 22].map(pct => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => setTargetFatPct(pct)}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      border: `1px solid ${targetFatPct === pct ? '#10B981' : 'var(--border)'}`,
+                      background: targetFatPct === pct ? 'rgba(16, 185, 129, 0.14)' : 'var(--surface-subtle)',
+                      color: targetFatPct === pct ? '#10B981' : 'var(--text-muted)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    %{pct}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+              <div style={{ padding: '8px 10px', borderRadius: '8px', background: 'var(--surface-subtle)', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>Yağsız Kütle (LBM)</div>
+                <div style={{ fontSize: '15px', fontWeight: 900, color: '#3B82F6' }}>{lbmKg.toFixed(1)} kg</div>
+              </div>
+              <div style={{ padding: '8px 10px', borderRadius: '8px', background: 'var(--surface-subtle)', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>%{targetFatPct} Yağda Hedef Kilo</div>
+                <div style={{ fontSize: '15px', fontWeight: 900, color: '#10B981' }}>{targetWeightKg.toFixed(1)} kg</div>
+              </div>
+              <div style={{ padding: '8px 10px', borderRadius: '8px', background: 'var(--surface-subtle)', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>Verilecek Net Yağ</div>
+                <div style={{ fontSize: '15px', fontWeight: 900, color: fatToLoseKg > 0 ? '#F59E0B' : '#10B981' }}>
+                  {fatToLoseKg > 0 ? `${fatToLoseKg.toFixed(1)} kg` : 'Hedefe Ulaşıldı 🎉'}
+                </div>
+              </div>
+              <div style={{ padding: '8px 10px', borderRadius: '8px', background: 'var(--surface-subtle)', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>Günlük Protein Koçu (1.8g/LBM)</div>
+                <div style={{ fontSize: '15px', fontWeight: 900, color: '#8B5CF6' }}>{dailyProteinG} g/gün</div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ------------------ GÖRÜNÜM 1: TEKLİ METRİK TRENDİ ------------------ */}
       {viewMode === 'single' && (

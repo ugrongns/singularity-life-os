@@ -11,7 +11,7 @@ export async function GET() {
     const userId = user?.id;
 
     if (!userId) {
-      return NextResponse.json({ success: true, data: [] });
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     }
 
     const familyId = user.family_id || `fam-${userId}`;
@@ -31,10 +31,8 @@ export async function GET() {
     .innerJoin(books, eq(bookQuotes.book_id, books.id))
     .where(
       or(
-        eq(books.user_id, userId),
-        eq(books.family_id, familyId),
         eq(bookQuotes.user_id, userId),
-        eq(bookQuotes.family_id, familyId)
+        and(eq(books.family_id, familyId), eq(books.is_family_shared, 1))
       )
     )
     .orderBy(desc(bookQuotes.created_at));
@@ -54,17 +52,27 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { book_id, page_number, quote_text, reflection_note } = body;
 
-    if (!book_id || !quote_text) {
+    const cleanQuote = typeof quote_text === 'string' ? quote_text.trim() : '';
+    if (!book_id || !cleanQuote) {
       return NextResponse.json({ success: false, error: 'Kitap ve alıntı metni zorunludur.' }, { status: 400 });
+    }
+
+    let parsedPageNum: number | null = null;
+    if (page_number !== undefined && page_number !== null && page_number !== '') {
+      const p = parseInt(page_number, 10);
+      if (!Number.isFinite(p) || p < 1) {
+        return NextResponse.json({ success: false, error: 'Sayfa numarası 1 veya daha büyük olmalıdır.' }, { status: 400 });
+      }
+      parsedPageNum = p;
     }
 
     const familyId = user.family_id || `fam-${user.id}`;
 
-    // IDOR / Yetki Koruması: Kitap bu kullanıcıya veya ailesine mi ait?
+    // IDOR / Yetki Koruması: Kitap bu kullanıcıya veya ailesinin ortak kütüphanesine mi ait?
     const targetBook = (await db.select().from(books).where(
       and(
         eq(books.id, book_id),
-        or(eq(books.user_id, user.id), eq(books.family_id, familyId))
+        or(eq(books.user_id, user.id), and(eq(books.family_id, familyId), eq(books.is_family_shared, 1)))
       )
     ).limit(1))[0];
 
@@ -81,9 +89,9 @@ export async function POST(req: Request) {
       book_id,
       user_id: user.id,
       family_id: familyId,
-      page_number: parseInt(page_number, 10) || null,
-      quote_text,
-      reflection_note,
+      page_number: parsedPageNum,
+      quote_text: cleanQuote,
+      reflection_note: typeof reflection_note === 'string' ? reflection_note.trim() || null : null,
       is_favorite: 1,
       created_at: now,
       updated_at: now
@@ -114,10 +122,13 @@ export async function DELETE(req: Request) {
     }
 
     const familyId = user.family_id || `fam-${user.id}`;
+    const isAdmin = user.is_master_account === 1 || user.role === 'admin';
     const quote = (await db.select().from(bookQuotes).where(
       and(
         eq(bookQuotes.id, id),
-        or(eq(bookQuotes.user_id, user.id), eq(bookQuotes.family_id, familyId))
+        isAdmin
+          ? or(eq(bookQuotes.user_id, user.id), eq(bookQuotes.family_id, familyId))
+          : eq(bookQuotes.user_id, user.id)
       )
     ).limit(1))[0];
 

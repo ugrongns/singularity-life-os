@@ -201,14 +201,17 @@ export const sinkingFunds = pgTable('sinking_funds', {
   current_amount: doublePrecision('current_amount').notNull().default(0),
   target_date: text('target_date'),
   icon: text('icon').default('🎯'),
+  color: text('color').default('#10B981'),
   is_family_shared: integer('is_family_shared').notNull().default(1),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
   device_id: text('device_id').default('web-client'),
+  user_id: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
   family_id: text('family_id').references(() => families.id, { onDelete: 'cascade' })
 }, (table) => [
-  index('idx_sinking_funds_family_id').on(table.family_id)
+  index('idx_sinking_funds_family_id').on(table.family_id),
+  index('idx_sinking_funds_user_id').on(table.user_id)
 ]);
 
 export const syncQueue = pgTable('sync_queue', {
@@ -361,6 +364,7 @@ export const books = pgTable('books', {
   category: text('category').default('Kişisel Gelişim'),
   start_date: text('start_date'),
   finish_date: text('finish_date'),
+  target_finish_date: text('target_finish_date'),
   purchased_date: text('purchased_date'),
   purchased_from: text('purchased_from'),
   purchase_price: doublePrecision('purchase_price'),

@@ -90,9 +90,45 @@ export default function HomeWorkoutModal({ isOpen, memberId, onClose, onSuccess 
 
   // Kuvvet egzersizleri
   const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([]);
+  const [exerciseHistoryMap, setExerciseHistoryMap] = useState<Record<string, { prWeightKg: number; lastSets: SetItem[] }>>({});
 
   // Dinlenme sayacı
   const [restSeconds, setRestSeconds] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const url = memberId ? `/api/health/workouts?member_id=${encodeURIComponent(memberId)}` : '/api/health/workouts';
+    fetch(url)
+      .then(res => res.json())
+      .then(json => {
+        if (!json.success || !Array.isArray(json.data)) return;
+        const map: Record<string, { prWeightKg: number; lastSets: SetItem[] }> = {};
+        for (const workout of json.data) {
+          for (const ex of workout.exercises || []) {
+            const name = ex.exercise_name;
+            if (!name) continue;
+            const sets: SetItem[] = Array.isArray(ex.sets)
+              ? ex.sets.map((s: any, idx: number) => ({
+                  set_number: Number(s.set_number) || idx + 1,
+                  weight_kg: String(s.weight_kg ?? ''),
+                  reps: String(s.reps ?? '')
+                }))
+              : [];
+            const sessionMax = Math.max(
+              Number(ex.max_weight_kg || 0),
+              ...sets.map(s => Number(s.weight_kg) || 0)
+            );
+            if (!map[name]) {
+              map[name] = { prWeightKg: sessionMax, lastSets: sets };
+            } else if (sessionMax > map[name].prWeightKg) {
+              map[name].prWeightKg = sessionMax;
+            }
+          }
+        }
+        setExerciseHistoryMap(map);
+      })
+      .catch(() => {});
+  }, [isOpen, memberId]);
 
   const resetForm = () => {
     setSportType('cycling');
@@ -709,7 +745,12 @@ export default function HomeWorkoutModal({ isOpen, memberId, onClose, onSuccess 
               </div>
 
               {/* Egzersiz Listesi */}
-              {exerciseEntries.map((ex, exIndex) => (
+              {exerciseEntries.map((ex, exIndex) => {
+                const hist = exerciseHistoryMap[ex.exercise_name];
+                const prWeight = hist?.prWeightKg || 0;
+                const currentMax = Math.max(0, ...ex.sets.map(s => Number(s.weight_kg) || 0));
+                const isNewPr = prWeight > 0 && currentMax > prWeight;
+                return (
                 <div 
                   key={exIndex}
                   style={{
@@ -719,14 +760,19 @@ export default function HomeWorkoutModal({ isOpen, memberId, onClose, onSuccess 
                     padding: '12px'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: '180px' }}>
                       <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-muted)' }}>#{exIndex + 1}</span>
                       <select
                         value={ex.exercise_name}
                         onChange={e => {
+                          const nextName = e.target.value;
+                          const nextHist = exerciseHistoryMap[nextName];
                           const updated = [...exerciseEntries];
-                          updated[exIndex].exercise_name = e.target.value;
+                          updated[exIndex].exercise_name = nextName;
+                          if (nextHist && nextHist.lastSets.length > 0) {
+                            updated[exIndex].sets = nextHist.lastSets.map(s => ({ ...s }));
+                          }
                           setExerciseEntries(updated);
                         }}
                         style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontWeight: 800, fontSize: '12px', width: '100%', background: 'var(--surface)', color: 'var(--text-main)' }}
@@ -736,6 +782,18 @@ export default function HomeWorkoutModal({ isOpen, memberId, onClose, onSuccess 
                         ))}
                       </select>
                     </div>
+                    {prWeight > 0 && (
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        padding: '3px 7px',
+                        borderRadius: '999px',
+                        background: isNewPr ? 'rgba(239, 68, 68, 0.14)' : 'rgba(245, 158, 11, 0.14)',
+                        color: isNewPr ? '#DC2626' : '#D97706'
+                      }}>
+                        {isNewPr ? `🔥 Yeni PR! (${currentMax} kg)` : `🏆 PR: ${prWeight} kg`}
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() => setExerciseEntries(exerciseEntries.filter((_, i) => i !== exIndex))}
@@ -806,11 +864,19 @@ export default function HomeWorkoutModal({ isOpen, memberId, onClose, onSuccess 
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
 
               <button
                 type="button"
-                onClick={() => setExerciseEntries([...exerciseEntries, { exercise_name: PRESET_EXERCISES[0].name, category: PRESET_EXERCISES[0].category, equipment: PRESET_EXERCISES[0].equipment, sets: [{ set_number: 1, weight_kg: '', reps: '' }] }])}
+                onClick={() => {
+                  const defaultEx = PRESET_EXERCISES[0];
+                  const hist = exerciseHistoryMap[defaultEx.name];
+                  const initialSets = hist && hist.lastSets.length > 0
+                    ? hist.lastSets.map(s => ({ ...s }))
+                    : [{ set_number: 1, weight_kg: '', reps: '' }];
+                  setExerciseEntries([...exerciseEntries, { exercise_name: defaultEx.name, category: defaultEx.category, equipment: defaultEx.equipment, sets: initialSets }]);
+                }}
                 style={{ padding: '8px', fontSize: '12px', fontWeight: 800, borderRadius: '8px', border: '1px dashed var(--primary)', background: 'var(--indigo-bg)', color: 'var(--primary)', cursor: 'pointer' }}
               >
                 ➕ Yeni Hareket Ekle

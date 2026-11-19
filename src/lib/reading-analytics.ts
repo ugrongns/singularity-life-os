@@ -1,5 +1,6 @@
 // Singularity Life OS - Kitap Okuma Hızı (WPM) & Seans Zaman Serisi (Faz 2)
 import { clampWpm } from '@/lib/module4-utils';
+import { getTodayTurkeyDate, shiftTurkeyDate, parseTurkeyDate, getTurkeyHour } from '@/lib/date-utils';
 
 export interface RawReadingSessionWithBook {
   session_id: string;
@@ -46,6 +47,16 @@ export interface DailyReadingMetric {
   sessionCount: number;
 }
 
+export interface TimeOfDayReadingMetric {
+  slot: 'morning' | 'afternoon' | 'evening' | 'night';
+  label: string;
+  icon: string;
+  sessionCount: number;
+  totalPages: number;
+  totalMinutes: number;
+  avgWpm: number;
+}
+
 export interface ReadingAnalyticsSummary {
   totalSessions: number;
   totalPagesRead: number;
@@ -55,6 +66,8 @@ export interface ReadingAnalyticsSummary {
   accelerationPercent: number; // ((Son 5 ort. WPM - İlk 5 ort. WPM) / İlk 5 ort.) * 100
   categories: CategoryWpmMetric[];
   dailyTrend: DailyReadingMetric[]; // Son 30 gün
+  timeOfDayBreakdown: TimeOfDayReadingMetric[];
+  bestTimeSlotLabel: string | null;
   sessions: EnrichedReadingSession[];
 }
 
@@ -101,6 +114,8 @@ export function calculateReadingAnalytics(
       accelerationPercent: 0,
       categories: [],
       dailyTrend: generateEmptyDailyTrend(referenceDate),
+      timeOfDayBreakdown: [],
+      bestTimeSlotLabel: null,
       sessions: []
     };
   }
@@ -194,15 +209,15 @@ export function calculateReadingAnalytics(
     sessionCount: val.count
   })).sort((a, b) => b.totalPages - a.totalPages);
 
-  // Son 30 Günlük Zaman Serisi (Gün Gün Sayfa, Dakika ve WPM)
+  // Son 30 Günlük Zaman Serisi (Gün Gün Sayfa, Dakika ve WPM — Europe/Istanbul takvim günü)
   const monthNames = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
   const dailyTrend: DailyReadingMetric[] = [];
+  const todayTr = getTodayTurkeyDate(referenceDate);
 
   for (let i = 29; i >= 0; i--) {
-    const d = new Date(referenceDate);
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().slice(0, 10);
-    const dayLabel = `${d.getDate()} ${monthNames[d.getMonth()]}`;
+    const dateStr = shiftTurkeyDate(todayTr, -i);
+    const parsedTr = parseTurkeyDate(dateStr);
+    const dayLabel = `${parsedTr.getUTCDate()} ${monthNames[parsedTr.getUTCMonth()]}`;
 
     const daySessions = enriched.filter(s => s.sessionDate.slice(0, 10) === dateStr);
     const pages = daySessions.reduce((sum, s) => sum + s.pagesRead, 0);
@@ -221,6 +236,46 @@ export function calculateReadingAnalytics(
     });
   }
 
+  // Günün Saat Dilimine Göre Okuma Verimi (Europe/Istanbul saati)
+  const slotDefs: Array<{ slot: TimeOfDayReadingMetric['slot']; label: string; icon: string }> = [
+    { slot: 'morning', label: 'Sabah (05-12)', icon: '🌅' },
+    { slot: 'afternoon', label: 'Öğle (12-18)', icon: '☀️' },
+    { slot: 'evening', label: 'Akşam (18-23)', icon: '🌆' },
+    { slot: 'night', label: 'Gece (23-05)', icon: '🌙' }
+  ];
+  const slotAccum = new Map<TimeOfDayReadingMetric['slot'], { pages: number; mins: number; wpmSum: number; count: number }>();
+  slotDefs.forEach(d => slotAccum.set(d.slot, { pages: 0, mins: 0, wpmSum: 0, count: 0 }));
+
+  for (const s of enriched) {
+    const hr = getTurkeyHour(s.createdAt);
+    const slotKey: TimeOfDayReadingMetric['slot'] =
+      hr >= 5 && hr < 12 ? 'morning' : hr >= 12 && hr < 18 ? 'afternoon' : hr >= 18 && hr < 23 ? 'evening' : 'night';
+    const acc = slotAccum.get(slotKey)!;
+    acc.pages += s.pagesRead;
+    acc.mins += s.durationMinutes;
+    acc.wpmSum += s.wpm;
+    acc.count += 1;
+  }
+
+  const timeOfDayBreakdown: TimeOfDayReadingMetric[] = slotDefs.map(d => {
+    const acc = slotAccum.get(d.slot)!;
+    return {
+      slot: d.slot,
+      label: d.label,
+      icon: d.icon,
+      sessionCount: acc.count,
+      totalPages: acc.pages,
+      totalMinutes: Math.round(acc.mins * 10) / 10,
+      avgWpm: acc.count > 0 ? Math.round(acc.wpmSum / acc.count) : 0
+    };
+  });
+
+  const activeSlots = timeOfDayBreakdown.filter(t => t.sessionCount > 0);
+  const bestSlot = activeSlots.length > 0
+    ? [...activeSlots].sort((a, b) => b.avgWpm - a.avgWpm || b.totalPages - a.totalPages)[0]
+    : null;
+  const bestTimeSlotLabel = bestSlot ? `${bestSlot.icon} ${bestSlot.label} (${bestSlot.avgWpm} WPM)` : null;
+
   return {
     totalSessions,
     totalPagesRead,
@@ -230,6 +285,8 @@ export function calculateReadingAnalytics(
     accelerationPercent,
     categories,
     dailyTrend,
+    timeOfDayBreakdown,
+    bestTimeSlotLabel,
     sessions: enriched
   };
 }
@@ -237,12 +294,13 @@ export function calculateReadingAnalytics(
 function generateEmptyDailyTrend(referenceDate: Date): DailyReadingMetric[] {
   const monthNames = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
   const daily: DailyReadingMetric[] = [];
+  const todayTr = getTodayTurkeyDate(referenceDate);
   for (let i = 29; i >= 0; i--) {
-    const d = new Date(referenceDate);
-    d.setDate(d.getDate() - i);
+    const dateStr = shiftTurkeyDate(todayTr, -i);
+    const parsedTr = parseTurkeyDate(dateStr);
     daily.push({
-      date: d.toISOString().slice(0, 10),
-      dayLabel: `${d.getDate()} ${monthNames[d.getMonth()]}`,
+      date: dateStr,
+      dayLabel: `${parsedTr.getUTCDate()} ${monthNames[parsedTr.getUTCMonth()]}`,
       pagesRead: 0,
       durationMinutes: 0,
       avgWpm: 0,

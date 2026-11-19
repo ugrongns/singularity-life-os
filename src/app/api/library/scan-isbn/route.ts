@@ -35,11 +35,16 @@ async function findExistingBookInLibrary(
 ) {
   try {
     await initDatabase();
+    const visibleBookScope = or(
+      eq(books.user_id, userId),
+      and(eq(books.family_id, familyId), eq(books.is_family_shared, 1))
+    );
+
     // 1. ISBN ile eşleşme
     if (cleanIsbn && cleanIsbn.length >= 9) {
       const byIsbn = await db.select().from(books).where(
         and(
-          or(eq(books.user_id, userId), eq(books.family_id, familyId)),
+          visibleBookScope,
           or(
             eq(books.isbn, cleanIsbn),
             sql`REPLACE(REPLACE(COALESCE(${books.isbn}, ''), '-', ''), ' ', '') = ${cleanIsbn}`
@@ -55,13 +60,15 @@ async function findExistingBookInLibrary(
       const cleanTitle = title.trim();
       const byTitle = await db.select().from(books).where(
         and(
-          or(eq(books.user_id, userId), eq(books.family_id, familyId)),
+          visibleBookScope,
           sql`LOWER(TRIM(${books.title})) = LOWER(TRIM(${cleanTitle}))`
         )
       ).limit(1);
 
       if (byTitle && byTitle.length > 0) {
-        if (!author || byTitle[0].author.toLowerCase().includes(author.toLowerCase().slice(0, 4))) {
+        const existingAuthor = (byTitle[0].author || '').toLowerCase();
+        const incomingAuthor = (author || '').toLowerCase();
+        if (!incomingAuthor || existingAuthor.includes(incomingAuthor.slice(0, 4)) || incomingAuthor.includes(existingAuthor.slice(0, 4))) {
           return byTitle[0];
         }
       }
@@ -203,13 +210,15 @@ function extractJsonFromText(text: string): any {
   const raw = jsonMatch ? jsonMatch[1] : text;
   try {
     return JSON.parse(raw.trim());
-  } catch (e) {
+  } catch {
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace > firstBrace) {
       try {
         return JSON.parse(text.slice(firstBrace, lastBrace + 1));
-      } catch (err) {}
+      } catch {
+        // invalid JSON block
+      }
     }
   }
   return null;
@@ -274,40 +283,25 @@ async function fetchFromKitapsepeti(queryOrIsbn: string): Promise<BookSearchResu
   return null;
 }
 
-// 3. KAYNAK: Gemini AI Canlı Arama / Google Search Grounding & Künye Analizi
-async function fetchFromGeminiAI(
-  cleanIsbn: string,
-  seedTitle?: string,
-  seedAuthor?: string,
-  seedPublisher?: string
+const GEMINI_CATALOG_MODELS = [
+  'gemini-flash-lite-latest',
+  'gemini-3.5-flash-lite',
+  'gemini-3-flash-preview',
+  'gemini-3.5-flash',
+  'gemini-flash-latest'
+];
+
+// Paylaşılan Gemini AI Künye Sorgulayıcı (Google Search Grounding destekli)
+async function queryGeminiBookMetadata(
+  promptText: string,
+  defaults: { author?: string; publisher?: string; includeIsbn?: boolean }
 ): Promise<BookSearchResult | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
-  const contextHint = seedTitle ? ` (Kitap İpucu: "${seedTitle}" - ${seedAuthor || ''}, ${seedPublisher || ''})` : '';
-  const promptText = `Sen uzman bir kütüphanecisin. ISBN numarası "${cleanIsbn}"${contextHint} olan kitabın Türkiye ve dünya kataloglarındaki (Kronik Kitap, Destek Yayınları, Can Yayınları, Yapı Kredi Kültür, İş Bankası, Kitapyurdu, D&R vb.) gerçek ve tam adını, yazarını, yayınevini, sayfa sayısını, açıklayıcı Türkçe arka kapak özetini (2-3 cümle) ve kitabın gerçek konusuna/türüne göre en doğru Türkçe kategorisini (Örn: Tarih, Felsefe, Psikoloji, Bilim, Kişisel Gelişim, Kurgu (Fiction), Beden, Zihin & Ruh, İş & Ekonomi, Din, Sosyal Bilimler, Tıp, Sanat, Teknoloji & Mühendislik vb.) araştır ve SADECE JSON formatında çıktı ver:
-\`\`\`json
-{
-  "title": "Kitap Tam Adı",
-  "author": "Yazar Adı",
-  "publisher": "Yayınevi Adı",
-  "total_pages": 250,
-  "category": "Kitabın Gerçek Türkçe Kategorisi",
-  "summary": "Kitabın konusu, anlattıkları ve arka kapak metni hakkında 2-3 cümlelik açıklayıcı Türkçe özet."
-}
-\`\`\``;
-
-  const models = [
-    'gemini-flash-lite-latest',
-    'gemini-3.5-flash-lite',
-    'gemini-3-flash-preview',
-    'gemini-3.5-flash',
-    'gemini-flash-latest'
-  ];
-
   let searchAvailable = true;
 
-  for (const modelName of models) {
+  for (const modelName of GEMINI_CATALOG_MODELS) {
     const searchOptions = searchAvailable ? [true, false] : [false];
     for (const withSearch of searchOptions) {
       try {
@@ -346,8 +340,9 @@ async function fetchFromGeminiAI(
               const resolvedCategory = normalizeBookCategory(parsed.category, parsed.title, parsed.summary);
               return {
                 title: decodeHtmlEntities(parsed.title),
-                author: decodeHtmlEntities((parsed.author || seedAuthor || '').replace(/Yazar Adı/i, '').trim()),
-                publisher: decodeHtmlEntities((parsed.publisher || seedPublisher || '').replace(/Yayınevi Adı/i, '').trim()),
+                author: decodeHtmlEntities((parsed.author || defaults.author || '').replace(/Yazar Adı/i, '').trim()),
+                publisher: decodeHtmlEntities((parsed.publisher || defaults.publisher || '').replace(/Yayınevi Adı/i, '').trim()),
+                ...(defaults.includeIsbn ? { isbn: cleanIsbnString(parsed.isbn || '') } : {}),
                 total_pages: Number(parsed.total_pages) || 200,
                 category: resolvedCategory,
                 summary: decodeHtmlEntities(parsed.summary || ''),
@@ -357,12 +352,38 @@ async function fetchFromGeminiAI(
             }
           }
         }
-      } catch (e) {
+      } catch {
         // Continue to next attempt/model
       }
     }
   }
   return null;
+}
+
+// 3. KAYNAK: Gemini AI Canlı Arama / Google Search Grounding & Künye Analizi
+async function fetchFromGeminiAI(
+  cleanIsbn: string,
+  seedTitle?: string,
+  seedAuthor?: string,
+  seedPublisher?: string
+): Promise<BookSearchResult | null> {
+  const contextHint = seedTitle ? ` (Kitap İpucu: "${seedTitle}" - ${seedAuthor || ''}, ${seedPublisher || ''})` : '';
+  const promptText = `Sen uzman bir kütüphanecisin. ISBN numarası "${cleanIsbn}"${contextHint} olan kitabın Türkiye ve dünya kataloglarındaki (Kronik Kitap, Destek Yayınları, Can Yayınları, Yapı Kredi Kültür, İş Bankası, Kitapyurdu, D&R vb.) gerçek ve tam adını, yazarını, yayınevini, sayfa sayısını, açıklayıcı Türkçe arka kapak özetini (2-3 cümle) ve kitabın gerçek konusuna/türüne göre en doğru Türkçe kategorisini (Örn: Tarih, Felsefe, Psikoloji, Bilim, Kişisel Gelişim, Kurgu (Fiction), Beden, Zihin & Ruh, İş & Ekonomi, Din, Sosyal Bilimler, Tıp, Sanat, Teknoloji & Mühendislik vb.) araştır ve SADECE JSON formatında çıktı ver:
+\`\`\`json
+{
+  "title": "Kitap Tam Adı",
+  "author": "Yazar Adı",
+  "publisher": "Yayınevi Adı",
+  "total_pages": 250,
+  "category": "Kitabın Gerçek Türkçe Kategorisi",
+  "summary": "Kitabın konusu, anlattıkları ve arka kapak metni hakkında 2-3 cümlelik açıklayıcı Türkçe özet."
+}
+\`\`\``;
+
+  return queryGeminiBookMetadata(promptText, {
+    author: seedAuthor,
+    publisher: seedPublisher
+  });
 }
 
 // 3.1 KAYNAK: Gemini AI İsim / Yazar ile Künye Analizi & Zenginleştirme
@@ -371,9 +392,6 @@ async function fetchFromGeminiAIByTitle(
   author?: string,
   publisher?: string
 ): Promise<BookSearchResult | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
-
   const authorHint = author ? ` (Yazar: ${author})` : '';
   const pubHint = publisher ? ` (Yayınevi: ${publisher})` : '';
   const promptText = `Sen uzman bir kütüphanecisin. Adı "${title}"${authorHint}${pubHint} olan kitabın Türkiye ve dünya kataloglarındaki gerçek ve tam adını, yazarını, yayınevini, yaklaşık sayfa sayısını, ISBN numarasını (varsa), açıklayıcı Türkçe arka kapak özetini (2-3 cümle) ve kitabın gerçek konusuna/türüne göre en doğru Türkçe kategorisini (Örn: Tarih, Felsefe, Psikoloji, Bilim, Kişisel Gelişim, Kurgu (Fiction), Beden, Zihin & Ruh, İş & Ekonomi, Din, Sosyal Bilimler, Tıp, Sanat, Teknoloji & Mühendislik vb.) araştır ve SADECE JSON formatında çıktı ver:
@@ -389,73 +407,11 @@ async function fetchFromGeminiAIByTitle(
 }
 \`\`\``;
 
-  const models = [
-    'gemini-flash-lite-latest',
-    'gemini-3.5-flash-lite',
-    'gemini-3-flash-preview',
-    'gemini-3.5-flash',
-    'gemini-flash-latest'
-  ];
-
-  let searchAvailable = true;
-
-  for (const modelName of models) {
-    const searchOptions = searchAvailable ? [true, false] : [false];
-    for (const withSearch of searchOptions) {
-      try {
-        const body: any = {
-          contents: [{ parts: [{ text: promptText }] }],
-          generationConfig: {
-            temperature: 0.0,
-            thinkingConfig: { thinkingBudget: 0 }
-          }
-        };
-        if (withSearch) {
-          body.tools = [{ googleSearch: {} }];
-        }
-
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(10000)
-          }
-        );
-
-        if (response.status === 429 && withSearch) {
-          searchAvailable = false;
-        }
-
-        if (response.ok) {
-          const json = await response.json();
-          const parts = json.candidates?.[0]?.content?.parts || [];
-          const text = parts.map((p: any) => p.text || '').join('');
-          if (text) {
-            const parsed = extractJsonFromText(text);
-            if (parsed && parsed.title && parsed.title !== 'Kitap Tam Adı' && parsed.title.length >= 2) {
-              const resolvedCategory = normalizeBookCategory(parsed.category, parsed.title, parsed.summary);
-              return {
-                title: decodeHtmlEntities(parsed.title),
-                author: decodeHtmlEntities((parsed.author || author || '').replace(/Yazar Adı/i, '').trim()),
-                publisher: decodeHtmlEntities((parsed.publisher || publisher || '').replace(/Yayınevi Adı/i, '').trim()),
-                isbn: cleanIsbnString(parsed.isbn || ''),
-                total_pages: Number(parsed.total_pages) || 200,
-                category: resolvedCategory,
-                summary: decodeHtmlEntities(parsed.summary || ''),
-                cover_url: null,
-                source: withSearch ? 'Gemini AI (Google Search Grounding)' : 'Gemini AI'
-              };
-            }
-          }
-        }
-      } catch (e) {
-        // Continue to next attempt/model
-      }
-    }
-  }
-  return null;
+  return queryGeminiBookMetadata(promptText, {
+    author,
+    publisher,
+    includeIsbn: true
+  });
 }
 
 // 4. KAYNAK: DuckDuckGo HTML + Türkçe Kitabevleri (Gelişmiş Yedek Arama)
@@ -599,10 +555,16 @@ export async function POST(req: Request) {
       // Kullanıcının kütüphanesinde mükerrer kontrolü
       const existingInLibrary = await findExistingBookInLibrary(user.id, familyId, undefined, cleanSearchTitle, cleanSearchAuthor);
 
-      // 1. Aşama: Google Books & Kitapsepeti Arama
-      let catalogBook = await fetchFromGoogleBooksByQuery(cleanSearchTitle, cleanSearchAuthor);
-      if (!catalogBook) {
-        catalogBook = await fetchFromKitapsepeti(cleanSearchTitle);
+      // 1. Aşama: Google Books & Kitapsepeti Paralel Arama (Öncelik sırası korunur)
+      const [googleTitleRes, kitapsepetiTitleRes] = await Promise.allSettled([
+        fetchFromGoogleBooksByQuery(cleanSearchTitle, cleanSearchAuthor),
+        fetchFromKitapsepeti(cleanSearchTitle)
+      ]);
+      const googleTitleBook = googleTitleRes.status === 'fulfilled' ? googleTitleRes.value : null;
+      const kitapsepetiTitleBook = kitapsepetiTitleRes.status === 'fulfilled' ? kitapsepetiTitleRes.value : null;
+      let catalogBook = googleTitleBook || kitapsepetiTitleBook;
+      if (catalogBook && !catalogBook.cover_url && kitapsepetiTitleBook?.cover_url) {
+        catalogBook = { ...catalogBook, cover_url: kitapsepetiTitleBook.cover_url };
       }
 
       // 2. Aşama: Gemini AI Künye Analizi
@@ -695,13 +657,22 @@ export async function POST(req: Request) {
     // Kullanıcının kendi kütüphanesinde mükerrer kontrolü
     const existingInLibrary = await findExistingBookInLibrary(user.id, familyId, cleanIsbn);
 
-    // 1. Aşama: Dış Katalogları Sorgula (Google Books, Open Library & Kitapsepeti -> Kapak resmi, sayfa sayısı ve temel künye)
-    let catalogBook: BookSearchResult | null = await fetchFromGoogleBooks(cleanIsbn);
-    if (!catalogBook) {
-      catalogBook = await fetchFromOpenLibrary(cleanIsbn);
-    }
-    if (!catalogBook) {
-      catalogBook = await fetchFromKitapsepeti(cleanIsbn);
+    // 1. Aşama: Dış Katalogları Paralel Sorgula (Google Books, Open Library & Kitapsepeti -> Öncelik ve kapak zenginleştirme korunur)
+    const [googleRes, openLibRes, kitapsepetiRes] = await Promise.allSettled([
+      fetchFromGoogleBooks(cleanIsbn),
+      fetchFromOpenLibrary(cleanIsbn),
+      fetchFromKitapsepeti(cleanIsbn)
+    ]);
+    const googleBook = googleRes.status === 'fulfilled' ? googleRes.value : null;
+    const openLibBook = openLibRes.status === 'fulfilled' ? openLibRes.value : null;
+    const kitapsepetiBook = kitapsepetiRes.status === 'fulfilled' ? kitapsepetiRes.value : null;
+
+    let catalogBook: BookSearchResult | null = googleBook || openLibBook || kitapsepetiBook;
+    if (catalogBook && !catalogBook.cover_url) {
+      catalogBook = {
+        ...catalogBook,
+        cover_url: openLibBook?.cover_url || kitapsepetiBook?.cover_url || null
+      };
     }
 
     // 2. Aşama: Gemini AI ile Canlı Künye, Zengin Türkçe Özet ve Derinlemesine Kategori Analizi Yap

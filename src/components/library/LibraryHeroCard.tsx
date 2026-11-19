@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import { BookOpen, Clock, Zap, Trophy, Edit3, Check, Bookmark, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BookOpen, Clock, Zap, Trophy, Edit3, Check, Bookmark } from 'lucide-react';
+import { getTodayTurkeyDate, shiftTurkeyDate, diffTurkeyCalendarDays } from '@/lib/date-utils';
 
 interface LibraryHeroProps {
   profile: {
@@ -18,6 +19,7 @@ interface LibraryHeroProps {
     total_pages: number;
     current_page: number;
     cover_url?: string;
+    target_finish_date?: string | null;
     eta?: {
       remainingPages: number;
       hoursLeft: number;
@@ -43,6 +45,20 @@ export default function LibraryHeroCard({
   const [isEditingTarget, setIsEditingTarget] = useState(false);
   const [targetInput, setTargetInput] = useState(String(profile.yearly_target_books || 24));
   const [savingTarget, setSavingTarget] = useState(false);
+  const todayTr = getTodayTurkeyDate();
+  const currentYear = todayTr.slice(0, 4);
+  const [targetFinishDate, setTargetFinishDate] = useState<string>(
+    activeBook?.target_finish_date || shiftTurkeyDate(todayTr, 14)
+  );
+  const [savingFinishDate, setSavingFinishDate] = useState(false);
+
+  useEffect(() => {
+    setTargetFinishDate(activeBook?.target_finish_date || shiftTurkeyDate(getTodayTurkeyDate(), 14));
+  }, [activeBook?.id, activeBook?.target_finish_date]);
+
+  useEffect(() => {
+    setTargetInput(String(profile.yearly_target_books || 24));
+  }, [profile.yearly_target_books]);
 
   const percent = activeBook
     ? (activeBook.eta?.progressPercent ?? (activeBook.total_pages > 0 ? Math.min(100, Math.round((activeBook.current_page / activeBook.total_pages) * 100)) : 0))
@@ -54,22 +70,28 @@ export default function LibraryHeroCard({
 
   const handleSaveTarget = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetInput || isNaN(Number(targetInput))) return;
+    const parsed = parseInt(targetInput, 10);
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 500) {
+      if (onUpdate) onUpdate('⚠️ Yıllık hedef 1 ile 500 arasında olmalıdır.');
+      return;
+    }
     setSavingTarget(true);
     try {
       const res = await fetch('/api/library', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'update_target', yearly_target_books: Number(targetInput) })
+        body: JSON.stringify({ action: 'update_target', yearly_target_books: parsed })
       });
       const json = await res.json();
       if (json.success) {
         setIsEditingTarget(false);
         if (onUpdate) onUpdate(json.message);
         window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      } else if (onUpdate) {
+        onUpdate(json.error || 'Hedef güncellenemedi.');
       }
     } catch {
-      //
+      if (onUpdate) onUpdate('Hedef güncellenirken bağlantı hatası oluştu.');
     } finally {
       setSavingTarget(false);
     }
@@ -317,6 +339,77 @@ export default function LibraryHeroCard({
               </div>
             </div>
 
+            {/* 🎯 Hedef Tarihli Bitiş Simülatörü */}
+            {remaining > 0 && (() => {
+              const daysLeft = Math.max(1, diffTurkeyCalendarDays(targetFinishDate, todayTr) ?? 14);
+              const pagesPerDay = Math.ceil(remaining / daysLeft);
+              const avgMinsPerPage = parseFloat(profile.avgMinutesPerPage || '1.4') || 1.4;
+              const minsPerDay = Math.max(1, Math.round(pagesPerDay * avgMinsPerPage));
+
+              const handleFinishDateChange = async (nextDate: string) => {
+                setTargetFinishDate(nextDate);
+                if (!activeBook?.id || !nextDate) return;
+                setSavingFinishDate(true);
+                try {
+                  const res = await fetch('/api/library', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      action: 'update_target_date',
+                      book_id: activeBook.id,
+                      target_finish_date: nextDate
+                    })
+                  });
+                  const json = await res.json();
+                  if (json.success && onUpdate) {
+                    onUpdate(json.message);
+                  }
+                } finally {
+                  setSavingFinishDate(false);
+                }
+              };
+
+              return (
+                <div
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: '10px',
+                    background: 'var(--surface-subtle)',
+                    border: '1px solid var(--border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    fontSize: '11px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontWeight: 800, color: '#6366F1' }}>🎯 Hedef Bitiş:</span>
+                    <input
+                      type="date"
+                      value={targetFinishDate}
+                      min={todayTr}
+                      disabled={savingFinishDate}
+                      onChange={e => void handleFinishDateChange(e.target.value)}
+                      style={{
+                        padding: '3px 6px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface)',
+                        color: 'var(--text-main)',
+                        fontSize: '11px',
+                        fontWeight: 700
+                      }}
+                    />
+                  </div>
+                  <div style={{ fontWeight: 800, color: 'var(--text-main)' }}>
+                    Günde <span style={{ color: '#10B981' }}>{pagesPerDay} sayfa</span> (~{minsPerDay} dk) • {daysLeft} gün
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Hızlı Aksiyon Butonları */}
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', minWidth: 0, flexWrap: 'wrap' }}>
               <button
@@ -439,7 +532,7 @@ export default function LibraryHeroCard({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 800, color: '#10B981', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
                   <Trophy size={13} color="#10B981" />
-                  <span>2026 Hedefi</span>
+                  <span>{currentYear} Hedefi</span>
                 </div>
                 <button
                   type="button"

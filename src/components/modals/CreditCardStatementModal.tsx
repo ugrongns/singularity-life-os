@@ -4,6 +4,7 @@ import { CreditCard, X, Download, Calendar, Search } from 'lucide-react';
 import { generateCSVContent, downloadCSV, CSVColumn } from '@/lib/export-csv';
 import { formatDateSafe } from '@/lib/financial-utils';
 import { localYYYYMMDD } from '@/lib/bill-schedule';
+import { simulateMinimumPaymentTrap, simulateCashAdvanceCost } from '@/lib/debt-simulators';
 
 interface Props {
   isOpen: boolean;
@@ -15,8 +16,11 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'installments' | 'single'>('installments');
+  const [activeTab, setActiveTab] = useState<'installments' | 'single' | 'simulator'>('installments');
   const [searchQuery, setSearchQuery] = useState('');
+  const [simMinRateOverride, setSimMinRateOverride] = useState<string>('');
+  const [cashAdvanceAmt, setCashAdvanceAmt] = useState<string>('10000');
+  const [cashAdvanceDays, setCashAdvanceDays] = useState<string>('30');
 
   useEffect(() => {
     if (isOpen && accountId) {
@@ -271,7 +275,7 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
             </div>
 
             {/* Sekme Değiştirici */}
-            <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>
+            <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '4px', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={() => setActiveTab('installments')}
@@ -296,10 +300,109 @@ export default function CreditCardStatementModal({ isOpen, accountId, onClose }:
               >
                 Bu Dönemki Tek Çekimler ({filteredSingle.length})
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('simulator')}
+                style={{
+                  background: 'none', border: 'none', padding: '6px 12px', fontSize: '13px', fontWeight: 800,
+                  color: activeTab === 'simulator' ? 'var(--emerald)' : 'var(--text-muted)',
+                  borderBottom: activeTab === 'simulator' ? '2px solid var(--emerald)' : 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                🧮 Asgari Ödeme & Nakit Avans
+              </button>
             </div>
 
-            {/* Tab İçerikleri: Masaüstünde Geniş Veri Tablosu */}
-            {activeTab === 'installments' ? (
+            {/* Tab İçerikleri */}
+            {activeTab === 'simulator' ? (() => {
+              const cardBalance = Number(data?.summary?.currentStatementDebt || data?.card?.balance || 0);
+              const cardLimit = Number(data?.card?.credit_limit || 0);
+              const contractualRate = Number(data?.card?.interest_rate_contractual || 4.25);
+              const customMinPct = simMinRateOverride ? Number(simMinRateOverride) : undefined;
+              const trap = simulateMinimumPaymentTrap({
+                balance: cardBalance,
+                creditLimit: cardLimit,
+                monthlyContractualRatePercent: contractualRate,
+                customMinPaymentPercent: customMinPct
+              });
+              const cashAdv = simulateCashAdvanceCost({
+                amount: Number(cashAdvanceAmt) || 0,
+                days: Number(cashAdvanceDays) || 30,
+                monthlyRatePercent: 5.0,
+                feePercent: 1.0
+              });
+              return (
+                <div style={{ maxHeight: '420px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {/* 1. BDDK Asgari Ödeme Tuzağı */}
+                  <div style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>⚠️ BDDK Asgari Ödeme Tuzağı Analizi</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{trap.bddkRuleLabel} • Akdi Faiz %{contractualRate} (+%30 KKDF/BSMV)</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {[20, 40].map(pct => (
+                          <button
+                            key={pct}
+                            type="button"
+                            onClick={() => setSimMinRateOverride(String(pct))}
+                            style={{
+                              padding: '4px 9px',
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              borderRadius: '6px',
+                              border: `1px solid ${trap.appliedMinRatePercent === pct ? 'var(--indigo)' : 'var(--border)'}`,
+                              background: trap.appliedMinRatePercent === pct ? 'var(--indigo-bg)' : 'var(--surface)',
+                              color: trap.appliedMinRatePercent === pct ? 'var(--indigo)' : 'var(--text-muted)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            %{pct}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                      <div style={{ padding: '10px', borderRadius: '8px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>İlk Ay Asgari Ödeme</div>
+                        <div style={{ fontSize: '15px', fontWeight: 900, color: 'var(--text-main)' }}>{formatTRY(trap.firstMonthMinPayment)}</div>
+                      </div>
+                      <div style={{ padding: '10px', borderRadius: '8px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>Kapanma Süresi</div>
+                        <div style={{ fontSize: '15px', fontWeight: 900, color: '#F59E0B' }}>
+                          {trap.monthsToPayoff === 0 ? 'Borç Yok' : `${trap.monthsToPayoff} Ay${trap.hitMaxCap ? '+' : ''}`}
+                        </div>
+                      </div>
+                      <div style={{ padding: '10px', borderRadius: '8px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                        <div style={{ fontSize: '10px', color: '#DC2626', fontWeight: 700 }}>Toplam Faiz + KKDF/BSMV</div>
+                        <div style={{ fontSize: '15px', fontWeight: 900, color: '#DC2626' }}>{formatTRY(trap.totalInterestAndTax)}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2. Nakit Avans Maliyet Simülatörü */}
+                  <div style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--surface-subtle)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>💵 Gün Bazlı Nakit Avans Maliyet Hesaplayıcı</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <div>
+                        <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>Çekilecek Tutar (₺)</label>
+                        <input type="number" inputMode="decimal" value={cashAdvanceAmt} onChange={e => setCashAdvanceAmt(e.target.value)} className="input" style={{ width: '100%', fontSize: '12px', marginTop: '3px' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)' }}>Vade (Gün)</label>
+                        <input type="number" inputMode="numeric" min="1" max="365" value={cashAdvanceDays} onChange={e => setCashAdvanceDays(e.target.value)} className="input" style={{ width: '100%', fontSize: '12px', marginTop: '3px' }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', fontSize: '12px', padding: '8px 10px', borderRadius: '8px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                      <span>Toplam Maliyet (Faiz + Vergi + Komisyon): <strong style={{ color: '#DC2626' }}>{formatTRY(cashAdv.totalCost)} (%{cashAdv.costPercent})</strong></span>
+                      <span>Net Geri Ödeme: <strong style={{ color: 'var(--text-main)' }}>{formatTRY(cashAdv.totalRepayment)}</strong></span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })() : activeTab === 'installments' ? (
               <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'auto' }}>
                 {filteredInstallments.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '13px' }}>

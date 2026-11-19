@@ -1,8 +1,8 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { validateReadingSessionPages } from '@/lib/module3-utils';
 import PageCalibrationModal from '@/components/modals/PageCalibrationModal';
-import { Clock, BookOpen, Camera, Zap, Check, X } from 'lucide-react';
+import { Clock, Camera, X } from 'lucide-react';
 
 interface Book {
   id: string;
@@ -30,28 +30,73 @@ export default function ReadingSessionModal({
   const [selectedBookId, setSelectedBookId] = useState(preselectedBookId || books[0]?.id || '');
   const activeBook = books.find(b => b.id === selectedBookId) || books[0];
 
-  const [inputMode, setInputMode] = useState<'count' | 'range'>('count');
+  const [inputMode, setInputMode] = useState<'count' | 'range' | 'percent'>('count');
   const [pagesReadInput, setPagesReadInput] = useState('');
+  const [percentInput, setPercentInput] = useState('');
   const [startPage, setStartPage] = useState(String(activeBook?.current_page || 0));
   const [endPage, setEndPage] = useState(String((activeBook?.current_page || 0) + 15));
   const [durationMinutes, setDurationMinutes] = useState('');
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
   const [overrideWordsPerPage, setOverrideWordsPerPage] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (preselectedBookId) {
       setSelectedBookId(preselectedBookId);
+    } else if (books.length > 0 && (!selectedBookId || !books.some(b => b.id === selectedBookId))) {
+      setSelectedBookId(books[0].id);
     }
-  }, [preselectedBookId]);
+  }, [preselectedBookId, books, selectedBookId]);
 
   useEffect(() => {
-    if (activeBook) {
-      setStartPage(String(activeBook.current_page));
-      const pCount = parseInt(pagesReadInput) || 15;
-      setEndPage(String(Math.min(activeBook.total_pages, activeBook.current_page + pCount)));
+    if (isOpen) {
+      setErrorMsg(null);
+    } else {
+      setTimerRunning(false);
     }
-  }, [selectedBookId]);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!timerRunning) return;
+    const id = window.setInterval(() => {
+      setElapsedSeconds(prev => prev + 1);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [timerRunning]);
+
+  const formatTimer = (totalSec: number) => {
+    const hrs = Math.floor(totalSec / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const secs = totalSec % 60;
+    return [hrs, mins, secs].map(v => String(v).padStart(2, '0')).join(':');
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !isCalibrationOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isCalibrationOpen, onClose]);
+
+  const activeBookId = activeBook?.id;
+  const activeBookCurrentPage = activeBook?.current_page ?? 0;
+  const activeBookTotalPages = activeBook?.total_pages ?? 9999;
+  const pagesReadInputRef = useRef(pagesReadInput);
+  pagesReadInputRef.current = pagesReadInput;
+
+  useEffect(() => {
+    if (activeBookId) {
+      setStartPage(String(activeBookCurrentPage));
+      const pCount = parseInt(pagesReadInputRef.current, 10) || 15;
+      setEndPage(String(Math.min(activeBookTotalPages, activeBookCurrentPage + pCount)));
+    }
+  }, [selectedBookId, activeBookId, activeBookCurrentPage, activeBookTotalPages]);
 
   if (!isOpen) return null;
 
@@ -92,6 +137,17 @@ export default function ReadingSessionModal({
     }
   };
 
+  const handlePercentInput = (val: string) => {
+    setPercentInput(val);
+    const pct = Math.min(100, Math.max(0, parseFloat(val) || 0));
+    const total = activeBook?.total_pages || 0;
+    const curr = activeBook?.current_page || 0;
+    const targetEnd = total > 0 ? Math.min(total, Math.round((total * pct) / 100)) : curr;
+    setStartPage(String(curr));
+    setEndPage(String(targetEnd));
+    setPagesReadInput(String(Math.max(0, targetEnd - curr)));
+  };
+
   const pagesRead = inputMode === 'count'
     ? Math.max(1, parseInt(pagesReadInput) || 1)
     : Math.max(1, (parseInt(endPage) || 0) - (parseInt(startPage) || 0));
@@ -103,13 +159,27 @@ export default function ReadingSessionModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
+    const targetBookId = selectedBookId || activeBook?.id;
+    if (!targetBookId) {
+      setErrorMsg('Okuma seansı kaydetmek için önce kütüphanenize bir kitap ekleyin.');
+      return;
+    }
+
+    const validationMode: 'count' | 'range' = inputMode === 'percent' ? 'range' : inputMode;
     const validation = validateReadingSessionPages(
-      inputMode,
+      validationMode,
       startPage,
-      inputMode === 'count' ? pagesReadInput : endPage
+      validationMode === 'count' ? pagesReadInput : endPage
     );
     if (!validation.valid) {
-      alert(validation.error || 'Geçersiz sayfa aralığı');
+      setErrorMsg(validation.error || 'Geçersiz sayfa aralığı');
+      return;
+    }
+
+    const parsedDur = parseFloat(durationMinutes);
+    if (!Number.isFinite(parsedDur) || parsedDur <= 0) {
+      setErrorMsg('Okuma süresi 0 dakikadan büyük olmalıdır.');
       return;
     }
 
@@ -124,22 +194,24 @@ export default function ReadingSessionModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          book_id: selectedBookId || activeBook?.id,
+          book_id: targetBookId,
           start_page: computedStart,
           end_page: computedEnd,
-          duration_minutes: durMin
+          duration_minutes: parsedDur
         })
       });
       const json = await res.json();
       if (json.success) {
+        setPagesReadInput('');
+        setDurationMinutes('');
         window.dispatchEvent(new CustomEvent('singularity-refresh'));
         onSuccess(json.message);
         onClose();
       } else {
-        alert(json.error || 'Seans kaydedilemedi.');
+        setErrorMsg(json.error || 'Seans kaydedilemedi.');
       }
     } catch {
-      alert('İşlem başarısız.');
+      setErrorMsg('Bağlantı hatası: Seans kaydedilemedi.');
     } finally {
       setIsSubmitting(false);
     }
@@ -201,12 +273,100 @@ export default function ReadingSessionModal({
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Canlı Okuma Kronometresi */}
+          <div
+            style={{
+              padding: '10px 12px',
+              borderRadius: 'var(--radius-md)',
+              background: timerRunning ? 'rgba(16, 185, 129, 0.1)' : 'var(--surface-subtle)',
+              border: `1px solid ${timerRunning ? 'rgba(16, 185, 129, 0.4)' : 'var(--border)'}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '8px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)' }}>⏱️ CANLI KRONOMETRE</span>
+              <span className="tabular-nums" style={{ fontSize: '18px', fontWeight: 900, color: timerRunning ? '#10B981' : 'var(--text-main)' }}>
+                {formatTimer(elapsedSeconds)}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setTimerRunning(prev => !prev)}
+                style={{
+                  padding: '5px 10px',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: timerRunning ? 'rgba(245, 158, 11, 0.14)' : 'var(--surface)',
+                  color: timerRunning ? '#F59E0B' : '#10B981',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                {timerRunning ? '⏸ Duraklat' : '▶ Başlat'}
+              </button>
+              {elapsedSeconds > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTimerRunning(false);
+                      setDurationMinutes(String(Math.max(1, Math.round(elapsedSeconds / 60))));
+                    }}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: '7px',
+                      border: '1px solid rgba(99, 102, 241, 0.4)',
+                      background: 'rgba(99, 102, 241, 0.12)',
+                      color: '#6366F1',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ✓ Süreyi Aktar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTimerRunning(false);
+                      setElapsedSeconds(0);
+                    }}
+                    style={{
+                      padding: '5px 8px',
+                      borderRadius: '7px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface)',
+                      color: 'var(--text-muted)',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ↺
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {errorMsg && (
+            <div style={{ background: 'var(--rose-bg)', border: '1px solid var(--rose)', color: 'var(--rose)', padding: '10px 12px', borderRadius: 'var(--radius-md)', fontSize: '12px', fontWeight: 600 }}>
+              ⚠️ {errorMsg}
+            </div>
+          )}
           {/* Kitap Seçici */}
           <div>
             <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>KİTAP SEÇİN *</label>
             <select 
               value={selectedBookId}
               onChange={e => handleBookChange(e.target.value)}
+              disabled={books.length === 0}
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
@@ -220,15 +380,19 @@ export default function ReadingSessionModal({
                 color: 'var(--text-main)'
               }}
             >
-              {books.map(b => (
-                <option key={b.id} value={b.id}>
-                  {b.title} (Sayfa {b.current_page}/{b.total_pages})
-                </option>
-              ))}
+              {books.length === 0 ? (
+                <option value="">Kütüphanenizde henüz kitap yok</option>
+              ) : (
+                books.map(b => (
+                  <option key={b.id} value={b.id}>
+                    {b.title} (Sayfa {b.current_page}/{b.total_pages})
+                  </option>
+                ))
+              )}
             </select>
           </div>
 
-          {/* Giriş Modu Seçimi: Okunan Sayfa Sayısı vs Sayfa Aralığı */}
+          {/* Giriş Modu Seçimi: Okunan Sayfa Sayısı vs Sayfa Aralığı vs % Yüzde */}
           <div style={{ background: 'var(--surface-subtle)', padding: '4px', borderRadius: 'var(--radius-md)', display: 'flex', gap: '4px', border: '1px solid var(--border)' }}>
             <button
               type="button"
@@ -247,7 +411,7 @@ export default function ReadingSessionModal({
                 boxShadow: inputMode === 'count' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none'
               }}
             >
-              📄 Kaç Sayfa Okudum?
+              📄 Kaç Sayfa?
             </button>
             <button
               type="button"
@@ -266,12 +430,60 @@ export default function ReadingSessionModal({
                 boxShadow: inputMode === 'range' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none'
               }}
             >
-              📑 Sayfa Numaraları (Aralık)
+              📑 Aralık
+            </button>
+            <button
+              type="button"
+              className={`choice-pill ${inputMode === 'percent' ? 'selected' : ''}`}
+              onClick={() => setInputMode('percent')}
+              style={{
+                flex: 1,
+                padding: '8px',
+                fontSize: '12px',
+                fontWeight: 700,
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: inputMode === 'percent' ? 'var(--surface)' : 'transparent',
+                color: inputMode === 'percent' ? '#6366F1' : 'var(--text-muted)',
+                boxShadow: inputMode === 'percent' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none'
+              }}
+            >
+              % Yüzde (E-Kitap)
             </button>
           </div>
 
-          {/* Mod A: Doğrudan Sayfa Sayısı Girişi */}
-          {inputMode === 'count' ? (
+          {inputMode === 'percent' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>
+                KİTAPTAKİ GÜNCEL YÜZDE (% İLERLEME) *
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                min="1"
+                max="100"
+                placeholder="Örn. 42"
+                value={percentInput}
+                onChange={e => handlePercentInput(e.target.value)}
+                required
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '10px 12px',
+                  fontSize: '18px',
+                  fontWeight: 900,
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--surface-subtle)',
+                  color: '#6366F1'
+                }}
+              />
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>
+                Sayfa {startPage} → Sayfa {endPage} ({Math.max(0, (parseInt(endPage, 10) || 0) - (parseInt(startPage, 10) || 0))} yeni sayfa)
+              </div>
+            </div>
+          ) : inputMode === 'count' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div>
                 <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>OKUNAN SAYFA SAYISI *</label>
@@ -496,7 +708,7 @@ export default function ReadingSessionModal({
           <button
             type="submit"
             className="btn-primary"
-            disabled={isSubmitting}
+            disabled={isSubmitting || books.length === 0}
             style={{
               height: '42px',
               padding: '10px',
@@ -525,7 +737,6 @@ export default function ReadingSessionModal({
           onCalibrated={(newCount) => {
             const bId = selectedBookId || activeBook.id;
             setOverrideWordsPerPage(prev => ({ ...prev, [bId]: newCount }));
-            if (activeBook) activeBook.words_per_page = newCount;
           }}
           onSuccess={(msg) => {
             onSuccess(msg);

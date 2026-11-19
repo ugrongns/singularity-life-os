@@ -147,3 +147,61 @@ export function parseTurkeyCalendarDate(dateStr: string = getTodayTurkeyDate()):
   }
   return new Date();
 }
+
+/**
+ * UTC ISO zaman damgasını (ör. completed_at, created_at) Türkiye yerel takvim gününe (YYYY-MM-DD) çevirir.
+ * Geçersiz/boş girdide null döner.
+ */
+export function toTurkeyDay(isoTimestamp?: string | null): string | null {
+  if (!isoTimestamp) return null;
+  const d = new Date(isoTimestamp);
+  if (isNaN(d.getTime())) return null;
+  return getTodayTurkeyDate(d);
+}
+
+/**
+ * ISO zaman damgasından veya Date nesnesinden Türkiye saat dilimindeki saati (0..23) döndürür.
+ */
+export function getTurkeyHour(isoOrDate: string | Date): number {
+  const d = typeof isoOrDate === 'string' ? new Date(isoOrDate) : isoOrDate;
+  if (isNaN(d.getTime())) return 12;
+  const formatted = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Istanbul',
+    hour: 'numeric',
+    hour12: false
+  }).format(d);
+  const parsed = parseInt(formatted, 10);
+  if (!Number.isFinite(parsed)) return 12;
+  return parsed === 24 ? 0 : parsed % 24;
+}
+
+/**
+ * Türkçe karakterleri (İ/i/ı/ş/ğ/ç/ö/ü) normalize ederek arama için sadeleştirir.
+ */
+export function normalizeTurkishSearch(text?: string | null): string {
+  if (!text) return '';
+  return text
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ı/g, 'i')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .trim();
+}
+
+/**
+ * Türkçe karakter duyarsız arama eşleştirici.
+ */
+export function matchesTurkishQuery(
+  query: string | undefined,
+  fields: Array<string | null | undefined>
+): boolean {
+  const normalizedQuery = normalizeTurkishSearch(query);
+  if (!normalizedQuery) return true;
+  return fields.some(field => {
+    if (!field) return false;
+    return normalizeTurkishSearch(field).includes(normalizedQuery);
+  });
+}

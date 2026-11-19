@@ -10,12 +10,14 @@ import PersonalDebtsCard from '@/components/budget/PersonalDebtsCard';
 import RecurringBillsCard from '@/components/budget/RecurringBillsCard';
 import SpendingHabitsCard from '@/components/budget/SpendingHabitsCard';
 import ReceiptScanModal from '@/components/modals/ReceiptScanModal';
-import ManualExpenseModal from '@/components/modals/ManualExpenseModal';
+import ManualExpenseModal, { ManualExpenseDraft } from '@/components/modals/ManualExpenseModal';
 import CreditCardStatementModal from '@/components/modals/CreditCardStatementModal';
 import CategoryDetailModal from '@/components/modals/CategoryDetailModal';
 import TransferModal from '@/components/modals/TransferModal';
 import MarketRatesBar from '@/components/budget/MarketRatesBar';
+import SavingsGoalsCard from '@/components/budget/SavingsGoalsCard';
 import PageLoadingState from '@/components/ui/PageLoadingState';
+import { parseQuickFinanceInput } from '@/lib/finance-quick-parser';
 
 export default function BudgetPage() {
   const [data, setData] = useState<any>(null);
@@ -29,6 +31,8 @@ export default function BudgetPage() {
   const [ratesLoading, setRatesLoading] = useState(false);
   const [isScanOpen, setIsScanOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
+  const [manualDraft, setManualDraft] = useState<ManualExpenseDraft | null>(null);
+  const [quickFinanceText, setQuickFinanceText] = useState('');
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [transferDefaultTargetId, setTransferDefaultTargetId] = useState<string | null>(null);
   const [cardStatementAccId, setCardStatementAccId] = useState<string | null>(null);
@@ -141,6 +145,48 @@ export default function BudgetPage() {
         
         {/* İşlem Butonları Toolbar */}
         <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={async () => {
+              const summary = data?.monthlySummary;
+              if (!summary) return;
+              const inc = Number(summary.totalIncome || 0);
+              const exp = Number(summary.totalExpense || 0);
+              const net = inc - exp;
+              const saveRate = inc > 0 ? Math.round((net / inc) * 100) : 0;
+              const topCats = [...(data?.categories || [])]
+                .filter((c: any) => c.type !== 'income' && (c.spent || 0) > 0)
+                .sort((a: any, b: any) => (b.spent || 0) - (a.spent || 0))
+                .slice(0, 3)
+                .map((c: any, idx: number) => `${idx + 1}. ${c.name}: ${formatTRY(c.spent)}`)
+                .join('\n');
+              const reportText = [
+                `📊 Singularity Finans Özeti — ${summary.monthName || selectedMonth}`,
+                `• Gelir: ${formatTRY(inc)}`,
+                `• Gider: ${formatTRY(exp)}`,
+                `• Net Nakit Akışı: ${net >= 0 ? '+' : ''}${formatTRY(net)} (Tasarruf: %${saveRate})`,
+                data?.safeDailyLimit ? `• Güvenli Günlük Limit: ${formatTRY(data.safeDailyLimit.safeDailyLimit)}/gün (${data.safeDailyLimit.remainingDaysInMonth} gün kaldı)` : '',
+                topCats ? `\n🏷️ En Yüksek 3 Kategori:\n${topCats}` : ''
+              ].filter(Boolean).join('\n');
+              try {
+                await navigator.clipboard.writeText(reportText);
+                showToast('📋 Aylık finans özeti panoya kopyalandı!');
+              } catch {
+                showToast('Panoya kopyalanamadı.');
+              }
+            }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              height: '36px', padding: '0 12px', borderRadius: 'var(--radius-full)',
+              background: 'var(--surface-subtle)', border: '1px solid var(--border)',
+              fontSize: '12px', fontWeight: 700, color: 'var(--text-main)',
+              cursor: 'pointer', whiteSpace: 'nowrap', width: 'auto', margin: 0
+            }}
+          >
+            <span>📋</span>
+            <span>Özeti Kopyala</span>
+          </button>
+
           <button
             onClick={() => setIsTransferOpen(true)}
             style={{
@@ -457,7 +503,109 @@ export default function BudgetPage() {
                   Bu Ay Gelir ({formatTRY(totalIncome)}) - Gider ({formatTRY(totalExpense)})
                 </div>
               </div>
+
+              {/* 5. Güvenli Günlük Harcama Limiti */}
+              {data?.safeDailyLimit && (
+                <div style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderTop: '3px solid #06B6D4',
+                  borderRadius: 'var(--radius-xl)',
+                  padding: '14px 16px',
+                  boxShadow: 'var(--shadow-sm)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                      🛡️ Güvenli Günlük Limit
+                    </span>
+                    <span style={{ fontSize: '16px' }}>⏱️</span>
+                  </div>
+                  <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: 900, color: '#0891B2', marginTop: '4px' }}>
+                    {formatTRY(data.safeDailyLimit.safeDailyLimit)}<span style={{ fontSize: '12px', fontWeight: 700 }}>/gün</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Kalan {data.safeDailyLimit.remainingDaysInMonth} gün • Faturalar düşülmüş
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* ⚡ Doğal Dil Tek Satır Hızlı İşlem Girişi */}
+            {(() => {
+              const liveDraft = quickFinanceText.trim()
+                ? parseQuickFinanceInput(quickFinanceText, data?.accounts || [], data?.categories || [])
+                : null;
+              const openPrefilledModal = (e: React.FormEvent) => {
+                e.preventDefault();
+                if (!liveDraft) return;
+                setManualDraft({
+                  txType: liveDraft.txType,
+                  amount: liveDraft.amount,
+                  merchant: liveDraft.merchant,
+                  walletId: liveDraft.walletId,
+                  categoryId: liveDraft.categoryId
+                });
+                setIsManualOpen(true);
+              };
+              return (
+                <form
+                  onSubmit={openPrefilledModal}
+                  className="card"
+                  style={{
+                    marginBottom: '20px',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input
+                      type="text"
+                      value={quickFinanceText}
+                      onChange={e => setQuickFinanceText(e.target.value)}
+                      placeholder="⚡ Doğal dille yazın: 'Kahve 120 nakit', '+65000 maaş garanti', 'Market 1450 kredi kartı'..."
+                      aria-label="Doğal dil hızlı finans girişi"
+                      style={{
+                        flex: '1 1 260px',
+                        minWidth: 0,
+                        padding: '9px 12px',
+                        borderRadius: '10px',
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface-subtle)',
+                        color: 'var(--text-main)',
+                        fontSize: '13px',
+                        fontWeight: 600
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!quickFinanceText.trim()}
+                      className="btn-primary"
+                      style={{ padding: '9px 16px', fontSize: '12px', fontWeight: 800, borderRadius: '10px', whiteSpace: 'nowrap' }}
+                    >
+                      İncele &amp; Ekle →
+                    </button>
+                  </div>
+                  {liveDraft && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', fontSize: '11px', fontWeight: 700 }}>
+                      <span style={{ padding: '2px 8px', borderRadius: '999px', background: liveDraft.txType === 'income' ? 'var(--emerald-bg)' : 'rgba(239,68,68,0.1)', color: liveDraft.txType === 'income' ? 'var(--emerald)' : '#DC2626' }}>
+                        {liveDraft.txType === 'income' ? '📈 Gelir' : '💸 Gider'}: {liveDraft.numericAmount > 0 ? formatTRY(liveDraft.numericAmount) : 'Tutar bekleniyor'}
+                      </span>
+                      <span style={{ padding: '2px 8px', borderRadius: '999px', background: 'var(--surface-subtle)', border: '1px solid var(--border)' }}>
+                        🏷️ {liveDraft.merchant}
+                      </span>
+                      <span style={{ padding: '2px 8px', borderRadius: '999px', background: 'var(--surface-subtle)', border: '1px solid var(--border)' }}>
+                        💳 {liveDraft.walletName}
+                      </span>
+                      <span style={{ padding: '2px 8px', borderRadius: '999px', background: 'var(--surface-subtle)', border: '1px solid var(--border)' }}>
+                        📂 {liveDraft.categoryName}
+                      </span>
+                    </div>
+                  )}
+                </form>
+              );
+            })()}
 
             {/* 🖥️ 3. Dengeli 2 Sütunlu Bento Grid Mimarisi */}
             <div className="dashboard-grid">
@@ -520,6 +668,15 @@ export default function BudgetPage() {
               </div>
             </div>
 
+            {/* Birikim Hedefleri (Sinking Funds) */}
+            <div style={{ marginTop: '20px' }}>
+              <SavingsGoalsCard
+                funds={data?.sinkingFunds || []}
+                accounts={filteredAccounts}
+                onUpdate={handleUpdate}
+              />
+            </div>
+
             {/* Kişisel Borç & Alacak Takibi (Sayfa Altı Tam Genişlik) */}
             <div style={{ marginTop: '20px' }}>
               <PersonalDebtsCard
@@ -542,11 +699,16 @@ export default function BudgetPage() {
 
       <ManualExpenseModal
         isOpen={isManualOpen}
-        onClose={() => { setIsManualOpen(false); setPreselectedCatId(null); }}
+        onClose={() => { setIsManualOpen(false); setPreselectedCatId(null); setManualDraft(null); }}
         accounts={data?.accounts || []}
         categories={data?.categories || []}
         initialCategoryId={preselectedCatId}
-        onSuccess={(msg) => handleUpdate(msg)}
+        initialDraft={manualDraft}
+        onSuccess={(msg) => {
+          setQuickFinanceText('');
+          setManualDraft(null);
+          handleUpdate(msg);
+        }}
       />
 
       <CreditCardStatementModal

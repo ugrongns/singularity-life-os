@@ -51,6 +51,7 @@ import {
 import { getTodayTurkeyDate, shiftTurkeyDate, formatTurkishDisplayDate } from '@/lib/date-utils';
 import AddTaskModal from '@/components/modals/AddTaskModal';
 import TaskCalendarPanel from '@/components/tasks/TaskCalendarPanel';
+import TaskKanbanBoard, { KanbanColumnId } from '@/components/tasks/TaskKanbanBoard';
 
 interface TasksClientProps {
   initialData?: any;
@@ -71,6 +72,11 @@ export default function TasksClient({
   const [importingActionId, setImportingActionId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'today' | 'upcoming' | 'backlog' | 'recurring' | 'bridge' | 'completed'>('today');
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [quickTitle, setQuickTitle] = useState('');
+  const [quickIsMit, setQuickIsMit] = useState(false);
+  const [quickDateMode, setQuickDateMode] = useState<'today' | 'tomorrow' | 'backlog'>('today');
+  const [quickSubmitting, setQuickSubmitting] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'personal' | 'family'>('all');
   const [selectedPillar, setSelectedPillar] = useState<string>('all');
   const [selectedMember, setSelectedMember] = useState<string>('all');
@@ -398,6 +404,75 @@ export default function TasksClient({
 
   const handleCompleteFocus = (taskId: string, completeTask: boolean) =>
     runFocusAction(taskId, { action: 'complete_focus', complete_task: completeTask }, 'Odak seansı kaydedilemedi.');
+
+  const handleQuickCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanTitle = quickTitle.trim();
+    if (!cleanTitle || quickSubmitting) return;
+    setQuickSubmitting(true);
+    try {
+      const effectiveMode = activeTab === 'backlog' && quickDateMode === 'today' ? 'backlog' : quickDateMode;
+      const dueDate =
+        effectiveMode === 'today'
+          ? (selectedDate || todayStr)
+          : effectiveMode === 'tomorrow'
+            ? shiftTurkeyDate(todayStr, 1)
+            : null;
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create',
+          title: cleanTitle,
+          pillar: selectedPillar !== 'all' ? selectedPillar : 'general',
+          priority: quickIsMit ? 'high' : 'medium',
+          is_mit: quickIsMit ? 1 : 0,
+          due_date: dueDate,
+          is_family_shared: filterType === 'family' ? 1 : 0
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setQuickTitle('');
+        setQuickIsMit(false);
+        showToast('✅ Görev eklendi!');
+        await syncTasks();
+      } else {
+        showToast(json.error || 'Görev eklenemedi.');
+      }
+    } catch {
+      showToast('Görev eklenirken hata oluştu.');
+    } finally {
+      setQuickSubmitting(false);
+    }
+  };
+
+  const handleQuickCreateInColumn = async (titleText: string, col: KanbanColumnId) => {
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'create',
+        title: titleText,
+        pillar: selectedPillar !== 'all' ? selectedPillar : 'general',
+        priority: col === 'in_progress' ? 'high' : 'medium',
+        due_date: col === 'backlog' ? null : todayStr,
+        status: col === 'in_progress' ? 'in_progress' : 'pending',
+        is_family_shared: filterType === 'family' ? 1 : 0
+      })
+    });
+    const json = await res.json();
+    if (json.success) {
+      if (col === 'in_progress' && json.data?.id) {
+        await handleStartFocus(json.data.id, focusDurationMinutes);
+      } else {
+        showToast('✅ Kart eklendi!');
+        await syncTasks();
+      }
+    } else {
+      showToast(json.error || 'Kart eklenemedi.');
+    }
+  };
 
   const toggleExpand = (id: string) => {
     setExpandedTaskIds(prev => {
@@ -1224,6 +1299,43 @@ export default function TasksClient({
                 </button>
               );
             })}
+
+            <div style={{ width: '1px', height: '18px', background: 'var(--border)', margin: '0 2px' }} />
+
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              style={{
+                fontSize: '11px',
+                fontWeight: 800,
+                padding: '4px 9px',
+                borderRadius: '6px',
+                border: `1px solid ${viewMode === 'list' ? 'var(--blue)' : 'var(--border)'}`,
+                background: viewMode === 'list' ? 'var(--blue-bg)' : 'transparent',
+                color: viewMode === 'list' ? 'var(--blue)' : 'var(--text-muted)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              📋 Liste
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('kanban')}
+              style={{
+                fontSize: '11px',
+                fontWeight: 800,
+                padding: '4px 9px',
+                borderRadius: '6px',
+                border: `1px solid ${viewMode === 'kanban' ? 'var(--blue)' : 'var(--border)'}`,
+                background: viewMode === 'kanban' ? 'var(--blue-bg)' : 'transparent',
+                color: viewMode === 'kanban' ? 'var(--blue)' : 'var(--text-muted)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              📊 Kanban
+            </button>
           </div>
         </div>
 
@@ -1604,7 +1716,108 @@ export default function TasksClient({
             </div>
           )}
 
-          {loading && tasks.length === 0 ? (
+          {/* Tek Satır Hızlı Görev Ekleme Barı */}
+          <form
+            onSubmit={handleQuickCreateTask}
+            className="card"
+            style={{
+              padding: '8px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '8px',
+              background: 'var(--surface)'
+            }}
+          >
+            <input
+              type="text"
+              value={quickTitle}
+              onChange={e => setQuickTitle(e.target.value)}
+              placeholder="⚡ Hızlı görev yazıp Enter'a basın..."
+              aria-label="Hızlı görev başlığı"
+              style={{
+                flex: '1 1 200px',
+                minWidth: 0,
+                padding: '7px 10px',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                background: 'var(--surface-subtle)',
+                color: 'var(--text-main)',
+                fontSize: '12px',
+                fontWeight: 600
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setQuickIsMit(prev => !prev)}
+              style={{
+                fontSize: '11px',
+                fontWeight: 800,
+                padding: '6px 9px',
+                borderRadius: '8px',
+                border: `1px solid ${quickIsMit ? '#F59E0B' : 'var(--border)'}`,
+                background: quickIsMit ? 'rgba(245, 158, 11, 0.14)' : 'var(--surface-subtle)',
+                color: quickIsMit ? '#F59E0B' : 'var(--text-muted)',
+                cursor: 'pointer'
+              }}
+              title="Günün 3 Odağı (MIT) olarak işaretle"
+            >
+              🔥 MIT
+            </button>
+            <select
+              value={quickDateMode}
+              onChange={e => setQuickDateMode(e.target.value as 'today' | 'tomorrow' | 'backlog')}
+              aria-label="Hızlı görev tarihi"
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                padding: '6px 8px',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                background: 'var(--surface-subtle)',
+                color: 'var(--text-main)',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="today">📅 Bugün</option>
+              <option value="tomorrow">⏭ Yarın</option>
+              <option value="backlog">📥 Backlog</option>
+            </select>
+            <button
+              type="submit"
+              disabled={quickSubmitting || !quickTitle.trim()}
+              className="btn-primary"
+              style={{
+                fontSize: '11px',
+                fontWeight: 800,
+                padding: '6px 12px',
+                borderRadius: '8px',
+                minHeight: '32px'
+              }}
+            >
+              {quickSubmitting ? '...' : '+ Ekle'}
+            </button>
+          </form>
+
+          {viewMode === 'kanban' ? (
+            <TaskKanbanBoard
+              tasks={filterTasksByScope(tasks, { filterType, selectedPillar, selectedMember, searchQuery })}
+              todayStr={todayStr}
+              nowMs={nowMs}
+              focusDurationMinutes={focusDurationMinutes}
+              focusSubmittingId={focusSubmittingId}
+              reschedulingId={reschedulingId}
+              onToggleComplete={handleToggleComplete}
+              onStartFocus={handleStartFocus}
+              onPauseFocus={handlePauseFocus}
+              onRescheduleTask={handleRescheduleTask}
+              onQuickCreateInColumn={handleQuickCreateInColumn}
+              onEditTask={t => {
+                setEditingTask(t);
+                setIsModalOpen(true);
+              }}
+            />
+          ) : loading && tasks.length === 0 ? (
             <div className="card" style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
               <div style={{ fontSize: '28px', marginBottom: '6px' }}>⏳</div>
               <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>
@@ -1902,6 +2115,46 @@ export default function TasksClient({
 
                     {/* Sağ Aksiyon Butonları */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: 'auto' }}>
+                      {/* Tek Tıkla Erteleme / Bugüne Al */}
+                      {!isDone && isOverdue && (
+                        <button
+                          type="button"
+                          disabled={reschedulingId !== null}
+                          onClick={() => handleRescheduleTask(task.id, todayStr)}
+                          style={{
+                            ...actionIconBtnStyle(false, '#F59E0B'),
+                            width: 'auto',
+                            padding: '0 8px',
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            background: 'rgba(245, 158, 11, 0.12)',
+                            border: '1px solid rgba(245, 158, 11, 0.35)'
+                          }}
+                          title="Bugüne al"
+                        >
+                          📅 Bugüne
+                        </button>
+                      )}
+                      {!isDone && task.due_date !== shiftTurkeyDate(todayStr, 1) && (
+                        <button
+                          type="button"
+                          disabled={reschedulingId !== null}
+                          onClick={() => handleRescheduleTask(task.id, shiftTurkeyDate(todayStr, 1))}
+                          style={{
+                            ...actionIconBtnStyle(false, 'var(--text-muted)'),
+                            width: 'auto',
+                            padding: '0 8px',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            background: 'var(--surface-subtle)',
+                            border: '1px solid var(--border)'
+                          }}
+                          title="Yarına ertele"
+                        >
+                          ⏭ Yarına
+                        </button>
+                      )}
+
                       {/* Odaklan / Duraklat (Pomodoro) Butonu */}
                       {!isDone && (
                         <button

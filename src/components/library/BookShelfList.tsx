@@ -7,9 +7,6 @@ import {
   Plus,
   Clock,
   Settings,
-  Star,
-  CheckCircle2,
-  Bookmark,
   BookOpen
 } from 'lucide-react';
 import BookDetailModal from '@/components/modals/BookDetailModal';
@@ -49,7 +46,7 @@ export interface Book {
 
 interface BookShelfProps {
   books: Book[];
-  onQuickPageUpdate: (bookId: string, newPage: number) => void;
+  onQuickPageUpdate?: (bookId: string, newPage: number) => void;
   onOpenAddBookModal: () => void;
   onOpenSessionForBook?: (bookId: string) => void;
   onToggleLent?: (bookId: string, isLent: boolean) => void;
@@ -58,10 +55,8 @@ interface BookShelfProps {
 
 export default function BookShelfList({
   books,
-  onQuickPageUpdate,
   onOpenAddBookModal,
   onOpenSessionForBook,
-  onToggleLent,
   onUpdate
 }: BookShelfProps) {
   const [activeTab, setActiveTab] = useState<'reading' | 'all' | 'completed' | 'wishlist' | 'lent'>('reading');
@@ -566,7 +561,7 @@ export default function BookShelfList({
                     ) : (
                       <>
                         <span className="tabular-nums">
-                          {book.current_page}/{book.total_pages} sa
+                          {book.current_page}/{book.total_pages} sf
                         </span>
                         <span className="tabular-nums" style={{ fontWeight: 800, color: percent === 100 ? '#10B981' : '#6366F1' }}>
                           %{percent}
@@ -756,7 +751,7 @@ export default function BookShelfList({
       {selectedBookDetail && (
         <BookDetailModal
           isOpen={Boolean(selectedBookDetail)}
-          book={selectedBookDetail}
+          book={books.find(b => b.id === selectedBookDetail.id) || selectedBookDetail}
           onClose={() => setSelectedBookDetail(null)}
           onOpenSession={(bId) => onOpenSessionForBook && onOpenSessionForBook(bId)}
           onSuccess={(msg) => {

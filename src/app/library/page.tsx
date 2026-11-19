@@ -9,6 +9,7 @@ import QuotesDrawer from '@/components/library/QuotesDrawer';
 import ReadingSessionModal from '@/components/modals/ReadingSessionModal';
 import AddBookModal from '@/components/modals/AddBookModal';
 import BookDetailModal from '@/components/modals/BookDetailModal';
+import GoodreadsImportModal from '@/components/modals/GoodreadsImportModal';
 import PageLoadingState from '@/components/ui/PageLoadingState';
 
 export default function LibraryPage() {
@@ -19,6 +20,7 @@ export default function LibraryPage() {
   const [sessionBookId, setSessionBookId] = useState<string | undefined>(undefined);
   const [isQuotesOpen, setIsQuotesOpen] = useState(false);
   const [isAddBookOpen, setIsAddBookOpen] = useState(false);
+  const [isGoodreadsOpen, setIsGoodreadsOpen] = useState(false);
   const [selectedBookDetail, setSelectedBookDetail] = useState<any>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
@@ -62,19 +64,28 @@ export default function LibraryPage() {
   };
 
   const handleQuickPageUpdate = async (bookId: string, newPage: number) => {
-    const res = await fetch('/api/library', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ book_id: bookId, current_page: newPage })
-    });
-    const j = await res.json();
-    if (j.success) handleUpdate(j.message);
+    try {
+      const res = await fetch('/api/library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ book_id: bookId, current_page: newPage })
+      });
+      const j = await res.json();
+      if (j.success) handleUpdate(j.message);
+      else showToast(j.error || 'Sayfa güncellenemedi.');
+    } catch {
+      showToast('Bağlantı hatası oluştu.');
+    }
   };
 
   const handleOpenSessionForBook = (bId?: string) => {
     setSessionBookId(bId);
     setIsSessionOpen(true);
   };
+
+  const activeDetailBook = selectedBookDetail
+    ? (data?.books?.find((b: any) => b.id === selectedBookDetail.id) || selectedBookDetail)
+    : null;
 
   if (loading) {
     return (
@@ -93,32 +104,42 @@ export default function LibraryPage() {
     <SharedLayout notifications={notifData}>
       {toastMsg && (
         <div
-          style={{
-            position: 'fixed',
-            top: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'var(--text-main)',
-            color: 'white',
-            padding: '10px 20px',
-            borderRadius: 'var(--radius-full)',
-            fontSize: '13px',
-            zIndex: 1100,
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)'
-          }}
+          className="toast-glass"
+          role="status"
+          aria-live="polite"
+          style={{ zIndex: 1100 }}
         >
           {toastMsg}
         </div>
       )}
 
       {/* Üst Başlık */}
-      <div style={{ padding: '0 16px 8px' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 900, margin: 0, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
-          📚 Kütüphane & Okuma Analitiği
-        </h1>
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 12px' }}>
-          Literal.club, Readwise ve Apple Books estetiğinde rafine okuma ve ikinci beyin merkezi
-        </p>
+      <div style={{ padding: '0 16px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+        <div>
+          <h1 style={{ fontSize: '22px', fontWeight: 900, margin: 0, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
+            📚 Kütüphane & Okuma Analitiği
+          </h1>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 12px' }}>
+            Literal.club, Readwise ve Apple Books estetiğinde rafine okuma ve ikinci beyin merkezi
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsGoodreadsOpen(true)}
+          style={{
+            padding: '7px 12px',
+            borderRadius: 'var(--radius-full)',
+            border: '1px solid var(--border)',
+            background: 'var(--surface-subtle)',
+            color: 'var(--text-main)',
+            fontSize: '12px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            marginBottom: '8px'
+          }}
+        >
+          📥 Goodreads CSV İçe Aktar
+        </button>
       </div>
 
       {/* Ana Gövde: Üstte Geniş Hero/KPI Bento, Altta 4-6 Sütunlu Kitaplık Vitrini */}
@@ -172,13 +193,22 @@ export default function LibraryPage() {
         onClose={() => setIsQuotesOpen(false)}
         books={data?.books || []}
         onQuoteAdded={() => handleUpdate('📖 Alıntı deftere eklendi!')}
+        onQuoteDeleted={() => handleUpdate('🗑️ Alıntı defterden silindi.')}
+      />
+
+      {/* Goodreads CSV İçe Aktarma Modalı */}
+      <GoodreadsImportModal
+        isOpen={isGoodreadsOpen}
+        existingBooks={data?.books || []}
+        onClose={() => setIsGoodreadsOpen(false)}
+        onSuccess={(msg) => handleUpdate(msg)}
       />
 
       {/* Kitap Detay Modalı */}
-      {selectedBookDetail && (
+      {activeDetailBook && (
         <BookDetailModal
-          isOpen={Boolean(selectedBookDetail)}
-          book={selectedBookDetail}
+          isOpen={Boolean(activeDetailBook)}
+          book={activeDetailBook}
           onClose={() => setSelectedBookDetail(null)}
           onOpenSession={(bId) => handleOpenSessionForBook(bId)}
           onSuccess={(msg) => {

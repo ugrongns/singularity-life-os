@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Bookmark, Plus, X, Search, Sparkles, BookOpen, Quote as QuoteIcon } from 'lucide-react';
+import { Bookmark, Plus, X, Search, Sparkles, Trash2 } from 'lucide-react';
 
 interface Quote {
   id: string;
@@ -18,9 +18,10 @@ interface QuotesDrawerProps {
   onClose: () => void;
   books: Array<{ id: string; title: string }>;
   onQuoteAdded: () => void;
+  onQuoteDeleted?: () => void;
 }
 
-export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: QuotesDrawerProps) {
+export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded, onQuoteDeleted }: QuotesDrawerProps) {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -31,6 +32,15 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
   const [quoteText, setQuoteText] = useState('');
   const [reflectionNote, setReflectionNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (books.length > 0 && (!selectedBookId || !books.some(b => b.id === selectedBookId))) {
+      setSelectedBookId(books[0].id);
+    }
+  }, [books, selectedBookId]);
 
   const fetchQuotes = async () => {
     try {
@@ -47,6 +57,8 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
 
   useEffect(() => {
     if (isOpen) {
+      setErrorMsg(null);
+      setConfirmDeleteId(null);
       fetchQuotes();
     }
   }, [isOpen]);
@@ -65,15 +77,21 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
 
   const handleAddQuote = async (e: React.FormEvent) => {
     e.preventDefault();
+    const targetBookId = selectedBookId || books[0]?.id;
+    if (!targetBookId) {
+      setErrorMsg('Alıntı eklemek için önce kütüphanenize bir kitap eklemelisiniz.');
+      return;
+    }
     if (!quoteText.trim()) return;
 
     setIsSubmitting(true);
+    setErrorMsg(null);
     try {
       const res = await fetch('/api/library/quotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          book_id: selectedBookId || books[0]?.id,
+          book_id: targetBookId,
           page_number: parseInt(pageNumber, 10) || null,
           quote_text: quoteText.trim(),
           reflection_note: reflectionNote.trim() || undefined
@@ -88,11 +106,37 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
         fetchQuotes();
         window.dispatchEvent(new CustomEvent('singularity-refresh'));
         onQuoteAdded();
+      } else {
+        setErrorMsg(json.error || 'Alıntı kaydedilemedi.');
       }
     } catch (err) {
       console.error('Alıntı kaydetme hatası:', err);
+      setErrorMsg('Alıntı kaydedilirken bağlantı hatası oluştu.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteQuote = async (quoteId: string) => {
+    setDeletingId(quoteId);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`/api/library/quotes?id=${encodeURIComponent(quoteId)}`, {
+        method: 'DELETE'
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setQuotes(prev => prev.filter(item => item.id !== quoteId));
+        setConfirmDeleteId(null);
+        window.dispatchEvent(new CustomEvent('singularity-refresh'));
+        onQuoteDeleted?.();
+      } else {
+        setErrorMsg(json.error || 'Alıntı silinemedi.');
+      }
+    } catch {
+      setErrorMsg('Alıntı silinirken bağlantı hatası oluştu.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -174,7 +218,7 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
             <button
               type="button"
               onClick={() => setShowAddForm(!showAddForm)}
@@ -191,6 +235,7 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px',
+                whiteSpace: 'nowrap',
                 transition: 'all 0.15s ease'
               }}
             >
@@ -220,6 +265,13 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
           </div>
         </div>
 
+        {/* Genel Hata Bildirimi */}
+        {errorMsg && !showAddForm && (
+          <div style={{ background: 'var(--rose-bg)', border: '1px solid var(--rose)', color: 'var(--rose)', padding: '8px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600 }}>
+            ⚠️ {errorMsg}
+          </div>
+        )}
+
         {/* 2. Yeni Alıntı Ekleme Formu */}
         {showAddForm && (
           <form
@@ -234,14 +286,21 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
               gap: '10px'
             }}
           >
-            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 0.6fr', gap: '8px' }}>
-              <div>
+            {errorMsg && (
+              <div style={{ background: 'var(--rose-bg)', border: '1px solid var(--rose)', color: 'var(--rose)', padding: '8px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600 }}>
+                ⚠️ {errorMsg}
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
+              <div style={{ minWidth: 0 }}>
                 <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Kitap Seçin:</label>
                 <select
                   value={selectedBookId}
                   onChange={e => setSelectedBookId(e.target.value)}
+                  disabled={books.length === 0}
                   style={{
                     width: '100%',
+                    boxSizing: 'border-box',
                     padding: '8px',
                     fontSize: '12px',
                     border: '1px solid var(--border)',
@@ -252,21 +311,27 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
                     fontWeight: 600
                   }}
                 >
-                  {books.map(b => (
-                    <option key={b.id} value={b.id}>{b.title}</option>
-                  ))}
+                  {books.length === 0 ? (
+                    <option value="">Kütüphanede kitap yok</option>
+                  ) : (
+                    books.map(b => (
+                      <option key={b.id} value={b.id}>{b.title}</option>
+                    ))
+                  )}
                 </select>
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>Sayfa No:</label>
                 <input
                   type="number"
                   inputMode="numeric"
+                  min={1}
                   placeholder="Örn: 74"
                   value={pageNumber}
                   onChange={e => setPageNumber(e.target.value)}
                   style={{
                     width: '100%',
+                    boxSizing: 'border-box',
                     padding: '8px',
                     fontSize: '12px',
                     border: '1px solid var(--border)',
@@ -473,7 +538,7 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
                   </div>
                 )}
 
-                {/* Kitap & Sayfa Alt Künyesi */}
+                {/* Kitap, Sayfa & Silme Aksiyonu Alt Künyesi */}
                 <div
                   style={{
                     display: 'flex',
@@ -484,13 +549,75 @@ export default function QuotesDrawer({ isOpen, onClose, books, onQuoteAdded }: Q
                     paddingTop: '6px',
                     borderTop: '1px dashed var(--border)',
                     flexWrap: 'wrap',
-                    gap: '4px'
+                    gap: '6px'
                   }}
                 >
                   <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>
                     📖 {q.book_title} {q.page_number ? `(sf. ${q.page_number})` : ''}
                   </span>
-                  <span>✍️ {q.author}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+                    <span>✍️ {q.author}</span>
+                    {confirmDeleteId === q.id ? (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <button
+                          type="button"
+                          disabled={deletingId === q.id}
+                          onClick={() => handleDeleteQuote(q.id)}
+                          style={{
+                            padding: '3px 8px',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            borderRadius: '5px',
+                            border: 'none',
+                            backgroundColor: '#EF4444',
+                            color: '#FFFFFF',
+                            cursor: deletingId === q.id ? 'not-allowed' : 'pointer',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {deletingId === q.id ? '...' : 'Sil'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={deletingId === q.id}
+                          onClick={() => setConfirmDeleteId(null)}
+                          style={{
+                            padding: '3px 7px',
+                            fontSize: '10px',
+                            fontWeight: 600,
+                            borderRadius: '5px',
+                            border: '1px solid var(--border)',
+                            backgroundColor: 'var(--surface)',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          Vazgeç
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteId(q.id)}
+                        aria-label={`"${q.book_title}" alıntısını sil`}
+                        title="Alıntıyı Sil"
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--border)',
+                          borderRadius: '5px',
+                          color: 'var(--text-muted)',
+                          padding: '3px 6px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

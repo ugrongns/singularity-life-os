@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { walletsAccounts, categories, transactions, vehicleLegalReminders, familyMembers, recurringBills, vehicles } from '@/db/schema';
+import { walletsAccounts, categories, transactions, vehicleLegalReminders, familyMembers, recurringBills, vehicles, sinkingFunds } from '@/db/schema';
+import { calculateSafeDailySpendLimit } from '@/lib/debt-simulators';
 import { desc, eq, and, sql, or, inArray } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
@@ -605,6 +606,47 @@ export async function GET(req: Request) {
 
     const isColdStart = accounts.length === 0 && effectiveIncome === 0 && allFamilyTxs.length === 0;
 
+    // Birikim Hedefleri (Sinking Funds)
+    let sinkingFundsRows: any[] = [];
+    try {
+      const rows = await db
+        .select()
+        .from(sinkingFunds)
+        .where(
+          familyId
+            ? or(
+                eq(sinkingFunds.user_id, userId),
+                and(eq(sinkingFunds.family_id, familyId), eq(sinkingFunds.is_family_shared, 1))
+              )
+            : eq(sinkingFunds.user_id, userId)
+        )
+        .orderBy(desc(sinkingFunds.created_at));
+      if (Array.isArray(rows)) sinkingFundsRows = rows;
+    } catch {
+      sinkingFundsRows = [];
+    }
+
+    // Güvenli Günlük Harcama Limiti (TR takvim gününe göre ayın kalan günü)
+    const [selYear, selMonth] = currentMonthStr.split('-').map(Number);
+    const daysInSelectedMonth = new Date(selYear, selMonth, 0).getDate();
+    const todayMonthStr = todayTurkeyStr.slice(0, 7);
+    const todayDayNum = Number(todayTurkeyStr.slice(8, 10)) || 1;
+    const remainingDaysInMonth =
+      currentMonthStr === todayMonthStr
+        ? Math.max(1, daysInSelectedMonth - todayDayNum + 1)
+        : daysInSelectedMonth;
+
+    const unpaidBillsSum = (top5Upcoming || [])
+      .filter((u: any) => !u.is_paid)
+      .reduce((acc: number, u: any) => acc + (Number(u.amount) || 0), 0);
+
+    const safeDailyLimit = calculateSafeDailySpendLimit({
+      monthlyIncome: totalMonthlyIncome,
+      monthlyExpenseSoFar: totalMonthlyExpense,
+      unpaidFixedBillsTotal: unpaidBillsSum,
+      remainingDaysInMonth
+    });
+
     return NextResponse.json({
       success: true,
       data: {
@@ -612,6 +654,8 @@ export async function GET(req: Request) {
         categories: categoriesWithSpending,
         recentTransactions: recentTx,
         upcomingPayments: top5Upcoming,
+        sinkingFunds: sinkingFundsRows,
+        safeDailyLimit,
         netWorth: multiCurrencyNetWorth,
         marketRates: liveRates,
         monthlySummary: {

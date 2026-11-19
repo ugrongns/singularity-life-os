@@ -51,6 +51,17 @@ async function fetchSafeData(userId: string, familyId: string) {
           exportData[name] = [];
         }
       }
+      // Kişisel okuma seansları ve okuma profili yalnızca oturum sahibine aittir
+      else if (name === 'reading_sessions' || name === 'user_reading_profile') {
+        exportData[name] = await db.select().from(t).where(eq(t.user_id, userId));
+      }
+      // Kitap alıntıları yalnızca kullanıcının kendi alıntıları veya görülebilen aile kitaplarına aittir
+      else if (name === 'book_quotes') {
+        const bIds = (exportData['books'] || []).map((b: any) => b.id).filter(Boolean);
+        exportData[name] = bIds.length > 0
+          ? await db.select().from(t).where(or(eq(t.user_id, userId), inArray(t.book_id, bIds)))
+          : await db.select().from(t).where(eq(t.user_id, userId));
+      }
       // Hem family_id hem user_id içeren tablolar (is_family_shared varsa özel kayıtlar diğer üyelere sızmaz)
       else if (t.family_id && t.user_id) {
         const whereExpr = t.is_family_shared

@@ -1,16 +1,7 @@
 // Singularity Life OS - Görevler & Odak Motoru (Faz 17)
-import { getTodayTurkeyDate, shiftTurkeyDate, diffTurkeyCalendarDays } from './date-utils';
+import { getTodayTurkeyDate, shiftTurkeyDate, diffTurkeyCalendarDays, toTurkeyDay, matchesTurkishQuery } from './date-utils';
 
-/**
- * UTC ISO zaman damgasını (ör. completed_at) Türkiye yerel takvim gününe çevirir.
- * Geçersiz/boş girdide null döner.
- */
-export function toTurkeyDay(isoTimestamp?: string | null): string | null {
-  if (!isoTimestamp) return null;
-  const d = new Date(isoTimestamp);
-  if (isNaN(d.getTime())) return null;
-  return getTodayTurkeyDate(d);
-}
+export { toTurkeyDay, matchesTurkishQuery };
 
 export type TaskPriority = 'critical' | 'high' | 'medium' | 'low';
 export type TaskPillar = 'general' | 'finance' | 'health' | 'wellness' | 'mind' | 'vehicle_home' | 'work' | 'family';
@@ -309,12 +300,6 @@ export const PRIORITY_SORT_WEIGHT: Record<TaskPriority, number> = {
   medium: 2,
   low: 3
 };
-
-function matchesTurkishQuery(query: string | undefined, fields: Array<string | null | undefined>): boolean {
-  const normalized = query?.trim().toLocaleLowerCase('tr-TR');
-  if (!normalized) return true;
-  return fields.some(field => Boolean(field && field.toLocaleLowerCase('tr-TR').includes(normalized)));
-}
 
 /**
  * Görev listesini kapsam (kişisel/aile), yaşam sütunu, atanan aile üyesi ve arama metnine göre filtreler.
