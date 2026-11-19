@@ -115,10 +115,12 @@ export default function HolisticScoreCard({ scoreData }: Props) {
 
   const actionsToShow = topActions && topActions.length > 0 ? topActions : [];
 
+  const hasLeadingEmoji = (text: string) => /^[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u.test(text.trim());
+
   return (
     <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '18px' }}>
       {/* Kart Başlığı & Rozet */}
-      <div className="card-title-row" style={{ marginBottom: 0 }}>
+      <div className="card-title-row" style={{ marginBottom: 0, flexWrap: 'wrap', gap: '8px' }}>
         <div className="card-title">
           <span style={{ fontSize: '20px' }}>🌌</span>
           <div>
@@ -129,9 +131,11 @@ export default function HolisticScoreCard({ scoreData }: Props) {
         <span style={{
           fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: 'var(--radius-full)',
           background: theme.bg, color: theme.primary, border: `1px solid ${theme.primary}40`,
-          display: 'flex', alignItems: 'center', gap: '4px'
+          display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', flexShrink: 0
         }}>
-          <span>{total >= 90 ? '🏆' : total >= 75 ? '⭐' : total >= 50 ? '🌿' : '🌱'}</span>
+          {!hasLeadingEmoji(badge) && (
+            <span>{total >= 90 ? '🏆' : total >= 75 ? '⭐' : total >= 50 ? '🌿' : '🌱'}</span>
+          )}
           <span>{badge}</span>
         </span>
       </div>
@@ -342,12 +346,12 @@ export default function HolisticScoreCard({ scoreData }: Props) {
         flexDirection: 'column',
         gap: '10px'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800 }}>
             <span>⚡</span>
             <span>Skoru Yükseltecek En Yüksek Etkili 3 Aksiyon</span>
           </div>
-          <span style={{ fontSize: '10px', background: 'var(--amber-bg)', color: 'var(--amber)', padding: '2px 8px', borderRadius: '4px', fontWeight: 800 }}>
+          <span style={{ fontSize: '10px', background: 'var(--amber-bg)', color: 'var(--amber)', padding: '2px 8px', borderRadius: '4px', fontWeight: 800, whiteSpace: 'nowrap', flexShrink: 0 }}>
             Hızlı Puan Kazanımı
           </span>
         </div>
@@ -404,7 +408,7 @@ export default function HolisticScoreCard({ scoreData }: Props) {
             padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)',
             display: 'flex', alignItems: 'center', gap: '6px'
           }}>
-            <span>💡</span>
+            {!hasLeadingEmoji(recommendation) && <span>💡</span>}
             <span>{recommendation}</span>
           </div>
         )}

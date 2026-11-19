@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import {
   formatMilestoneProgress,
   formatRealAdvantage,
@@ -39,6 +40,7 @@ interface Props {
     savingVsOfficialTuikPercent: number | null;
     basketSummary: string;
   };
+  onRefresh?: () => void;
 }
 
 const defaultInflationMetrics = {
@@ -48,7 +50,7 @@ const defaultInflationMetrics = {
   basketSummary: 'Reel harcama verilerine dayalı kişisel enflasyon endeksi'
 };
 
-export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMetrics }: Props) {
+export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMetrics, onRefresh }: Props) {
   const {
     monthlyPassiveIncome = 0,
     monthlyLivingExpense = 0,
@@ -68,6 +70,41 @@ export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMe
 
   const annualExpense = fireMetrics?.annualExpense || (monthlyLivingExpense * 12);
   const savingsRatePercent = fireMetrics?.savingsRatePercent ?? 0;
+
+  const [editingTuik, setEditingTuik] = useState(false);
+  const [tuikInput, setTuikInput] = useState(officialTuikRate !== null ? String(officialTuikRate) : '');
+  const [savingTuik, setSavingTuik] = useState(false);
+  const [tuikError, setTuikError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTuikInput(officialTuikRate !== null ? String(officialTuikRate) : '');
+  }, [officialTuikRate]);
+
+  const handleSaveTuik = async (nextVal: string | null) => {
+    setSavingTuik(true);
+    setTuikError(null);
+    try {
+      const res = await fetch('/api/analytics', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          officialTuikRate: nextVal === null || nextVal.trim() === '' ? null : nextVal.trim()
+        })
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setTuikError(json?.error || 'TÜFE oranı kaydedilemedi.');
+        return;
+      }
+      setEditingTuik(false);
+      if (onRefresh) onRefresh();
+      else window.dispatchEvent(new CustomEvent('singularity-refresh'));
+    } catch {
+      setTuikError('Sunucuya bağlanılamadı.');
+    } finally {
+      setSavingTuik(false);
+    }
+  };
 
   // Kilometre Taşları (Lean, Regular, Fat FIRE)
   const leanTarget = fireMetrics?.milestones?.lean?.target || Math.round(fireTargetNumber * 0.7);
@@ -128,7 +165,7 @@ export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMe
   return (
     <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '18px' }}>
       {/* Kart Başlığı & Rozet */}
-      <div className="card-title-row" style={{ marginBottom: 0 }}>
+      <div className="card-title-row" style={{ marginBottom: 0, flexWrap: 'wrap', gap: '8px' }}>
         <div className="card-title">
           <span style={{ fontSize: '20px' }}>🎯</span>
           <div>
@@ -138,22 +175,23 @@ export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMe
         </div>
         <span style={{
           fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: 'var(--radius-full)',
-          background: 'var(--indigo-bg)', color: 'var(--indigo)', border: '1px solid rgba(99, 102, 241, 0.3)'
+          background: 'var(--indigo-bg)', color: 'var(--indigo)', border: '1px solid rgba(99, 102, 241, 0.3)',
+          whiteSpace: 'nowrap', flexShrink: 0
         }}>
           %4 Kuralı Modeli
         </span>
       </div>
 
-      {/* 1. 4 TEMEL FIRE KPI BENTO (2x2 Mobilde, 4 Sütun Masaüstünde) */}
+      {/* 1. 4 TEMEL FIRE KPI BENTO (2x2 Bento düzeni) */}
       <div className="analytics-kpi-grid">
         {/* KPI 1: Tasarruf Oranı */}
         <div style={{
           background: 'var(--surface-subtle)', border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-md)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px'
+          borderRadius: 'var(--radius-md)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>TASARRUF ORANI</span>
-            <span style={{ fontSize: '14px' }}>📈</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', minWidth: 0 }}>TASARRUF ORANI</span>
+            <span style={{ fontSize: '14px', flexShrink: 0 }}>📈</span>
           </div>
           <div style={{
             fontSize: 'clamp(16px, 4vw, 22px)', fontWeight: 900, color: savingsBadge.color,
@@ -172,11 +210,11 @@ export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMe
         {/* KPI 2: Yıllık Gider */}
         <div style={{
           background: 'var(--surface-subtle)', border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-md)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px'
+          borderRadius: 'var(--radius-md)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>YILLIK GİDER</span>
-            <span style={{ fontSize: '14px' }}>💳</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', minWidth: 0 }}>YILLIK GİDER</span>
+            <span style={{ fontSize: '14px', flexShrink: 0 }}>💳</span>
           </div>
           <div style={{
             fontSize: 'clamp(14px, 3.8vw, 18px)', fontWeight: 900, color: 'var(--text-main)',
@@ -184,7 +222,7 @@ export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMe
           }}>
             ₺{annualExpense.toLocaleString('tr-TR')}
           </div>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             Aylık ₺{monthlyLivingExpense.toLocaleString('tr-TR')}
           </div>
         </div>
@@ -192,11 +230,11 @@ export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMe
         {/* KPI 3: FIRE Hedef Sayısı */}
         <div style={{
           background: 'var(--surface-subtle)', border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-md)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px'
+          borderRadius: 'var(--radius-md)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>HEDEF FIRE (25X)</span>
-            <span style={{ fontSize: '14px' }}>🎯</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', minWidth: 0 }}>HEDEF FIRE (25X)</span>
+            <span style={{ fontSize: '14px', flexShrink: 0 }}>🎯</span>
           </div>
           <div style={{
             fontSize: 'clamp(14px, 3.8vw, 18px)', fontWeight: 900, color: 'var(--indigo)',
@@ -204,7 +242,7 @@ export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMe
           }}>
             ₺{fireTargetNumber.toLocaleString('tr-TR')}
           </div>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             %4 Güvenli Çekim
           </div>
         </div>
@@ -212,11 +250,11 @@ export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMe
         {/* KPI 4: Kalan Yıl Projeksiyonu */}
         <div style={{
           background: 'var(--surface-subtle)', border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-md)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px'
+          borderRadius: 'var(--radius-md)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>KALAN SÜRE</span>
-            <span style={{ fontSize: '14px' }}>⏳</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', minWidth: 0 }}>KALAN SÜRE</span>
+            <span style={{ fontSize: '14px', flexShrink: 0 }}>⏳</span>
           </div>
           <div style={{
             fontSize: 'clamp(12px, 3.5vw, 17px)', fontWeight: 900, color: yearsToFireDisplay.color,
@@ -275,11 +313,11 @@ export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMe
 
         {/* Pasif Gelir Karşılama İndikatörü */}
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px',
           padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-md)',
           border: '1px solid var(--border)', fontSize: '11px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
             <span>⚡</span>
             <span style={{ color: 'var(--text-muted)' }}>Aylık Pasif Gelir:</span>
             <strong style={{ color: 'var(--text-main)', fontVariantNumeric: 'tabular-nums' }}>
@@ -288,7 +326,7 @@ export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMe
           </div>
           <span style={{
             fontWeight: 800, color: 'var(--emerald)', background: 'var(--emerald-bg)',
-            padding: '2px 8px', borderRadius: '4px'
+            padding: '2px 8px', borderRadius: '4px', whiteSpace: 'nowrap'
           }}>
             Giderin %{passiveCoveragePercent}&apos;i Pasif Karşılanıyor
           </span>
@@ -369,18 +407,91 @@ export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMe
         background: 'var(--surface-subtle)', border: '1px solid var(--border)',
         borderRadius: 'var(--radius-lg)', padding: '14px', marginTop: 'auto'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
           <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--amber)', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span>📊</span>
             <span>Kişisel Enflasyon vs Resmi TÜFE Sepeti</span>
           </div>
-          <span style={{
-            fontSize: '10px', background: 'var(--amber-bg)', color: 'var(--amber)',
-            padding: '2px 6px', borderRadius: '4px', fontWeight: 800
-          }}>
-            Reel Sepet
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => {
+                setTuikError(null);
+                setEditingTuik((prev) => !prev);
+              }}
+              style={{
+                fontSize: '10px', background: 'var(--surface)', color: 'var(--text-main)',
+                border: '1px solid var(--border)', padding: '2px 8px', borderRadius: '4px',
+                fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap'
+              }}
+            >
+              {editingTuik ? 'İptal' : officialTuikRate !== null ? '✏️ TÜFE Düzenle' : '✏️ TÜFE Gir'}
+            </button>
+            <span style={{
+              fontSize: '10px', background: 'var(--amber-bg)', color: 'var(--amber)',
+              padding: '2px 6px', borderRadius: '4px', fontWeight: 800, whiteSpace: 'nowrap'
+            }}>
+              Reel Sepet
+            </span>
+          </div>
         </div>
+
+        {editingTuik && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSaveTuik(tuikInput);
+            }}
+            style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', marginBottom: '10px' }}
+          >
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="500"
+              aria-label="Resmi TÜİK TÜFE Oranı (%)"
+              placeholder="TÜFE % (örn: 48.6)"
+              value={tuikInput}
+              onChange={(e) => setTuikInput(e.target.value)}
+              disabled={savingTuik}
+              style={{
+                flex: '1 1 120px',
+                minWidth: 0,
+                padding: '6px 10px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text-main)',
+                fontSize: '12px',
+                fontWeight: 700
+              }}
+            />
+            <button
+              type="submit"
+              disabled={savingTuik}
+              className="btn-primary"
+              style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' }}
+            >
+              {savingTuik ? '...' : 'Kaydet'}
+            </button>
+            {officialTuikRate !== null && (
+              <button
+                type="button"
+                disabled={savingTuik}
+                onClick={() => handleSaveTuik(null)}
+                className="btn-subtle"
+                style={{ padding: '6px 10px', fontSize: '11px', fontWeight: 700, border: '1px solid var(--border)', whiteSpace: 'nowrap' }}
+              >
+                Temizle
+              </button>
+            )}
+            {tuikError && (
+              <div style={{ width: '100%', fontSize: '11px', color: '#EF4444', fontWeight: 600 }}>
+                {tuikError}
+              </div>
+            )}
+          </form>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', textAlign: 'center' }}>
           <div style={{ background: 'var(--surface)', padding: '8px 6px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
@@ -398,8 +509,8 @@ export default function FireAnalyticsCard({ fireMetrics = {} as any, inflationMe
           </div>
 
           <div style={{ background: 'var(--surface)', padding: '8px 6px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-            <div style={{ fontSize: '10px', color: 'var(--emerald)' }}>Reel Avantaj</div>
-            <div style={{ fontSize: '14px', fontWeight: 900, color: 'var(--emerald)', marginTop: '2px', fontVariantNumeric: 'tabular-nums' }}>
+            <div style={{ fontSize: '10px', color: savingVsOfficialTuikPercent !== null && savingVsOfficialTuikPercent < 0 ? '#F43F5E' : 'var(--emerald)' }}>Reel Avantaj</div>
+            <div style={{ fontSize: '14px', fontWeight: 900, color: savingVsOfficialTuikPercent !== null && savingVsOfficialTuikPercent < 0 ? '#F43F5E' : 'var(--emerald)', marginTop: '2px', fontVariantNumeric: 'tabular-nums' }}>
               {savingVsOfficialTuikPercent !== null ? formatRealAdvantage(savingVsOfficialTuikPercent) : '—'}
             </div>
           </div>

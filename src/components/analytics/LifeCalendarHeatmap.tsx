@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   HeatmapSummary,
   DayHeatmapCell
@@ -11,9 +11,6 @@ import {
   BookOpen,
   ShieldCheck,
   Calendar,
-  X,
-  Award,
-  Flame,
   Droplet,
   CheckSquare
 } from 'lucide-react';
@@ -28,24 +25,25 @@ export default function LifeCalendarHeatmap() {
   const [rangeDays, setRangeDays] = useState<number>(365);
   const [selectedCell, setSelectedCell] = useState<DayHeatmapCell | null>(null);
 
-  const fetchHeatmap = () => {
+  const fetchHeatmap = useCallback(() => {
     setLoading(true);
+    setError(null);
     fetch(`/api/analytics/calendar?days=${rangeDays}`)
-      .then(res => res.json())
-      .then(json => {
-        if (json.success && json.data) {
-          setSummary(json.data);
-          // Varsayılan olarak bugünü veya son hücreyi seç
-          if (json.data.days && json.data.days.length > 0) {
-            setSelectedCell(json.data.days[json.data.days.length - 1]);
-          }
+      .then(async res => {
+        const json = await res.json();
+        if (!res.ok || !json.success || !json.data) {
+          throw new Error(json?.error ?? 'Yaşam takvimi verisi alınamadı.');
+        }
+        setSummary(json.data);
+        if (json.data.days && json.data.days.length > 0) {
+          setSelectedCell(json.data.days[json.data.days.length - 1]);
         } else {
-          setError(json.error ?? 'Yaşam takvimi verisi alınamadı.');
+          setSelectedCell(null);
         }
       })
       .catch(err => setError(err.message ?? 'Bağlantı hatası.'))
       .finally(() => setLoading(false));
-  };
+  }, [rangeDays]);
 
   useEffect(() => {
     fetchHeatmap();
@@ -53,7 +51,7 @@ export default function LifeCalendarHeatmap() {
     const handleRefresh = () => fetchHeatmap();
     window.addEventListener('singularity-refresh', handleRefresh);
     return () => window.removeEventListener('singularity-refresh', handleRefresh);
-  }, [rangeDays]);
+  }, [fetchHeatmap]);
 
   if (loading) {
     return (
@@ -100,7 +98,7 @@ export default function LifeCalendarHeatmap() {
 
       case 'nospend':
         if (cell.isNoSpend) return '#F59E0B'; // Altın No-Spend günü!
-        if (cell.spentAmount <= 300) return 'rgba(16, 185, 129, 0.35)'; // Düşük bütçe
+        if (cell.spentAmount <= 250) return 'rgba(16, 185, 129, 0.35)'; // Düşük bütçe
         return 'rgba(239, 68, 68, 0.35)'; // Harcama yapıldı
 
       case 'tasks':
@@ -113,30 +111,32 @@ export default function LifeCalendarHeatmap() {
 
   // GitHub Tarzı 7 Satırlı Izgara Matrisine Dönüştürme
   // Günleri haftalara (sütunlara) böl: Her sütun 7 gün (0 = Pazar, 1 = Pzt, ..., 6 = Cmt)
-  const daysList = summary.days;
+  const daysList = summary.days || [];
   const weeks: DayHeatmapCell[][] = [];
   let currentWeek: DayHeatmapCell[] = [];
 
-  // İlk günün haftanın hangi günü olduğuna göre ön boşluk bırak (Pzt = 1 baz alınır)
-  const firstDay = daysList[0];
-  const firstDayOffset = (firstDay.dayOfWeek + 6) % 7; // Pzt: 0, Sal: 1, ..., Paz: 6
+  if (daysList.length > 0) {
+    // İlk günün haftanın hangi günü olduğuna göre ön boşluk bırak (Pzt = 1 baz alınır)
+    const firstDay = daysList[0];
+    const firstDayOffset = (firstDay.dayOfWeek + 6) % 7; // Pzt: 0, Sal: 1, ..., Paz: 6
 
-  for (let b = 0; b < firstDayOffset; b++) {
-    currentWeek.push(null as any);
-  }
-
-  for (const cell of daysList) {
-    currentWeek.push(cell);
-    if (currentWeek.length === 7) {
-      weeks.push(currentWeek);
-      currentWeek = [];
-    }
-  }
-  if (currentWeek.length > 0) {
-    while (currentWeek.length < 7) {
+    for (let b = 0; b < firstDayOffset; b++) {
       currentWeek.push(null as any);
     }
-    weeks.push(currentWeek);
+
+    for (const cell of daysList) {
+      currentWeek.push(cell);
+      if (currentWeek.length === 7) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
+    }
+    if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) {
+        currentWeek.push(null as any);
+      }
+      weeks.push(currentWeek);
+    }
   }
 
   // SVG Boyutları
@@ -176,7 +176,7 @@ export default function LifeCalendarHeatmap() {
                 Bütünsel Yaşam Takvimi (Holistic Heatmap Matrix)
               </h2>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                Sağlık, Zihin ve Finans Disiplinlerinin 365 Günlük Katkı Matrisi
+                Sağlık, Zihin ve Finans Disiplinlerinin {rangeDays} Günlük Katkı Matrisi
               </div>
             </div>
           </div>
@@ -453,7 +453,7 @@ export default function LifeCalendarHeatmap() {
             gap: '10px'
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>
               <Calendar size={15} color="#10B981" />
               <span>{selectedCell.dayLabel} ({selectedCell.date}) Günlük Analitiği</span>

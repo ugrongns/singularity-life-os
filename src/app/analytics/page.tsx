@@ -8,25 +8,34 @@ import LifeCalendarHeatmap from '@/components/analytics/LifeCalendarHeatmap';
 
 export default function AnalyticsPage() {
   const [data, setData] = useState<any>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [notifData, setNotifData] = useState<any>({ notifications: [], critical: 0, warning: 0 });
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
+    setFetchError(null);
     try {
-      const [anaRes, notifRes] = await Promise.all([
-        fetch('/api/analytics'),
-        fetch('/api/notifications')
+      const [anaResult, notifResult] = await Promise.allSettled([
+        fetch('/api/analytics').then(async (res) => ({ ok: res.ok, json: await res.json() })),
+        fetch('/api/notifications').then(async (res) => ({ ok: res.ok, json: await res.json() }))
       ]);
 
-      const [anaJ, notifJ] = await Promise.all([
-        anaRes.json(),
-        notifRes.json()
-      ]);
+      if (anaResult.status === 'fulfilled') {
+        if (anaResult.value.ok && anaResult.value.json?.success) {
+          setData(anaResult.value.json.data);
+        } else {
+          setFetchError(anaResult.value.json?.error || 'Analitik verileri yüklenemedi.');
+        }
+      } else {
+        setFetchError('Analitik servisine ulaşılamadı.');
+      }
 
-      if (anaJ.success) setData(anaJ.data);
-      if (notifJ.success) setNotifData(notifJ.data);
-    } catch (err) {
+      if (notifResult.status === 'fulfilled' && notifResult.value.ok && notifResult.value.json?.success) {
+        setNotifData(notifResult.value.json.data);
+      }
+    } catch (err: any) {
       console.error('Analytics page fetch error:', err);
+      setFetchError(err?.message || 'Analitik verileri yüklenirken hata oluştu.');
     } finally {
       setLoading(false);
     }
@@ -58,7 +67,7 @@ export default function AnalyticsPage() {
   return (
     <SharedLayout notifications={notifData}>
       {/* Sayfa Başlık Alanı */}
-      <div style={{ padding: '0 4px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ padding: '0 4px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: 900, margin: 0, letterSpacing: '-0.5px' }}>
             📊 Yaşam Skoru & FIRE Analitiği
@@ -88,7 +97,25 @@ export default function AnalyticsPage() {
         <LifeCalendarHeatmap />
       </div>
 
-      {!data || (!data.holisticScore && !data.fireMetrics) ? (
+      {fetchError && !data ? (
+        <div className="card" style={{ textAlign: 'center', padding: '48px 24px', margin: '20px 0' }}>
+          <div style={{ fontSize: '42px', marginBottom: '12px' }}>⚠️</div>
+          <h2 style={{ fontSize: '17px', fontWeight: 800, margin: '0 0 8px 0', color: 'var(--text-main)' }}>
+            Analitik Verileri Alınamadı
+          </h2>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '420px', margin: '0 auto 20px', lineHeight: 1.5 }}>
+            {fetchError}
+          </p>
+          <button
+            onClick={fetchData}
+            className="btn-primary"
+            style={{ padding: '10px 20px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '8px', margin: '0 auto' }}
+          >
+            <span>🔄</span>
+            <span>Tekrar Dene</span>
+          </button>
+        </div>
+      ) : !data || (!data.holisticScore && !data.fireMetrics) ? (
         <div className="card" style={{ textAlign: 'center', padding: '48px 24px', margin: '20px 0' }}>
           <div style={{ fontSize: '42px', marginBottom: '12px' }}>📊</div>
           <h2 style={{ fontSize: '17px', fontWeight: 800, margin: '0 0 8px 0', color: 'var(--text-main)' }}>
@@ -116,6 +143,7 @@ export default function AnalyticsPage() {
               <FireAnalyticsCard
                 fireMetrics={data.fireMetrics}
                 inflationMetrics={data.inflationMetrics}
+                onRefresh={fetchData}
               />
             )}
           </div>

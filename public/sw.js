@@ -1,5 +1,5 @@
-// Singularity Life OS — Progressive Web App Service Worker (v4.0)
-const CACHE_NAME = 'singularity-cache-v6';
+// Singularity Life OS — Progressive Web App Service Worker (v4.1)
+const CACHE_NAME = 'singularity-cache-v7';
 const PRECACHE_ASSETS = [
   '/',
   '/budget',
@@ -50,18 +50,23 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
+  const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+
+  // Geliştirme / localhost ortamında statik paket ve sayfa önbelleklemesini devre dışı bırak
+  if (isLocalhost) {
+    return;
+  }
 
   // API istekleri doğrudan ağa gitsin (offline ise cache kontrolü yapılabilir)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(request).catch(() => {
         return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: 'Sunucuya bağlanılamadı veya ağ bağlantısı koptu. Lütfen internet bağlantınızı ve gerekiyorsa VPN durumunuzu kontrol edin.' 
+          JSON.stringify({
+            success: false,
+            error: 'Sunucuya bağlanılamadı veya ağ bağlantısı koptu. Lütfen internet bağlantınızı ve gerekiyorsa VPN durumunuzu kontrol edin.'
           }),
-          { status: 503, headers: { 'Content-Type': 'application/json' } },
-          { headers: { 'Content-Type': 'application/json' } }
+          { status: 503, headers: { 'Content-Type': 'application/json' } }
         );
       })
     );

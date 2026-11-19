@@ -1801,7 +1801,7 @@ body {
   min-width: 0;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 768px) and (max-width: 1023px), (min-width: 1600px) {
   .analytics-kpi-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;

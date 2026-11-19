@@ -6,8 +6,9 @@ import BackupStatusCard from '@/components/settings/BackupStatusCard';
 import SecuritySettingsCard from '@/components/settings/SecuritySettingsCard';
 import FamilyMembersCard from '@/components/settings/FamilyMembersCard';
 import TelegramBotCard from '@/components/settings/TelegramBotCard';
+import AnalyticsSettingsCard from '@/components/settings/AnalyticsSettingsCard';
 
-type SettingsTab = 'all' | 'family' | 'security' | 'telegram' | 'backup' | 'privacy';
+type SettingsTab = 'all' | 'family' | 'security' | 'telegram' | 'analytics' | 'backup' | 'privacy';
 
 interface TabConfig {
   id: SettingsTab;
@@ -21,6 +22,7 @@ const SETTINGS_TABS: TabConfig[] = [
   { id: 'family', label: 'Aile & Üyeler', icon: '👥', desc: 'Ortak yaşam & davet kodları' },
   { id: 'security', label: 'Güvenlik & PIN', icon: '🔐', desc: 'PIN kodu & master parola' },
   { id: 'telegram', label: 'Telegram Botu', icon: '🤖', desc: 'Hızlı harcama & bildirim asistanı' },
+  { id: 'analytics', label: 'Analitik & TÜFE', icon: '📊', desc: 'Enflasyon referans oranı tercihi' },
   { id: 'backup', label: 'Yedekleme & DB', icon: '💾', desc: 'Supabase bulut yedekleme' },
   { id: 'privacy', label: 'Gizlilik & Altyapı', icon: '🛡️', desc: 'Veri güvenliği & mimari' },
 ];
@@ -186,6 +188,7 @@ export default function SettingsPage() {
               <FamilyMembersCard />
               <SecuritySettingsCard />
               <TelegramBotCard />
+              <AnalyticsSettingsCard />
               {data && (
                 <BackupStatusCard
                   last_backup={data.last_backup}
@@ -213,6 +216,12 @@ export default function SettingsPage() {
           {activeTab === 'telegram' && (
             <div>
               <TelegramBotCard />
+            </div>
+          )}
+
+          {activeTab === 'analytics' && (
+            <div>
+              <AnalyticsSettingsCard />
             </div>
           )}
 

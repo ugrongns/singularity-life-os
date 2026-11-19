@@ -159,6 +159,7 @@ export async function POST(req: Request) {
       if (isMasterAdmin) {
         await tx.delete(families).where(eq(families.id, familyId));
         await tx.delete(appSettings).where(like(appSettings.key, 'telegram_%'));
+        await tx.delete(appSettings).where(eq(appSettings.key, `tuik_tufe_rate_${familyId}`));
       }
     });
 

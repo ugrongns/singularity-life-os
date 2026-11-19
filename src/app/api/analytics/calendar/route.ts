@@ -9,7 +9,7 @@ import {
   waterIntakeLogs,
   tasks
 } from '@/db/schema';
-import { eq, and, gte, desc, or } from 'drizzle-orm';
+import { eq, and, gte, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { calculateHeatmapMatrix, RawHeatmapData } from '@/lib/calendar-heatmap';
 import { getTodayTurkeyDate, shiftTurkeyDate } from '@/lib/date-utils';
@@ -45,7 +45,7 @@ export async function GET(req: Request) {
         and(
           eq(fastingSessions.user_id, user.id),
           eq(fastingSessions.is_active, 0),
-          gte(fastingSessions.created_at, startDateStr)
+          gte(fastingSessions.actual_end_time, timestampStartStr)
         )
       )
       .limit(500);
@@ -88,7 +88,7 @@ export async function GET(req: Request) {
       )
       .limit(1500);
 
-    // 4. Su Kayıtları (OWASP BOLA)
+    // 4. Su Kayıtları (OWASP BOLA — kişisel sağlık verisi yalnızca oturum sahibine aittir)
     const rawWater = await db.select({
       date: waterIntakeLogs.date,
       amount_ml: waterIntakeLogs.amount_ml
@@ -96,10 +96,7 @@ export async function GET(req: Request) {
       .from(waterIntakeLogs)
       .where(
         and(
-          or(
-            eq(waterIntakeLogs.user_id, user.id),
-            eq(waterIntakeLogs.family_id, familyId)
-          ),
+          eq(waterIntakeLogs.user_id, user.id),
           gte(waterIntakeLogs.date, startDateStr)
         )
       )

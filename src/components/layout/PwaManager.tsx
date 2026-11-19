@@ -8,18 +8,29 @@ export default function PwaManager() {
   const [showOnlineToast, setShowOnlineToast] = useState(false);
 
   useEffect(() => {
-    // 1. Service Worker Kaydı
-    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
-      navigator.serviceWorker
-        .register('/sw.js')
-        .then((reg) => console.log('[PWA] Service Worker registered with scope:', reg.scope))
-        .catch((err) => console.warn('[PWA] Service Worker registration failed:', err));
-    } else if ('serviceWorker' in navigator) {
-      // Geliştirme ortamında da test amaçlı kayıt
-      navigator.serviceWorker
-        .register('/sw.js')
-        .then((reg) => console.log('[PWA Dev] Service Worker registered:', reg.scope))
-        .catch((err) => console.warn('[PWA Dev] SW registration note:', err));
+    // 1. Service Worker Kaydı (yalnızca canlı üretim alan adında etkin; localhost/geliştirmede eski önbellekleri temizle)
+    if ('serviceWorker' in navigator) {
+      const hostname = window.location.hostname;
+      const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+      if (process.env.NODE_ENV === 'production' && !isLocalhost) {
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then((reg) => console.log('[PWA] Service Worker registered with scope:', reg.scope))
+          .catch((err) => console.warn('[PWA] Service Worker registration failed:', err));
+      } else {
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+          .catch(() => {});
+        if ('caches' in window) {
+          caches
+            .keys()
+            .then((names) =>
+              Promise.all(names.filter((n) => n.startsWith('singularity-cache-')).map((n) => caches.delete(n)))
+            )
+            .catch(() => {});
+        }
+      }
     }
 
     // 2. Install Prompt Olayı

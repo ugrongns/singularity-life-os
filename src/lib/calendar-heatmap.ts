@@ -88,7 +88,7 @@ export function calculateHeatmapMatrix(
     const rawHours = (eMs - sMs) / (1000 * 3600);
     if (rawHours < 0.16) continue;
 
-    const dStr = f.actual_end_time.slice(0, 10);
+    const dStr = toTurkeyDay(f.actual_end_time) ?? f.actual_end_time.slice(0, 10);
     const existing = fastingByDate.get(dStr) || { totalHours: 0, autophagyHours: 0 };
     const durH = Math.round(rawHours * 10) / 10;
     const autoH = durH >= 16 ? Math.round((durH - 16) * 10) / 10 : 0;

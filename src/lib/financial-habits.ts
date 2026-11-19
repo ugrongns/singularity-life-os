@@ -68,10 +68,14 @@ export function isIncomeTransaction(tx: RawTransactionHabit): boolean {
   const n = (tx.notes ?? '').toLowerCase();
   return (
     m.includes('maaş') ||
-    m.includes('gelir') ||
     m.includes('kira geliri') ||
     m.includes('temettü') ||
+    m.includes('faiz geliri') ||
+    m.includes('gelir girişi') ||
+    (m.includes('gelir') && !m.includes('gelir idaresi')) ||
     n.includes('maaş') ||
+    n.includes('düzeltme geliri') ||
+    n.includes('faiz getirisi') ||
     n.includes('gelir')
   );
 }
@@ -84,9 +88,22 @@ export function isTransferTransaction(tx: RawTransactionHabit): boolean {
   const n = (tx.notes ?? '').toLowerCase();
   return (
     m.startsWith('💳 kart ödemesi') ||
+    m.startsWith('💳 kart ödeme tahsilatı') ||
+    m.includes('kart ödemesi') ||
+    m.includes('kart ödeme tahsilatı') ||
     m.startsWith('🔄 transfer') ||
-    m.includes('vadeli mevduat') ||
+    m.startsWith('📥 gelen transfer') ||
+    m.includes('transfer çıkışı') ||
+    m.includes('gelen transfer') ||
+    m.includes('transfer:') ||
+    m.includes('vadeli mevduat açılışı') ||
+    m.includes('vadeli mevduat dönüşü') ||
+    m.includes('kredi çekim anaparası') ||
+    m.startsWith('🤝 şahıs') ||
+    m.startsWith('🤝 şahsa') ||
     m.includes('kart borç ödemesi') ||
+    n.includes('[from_wallet:') ||
+    n.includes('[to_wallet:') ||
     n.includes('transfer') ||
     n.includes('borç ödemesi')
   );
