@@ -64,5 +64,5 @@ Tüm sistemi tek bir dağınık yanıta sıkıştırmadan, sırayla ilerle:
 - **En Fazla 2 Tur:** Kritik/Bloker hata düzeltildiyse yalnızca değişen kısım için 1 kez regresyon kontrolü yap; 3. tura geçme.
 - **Sonuç Formatı:**
   - Kritik/Bloker hata kalmadığında sonucu **`"Sorun Yok" (PASS)`** olarak kapat.
-  - İstersen en alta en fazla **3 maddelik salt-okunur "Opsiyonel İyileştirme Notu"** ekle (**kullanıcı açıkça istemedikçe kesinlikle uygulama**).
+  - İstersen en alta en fazla **10 maddelik salt-okunur "Opsiyonel İyileştirme Notu"** ekle (**sayıyı doldurmak için zorlama madde uydurma; gerçek değer katan kaç madde varsa o kadarını yaz ve kullanıcı açıkça istemedikçe kesinlikle uygulama**).
 - **Git Kuralı:** Kullanıcı `!bitti` veya açıkça *"kaydet/commit at/pushla"* demedikçe `git commit` / `git push` yapma.

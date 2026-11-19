@@ -2329,6 +2329,7 @@ describe('🎯 Singularity Faz 6: Görevler & Odak Motoru (/tasks) Test Paketi',
       vi.mocked(getAuthUser).mockResolvedValue({ id: 'user-1', family_id: 'fam-1' } as any);
 
       // 1) status: 'in_progress'
+      mockSelect.mockReturnValueOnce(createSelectChain([])); // otherRunningTasks
       const insertInProgress = createInsertChain();
       mockInsert.mockReturnValueOnce(insertInProgress);
 
@@ -3067,6 +3068,188 @@ describe('🎯 Singularity Faz 6: Görevler & Odak Motoru (/tasks) Test Paketi',
       expect(tasksCss).toContain('.tasks-view-tab[aria-selected="true"]::after');
       expect(tasksCss).toContain('border-block-end:');
       expect(tasksCss).toContain('animation-range: 0px var(--tasks-fade-size)');
+    });
+  });
+
+  describe('16. Tur 2 — 6 Opsiyonel İyileştirme Regresyon Testleri', () => {
+    it('Not 1, 4 & 5: TasksClient hızlı ekleme formu yatay hizalanmalı, Kanban panosuna scopedTasks aktarılmalı ve Kanban sütunları sortTasksForDisplay kullanmalıdır', () => {
+      const tasksClientSrc = fs.readFileSync(path.resolve(__dirname, '../src/components/tasks/TasksClient.tsx'), 'utf8');
+      const kanbanSrc = fs.readFileSync(path.resolve(__dirname, '../src/components/tasks/TaskKanbanBoard.tsx'), 'utf8');
+
+      // Not 1: Hızlı ekleme formu flex-direction: row ve compactPrimaryBtnStyle
+      const quickFormStart = tasksClientSrc.indexOf('Tek Satır Hızlı Görev Ekleme Barı');
+      const quickFormEnd = tasksClientSrc.indexOf("viewMode === 'kanban' ?", quickFormStart);
+      expect(quickFormStart).toBeGreaterThan(-1);
+      expect(quickFormEnd).toBeGreaterThan(quickFormStart);
+      const quickFormBlock = tasksClientSrc.slice(quickFormStart, quickFormEnd);
+      expect(quickFormBlock).toContain("flexDirection: 'row'");
+      expect(quickFormBlock).toContain('...compactPrimaryBtnStyle');
+
+      // Not 4: TaskKanbanBoard prop olarak scopedTasks almalı
+      const kanbanUsageBlock = tasksClientSrc.slice(quickFormEnd, quickFormEnd + 320);
+      expect(kanbanUsageBlock).toContain('tasks={scopedTasks}');
+
+      // Not 5: TaskKanbanBoard sütun içi sortTasksForDisplay sıralaması
+      expect(kanbanSrc).toContain('sortTasksForDisplay');
+      expect(kanbanSrc).toContain("'backlog'");
+      expect(kanbanSrc).toContain("'today'");
+      expect(kanbanSrc).toContain("'completed'");
+    });
+
+    it('Not 2: POST /api/tasks action=reschedule boş/null/backlog due_date ile görevi tarihsizleştirmeli ve MIT kotasını korumalıdır', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue({ id: 'user-1', family_id: 'fam-1' } as any);
+
+      // 1) MIT görevi tarihsize (backlog) çekilirken bugün 3 MIT doluysa is_mit=0 olmalı
+      mockSelect
+        .mockReturnValueOnce(createSelectChain([{
+          id: 't-to-backlog',
+          title: 'Planlı Görev',
+          status: 'pending',
+          is_mit: 1,
+          due_date: '2026-11-25',
+          user_id: 'user-1',
+          family_id: 'fam-1'
+        }]))
+        .mockReturnValueOnce(createSelectChain([
+          { id: 'm1', is_mit: 1, status: 'pending', due_date: null },
+          { id: 'm2', is_mit: 1, status: 'pending', due_date: null },
+          { id: 'm3', is_mit: 1, status: 'pending', due_date: null }
+        ]));
+      const updateChain = createUpdateChain();
+      mockUpdate.mockReturnValueOnce(updateChain);
+
+      const res = await postTasks(new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'reschedule',
+          task_id: 't-to-backlog',
+          due_date: ''
+        })
+      }));
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.success).toBe(true);
+      expect(json.data.due_date).toBeNull();
+      expect(json.data.is_mit).toBe(0);
+      expect(json.data.mit_downgraded).toBe(true);
+      expect(updateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+        due_date: null,
+        is_mit: 0
+      }));
+    });
+
+    it('Not 3 & 6: Kanban sütun geçişleri (pause_focus+due_date, toggle_complete+due_date, start_focus+reopen) ve in_progress hızlı oluşturma tek istekte çalışmalıdır', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date('2026-11-19T12:15:00.000Z'));
+        vi.mocked(getAuthUser).mockResolvedValue({ id: 'user-1', family_id: 'fam-1' } as any);
+
+        // A) Not 6: create status=in_progress diğer açık odak görevini kapatıp yeni görevi focus_planned_minutes ile başlatmalı
+        mockSelect.mockReturnValueOnce(createSelectChain([{
+          id: 't-prev-focus',
+          title: 'Önceki Odak',
+          status: 'in_progress',
+          focus_started_at: '2026-11-19T12:00:00.000Z',
+          focus_planned_minutes: 25,
+          focus_logged_minutes: 10,
+          user_id: 'user-1',
+          family_id: 'fam-1'
+        }]));
+        const prevUpdateChain = createUpdateChain();
+        mockUpdate.mockReturnValueOnce(prevUpdateChain);
+        const insertChain = createInsertChain();
+        mockInsert.mockReturnValueOnce(insertChain);
+
+        const createRes = await postTasks(new Request('http://localhost/api/tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'create',
+            title: 'Kanban Odak Kartı',
+            status: 'in_progress',
+            focus_planned_minutes: 50
+          })
+        }));
+        expect(createRes.status).toBe(200);
+        expect(prevUpdateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+          status: 'pending',
+          focus_started_at: null,
+          focus_logged_minutes: 25 // 10 + 15 dk
+        }));
+        expect(insertChain.values).toHaveBeenCalledWith(expect.objectContaining({
+          title: 'Kanban Odak Kartı',
+          status: 'in_progress',
+          focus_planned_minutes: 50,
+          focus_logged_minutes: 0
+        }));
+
+        // B) Not 3: pause_focus + due_date:null ile odaktaki kart tek istekte backlog sütununa taşınabilmeli
+        mockSelect.mockReturnValueOnce(createSelectChain([{
+          id: 't-focus-1',
+          title: 'Odaktaki Görev',
+          status: 'in_progress',
+          due_date: '2026-11-19',
+          is_mit: 0,
+          focus_started_at: '2026-11-19T12:05:00.000Z',
+          focus_planned_minutes: 25,
+          focus_logged_minutes: 0,
+          user_id: 'user-1',
+          family_id: 'fam-1'
+        }]));
+        const pauseUpdateChain = createUpdateChain();
+        mockUpdate.mockReturnValueOnce(pauseUpdateChain);
+
+        const pauseRes = await postTasks(new Request('http://localhost/api/tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'pause_focus',
+            task_id: 't-focus-1',
+            due_date: null
+          })
+        }));
+        expect(pauseRes.status).toBe(200);
+        expect(pauseUpdateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+          status: 'pending',
+          due_date: null,
+          focus_started_at: null,
+          focus_logged_minutes: 10
+        }));
+
+        // C) Not 3: start_focus + reopen_if_completed:true ile tamamlanmış kart tek istekte Sürüyor sütununa taşınabilmeli
+        mockSelect
+          .mockReturnValueOnce(createSelectChain([{
+            id: 't-done-1',
+            title: 'Tamamlanmış Görev',
+            status: 'completed',
+            completed_at: '2026-11-19T11:00:00.000Z',
+            is_mit: 0,
+            focus_logged_minutes: 5,
+            user_id: 'user-1',
+            family_id: 'fam-1'
+          }]))
+          .mockReturnValueOnce(createSelectChain([])); // otherRunningTasks
+        const reopenFocusUpdateChain = createUpdateChain();
+        mockUpdate.mockReturnValueOnce(reopenFocusUpdateChain);
+
+        const reopenFocusRes = await postTasks(new Request('http://localhost/api/tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'start_focus',
+            task_id: 't-done-1',
+            duration_minutes: 25,
+            reopen_if_completed: true
+          })
+        }));
+        expect(reopenFocusRes.status).toBe(200);
+        expect(reopenFocusUpdateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+          status: 'in_progress',
+          completed_at: null,
+          focus_planned_minutes: 25,
+          focus_logged_minutes: 5
+        }));
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

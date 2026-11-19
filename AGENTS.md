@@ -31,7 +31,7 @@ Bir modül veya değişiklik denetlenirken sonsuz düzeltme döngüsüne girmeme
   - **Tur 2 (Regresyon):** Yalnızca Tur 1'de değişen `git diff` üzerinde regresyon kontrolü ve doğrulama yapılır.
 - **Durma ve Opsiyonel Not Kuralı:**
   - Kritik/Bloker hata kalmadığında sonuç **`"Sorun Yok" (PASS)`** olarak kapatılır ve ekstra düzeltme turuna **geçilmez**.
-  - İstenirse sonucun altında en fazla **3 maddelik salt-okunur "Opsiyonel İyileştirme Notu"** bırakılabilir; **kullanıcı açıkça istemedikçe bu opsiyonel öneriler uygulanmaz**.
+  - İstenirse sonucun altında en fazla **10 maddelik salt-okunur "Opsiyonel İyileştirme Notu"** bırakılabilir (**sayıyı doldurmak için zorlama/kozmetik madde uydurulmaz; gerçek fayda sağlayan kaç madde varsa o kadarı yazılır ve kullanıcı açıkça istemedikçe bu opsiyonel öneriler uygulanmaz**).
 
 ## 5. Proje Bağlamı ve Doküman Haritası
 - **Domain ve Modül Kuralları:** `.agents/skills/singularity-lifeos-dev/SKILL.md`

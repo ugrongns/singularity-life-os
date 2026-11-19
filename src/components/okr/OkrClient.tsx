@@ -30,6 +30,7 @@ import {
   getVisionPillarMeta,
   summarizeOkrConfidence,
 } from '@/lib/okr-engine';
+import PageLoadingState from '@/components/ui/PageLoadingState';
 
 interface LiveMetrics {
   books_year: number;
@@ -39,10 +40,39 @@ interface LiveMetrics {
   habits_score: number;
 }
 
+const CONFIDENCE_STYLES: Record<
+  OkrConfidence,
+  { background: string; color: string; border: string }
+> = {
+  on_track: {
+    background: 'rgba(16, 185, 129, 0.14)',
+    color: '#10B981',
+    border: '1px solid rgba(16, 185, 129, 0.32)',
+  },
+  needs_attention: {
+    background: 'rgba(245, 158, 11, 0.14)',
+    color: '#F59E0B',
+    border: '1px solid rgba(245, 158, 11, 0.32)',
+  },
+  at_risk: {
+    background: 'rgba(239, 68, 68, 0.14)',
+    color: '#EF4444',
+    border: '1px solid rgba(239, 68, 68, 0.32)',
+  },
+};
+
+function parseNumericInput(raw: string, fallback: number): number {
+  const trimmed = raw.trim();
+  if (!trimmed) return fallback;
+  const n = Number(trimmed);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export default function OkrClient() {
   const defaultPeriod = useMemo(() => getDefaultOkrPeriod(getTodayTurkeyDate()), []);
   const [selectedPeriod, setSelectedPeriod] = useState<string>(defaultPeriod);
   const [selectedPillar, setSelectedPillar] = useState<string>('all');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [objectives, setObjectives] = useState<OkrObjectiveItem[]>([]);
   const [keyResults, setKeyResults] = useState<OkrKeyResultItem[]>([]);
   const [checkIns, setCheckIns] = useState<OkrCheckInItem[]>([]);
@@ -87,6 +117,13 @@ export default function OkrClient() {
   const [ciConfidence, setCiConfidence] = useState<string>('on_track');
   const [ciNote, setCiNote] = useState<string>('');
 
+  // Delete confirmation modal
+  const [confirmDelete, setConfirmDelete] = useState<{
+    type: 'objective' | 'kr';
+    id: string;
+    title: string;
+  } | null>(null);
+
   const notify = useCallback((text: string, type: 'ok' | 'err' = 'ok') => {
     setToast({ text, type });
     setTimeout(() => setToast(null), 3200);
@@ -101,6 +138,9 @@ export default function OkrClient() {
       const json = await res.json();
       if (json.success && json.data) {
         const objs: OkrObjectiveItem[] = json.data.objectives ?? [];
+        if (typeof json.data.currentUserId === 'string') {
+          setCurrentUserId(json.data.currentUserId);
+        }
         setObjectives(objs);
         setKeyResults(json.data.keyResults ?? []);
         setCheckIns(json.data.checkIns ?? []);
@@ -120,7 +160,7 @@ export default function OkrClient() {
   }, [selectedPeriod, notify]);
 
   useEffect(() => {
-    fetchOkrData();
+    void fetchOkrData();
   }, [fetchOkrData]);
 
   const enrichedObjectives = useMemo(() => {
@@ -193,7 +233,7 @@ export default function OkrClient() {
       if (json.success) {
         notify(editingObj ? 'Hedef güncellendi.' : 'Hedef oluşturuldu.');
         setObjModalOpen(false);
-        fetchOkrData();
+        void fetchOkrData();
       } else {
         notify(json.error || 'İşlem başarısız.', 'err');
       }
@@ -212,7 +252,7 @@ export default function OkrClient() {
       const json = await res.json();
       if (json.success) {
         notify('Hedef silindi.');
-        fetchOkrData();
+        void fetchOkrData();
       } else {
         notify(json.error || 'Silinemedi.', 'err');
       }
@@ -262,11 +302,11 @@ export default function OkrClient() {
           objective_id: krTargetObjId,
           title: krTitle.trim(),
           kr_type: krType,
-          start_value: Number(krStart) || 0,
-          target_value: Number(krTarget) || 100,
-          current_value: Number(krCurrent) || 0,
+          start_value: parseNumericInput(krStart, 0),
+          target_value: parseNumericInput(krTarget, 100),
+          current_value: parseNumericInput(krCurrent, 0),
           unit: krUnit.trim() || 'adet',
-          weight: Number(krWeight) || 1,
+          weight: Math.max(0.1, parseNumericInput(krWeight, 1)),
           linked_module: krLinkedModule || null,
         }),
       });
@@ -274,7 +314,7 @@ export default function OkrClient() {
       if (json.success) {
         notify('Anahtar Sonuç (KR) eklendi.');
         setKrModalOpen(false);
-        fetchOkrData();
+        void fetchOkrData();
       } else {
         notify(json.error || 'Eklenemedi.', 'err');
       }
@@ -293,7 +333,7 @@ export default function OkrClient() {
       const json = await res.json();
       if (json.success) {
         notify('Anahtar Sonuç silindi.');
-        fetchOkrData();
+        void fetchOkrData();
       } else {
         notify(json.error || 'Silinemedi.', 'err');
       }
@@ -328,7 +368,7 @@ export default function OkrClient() {
       if (json.success) {
         notify('Check-in kaydedildi.');
         setCiModalKr(null);
-        fetchOkrData();
+        void fetchOkrData();
       } else {
         notify(json.error || 'Check-in başarısız.', 'err');
       }
@@ -338,36 +378,41 @@ export default function OkrClient() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+    <div style={{ padding: '0 16px 28px', maxWidth: '1280px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
       {toast && (
         <div
-          className={`fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl border shadow-xl text-sm font-medium ${
-            toast.type === 'ok'
-              ? 'bg-emerald-950/90 border-emerald-700 text-emerald-200'
-              : 'bg-rose-950/90 border-rose-700 text-rose-200'
-          }`}
+          className="toast-glass"
+          role="status"
+          aria-live="polite"
+          style={{
+            zIndex: 1200,
+            borderColor: toast.type === 'ok' ? 'rgba(16, 185, 129, 0.45)' : 'rgba(244, 63, 94, 0.45)',
+            color: toast.type === 'ok' ? 'var(--emerald)' : 'var(--rose)',
+          }}
         >
           {toast.text}
         </div>
       )}
 
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2.5">
-            <Target className="w-6 h-6 text-emerald-400" />
-            OKR & Stratejik Yaşam Vizyonu
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ fontSize: '21px', fontWeight: 900, margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <Target size={22} style={{ color: 'var(--emerald)', flexShrink: 0 }} />
+            <span>OKR &amp; Stratejik Yaşam Vizyonu</span>
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
             6 yaşam sütunu altında çeyreklik hedefler belirle, ölçülebilir anahtar sonuçlarla check-in yap.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-xs font-medium text-slate-200"
+            className="input"
+            aria-label="OKR Dönemi"
+            style={{ width: 'auto', minWidth: '150px', padding: '7px 12px', fontSize: '12px', fontWeight: 700, borderRadius: '10px' }}
           >
             <option value="all">Tüm Dönemler</option>
             {OKR_PERIODS.map((p) => (
@@ -380,304 +425,454 @@ export default function OkrClient() {
           <button
             type="button"
             onClick={openCreateObjective}
-            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition"
+            className="btn-primary"
+            style={{ padding: '8px 14px', fontSize: '12px', fontWeight: 800, borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#10B981', borderColor: '#059669' }}
           >
-            <Plus className="w-4 h-4" />
-            Yeni Hedef
+            <Plus size={15} />
+            <span>Yeni Hedef</span>
           </button>
         </div>
       </div>
 
       {/* Summary & Live Singularity Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-          <div className="text-xs text-slate-400">Ortalama İlerleme</div>
-          <div className="text-2xl font-bold text-emerald-400 mt-1">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+        <div className="card" style={{ padding: '14px 16px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            Ortalama İlerleme
+          </div>
+          <div className="tabular-nums" style={{ fontSize: '26px', fontWeight: 900, color: 'var(--emerald)', marginTop: '4px' }}>
             %{summary.averageProgress}
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
             {summary.totalObjectives} hedef ({summary.completedObjectives} tamamlandı)
           </div>
         </div>
 
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-          <div className="text-xs text-slate-400">Güven Durumu</div>
-          <div className="flex items-center gap-2 mt-2 text-xs font-semibold">
-            <span className="text-emerald-400">● {summary.onTrackCount} Yolunda</span>
-            <span className="text-amber-400">● {summary.needsAttentionCount} Dikkat</span>
-            <span className="text-rose-400">● {summary.atRiskCount} Risk</span>
+        <div className="card" style={{ padding: '14px 16px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            Güven Durumu
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 12px', marginTop: '10px', fontSize: '12px', fontWeight: 700 }}>
+            <span style={{ color: '#10B981', whiteSpace: 'nowrap' }}>● {summary.onTrackCount} Yolunda</span>
+            <span style={{ color: '#F59E0B', whiteSpace: 'nowrap' }}>● {summary.needsAttentionCount} Dikkat</span>
+            <span style={{ color: '#EF4444', whiteSpace: 'nowrap' }}>● {summary.atRiskCount} Risk</span>
           </div>
         </div>
 
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 col-span-2">
-          <div className="text-xs text-slate-400 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            Canlı Singularity Metrikleri (KR Önerileri İçin)
+        <div className="card" style={{ padding: '14px 16px', gridColumn: 'span 1' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase' }}>
+            <Sparkles size={13} style={{ color: 'var(--indigo)', flexShrink: 0 }} />
+            <span>Canlı Singularity Metrikleri</span>
           </div>
-          <div className="flex flex-wrap gap-3 mt-2 text-xs text-slate-200">
-            <span>📚 Yıllık Kitap: <b>{liveMetrics.books_year}</b></span>
-            <span>💎 Birikim Fonu: <b>{liveMetrics.sinking_fund.toLocaleString('tr-TR')} ₺</b></span>
-            <span>💪 30G Antrenman: <b>{liveMetrics.workouts_30d}</b></span>
-            <span>✅ 30G Görev: <b>{liveMetrics.tasks_30d}</b></span>
-            <span>🔁 7G Alışkanlık: <b>{liveMetrics.habits_score}</b></span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 14px', marginTop: '10px', fontSize: '12px', color: 'var(--text-main)' }}>
+            <span style={{ whiteSpace: 'nowrap' }}>📚 Yıllık Kitap: <strong className="tabular-nums">{liveMetrics.books_year}</strong></span>
+            <span style={{ whiteSpace: 'nowrap' }}>💎 Birikim Fonu: <strong className="tabular-nums">{liveMetrics.sinking_fund.toLocaleString('tr-TR')} ₺</strong></span>
+            <span style={{ whiteSpace: 'nowrap' }}>💪 30G Antrenman: <strong className="tabular-nums">{liveMetrics.workouts_30d}</strong></span>
+            <span style={{ whiteSpace: 'nowrap' }}>✅ 30G Görev: <strong className="tabular-nums">{liveMetrics.tasks_30d}</strong></span>
+            <span style={{ whiteSpace: 'nowrap' }}>🔁 7G Alışkanlık: <strong className="tabular-nums">{liveMetrics.habits_score}</strong></span>
           </div>
         </div>
       </div>
 
       {/* 6 Vision Pillars Filter */}
-      <div className="flex flex-wrap gap-2">
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
         <button
           type="button"
           onClick={() => setSelectedPillar('all')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition ${
-            selectedPillar === 'all'
-              ? 'bg-slate-100 text-slate-900 border-slate-100'
-              : 'bg-slate-900/60 text-slate-300 border-slate-800 hover:border-slate-700'
-          }`}
+          className={`choice-pill ${selectedPillar === 'all' ? 'selected' : ''}`}
+          style={{
+            padding: '6px 12px',
+            borderRadius: '10px',
+            fontSize: '12px',
+            fontWeight: 700,
+            border: selectedPillar === 'all' ? '1px solid var(--primary)' : '1px solid var(--border)',
+            background: selectedPillar === 'all' ? 'var(--primary)' : 'var(--surface)',
+            color: selectedPillar === 'all' ? '#FFFFFF' : 'var(--text-main)',
+            cursor: 'pointer',
+          }}
         >
           Tümü
         </button>
-        {VISION_PILLARS.map((pillar) => (
-          <button
-            key={pillar.id}
-            type="button"
-            onClick={() => setSelectedPillar(pillar.id)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition flex items-center gap-1.5 ${
-              selectedPillar === pillar.id
-                ? 'bg-slate-800 text-white border-indigo-500'
-                : 'bg-slate-900/60 text-slate-300 border-slate-800 hover:border-slate-700'
-            }`}
-          >
-            <span>{pillar.emoji}</span>
-            <span>{pillar.label}</span>
-          </button>
-        ))}
+        {VISION_PILLARS.map((pillar) => {
+          const isActive = selectedPillar === pillar.id;
+          return (
+            <button
+              key={pillar.id}
+              type="button"
+              onClick={() => setSelectedPillar(pillar.id)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '10px',
+                fontSize: '12px',
+                fontWeight: 700,
+                border: isActive ? `1px solid ${pillar.color}` : '1px solid var(--border)',
+                background: isActive ? `${pillar.color}22` : 'var(--surface)',
+                color: isActive ? pillar.color : 'var(--text-main)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+              }}
+            >
+              <span>{pillar.emoji}</span>
+              <span>{pillar.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Objectives List */}
       {loading ? (
-        <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-10 text-center text-sm text-slate-400">
-          OKR hedefleri yükleniyor...
-        </div>
+        <PageLoadingState
+          icon="🎯"
+          title="OKR Hedefleri Yükleniyor..."
+          description="Yaşam vizyonu hedefleri, anahtar sonuçlar ve canlı metrikler hazırlanıyor"
+          color="#10B981"
+        />
       ) : enrichedObjectives.length === 0 ? (
-        <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-10 text-center space-y-3">
-          <div className="text-sm text-slate-400">
+        <div
+          className="card"
+          style={{
+            padding: '40px 20px',
+            textAlign: 'center',
+            borderStyle: 'dashed',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '12px',
+          }}
+        >
+          <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
             Bu filtrede henüz tanımlı bir hedef (Objective) bulunmuyor.
           </div>
           <button
             type="button"
             onClick={openCreateObjective}
-            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold inline-flex items-center gap-1.5"
+            className="btn-primary"
+            style={{ padding: '9px 16px', fontSize: '12px', fontWeight: 800, borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#10B981', borderColor: '#059669' }}
           >
-            <Plus className="w-4 h-4" />
-            İlk Hedefi Oluştur
+            <Plus size={15} />
+            <span>İlk Hedefi Oluştur</span>
           </button>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {enrichedObjectives.map((obj) => {
             const pillar = getVisionPillarMeta(obj.pillar_id);
-            const confMeta =
-              OKR_CONFIDENCE_META[(obj.confidence as OkrConfidence) || 'on_track'] ??
-              OKR_CONFIDENCE_META.on_track;
+            const confKey = (obj.confidence as OkrConfidence) || 'on_track';
+            const confMeta = OKR_CONFIDENCE_META[confKey] ?? OKR_CONFIDENCE_META.on_track;
+            const confStyle = CONFIDENCE_STYLES[confKey] ?? CONFIDENCE_STYLES.on_track;
             const progress = calculateObjectiveProgress(obj.keyResults ?? []);
             const isExpanded = expandedIds.has(obj.id);
+            const isObjOwner = !currentUserId || obj.user_id === currentUserId;
 
             return (
               <div
                 key={obj.id}
-                className="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden"
+                className="card"
+                style={{ overflow: 'hidden', padding: 0 }}
               >
-                <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div style={{ padding: '16px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: 0, flex: '1 1 260px' }}>
                     <button
                       type="button"
                       onClick={() => toggleExpand(obj.id)}
-                      className="mt-1 p-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white shrink-0"
+                      className="btn-subtle"
+                      aria-label={isExpanded ? 'Daralt' : 'Genişlet'}
+                      style={{ marginTop: '2px', padding: '5px', borderRadius: '8px', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                     >
-                      {isExpanded ? (
-                        <ChevronDown className="w-4 h-4" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4" />
-                      )}
+                      {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                     </button>
 
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
+                    <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
                         <span
-                          className="text-[11px] font-medium px-2 py-0.5 rounded-md border border-slate-700 bg-slate-950/70 text-slate-200"
-                          style={{ borderLeftColor: pillar.color, borderLeftWidth: '3px' }}
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border)',
+                            borderLeft: `3px solid ${pillar.color}`,
+                            background: 'var(--surface-subtle)',
+                            color: 'var(--text-main)',
+                          }}
                         >
                           {pillar.emoji} {pillar.label}
                         </span>
-                        <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300">
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            background: 'var(--surface-subtle)',
+                            color: 'var(--text-muted)',
+                          }}
+                        >
                           {obj.period}
                         </span>
                         <span
-                          className={`text-[11px] px-2 py-0.5 rounded-md border ${confMeta.bgClass}`}
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            ...confStyle,
+                          }}
                         >
                           {confMeta.label}
                         </span>
                         {obj.is_family_shared === 1 && (
-                          <span className="text-[11px] bg-pink-500/15 text-pink-300 border border-pink-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
-                            <Users className="w-3 h-3" />
-                            Aile
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              background: 'rgba(236, 72, 153, 0.14)',
+                              color: '#EC4899',
+                              border: '1px solid rgba(236, 72, 153, 0.32)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <Users size={11} />
+                            <span>Aile</span>
                           </span>
                         )}
                       </div>
 
-                      <h3 className="text-base font-bold text-slate-100">{obj.title}</h3>
+                      <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: 'var(--text-main)', wordBreak: 'break-word' }}>
+                        {obj.title}
+                      </h3>
                       {obj.description && (
-                        <p className="text-xs text-slate-400">{obj.description}</p>
+                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
+                          {obj.description}
+                        </p>
                       )}
 
-                      <div className="flex items-center gap-3 pt-1">
-                        <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingTop: '2px' }}>
+                        <div style={{ flex: 1, height: '8px', borderRadius: '999px', background: 'var(--surface-subtle)', overflow: 'hidden' }}>
                           <div
-                            className="h-full rounded-full transition-all duration-300"
                             style={{
+                              height: '100%',
+                              borderRadius: '999px',
                               width: `${progress}%`,
                               backgroundColor: pillar.color,
+                              transition: 'width 0.3s ease',
                             }}
                           />
                         </div>
-                        <span className="text-xs font-bold text-slate-200 w-10 text-right">
+                        <span className="tabular-nums" style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', minWidth: '38px', textAlign: 'right' }}>
                           %{progress}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
-                    <button
-                      type="button"
-                      onClick={() => openCreateKr(obj.id)}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-xs font-medium flex items-center gap-1 transition"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      KR Ekle
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openEditObjective(obj)}
-                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300"
-                      aria-label="Hedefi düzenle"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteObjective(obj.id)}
-                      className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600/30 text-slate-400 hover:text-rose-300"
-                      aria-label="Hedefi sil"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                    {isObjOwner ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openCreateKr(obj.id)}
+                          style={{
+                            padding: '6px 11px',
+                            borderRadius: '9px',
+                            background: 'rgba(16, 185, 129, 0.16)',
+                            border: '1px solid rgba(16, 185, 129, 0.35)',
+                            color: 'var(--emerald)',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Plus size={14} />
+                          <span>KR Ekle</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openEditObjective(obj)}
+                          className="btn-subtle"
+                          style={{ padding: '7px', borderRadius: '9px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                          aria-label="Hedefi düzenle"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete({ type: 'objective', id: obj.id, title: obj.title })}
+                          className="btn-subtle"
+                          style={{ padding: '7px', borderRadius: '9px', color: 'var(--rose)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                          aria-label="Hedefi sil"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          padding: '4px 9px',
+                          borderRadius: '8px',
+                          background: 'var(--surface-subtle)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--text-muted)',
+                        }}
+                      >
+                        Salt Okunur
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 {/* Key Results */}
                 {isExpanded && (
-                  <div className="border-t border-slate-800 bg-slate-950/40 p-4 space-y-2.5">
+                  <div style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-subtle)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {(obj.keyResults ?? []).length === 0 ? (
-                      <div className="text-xs text-slate-500 py-2">
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 0' }}>
                         Henüz anahtar sonuç (KR) eklenmemiş. Sağdaki &ldquo;KR Ekle&rdquo; butonunu kullan.
                       </div>
                     ) : (
                       (obj.keyResults ?? []).map((kr) => {
                         const krPct = calculateKeyResultProgress(kr);
-                        const krConf =
-                          OKR_CONFIDENCE_META[(kr.confidence as OkrConfidence) || 'on_track'] ??
-                          OKR_CONFIDENCE_META.on_track;
+                        const krConfKey = (kr.confidence as OkrConfidence) || 'on_track';
+                        const krConf = OKR_CONFIDENCE_META[krConfKey] ?? OKR_CONFIDENCE_META.on_track;
+                        const krConfStyle = CONFIDENCE_STYLES[krConfKey] ?? CONFIDENCE_STYLES.on_track;
                         const krHistory = checkIns.filter((c) => c.key_result_id === kr.id);
                         const isHistoryOpen = historyKrId === kr.id;
+                        const isKrOwner = !currentUserId || kr.user_id === currentUserId;
 
                         return (
                           <div
                             key={kr.id}
-                            className="bg-slate-900/70 border border-slate-800 rounded-xl p-3 space-y-2"
+                            style={{
+                              background: 'var(--surface)',
+                              border: '1px solid var(--border)',
+                              borderRadius: '12px',
+                              padding: '12px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '8px',
+                            }}
                           >
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="text-sm font-semibold text-slate-200">
+                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                              <div style={{ minWidth: 0, flex: '1 1 200px' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>
                                     {kr.title}
                                   </span>
                                   <span
-                                    className={`text-[10px] px-2 py-0.5 rounded border ${krConf.bgClass}`}
+                                    style={{
+                                      fontSize: '10px',
+                                      fontWeight: 700,
+                                      padding: '2px 7px',
+                                      borderRadius: '5px',
+                                      ...krConfStyle,
+                                    }}
                                   >
                                     {krConf.label}
                                   </span>
-                                  <span className="text-[10px] text-slate-500">
+                                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                                     Ağırlık: x{kr.weight}
                                   </span>
                                 </div>
-                                <div className="text-xs text-slate-400 mt-1">
-                                  {kr.current_value} / {kr.target_value} {kr.unit} (Başlangıç:{' '}
-                                  {kr.start_value})
+                                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                  <strong className="tabular-nums" style={{ color: 'var(--text-main)' }}>{kr.current_value}</strong> / {kr.target_value} {kr.unit} (Başlangıç: {kr.start_value})
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-1.5 shrink-0">
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                                {isKrOwner && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openCheckIn(kr)}
+                                    style={{
+                                      padding: '6px 10px',
+                                      borderRadius: '8px',
+                                      background: 'rgba(99, 102, 241, 0.16)',
+                                      border: '1px solid rgba(99, 102, 241, 0.35)',
+                                      color: 'var(--indigo)',
+                                      fontSize: '12px',
+                                      fontWeight: 700,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <Activity size={13} />
+                                    <span>Check-in</span>
+                                  </button>
+                                )}
                                 <button
                                   type="button"
-                                  onClick={() => openCheckIn(kr)}
-                                  className="px-2.5 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white text-xs font-medium flex items-center gap-1 transition"
+                                  onClick={() => setHistoryKrId(isHistoryOpen ? null : kr.id)}
+                                  className="btn-subtle"
+                                  style={{ padding: '6px 9px', borderRadius: '8px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                                 >
-                                  <Activity className="w-3.5 h-3.5" />
-                                  Check-in
+                                  <History size={13} />
+                                  <span>({krHistory.length})</span>
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setHistoryKrId(isHistoryOpen ? null : kr.id)
-                                  }
-                                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs flex items-center gap-1"
-                                >
-                                  <History className="w-3.5 h-3.5" />
-                                  ({krHistory.length})
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteKr(kr.id)}
-                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-600/30 text-slate-400 hover:text-rose-300"
-                                  aria-label="KR sil"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                {isKrOwner && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDelete({ type: 'kr', id: kr.id, title: kr.title })}
+                                    className="btn-subtle"
+                                    style={{ padding: '6px', borderRadius: '8px', color: 'var(--rose)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                    aria-label="KR sil"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                )}
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{ flex: 1, height: '6px', borderRadius: '999px', background: 'var(--surface-subtle)', overflow: 'hidden' }}>
                                 <div
-                                  className="h-full rounded-full bg-emerald-500 transition-all duration-300"
-                                  style={{ width: `${krPct}%` }}
+                                  style={{
+                                    height: '100%',
+                                    borderRadius: '999px',
+                                    background: '#10B981',
+                                    width: `${krPct}%`,
+                                    transition: 'width 0.3s ease',
+                                  }}
                                 />
                               </div>
-                              <span className="text-[11px] font-semibold text-slate-300 w-9 text-right">
+                              <span className="tabular-nums" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-main)', minWidth: '34px', textAlign: 'right' }}>
                                 %{krPct}
                               </span>
                             </div>
 
                             {isHistoryOpen && (
-                              <div className="mt-2 pt-2 border-t border-slate-800 space-y-1.5">
+                              <div style={{ marginTop: '4px', paddingTop: '8px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                 {krHistory.length === 0 ? (
-                                  <div className="text-[11px] text-slate-500">
+                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                                     Henüz check-in kaydı yok.
                                   </div>
                                 ) : (
                                   krHistory.map((ci) => (
                                     <div
                                       key={ci.id}
-                                      className="text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2 bg-slate-950/60 px-2.5 py-1.5 rounded-lg"
+                                      style={{
+                                        fontSize: '11px',
+                                        color: 'var(--text-muted)',
+                                        background: 'var(--surface-subtle)',
+                                        padding: '6px 10px',
+                                        borderRadius: '8px',
+                                      }}
                                     >
-                                      <span>
-                                        <b>{ci.check_in_date}</b>: {ci.previous_value} →{' '}
-                                        <b className="text-emerald-400">{ci.new_value}</b>{' '}
-                                        {kr.unit}
-                                        {ci.note ? ` — "${ci.note}"` : ''}
-                                      </span>
+                                      <strong style={{ color: 'var(--text-main)' }}>{ci.check_in_date}</strong>: {ci.previous_value} →{' '}
+                                      <strong style={{ color: 'var(--emerald)' }}>{ci.new_value}</strong>{' '}
+                                      {kr.unit}
+                                      {ci.note ? ` — "${ci.note}"` : ''}
                                     </div>
                                   ))
                                 )}
@@ -697,51 +892,65 @@ export default function OkrClient() {
 
       {/* Objective Modal */}
       {objModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-slate-100">
+        <div className="modal-overlay" onClick={() => setObjModalOpen(false)} style={{ zIndex: 1100 }}>
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '460px', width: '100%', padding: '20px', maxHeight: '90dvh', overflowY: 'auto' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-main)' }}>
                 {editingObj ? 'Hedefi Düzenle' : 'Yeni Stratejik Hedef (Objective)'}
               </h2>
               <button
                 type="button"
                 onClick={() => setObjModalOpen(false)}
-                className="text-slate-400 hover:text-slate-200"
+                className="modal-close-btn"
+                aria-label="Kapat"
               >
-                <X className="w-4 h-4" />
+                <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveObjective} className="space-y-3">
+            <form onSubmit={handleSaveObjective} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Hedef Başlığı</label>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                  Hedef Başlığı
+                </label>
                 <input
                   type="text"
                   value={objTitle}
                   onChange={(e) => setObjTitle(e.target.value)}
                   placeholder="Örn: Sağlıklı yaşam ve enerji seviyesini zirveye taşımak"
-                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100"
+                  className="input"
+                  style={{ width: '100%' }}
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Açıklama</label>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                  Açıklama
+                </label>
                 <textarea
                   rows={2}
                   value={objDesc}
                   onChange={(e) => setObjDesc(e.target.value)}
-                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100"
+                  className="input"
+                  style={{ width: '100%', resize: 'vertical' }}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Yaşam Sütunu</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                    Yaşam Sütunu
+                  </label>
                   <select
                     value={objPillar}
                     onChange={(e) => setObjPillar(e.target.value)}
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
+                    className="input"
+                    style={{ width: '100%' }}
                   >
                     {VISION_PILLARS.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -751,11 +960,14 @@ export default function OkrClient() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Dönem</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                    Dönem
+                  </label>
                   <select
                     value={objPeriod}
                     onChange={(e) => setObjPeriod(e.target.value)}
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
+                    className="input"
+                    style={{ width: '100%' }}
                   >
                     {OKR_PERIODS.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -767,13 +979,16 @@ export default function OkrClient() {
               </div>
 
               {editingObj && (
-                <div className="grid grid-cols-2 gap-2">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">Durum</label>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      Durum
+                    </label>
                     <select
                       value={objStatus}
                       onChange={(e) => setObjStatus(e.target.value)}
-                      className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
+                      className="input"
+                      style={{ width: '100%' }}
                     >
                       {Object.entries(OKR_STATUS_META).map(([k, v]) => (
                         <option key={k} value={k}>
@@ -783,11 +998,14 @@ export default function OkrClient() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">Güven</label>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      Güven
+                    </label>
                     <select
                       value={objConfidence}
                       onChange={(e) => setObjConfidence(e.target.value)}
-                      className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
+                      className="input"
+                      style={{ width: '100%' }}
                     >
                       {Object.entries(OKR_CONFIDENCE_META).map(([k, v]) => (
                         <option key={k} value={k}>
@@ -799,27 +1017,28 @@ export default function OkrClient() {
                 </div>
               )}
 
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-main)', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={objShared}
                   onChange={(e) => setObjShared(e.target.checked)}
-                  className="rounded border-slate-600 bg-slate-950"
                 />
-                Aileyle Paylaş (ortak aile hedefi olarak görünsün)
+                <span>Aileyle Paylaş (ortak aile hedefi olarak görünsün)</span>
               </label>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '6px' }}>
                 <button
                   type="button"
                   onClick={() => setObjModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-medium"
+                  className="btn-subtle"
+                  style={{ padding: '8px 14px', fontSize: '12px', fontWeight: 700, borderRadius: '10px' }}
                 >
                   İptal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
+                  className="btn-primary"
+                  style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 800, borderRadius: '10px', background: '#10B981', borderColor: '#059669' }}
                 >
                   Kaydet
                 </button>
@@ -831,26 +1050,42 @@ export default function OkrClient() {
 
       {/* Key Result Modal */}
       {krModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-slate-100">
+        <div className="modal-overlay" onClick={() => setKrModalOpen(false)} style={{ zIndex: 1100 }}>
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '520px', width: '100%', padding: '20px', maxHeight: '90dvh', overflowY: 'auto' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-main)' }}>
                 Yeni Anahtar Sonuç (Key Result)
               </h2>
               <button
                 type="button"
                 onClick={() => setKrModalOpen(false)}
-                className="text-slate-400 hover:text-slate-200"
+                className="modal-close-btn"
+                aria-label="Kapat"
               >
-                <X className="w-4 h-4" />
+                <X size={16} />
               </button>
             </div>
 
-            <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 space-y-2">
-              <div className="text-[11px] text-indigo-300 font-medium">
+            <div
+              style={{
+                background: 'var(--surface-subtle)',
+                border: '1px solid var(--border)',
+                borderRadius: '12px',
+                padding: '10px 12px',
+                marginBottom: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
+            >
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--indigo)' }}>
                 Singularity Modüllerinden Hızlı Doldur:
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 <button
                   type="button"
                   onClick={() =>
@@ -862,7 +1097,8 @@ export default function OkrClient() {
                       'kitap'
                     )
                   }
-                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-200"
+                  className="btn-subtle"
+                  style={{ padding: '5px 9px', borderRadius: '8px', fontSize: '11px', fontWeight: 700 }}
                 >
                   📚 Kitap ({liveMetrics.books_year})
                 </button>
@@ -878,9 +1114,10 @@ export default function OkrClient() {
                       'currency'
                     )
                   }
-                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-200"
+                  className="btn-subtle"
+                  style={{ padding: '5px 9px', borderRadius: '8px', fontSize: '11px', fontWeight: 700 }}
                 >
-                  💎 Birikim ({liveMetrics.sinking_fund} ₺)
+                  💎 Birikim ({liveMetrics.sinking_fund.toLocaleString('tr-TR')} ₺)
                 </button>
                 <button
                   type="button"
@@ -893,33 +1130,72 @@ export default function OkrClient() {
                       'seans'
                     )
                   }
-                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-200"
+                  className="btn-subtle"
+                  style={{ padding: '5px 9px', borderRadius: '8px', fontSize: '11px', fontWeight: 700 }}
                 >
                   💪 Spor ({liveMetrics.workouts_30d})
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    applySuggestion(
+                      'tasks',
+                      'Aylık 30 görev tamamla',
+                      liveMetrics.tasks_30d,
+                      Math.max(30, liveMetrics.tasks_30d + 10),
+                      'görev'
+                    )
+                  }
+                  className="btn-subtle"
+                  style={{ padding: '5px 9px', borderRadius: '8px', fontSize: '11px', fontWeight: 700 }}
+                >
+                  ✅ Görev ({liveMetrics.tasks_30d})
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    applySuggestion(
+                      'habits',
+                      'Haftalık 21 alışkanlık tamamla',
+                      liveMetrics.habits_score,
+                      Math.max(21, liveMetrics.habits_score + 7),
+                      'tamamlama'
+                    )
+                  }
+                  className="btn-subtle"
+                  style={{ padding: '5px 9px', borderRadius: '8px', fontSize: '11px', fontWeight: 700 }}
+                >
+                  🔁 Alışkanlık ({liveMetrics.habits_score})
                 </button>
               </div>
             </div>
 
-            <form onSubmit={handleSaveKr} className="space-y-3">
+            <form onSubmit={handleSaveKr} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">KR Başlığı</label>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                  KR Başlığı
+                </label>
                 <input
                   type="text"
                   value={krTitle}
                   onChange={(e) => setKrTitle(e.target.value)}
                   placeholder="Örn: Haftada 4 gün 45 dk koşu/antrenman yap"
-                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100"
+                  className="input"
+                  style={{ width: '100%' }}
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Ölçüm Tipi</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                    Ölçüm Tipi
+                  </label>
                   <select
                     value={krType}
                     onChange={(e) => setKrType(e.target.value)}
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
+                    className="input"
+                    style={{ width: '100%' }}
                   >
                     <option value="numeric">Sayısal</option>
                     <option value="percentage">Yüzde (%)</option>
@@ -928,71 +1204,88 @@ export default function OkrClient() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Birim</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                    Birim
+                  </label>
                   <input
                     type="text"
                     value={krUnit}
                     onChange={(e) => setKrUnit(e.target.value)}
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
+                    className="input"
+                    style={{ width: '100%' }}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-2">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '8px' }}>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Başlangıç</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                    Başlangıç
+                  </label>
                   <input
                     type="number"
                     step="any"
                     value={krStart}
                     onChange={(e) => setKrStart(e.target.value)}
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
+                    className="input"
+                    style={{ width: '100%' }}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Mevcut</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                    Mevcut
+                  </label>
                   <input
                     type="number"
                     step="any"
                     value={krCurrent}
                     onChange={(e) => setKrCurrent(e.target.value)}
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
+                    className="input"
+                    style={{ width: '100%' }}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Hedef</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                    Hedef
+                  </label>
                   <input
                     type="number"
                     step="any"
                     value={krTarget}
                     onChange={(e) => setKrTarget(e.target.value)}
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
+                    className="input"
+                    style={{ width: '100%' }}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Ağırlık</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                    Ağırlık
+                  </label>
                   <input
                     type="number"
                     step="0.5"
                     min="0.5"
                     value={krWeight}
                     onChange={(e) => setKrWeight(e.target.value)}
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
+                    className="input"
+                    style={{ width: '100%' }}
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '6px' }}>
                 <button
                   type="button"
                   onClick={() => setKrModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-medium"
+                  className="btn-subtle"
+                  style={{ padding: '8px 14px', fontSize: '12px', fontWeight: 700, borderRadius: '10px' }}
                 >
                   İptal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
+                  className="btn-primary"
+                  style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 800, borderRadius: '10px', background: '#10B981', borderColor: '#059669' }}
                 >
                   KR Ekle
                 </button>
@@ -1004,30 +1297,45 @@ export default function OkrClient() {
 
       {/* Check-in Modal */}
       {ciModalKr && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-slate-100">İlerleme Check-in</h2>
+        <div className="modal-overlay" onClick={() => setCiModalKr(null)} style={{ zIndex: 1100 }}>
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '460px', width: '100%', padding: '20px', maxHeight: '90dvh', overflowY: 'auto' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-main)' }}>
+                İlerleme Check-in
+              </h2>
               <button
                 type="button"
                 onClick={() => setCiModalKr(null)}
-                className="text-slate-400 hover:text-slate-200"
+                className="modal-close-btn"
+                aria-label="Kapat"
               >
-                <X className="w-4 h-4" />
+                <X size={16} />
               </button>
             </div>
 
-            <div className="text-xs text-slate-300 bg-slate-950/70 border border-slate-800 rounded-xl p-3">
-              <div className="font-semibold">{ciModalKr.title}</div>
-              <div className="text-slate-400 mt-1">
-                Önceki: {ciModalKr.current_value} / Hedef: {ciModalKr.target_value}{' '}
-                {ciModalKr.unit}
+            <div
+              style={{
+                fontSize: '12px',
+                background: 'var(--surface-subtle)',
+                border: '1px solid var(--border)',
+                borderRadius: '12px',
+                padding: '10px 12px',
+                marginBottom: '12px',
+              }}
+            >
+              <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{ciModalKr.title}</div>
+              <div style={{ color: 'var(--text-muted)', marginTop: '4px' }}>
+                Önceki: {ciModalKr.current_value} / Hedef: {ciModalKr.target_value} {ciModalKr.unit}
               </div>
             </div>
 
-            <form onSubmit={handleSaveCheckIn} className="space-y-3">
+            <form onSubmit={handleSaveCheckIn} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
                   Yeni Değer ({ciModalKr.unit})
                 </label>
                 <input
@@ -1035,17 +1343,21 @@ export default function OkrClient() {
                   step="any"
                   value={ciNewValue}
                   onChange={(e) => setCiNewValue(e.target.value)}
-                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100"
+                  className="input"
+                  style={{ width: '100%' }}
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Güven Durumu</label>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                  Güven Durumu
+                </label>
                 <select
                   value={ciConfidence}
                   onChange={(e) => setCiConfidence(e.target.value)}
-                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100"
+                  className="input"
+                  style={{ width: '100%' }}
                 >
                   {Object.entries(OKR_CONFIDENCE_META).map(([k, v]) => (
                     <option key={k} value={k}>
@@ -1056,32 +1368,95 @@ export default function OkrClient() {
               </div>
 
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Check-in Notu</label>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                  Check-in Notu
+                </label>
                 <textarea
                   rows={2}
                   value={ciNote}
                   onChange={(e) => setCiNote(e.target.value)}
                   placeholder="Bu hafta neler oldu, engel var mı?"
-                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100"
+                  className="input"
+                  style={{ width: '100%', resize: 'vertical' }}
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '6px' }}>
                 <button
                   type="button"
                   onClick={() => setCiModalKr(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-medium"
+                  className="btn-subtle"
+                  style={{ padding: '8px 14px', fontSize: '12px', fontWeight: 700, borderRadius: '10px' }}
                 >
                   İptal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                  className="btn-primary"
+                  style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 800, borderRadius: '10px', background: '#6366F1', borderColor: '#4F46E5' }}
                 >
                   Check-in Kaydet
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      {confirmDelete && (
+        <div className="modal-overlay" onClick={() => setConfirmDelete(null)} style={{ zIndex: 1150 }}>
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '400px', width: '100%', padding: '20px' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-main)' }}>
+                {confirmDelete.type === 'objective' ? 'Hedefi Sil' : 'Anahtar Sonucu Sil'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                className="modal-close-btn"
+                aria-label="Kapat"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.5 }}>
+              <strong style={{ color: 'var(--text-main)' }}>&ldquo;{confirmDelete.title}&rdquo;</strong>{' '}
+              {confirmDelete.type === 'objective'
+                ? 'hedefini silmek istediğinize emin misiniz? Bağlı tüm anahtar sonuçlar (KR) ve check-in kayıtları da kalıcı olarak silinecektir.'
+                : 'anahtar sonucunu ve check-in geçmişini kalıcı olarak silmek istediğinize emin misiniz?'}
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                className="btn-subtle"
+                style={{ padding: '8px 14px', fontSize: '12px', fontWeight: 700, borderRadius: '10px' }}
+              >
+                İptal
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const target = confirmDelete;
+                  setConfirmDelete(null);
+                  if (target.type === 'objective') {
+                    await handleDeleteObjective(target.id);
+                  } else {
+                    await handleDeleteKr(target.id);
+                  }
+                }}
+                className="btn-primary"
+                style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 800, borderRadius: '10px', background: '#EF4444', borderColor: '#DC2626' }}
+              >
+                Sil
+              </button>
+            </div>
           </div>
         </div>
       )}

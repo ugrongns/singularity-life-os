@@ -177,15 +177,17 @@ function normalizeValidatedTaskFields(body: any): {
   return { priority, pillar, recurrence, dueDate, dueTime };
 }
 
-function resolveRescheduleTargetDate(rawDueDate: unknown, todayStr: string): string | null {
-  const raw = typeof rawDueDate === 'string' ? rawDueDate.trim() : '';
-  if (!raw) return null;
-  if (raw === 'today') return todayStr;
-  if (raw === 'tomorrow') return shiftTurkeyDate(todayStr, 1);
+function resolveRescheduleTargetDate(rawDueDate: unknown, todayStr: string): { valid: boolean; dueDate: string | null } {
+  if (rawDueDate === null) return { valid: true, dueDate: null };
+  if (typeof rawDueDate !== 'string') return { valid: false, dueDate: null };
+  const raw = rawDueDate.trim();
+  if (!raw || raw === 'backlog') return { valid: true, dueDate: null };
+  if (raw === 'today') return { valid: true, dueDate: todayStr };
+  if (raw === 'tomorrow') return { valid: true, dueDate: shiftTurkeyDate(todayStr, 1) };
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw) && diffTurkeyCalendarDays(raw, raw) !== null) {
-    return raw;
+    return { valid: true, dueDate: raw };
   }
-  return null;
+  return { valid: false, dueDate: null };
 }
 
 /**
@@ -617,6 +619,30 @@ export async function POST(req: Request) {
       const initialStatus = body.status === 'in_progress' || body.status === 'completed' ? body.status : 'pending';
       const initialCompletedAt = initialStatus === 'completed' ? nowISO : null;
       const initialFocusStartedAt = initialStatus === 'in_progress' ? nowISO : null;
+      const initialPlannedMinutes = normalizeFocusDurationMinutes(
+        body.focus_planned_minutes ?? body.duration_minutes ?? 25
+      );
+
+      // Yeni görev doğrudan odakta (in_progress) başlatılıyorsa diğer açık odakları kısmi süresiyle beklemeye al
+      if (initialStatus === 'in_progress') {
+        const nowDate = new Date(nowISO);
+        const otherRunningQuery = db.select().from(tasks).where(
+          and(
+            getVisibleTasksWhere(userId, familyId),
+            eq(tasks.status, 'in_progress')
+          )
+        );
+        const otherRunningTasks = (await otherRunningQuery) || [];
+        for (const other of otherRunningTasks) {
+          const added = computeFocusElapsedMinutes(other.focus_started_at, other.focus_planned_minutes, nowDate);
+          await db.update(tasks).set({
+            status: 'pending',
+            focus_started_at: null,
+            focus_logged_minutes: (other.focus_logged_minutes ?? 0) + added,
+            updated_at: nowISO
+          }).where(eq(tasks.id, other.id));
+        }
+      }
 
       const newTaskValues = {
         id: taskId,
@@ -636,6 +662,8 @@ export async function POST(req: Request) {
         source_ref_id: body.source_ref_id || null,
         completed_at: initialCompletedAt,
         focus_started_at: initialFocusStartedAt,
+        focus_planned_minutes: initialPlannedMinutes,
+        focus_logged_minutes: 0,
         user_id: userId,
         family_id: familyId,
         created_at: nowISO,
@@ -688,6 +716,16 @@ export async function POST(req: Request) {
           }
         : {};
 
+      const todayStr = getTodayTurkeyDate(nowDate);
+      let nextDueDate = existing.due_date;
+      if (isCompleted && body.due_date !== undefined) {
+        const parsedDate = resolveRescheduleTargetDate(body.due_date, todayStr);
+        if (!parsedDate.valid) {
+          return NextResponse.json({ success: false, error: 'Geçersiz hedef erteleme tarihi.' }, { status: 400 });
+        }
+        nextDueDate = parsedDate.dueDate;
+      }
+
       if (isCompleted && Number(existing.is_mit) === 1) {
         const visibleTasks = await db.select({
           id: tasks.id,
@@ -696,7 +734,7 @@ export async function POST(req: Request) {
           due_date: tasks.due_date
         }).from(tasks).where(getVisibleTasksWhere(userId, familyId));
 
-        const mitCheck = validateMitConstraint(visibleTasks, existing.due_date, taskId);
+        const mitCheck = validateMitConstraint(visibleTasks, nextDueDate, taskId);
         if (!mitCheck.allowed) {
           return NextResponse.json({
             success: false,
@@ -708,6 +746,7 @@ export async function POST(req: Request) {
       await db.update(tasks).set({
         status: nextStatus,
         completed_at: completedAt,
+        ...(isCompleted && body.due_date !== undefined ? { due_date: nextDueDate } : {}),
         ...focusSettlement,
         updated_at: nowISO
       }).where(and(eq(tasks.id, taskId), getVisibleTasksWhere(userId, familyId)));
@@ -892,10 +931,11 @@ export async function POST(req: Request) {
       }
 
       const todayStr = getTodayTurkeyDate();
-      const targetDueDate = resolveRescheduleTargetDate(body.due_date, todayStr);
-      if (!targetDueDate) {
+      const parsedTarget = resolveRescheduleTargetDate(body.due_date, todayStr);
+      if (!parsedTarget.valid) {
         return NextResponse.json({ success: false, error: 'Geçersiz hedef erteleme tarihi.' }, { status: 400 });
       }
+      const targetDueDate = parsedTarget.dueDate;
 
       const existing = (await db.select().from(tasks).where(
         and(
@@ -936,11 +976,13 @@ export async function POST(req: Request) {
         updated_at: nowISO
       }).where(and(eq(tasks.id, taskId), getVisibleTasksWhere(userId, familyId)));
 
-      const baseMsg = targetDueDate === todayStr
-        ? '☀️ Görev bugüne alındı.'
-        : targetDueDate === shiftTurkeyDate(todayStr, 1)
-          ? '📅 Görev yarına ertelendi.'
-          : `📅 Görev ${targetDueDate} tarihine taşındı.`;
+      const baseMsg = targetDueDate === null
+        ? '📥 Görev backlog (tarihsiz) listesine alındı.'
+        : targetDueDate === todayStr
+          ? '☀️ Görev bugüne alındı.'
+          : targetDueDate === shiftTurkeyDate(todayStr, 1)
+            ? '📅 Görev yarına ertelendi.'
+            : `📅 Görev ${targetDueDate} tarihine taşındı.`;
 
       return NextResponse.json({
         success: true,
@@ -958,9 +1000,10 @@ export async function POST(req: Request) {
 
     if (action === 'reschedule_overdue') {
       const todayStr = getTodayTurkeyDate();
-      const targetDate = body.target_date !== undefined
+      const parsedTarget = body.target_date !== undefined
         ? resolveRescheduleTargetDate(body.target_date, todayStr)
-        : todayStr;
+        : { valid: true, dueDate: todayStr };
+      const targetDate = parsedTarget.valid ? parsedTarget.dueDate : null;
 
       if (!targetDate) {
         return NextResponse.json({ success: false, error: 'Geçersiz hedef erteleme tarihi.' }, { status: 400 });
@@ -1059,8 +1102,25 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: 'Görev bulunamadı.' }, { status: 404 });
       }
 
-      if (existing.status === 'completed') {
+      if (existing.status === 'completed' && !body.reopen_if_completed) {
         return NextResponse.json({ success: false, error: 'Tamamlanmış görevde odak sayacı başlatılamaz.' }, { status: 400 });
+      }
+
+      if (existing.status === 'completed' && Number(existing.is_mit) === 1) {
+        const visibleTasks = await db.select({
+          id: tasks.id,
+          is_mit: tasks.is_mit,
+          status: tasks.status,
+          due_date: tasks.due_date
+        }).from(tasks).where(getVisibleTasksWhere(userId, familyId));
+
+        const mitCheck = validateMitConstraint(visibleTasks, existing.due_date, taskId);
+        if (!mitCheck.allowed) {
+          return NextResponse.json({
+            success: false,
+            error: 'Bu gün için 3 aktif odak görevi (MIT) zaten dolu. Görevi yeniden açmadan önce bir odağı tamamlayın veya çıkarın.'
+          }, { status: 400 });
+        }
       }
 
       const plannedMinutes = normalizeFocusDurationMinutes(
@@ -1095,6 +1155,7 @@ export async function POST(req: Request) {
 
       await db.update(tasks).set({
         status: 'in_progress',
+        ...(existing.status === 'completed' ? { completed_at: null } : {}),
         focus_started_at: nowISO,
         focus_planned_minutes: plannedMinutes,
         focus_logged_minutes: nextSelfLogged,
@@ -1140,9 +1201,36 @@ export async function POST(req: Request) {
       const shouldCompleteTask = action === 'complete_focus' && Boolean(body.complete_task);
       const nextStatus = existing.status === 'completed' || shouldCompleteTask ? 'completed' : 'pending';
 
+      const todayStr = getTodayTurkeyDate();
+      let nextDueDate = existing.due_date;
+      let nextIsMit = Number(existing.is_mit) === 1 ? 1 : 0;
+      if (action === 'pause_focus' && body.due_date !== undefined) {
+        const parsedTarget = resolveRescheduleTargetDate(body.due_date, todayStr);
+        if (!parsedTarget.valid) {
+          return NextResponse.json({ success: false, error: 'Geçersiz hedef erteleme tarihi.' }, { status: 400 });
+        }
+        nextDueDate = parsedTarget.dueDate;
+        if (nextIsMit === 1 && nextDueDate !== existing.due_date) {
+          const visibleTasks = await db.select({
+            id: tasks.id,
+            is_mit: tasks.is_mit,
+            status: tasks.status,
+            due_date: tasks.due_date
+          }).from(tasks).where(getVisibleTasksWhere(userId, familyId));
+
+          const mitCheck = validateMitConstraint(visibleTasks, nextDueDate, taskId);
+          if (!mitCheck.allowed) {
+            nextIsMit = 0;
+          }
+        }
+      }
+
       await db.update(tasks).set({
         status: nextStatus,
         ...(shouldCompleteTask && existing.status !== 'completed' ? { completed_at: nowISO } : {}),
+        ...(action === 'pause_focus' && body.due_date !== undefined
+          ? { due_date: nextDueDate, is_mit: nextIsMit }
+          : {}),
         focus_started_at: null,
         focus_logged_minutes: nextLoggedMinutes,
         updated_at: nowISO

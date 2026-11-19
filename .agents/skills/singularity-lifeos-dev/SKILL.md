@@ -75,7 +75,7 @@ Denetimlerde sonsuz döngüye girmemek için yalnızca aşağıdaki **Kritik / B
 
 **Durma & Opsiyonel Not Kuralı:**
 - Kritik/Bloker ihlal yoksa sonuç **`"Sorun Yok" (PASS)`** olarak kapatılır ve ekstra düzeltme turuna geçilmez.
-- Varsa en fazla **3 maddelik salt-okunur "Opsiyonel İyileştirme Notu"** bırakılabilir; **kullanıcı açıkça istemedikçe bu opsiyonel öneriler uygulanmaz**.
+- Varsa en fazla **10 maddelik salt-okunur "Opsiyonel İyileştirme Notu"** bırakılabilir (**sayıyı doldurmak için zorlama madde uydurulmaz; gerçek değer katan kaç madde varsa o kadarı yazılır ve kullanıcı açıkça istemedikçe bu opsiyonel öneriler uygulanmaz**).
 
 ---
 

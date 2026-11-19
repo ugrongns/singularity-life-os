@@ -8,7 +8,8 @@ import {
   PILLAR_CONFIGS,
   PRIORITY_CONFIGS,
   computeFocusCountdown,
-  formatTaskScheduleLabel
+  formatTaskScheduleLabel,
+  sortTasksForDisplay
 } from '@/lib/tasks-engine';
 import { shiftTurkeyDate } from '@/lib/date-utils';
 
@@ -21,9 +22,9 @@ interface TaskKanbanBoardProps {
   focusDurationMinutes: number;
   focusSubmittingId: string | null;
   reschedulingId: string | null;
-  onToggleComplete: (taskId: string) => Promise<void>;
-  onStartFocus: (taskId: string, durationMinutes?: number) => Promise<void>;
-  onPauseFocus: (taskId: string) => Promise<void>;
+  onToggleComplete: (taskId: string, options?: { dueDate?: string | null }) => Promise<void>;
+  onStartFocus: (taskId: string, durationMinutes?: number, options?: { reopenIfCompleted?: boolean }) => Promise<void>;
+  onPauseFocus: (taskId: string, options?: { dueDate?: string | null }) => Promise<void>;
   onRescheduleTask: (taskId: string, dueDate: string) => Promise<void>;
   onQuickCreateInColumn: (title: string, col: KanbanColumnId) => Promise<void>;
   onEditTask: (task: TaskItem) => void;
@@ -97,34 +98,73 @@ export default function TaskKanbanBoard({
   const [submittingCol, setSubmittingCol] = useState<KanbanColumnId | null>(null);
 
   const grouped: Record<KanbanColumnId, TaskItem[]> = {
-    backlog: tasks.filter(t => t.status === 'pending' && (!t.due_date || t.due_date.trim() === '')),
-    todo: tasks.filter(t => t.status === 'pending' && Boolean(t.due_date && t.due_date.trim() !== '')),
-    in_progress: tasks.filter(t => t.status === 'in_progress'),
-    completed: tasks.filter(t => t.status === 'completed').slice(0, 20)
+    backlog: sortTasksForDisplay(
+      tasks.filter(t => t.status === 'pending' && (!t.due_date || t.due_date.trim() === '')),
+      'backlog'
+    ),
+    todo: sortTasksForDisplay(
+      tasks.filter(t => t.status === 'pending' && Boolean(t.due_date && t.due_date.trim() !== '')),
+      'today'
+    ),
+    in_progress: sortTasksForDisplay(
+      tasks.filter(t => t.status === 'in_progress'),
+      'today'
+    ),
+    completed: sortTasksForDisplay(
+      tasks.filter(t => t.status === 'completed'),
+      'completed'
+    ).slice(0, 20)
   };
 
   const tomorrowStr = shiftTurkeyDate(todayStr, 1);
 
+  const getTaskColumn = (task: TaskItem): KanbanColumnId => {
+    if (task.status === 'completed') return 'completed';
+    if (task.status === 'in_progress') return 'in_progress';
+    return task.due_date && task.due_date.trim() !== '' ? 'todo' : 'backlog';
+  };
+
   const moveTaskToColumn = async (task: TaskItem, targetCol: KanbanColumnId) => {
+    const sourceCol = getTaskColumn(task);
+    if (sourceCol === targetCol) return;
+
     if (targetCol === 'completed') {
-      if (task.status !== 'completed') await onToggleComplete(task.id);
+      await onToggleComplete(task.id);
       return;
     }
     if (targetCol === 'in_progress') {
-      if (task.status === 'completed') await onToggleComplete(task.id);
-      await onStartFocus(task.id, focusDurationMinutes);
+      await onStartFocus(task.id, focusDurationMinutes, {
+        reopenIfCompleted: task.status === 'completed'
+      });
       return;
     }
     if (targetCol === 'todo') {
-      if (task.status === 'completed') await onToggleComplete(task.id);
-      if (task.status === 'in_progress') await onPauseFocus(task.id);
-      if (!task.due_date) await onRescheduleTask(task.id, todayStr);
+      const targetDueDate = task.due_date && task.due_date.trim() !== '' ? undefined : todayStr;
+      if (task.status === 'completed') {
+        await onToggleComplete(task.id, targetDueDate !== undefined ? { dueDate: targetDueDate } : undefined);
+        return;
+      }
+      if (task.status === 'in_progress') {
+        await onPauseFocus(task.id, targetDueDate !== undefined ? { dueDate: targetDueDate } : undefined);
+        return;
+      }
+      if (!task.due_date || task.due_date.trim() === '') {
+        await onRescheduleTask(task.id, todayStr);
+      }
       return;
     }
     if (targetCol === 'backlog') {
-      if (task.status === 'completed') await onToggleComplete(task.id);
-      if (task.status === 'in_progress') await onPauseFocus(task.id);
-      if (task.due_date) await onRescheduleTask(task.id, '');
+      if (task.status === 'completed') {
+        await onToggleComplete(task.id, task.due_date ? { dueDate: null } : undefined);
+        return;
+      }
+      if (task.status === 'in_progress') {
+        await onPauseFocus(task.id, task.due_date ? { dueDate: null } : undefined);
+        return;
+      }
+      if (task.due_date) {
+        await onRescheduleTask(task.id, '');
+      }
     }
   };
 

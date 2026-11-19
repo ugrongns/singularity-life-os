@@ -128,6 +128,7 @@ export async function GET(req: NextRequest) {
           .where(
             and(
               eq(habitLogs.user_id, user.id),
+              eq(habitLogs.is_completed, 1),
               gte(habitLogs.date, sevenDaysAgo)
             )
           ),
@@ -151,6 +152,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
+        currentUserId: user.id,
         objectives,
         keyResults,
         checkIns,
@@ -286,17 +288,23 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const parseFinite = (val: unknown, fallback: number) => {
+        if (val === undefined || val === null || val === '') return fallback;
+        const n = Number(val);
+        return Number.isFinite(n) ? n : fallback;
+      };
+
       const newKr = {
         id: crypto.randomUUID(),
         objective_id: objectiveId,
         user_id: user.id,
         title,
         kr_type: String(body.kr_type || 'numeric'),
-        start_value: Number(body.start_value) || 0,
-        target_value: Number(body.target_value) || 100,
-        current_value: Number(body.current_value) || 0,
+        start_value: parseFinite(body.start_value, 0),
+        target_value: parseFinite(body.target_value, 100),
+        current_value: parseFinite(body.current_value, 0),
         unit: String(body.unit || 'adet'),
-        weight: Math.max(0.1, Number(body.weight) || 1),
+        weight: Math.max(0.1, parseFinite(body.weight, 1)),
         confidence: String(body.confidence || 'on_track'),
         linked_module: body.linked_module ? String(body.linked_module) : null,
         linked_ref_id: body.linked_ref_id ? String(body.linked_ref_id) : null,
@@ -343,7 +351,7 @@ export async function POST(req: NextRequest) {
       }
 
       const newValue = Number(body.new_value);
-      if (Number.isNaN(newValue)) {
+      if (body.new_value === '' || body.new_value === null || body.new_value === undefined || !Number.isFinite(newValue)) {
         return NextResponse.json({ success: false, error: 'Geçerli bir değer giriniz.' }, { status: 400 });
       }
 
@@ -360,11 +368,13 @@ export async function POST(req: NextRequest) {
         created_at: now,
       };
 
-      await db.insert(okrCheckIns).values(checkIn);
-      await db
-        .update(okrKeyResults)
-        .set({ current_value: newValue, confidence, updated_at: now })
-        .where(and(eq(okrKeyResults.id, krId), eq(okrKeyResults.user_id, user.id)));
+      await db.transaction(async (tx) => {
+        await tx.insert(okrCheckIns).values(checkIn);
+        await tx
+          .update(okrKeyResults)
+          .set({ current_value: newValue, confidence, updated_at: now })
+          .where(and(eq(okrKeyResults.id, krId), eq(okrKeyResults.user_id, user.id)));
+      });
 
       return NextResponse.json({ success: true, data: checkIn });
     }

@@ -156,7 +156,7 @@ export default function TasksClient({
     }
   }, []);
 
-  const handleToggleComplete = async (taskId: string) => {
+  const handleToggleComplete = async (taskId: string, options?: { dueDate?: string | null }) => {
     try {
       // Optimistic update
       setTasks(prev => prev.map(t => {
@@ -166,6 +166,7 @@ export default function TasksClient({
             ...t,
             status: isDone ? 'pending' : 'completed',
             completed_at: isDone ? null : new Date().toISOString(),
+            ...(isDone && options?.dueDate !== undefined ? { due_date: options.dueDate } : {}),
             ...(!isDone ? { focus_started_at: null } : {})
           };
         }
@@ -175,7 +176,11 @@ export default function TasksClient({
       const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'toggle_complete', task_id: taskId })
+        body: JSON.stringify({
+          action: 'toggle_complete',
+          task_id: taskId,
+          ...(options?.dueDate !== undefined ? { due_date: options.dueDate } : {})
+        })
       });
       const json = await res.json();
       if (json.success) {
@@ -396,11 +401,30 @@ export default function TasksClient({
     }
   };
 
-  const handleStartFocus = (taskId: string, durationMinutes: number = focusDurationMinutes) =>
-    runFocusAction(taskId, { action: 'start_focus', duration_minutes: durationMinutes }, 'Odak seansı başlatılamadı.');
+  const handleStartFocus = (
+    taskId: string,
+    durationMinutes: number = focusDurationMinutes,
+    options?: { reopenIfCompleted?: boolean }
+  ) =>
+    runFocusAction(
+      taskId,
+      {
+        action: 'start_focus',
+        duration_minutes: durationMinutes,
+        ...(options?.reopenIfCompleted ? { reopen_if_completed: true } : {})
+      },
+      'Odak seansı başlatılamadı.'
+    );
 
-  const handlePauseFocus = (taskId: string) =>
-    runFocusAction(taskId, { action: 'pause_focus' }, 'Odak seansı duraklatılamadı.');
+  const handlePauseFocus = (taskId: string, options?: { dueDate?: string | null }) =>
+    runFocusAction(
+      taskId,
+      {
+        action: 'pause_focus',
+        ...(options?.dueDate !== undefined ? { due_date: options.dueDate } : {})
+      },
+      'Odak seansı duraklatılamadı.'
+    );
 
   const handleCompleteFocus = (taskId: string, completeTask: boolean) =>
     runFocusAction(taskId, { action: 'complete_focus', complete_task: completeTask }, 'Odak seansı kaydedilemedi.');
@@ -458,17 +482,15 @@ export default function TasksClient({
         priority: col === 'in_progress' ? 'high' : 'medium',
         due_date: col === 'backlog' ? null : todayStr,
         status: col === 'in_progress' ? 'in_progress' : 'pending',
+        ...(col === 'in_progress' ? { focus_planned_minutes: focusDurationMinutes } : {}),
         is_family_shared: filterType === 'family' ? 1 : 0
       })
     });
     const json = await res.json();
     if (json.success) {
-      if (col === 'in_progress' && json.data?.id) {
-        await handleStartFocus(json.data.id, focusDurationMinutes);
-      } else {
-        showToast('✅ Kart eklendi!');
-        await syncTasks();
-      }
+      showToast(col === 'in_progress' ? `⏱️ Kart eklendi ve ${focusDurationMinutes} dk odak başladı!` : '✅ Kart eklendi!');
+      setNowMs(Date.now());
+      await syncTasks();
     } else {
       showToast(json.error || 'Kart eklenemedi.');
     }
@@ -1723,6 +1745,7 @@ export default function TasksClient({
             style={{
               padding: '8px 10px',
               display: 'flex',
+              flexDirection: 'row',
               alignItems: 'center',
               flexWrap: 'wrap',
               gap: '8px',
@@ -1788,6 +1811,7 @@ export default function TasksClient({
               disabled={quickSubmitting || !quickTitle.trim()}
               className="btn-primary"
               style={{
+                ...compactPrimaryBtnStyle,
                 fontSize: '11px',
                 fontWeight: 800,
                 padding: '6px 12px',
@@ -1801,7 +1825,7 @@ export default function TasksClient({
 
           {viewMode === 'kanban' ? (
             <TaskKanbanBoard
-              tasks={filterTasksByScope(tasks, { filterType, selectedPillar, selectedMember, searchQuery })}
+              tasks={scopedTasks}
               todayStr={todayStr}
               nowMs={nowMs}
               focusDurationMinutes={focusDurationMinutes}
