@@ -1,37 +1,120 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { vehicles, vehicleMaintenanceRecords, vehicleFuelLogs, vehicleLegalReminders, walletsAccounts, transactions } from '@/db/schema';
-import { desc, eq, lte, and , or } from 'drizzle-orm';
+import { desc, eq, and, or, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { eventBus, EVENTS } from '@/lib/events';
+import { getTodayTurkeyDate, diffTurkeyCalendarDays, parseTurkeyCalendarDate } from '@/lib/date-utils';
+import { ensureFamilyCategories, getFamilySeedCategoryId } from '@/lib/budget-categories';
+import { calculateVehicleMaintenanceCycle, calculateFuelConsumption, generateAutoLegalReminders, isPeriodicMaintenanceType } from '@/lib/vehicle-legal';
+
+function getVisibleVehiclesWhere(userId: string, familyId?: string | null) {
+  return and(
+    eq(vehicles.is_active, 1),
+    familyId
+      ? or(
+          eq(vehicles.user_id, userId),
+          and(eq(vehicles.family_id, familyId), eq(vehicles.is_family_shared, 1))
+        )
+      : eq(vehicles.user_id, userId)
+  );
+}
+
+function getAuthorizedVehicleWhere(vehicleId: string, userId: string, familyId?: string | null) {
+  return and(
+    eq(vehicles.id, vehicleId),
+    familyId
+      ? or(
+          eq(vehicles.user_id, userId),
+          and(eq(vehicles.family_id, familyId), eq(vehicles.is_family_shared, 1))
+        )
+      : eq(vehicles.user_id, userId)
+  );
+}
+
+function getVisibleWalletsWhere(userId: string, familyId?: string | null) {
+  return and(
+    eq(walletsAccounts.is_active, 1),
+    familyId
+      ? or(
+          eq(walletsAccounts.user_id, userId),
+          and(eq(walletsAccounts.family_id, familyId), eq(walletsAccounts.is_family_shared, 1)),
+          and(eq(walletsAccounts.family_id, familyId), sql`${walletsAccounts.user_id} IS NULL`)
+        )
+      : eq(walletsAccounts.user_id, userId)
+  );
+}
+
+function isWalletAccessibleByUser(wallet: any, userId: string, familyId?: string | null): boolean {
+  if (!wallet || wallet.is_active === 0) return false;
+  if (wallet.user_id === userId) return true;
+  const isSameFamily = wallet.family_id ? Boolean(familyId && wallet.family_id === familyId) : false;
+  return isSameFamily && (wallet.is_family_shared === 1 || !wallet.user_id);
+}
+
+function validateWalletSpendLimit(wallet: any, amount: number): { ok: boolean; error?: string; newBalance: number } {
+  const currentBalance = Number(wallet.balance) || 0;
+  if (wallet.type === 'credit_card') {
+    const creditLimit = Number(wallet.credit_limit) || 0;
+    if (creditLimit > 0) {
+      const avail = Math.max(0, creditLimit - currentBalance);
+      if (amount > avail) {
+        return {
+          ok: false,
+          error: `Kredi Kartı Limiti Aşıldı! ${wallet.name} kartınızın kullanılabilir limiti sadece ${avail.toLocaleString('tr-TR')} ₺'dir.`,
+          newBalance: currentBalance,
+        };
+      }
+    }
+    return { ok: true, newBalance: currentBalance + amount };
+  }
+
+  if (wallet.type === 'kmh') {
+    const overdraftLimit = Number(wallet.overdraft_limit) || 0;
+    const avail = currentBalance + overdraftLimit;
+    if (amount > avail) {
+      return {
+        ok: false,
+        error: `KMH (Ek Hesap) Limiti Aşıldı! ${wallet.name} hesabınızın kullanılabilir toplam limiti ${avail.toLocaleString('tr-TR')} ₺'dir.`,
+        newBalance: currentBalance,
+      };
+    }
+    return { ok: true, newBalance: currentBalance - amount };
+  }
+
+  if (amount > currentBalance) {
+    return {
+      ok: false,
+      error: `Yetersiz Bakiye! ${wallet.name} hesabınızda sadece ${currentBalance.toLocaleString('tr-TR')} ₺ bakiye bulunmaktadır.`,
+      newBalance: currentBalance,
+    };
+  }
+  return { ok: true, newBalance: currentBalance - amount };
+}
 
 export async function GET(req: Request) {
   try {
     await initDatabase();
     const user = await getAuthUser();
-    const userId = user?.id;
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
+    }
+    const userId = user.id;
 
     const { searchParams } = new URL(req.url, 'http://localhost');
     const requestedVehicleId = searchParams.get('vehicle_id');
+    const todayTr = getTodayTurkeyDate();
 
-    const familyId = user?.family_id || (userId ? `fam-${userId}` : null);
-    const allVehicles = userId
-      ? await db.select().from(vehicles).where(
-          and(
-            eq(vehicles.is_active, 1),
-            familyId ? eq(vehicles.family_id, familyId) : eq(vehicles.user_id, userId)
-          )
-        )
-      : [];
-    const wallets = userId
-      ? await db.select().from(walletsAccounts).where(
-          and(
-            eq(walletsAccounts.is_active, 1),
-            familyId
-              ? or(eq(walletsAccounts.family_id, familyId), eq(walletsAccounts.user_id, userId))
-              : eq(walletsAccounts.user_id, userId)
-          )
-        )
-      : [];
+    const familyId = user.family_id || `fam-${userId}`;
+    const allVehicles = await db.select().from(vehicles).where(getVisibleVehiclesWhere(userId, familyId));
+    const wallets = await db.select().from(walletsAccounts).where(getVisibleWalletsWhere(userId, familyId));
+
+    if (requestedVehicleId && !allVehicles.some(v => v.id === requestedVehicleId)) {
+      return NextResponse.json(
+        { success: false, error: 'Araç bulunamadı veya bu işlem için yetkiniz yok.' },
+        { status: 403 }
+      );
+    }
 
     if (allVehicles.length === 0) {
       return NextResponse.json({
@@ -50,46 +133,24 @@ export async function GET(req: Request) {
 
     const activeVehicles = allVehicles;
     const primaryVehicle = (requestedVehicleId ? activeVehicles.find(v => v.id === requestedVehicleId) : null) || activeVehicles[0];
-    const currentKm = primaryVehicle.current_km;
-
-    // Güncel KM'den küçük veya eşit en son tamamlanan periyodik bakım
-    const lastCompletedService = await db.select()
-      .from(vehicleMaintenanceRecords)
-      .where(
-        and(
-          eq(vehicleMaintenanceRecords.vehicle_id, primaryVehicle.id),
-          lte(vehicleMaintenanceRecords.km_at_service, currentKm)
-        )
-      )
-      .orderBy(desc(vehicleMaintenanceRecords.km_at_service))
-      .limit(1).then((r: any) => r[0]);
-
-    // Bakım Döngüsü Başlangıç ve Bitiş KM Hesabı (15.000 KM Kuralı)
-    let cycleStartKm = lastCompletedService ? lastCompletedService.km_at_service : Math.floor(currentKm / 15000) * 15000;
-    let nextServiceKm = lastCompletedService?.next_service_km || (cycleStartKm + 15000);
-
-    if (nextServiceKm <= currentKm) {
-      cycleStartKm = Math.floor(currentKm / 15000) * 15000;
-      nextServiceKm = cycleStartKm + 15000;
-    }
-
-    const cycleTotalDistance = Math.max(1000, nextServiceKm - cycleStartKm);
-    const drivenInCycle = Math.max(0, currentKm - cycleStartKm);
-    const remainingKm = Math.max(0, nextServiceKm - currentKm);
-    const kmProgressPercentage = Math.max(0, Math.min(100, Math.round((drivenInCycle / cycleTotalDistance) * 100)));
-
-    // Yakıt Kayıtları
-    const recentFuels = await db.select()
-      .from(vehicleFuelLogs)
-      .where(eq(vehicleFuelLogs.vehicle_id, primaryVehicle.id))
-      .orderBy(desc(vehicleFuelLogs.fuel_date))
-      .limit(10);
+    const currentKm = Number(primaryVehicle.current_km) || 0;
 
     // Servis Kayıtları
     const maintenanceHistory = await db.select()
       .from(vehicleMaintenanceRecords)
       .where(eq(vehicleMaintenanceRecords.vehicle_id, primaryVehicle.id))
-      .orderBy(desc(vehicleMaintenanceRecords.service_date));
+      .orderBy(desc(vehicleMaintenanceRecords.service_date), desc(vehicleMaintenanceRecords.km_at_service));
+
+    // Periyodik Bakım Döngüsü Hesabı (15.000 KM Kuralı — Gecikmiş bakımda döngüyü gizlice sıfırlamaz)
+    const maintenanceSummary = calculateVehicleMaintenanceCycle(currentKm, maintenanceHistory);
+
+    // Yakıt Kayıtları (Tüketim hassasiyeti için son 30 dolum üzerinden hesapla, UI için son 10 kaydı döndür)
+    const allRecentFuels = await db.select()
+      .from(vehicleFuelLogs)
+      .where(eq(vehicleFuelLogs.vehicle_id, primaryVehicle.id))
+      .orderBy(desc(vehicleFuelLogs.fuel_date), desc(vehicleFuelLogs.km))
+      .limit(30);
+    const recentFuels = allRecentFuels.slice(0, 10);
 
     // Yasal Hatırlatıcılar
     let legalReminders = await db.select()
@@ -99,60 +160,30 @@ export async function GET(req: Request) {
     // Eğer henüz yasal hatırlatıcı tanımlanmamışsa takvimi bellek içinde hesapla (GET rotasında db.insert yan etkisini önle)
     if (legalReminders.length === 0) {
       try {
-        const { generateAutoLegalReminders } = await import('@/lib/vehicle-legal');
         legalReminders = generateAutoLegalReminders(primaryVehicle.id, primaryVehicle.year || 2022) as any;
       } catch (autoErr) {
         console.warn('Auto legal reminder generation notice:', autoErr);
       }
     }
 
-    // Yakıt Tüketimi Hesabı (Ardışık mantıklı KM aralıklarının ortalaması)
-    let avgConsumptionLiters = 0;
-    let avgCostPerKm = 0;
+    const enrichedLegalReminders = legalReminders.map((rem: any) => ({
+      ...rem,
+      days_left: diffTurkeyCalendarDays(rem.due_date, todayTr)
+    }));
 
-    if (recentFuels.length >= 2) {
-      const sortedFuels = [...recentFuels].sort((a, b) => a.km - b.km);
-      let totalValidKm = 0;
-      let totalValidLiters = 0;
-      let totalValidCost = 0;
+    // Parçalı dolum destekli yakıt tüketimi ve birim maliyet hesabı
+    const { avgLitersPer100Km: avgConsumptionLiters, avgCostPerKm } = calculateFuelConsumption(allRecentFuels);
 
-      for (let i = 1; i < sortedFuels.length; i++) {
-        const prev = sortedFuels[i - 1];
-        const curr = sortedFuels[i];
-        const dist = curr.km - prev.km;
-
-        // Mantıklı depo aralığı (50 KM ile 1.500 KM arası ardışık dolumlar)
-        if (dist >= 50 && dist <= 1500) {
-          totalValidKm += dist;
-          totalValidLiters += curr.liters;
-          totalValidCost += curr.total_amount;
-        }
-      }
-
-      if (totalValidKm > 0) {
-        avgConsumptionLiters = Math.round((totalValidLiters / totalValidKm) * 100 * 10) / 10;
-        avgCostPerKm = Math.round((totalValidCost / totalValidKm) * 100) / 100;
-      }
-    }
-
-    
     return NextResponse.json({
       success: true,
       data: {
         vehicles: activeVehicles,
         vehicle: primaryVehicle,
         wallets,
-        maintenance: {
-          lastService: lastCompletedService,
-          cycleStartKm,
-          nextServiceKm,
-          remainingKm,
-          kmProgressPercentage,
-          nextServiceDate: lastCompletedService?.next_service_date || null
-        },
+        maintenance: maintenanceSummary,
         recentFuels,
         maintenanceHistory,
-        legalReminders,
+        legalReminders: enrichedLegalReminders,
         consumption: {
           avgLitersPer100Km: avgConsumptionLiters,
           avgCostPerKm: avgCostPerKm
@@ -173,45 +204,53 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { action, ...data } = body;
     const now = new Date().toISOString();
-    const today = now.split('T')[0];
+    const today = getTodayTurkeyDate();
+    const familyId = user.family_id || `fam-${user.id}`;
 
     // Yeni Araç Ekleme
     if (action === 'add_vehicle') {
+      const parsedKm = data.current_km !== undefined && data.current_km !== '' ? Number(data.current_km) : 0;
+      if (!Number.isFinite(parsedKm) || parsedKm < 0) {
+        return NextResponse.json({ success: false, error: 'Geçerli bir kilometre değeri girin.' }, { status: 400 });
+      }
       const vehicleId = `veh-${Date.now()}`;
+      const isFamilyShared = data.is_family_shared === 0 ? 0 : 1;
       await db.insert(vehicles).values({
         id: vehicleId,
         plate: (data.plate || '').toUpperCase().replace(/\s/g, ''),
         make: data.make || 'Bilinmiyor',
         model: data.model || 'Bilinmiyor',
-        year: parseInt(data.year) || new Date().getFullYear(),
-        current_km: parseFloat(data.current_km) || 0,
+        year: parseInt(data.year, 10) || Number(today.slice(0, 4)),
+        current_km: parsedKm,
         fuel_type: data.fuel_type || 'Benzin',
         color: data.color || '#3B82F6',
-        is_family_shared: 1,
+        is_family_shared: isFamilyShared,
         is_active: 1,
         created_at: now,
         updated_at: now,
         sync_status: 'synced',
         device_id: 'web-client',
         user_id: user.id,
-        family_id: user.family_id || `fam-${user.id}`
+        family_id: familyId
       } as any);
 
       // Otomatik veya özel yasal hatırlatıcıları (Muayene, MTV, Sigorta) oluştur
       try {
-        const { generateAutoLegalReminders } = await import('@/lib/vehicle-legal');
-        const autoReminders = generateAutoLegalReminders(vehicleId, parseInt(data.year) || new Date().getFullYear());
+        const autoReminders = generateAutoLegalReminders(vehicleId, parseInt(data.year, 10) || Number(today.slice(0, 4)));
+        const sigortaPolicyInput = data.sigorta_policy_no ?? data.sigorta_policy;
+        const kaskoPolicyInput = data.kasko_policy_no ?? data.kasko_policy;
+
         for (const rem of autoReminders) {
           let dueDate = rem.due_date;
           let policyNo = rem.policy_no || '';
           if (rem.type === 'muayene' && data.muayene_date) dueDate = data.muayene_date;
           if (rem.type === 'sigorta' && data.sigorta_date) {
             dueDate = data.sigorta_date;
-            if (data.sigorta_policy_no) policyNo = data.sigorta_policy_no;
+            if (sigortaPolicyInput) policyNo = String(sigortaPolicyInput).trim();
           }
           if (rem.type === 'kasko' && data.kasko_date) {
             dueDate = data.kasko_date;
-            if (data.kasko_policy_no) policyNo = data.kasko_policy_no;
+            if (kaskoPolicyInput) policyNo = String(kaskoPolicyInput).trim();
           }
 
           await db.insert(vehicleLegalReminders).values({
@@ -238,17 +277,16 @@ export async function POST(req: Request) {
     }
 
     // KM Güncelleme
-    if (action === 'update_km' || (!action && data.vehicle_id && data.current_km)) {
+    if (action === 'update_km' || (!action && data.vehicle_id && data.current_km !== undefined)) {
       const vehicleId = data.vehicle_id;
-      const newKm = parseFloat(data.current_km);
-      const familyId = user.family_id || `fam-${user.id}`;
+      const newKm = Number(data.current_km);
+      if (!Number.isFinite(newKm) || newKm < 0) {
+        return NextResponse.json({ success: false, error: 'Geçerli bir kilometre değeri girin.' }, { status: 400 });
+      }
 
-      // Güvenlik: Araç bu kullanıcıya veya ailesine mi ait? (IDOR Koruması)
+      // Güvenlik: Araç bu kullanıcıya veya paylaşımlı ailesine mi ait? (IDOR Koruması)
       const targetVeh = (await db.select({ id: vehicles.id }).from(vehicles).where(
-        and(
-          eq(vehicles.id, vehicleId),
-          or(eq(vehicles.user_id, user.id), eq(vehicles.family_id, familyId))
-        )
+        getAuthorizedVehicleWhere(vehicleId, user.id, familyId)
       ).limit(1))[0];
 
       if (!targetVeh) {
@@ -266,80 +304,133 @@ export async function POST(req: Request) {
     if (action === 'add_fuel') {
       const fuelId = `fuel-${Date.now()}`;
       const vehicleId = data.vehicle_id;
-      const km = parseFloat(data.km);
-      const liters = parseFloat(data.liters);
-      const pricePerLiter = parseFloat(data.price_per_liter);
-      const totalAmount = parseFloat(data.total_amount) || (liters * pricePerLiter);
+      const km = Number(data.km);
+      const liters = Number(data.liters);
+      const pricePerLiter = Number(data.price_per_liter);
+      const rawTotal = data.total_amount !== undefined && data.total_amount !== '' ? Number(data.total_amount) : Math.round(liters * pricePerLiter * 100) / 100;
+      const totalAmount = Number.isFinite(rawTotal) && rawTotal > 0 ? rawTotal : Math.round(liters * pricePerLiter * 100) / 100;
       const fuelStation = data.fuel_station || 'Akaryakıt İstasyonu';
       const walletId = data.wallet_id;
-      const familyId = user.family_id || `fam-${user.id}`;
+      const fuelDate = data.fuel_date || today;
 
-      // Güvenlik: Araç bu kullanıcıya veya ailesine mi ait?
+      if (!Number.isFinite(km) || km < 0 || !Number.isFinite(liters) || liters <= 0 || !Number.isFinite(pricePerLiter) || pricePerLiter <= 0 || !Number.isFinite(totalAmount) || totalAmount <= 0) {
+        return NextResponse.json({ success: false, error: 'Lütfen geçerli KM, litre ve birim fiyat bilgisi girin.' }, { status: 400 });
+      }
+
+      // Güvenlik: Araç bu kullanıcıya veya paylaşımlı ailesine mi ait?
       const veh = (await db.select().from(vehicles).where(
-        and(
-          eq(vehicles.id, vehicleId),
-          or(eq(vehicles.user_id, user.id), eq(vehicles.family_id, familyId))
-        )
+        getAuthorizedVehicleWhere(vehicleId, user.id, familyId)
       ).limit(1))[0];
       if (!veh) {
         return NextResponse.json({ success: false, error: 'Araç bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
       }
 
-      await db.insert(vehicleFuelLogs).values({
-        id: fuelId,
-        vehicle_id: vehicleId,
-        km,
-        fuel_station: fuelStation,
-        liters,
-        price_per_liter: pricePerLiter,
-        total_amount: totalAmount,
-        fuel_date: data.fuel_date || today,
-        created_at: now,
-        updated_at: now
-      });
+      const isFullTank = data.is_full_tank === 0 || data.is_full_tank === false ? 0 : 1;
 
-      // Araç KM güncelle
-      if (km > veh.current_km) {
-        await db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId));
-      }
-
-      // Cüzdandan düş & harcama kaydet
+      // Cüzdan seçilmişse kayıttan önce cüzdan sahipliğini (özel cüzdan BOLA dahil) ve limit/bakiyeyi doğrula
+      let authorizedWallet: any = null;
       if (walletId) {
-        const wallet = (await db.select().from(walletsAccounts).where(
+        const walletCandidate = (await db.select().from(walletsAccounts).where(
           and(
             eq(walletsAccounts.id, walletId),
-            or(eq(walletsAccounts.user_id, user.id), eq(walletsAccounts.family_id, familyId))
+            getVisibleWalletsWhere(user.id, familyId)
           )
         ).limit(1))[0];
 
-        if (wallet) {
-          const newBalance = wallet.type === 'credit_card'
-            ? (wallet.balance || 0) + totalAmount // Kredi kartı borcu artar
-            : Math.max(0, (wallet.balance || 0) - totalAmount); // Banka bakiyesi düşer
+        if (!isWalletAccessibleByUser(walletCandidate, user.id, familyId)) {
+          return NextResponse.json({ success: false, error: 'Seçilen cüzdan bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
+        }
 
-          await db.update(walletsAccounts).set({
-            balance: newBalance,
+        const limitCheck = validateWalletSpendLimit(walletCandidate, totalAmount);
+        if (!limitCheck.ok) {
+          return NextResponse.json({ success: false, error: limitCheck.error }, { status: 400 });
+        }
+        authorizedWallet = walletCandidate;
+      }
+
+      let createdTxId: string | null = null;
+      let resolvedCategoryId: string | null = null;
+
+      await db.transaction(async (tx) => {
+        await tx.insert(vehicleFuelLogs).values({
+          id: fuelId,
+          vehicle_id: vehicleId,
+          km,
+          fuel_station: fuelStation,
+          liters,
+          price_per_liter: pricePerLiter,
+          total_amount: totalAmount,
+          fuel_date: fuelDate,
+          is_full_tank: isFullTank,
+          created_at: now,
+          updated_at: now
+        });
+
+        // Araç KM güncelle
+        if (km > veh.current_km) {
+          await tx.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId));
+        }
+
+        // Cüzdandan atomik düş & Ulaşım/Yakıt bütçe kategorisine harcama kaydet
+        if (authorizedWallet) {
+          resolvedCategoryId = getFamilySeedCategoryId('cat-ulasim', familyId);
+          await ensureFamilyCategories(familyId, tx);
+
+          const isCreditCard = authorizedWallet.type === 'credit_card';
+          await tx.update(walletsAccounts).set({
+            balance: isCreditCard
+              ? sql`${walletsAccounts.balance} + ${totalAmount}`
+              : sql`${walletsAccounts.balance} - ${totalAmount}`,
             updated_at: now
           }).where(eq(walletsAccounts.id, walletId));
 
-          await db.insert(transactions).values({
-            id: `tx-fuel-${Date.now()}`,
+          createdTxId = `tx-fuel-${Date.now()}`;
+          await tx.insert(transactions).values({
+            id: createdTxId,
             wallet_id: walletId,
+            category_id: resolvedCategoryId,
             user_id: user.id,
             family_id: familyId,
             merchant: `${fuelStation} - Yakıt Alımı`,
             amount: totalAmount,
-            currency: 'TRY',
-            transaction_date: data.fuel_date || today,
-            notes: `Yakıt alımı: ${liters} Litre @ ${pricePerLiter} TL/L (${km} KM)`,
+            currency: authorizedWallet.currency || 'TRY',
+            transaction_date: fuelDate,
+            notes: `Yakıt alımı: ${liters} Litre @ ${pricePerLiter} TL/L (${km} KM)${isFullTank === 0 ? ' [Parçalı Dolum]' : ''}`,
             is_verified: 1,
-            is_family_shared: 1,
+            is_family_shared: veh.is_family_shared ?? 1,
             created_at: now,
             updated_at: now,
             sync_status: 'synced',
             device_id: 'web-client'
           });
         }
+      });
+
+      await eventBus.emit(EVENTS.FUEL_RECEIPT_RECORDED, {
+        fuelId,
+        vehicle_id: vehicleId,
+        km,
+        liters,
+        price_per_liter: pricePerLiter,
+        total_amount: totalAmount,
+        fuel_station: fuelStation,
+        fuel_date: fuelDate,
+        userId: user.id,
+        familyId
+      });
+
+      if (createdTxId && resolvedCategoryId) {
+        await eventBus.emit(EVENTS.TRANSACTION_CREATED, {
+          transactionId: createdTxId,
+          wallet_id: walletId,
+          category_id: resolvedCategoryId,
+          amount: totalAmount,
+          merchant: `${fuelStation} - Yakıt Alımı`,
+          user_id: user.id,
+          userId: user.id,
+          family_id: familyId,
+          familyId
+        });
       }
 
       return NextResponse.json({ success: true, message: `⛽ ₺${totalAmount.toLocaleString('tr-TR')} tutarındaki yakıt alımı kaydedildi!` });
@@ -349,77 +440,135 @@ export async function POST(req: Request) {
     if (action === 'add_service') {
       const serviceId = `srv-${Date.now()}`;
       const vehicleId = data.vehicle_id;
-      const km = parseFloat(data.km_at_service);
-      const cost = parseFloat(data.cost) || 0;
-      const nextKm = km + 15000;
-      const familyId = user.family_id || `fam-${user.id}`;
+      const km = Number(data.km_at_service);
+      const cost = data.cost !== undefined && data.cost !== '' ? Number(data.cost) : 0;
+      const serviceType = data.type || 'periyodik_bakim';
+      const serviceDate = data.service_date || today;
+      const serviceProvider = data.service_provider || 'Yetkili Servis';
+      const serviceDescription = data.description || 'Periyodik Yağ & Filtre Değişimi';
 
-      // Güvenlik: Araç bu kullanıcıya veya ailesine mi ait?
+      if (!Number.isFinite(km) || km < 0 || !Number.isFinite(cost) || cost < 0) {
+        return NextResponse.json({ success: false, error: 'Lütfen geçerli servis kilometresi ve tutar girin.' }, { status: 400 });
+      }
+
+      const nextKm = km + 15000;
+      let nextServiceDate = data.next_service_date || null;
+      if (!nextServiceDate && isPeriodicMaintenanceType(serviceType)) {
+        const baseServiceDate = parseTurkeyCalendarDate(serviceDate);
+        baseServiceDate.setFullYear(baseServiceDate.getFullYear() + 1);
+        nextServiceDate = getTodayTurkeyDate(baseServiceDate);
+      }
+
+      // Güvenlik: Araç bu kullanıcıya veya paylaşımlı ailesine mi ait?
       const veh = (await db.select().from(vehicles).where(
-        and(
-          eq(vehicles.id, vehicleId),
-          or(eq(vehicles.user_id, user.id), eq(vehicles.family_id, familyId))
-        )
+        getAuthorizedVehicleWhere(vehicleId, user.id, familyId)
       ).limit(1))[0];
       if (!veh) {
         return NextResponse.json({ success: false, error: 'Araç bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
       }
 
-      await db.insert(vehicleMaintenanceRecords).values({
-        id: serviceId,
-        vehicle_id: vehicleId,
-        type: data.type || 'periyodik_bakim',
-        km_at_service: km,
-        service_date: data.service_date || today,
-        next_service_km: nextKm,
-        next_service_date: data.next_service_date || null,
-        description: data.description || 'Periyodik Yağ & Filtre Değişimi',
-        cost,
-        service_provider: data.service_provider || 'Yetkili Servis',
-        created_at: now,
-        updated_at: now
-      });
-
-      // Araç KM güncelle
-      if (km > veh.current_km) {
-        await db.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId));
-      }
-
-      // Cüzdandan düş
+      // Cüzdan seçilmişse kayıttan önce cüzdan sahipliğini (özel cüzdan BOLA dahil) ve limit/bakiyeyi doğrula
+      let authorizedWallet: any = null;
       if (data.wallet_id && cost > 0) {
-        const wallet = (await db.select().from(walletsAccounts).where(
+        const walletCandidate = (await db.select().from(walletsAccounts).where(
           and(
             eq(walletsAccounts.id, data.wallet_id),
-            or(eq(walletsAccounts.user_id, user.id), eq(walletsAccounts.family_id, familyId))
+            getVisibleWalletsWhere(user.id, familyId)
           )
         ).limit(1))[0];
 
-        if (wallet) {
-          const newBalance = wallet.type === 'credit_card'
-            ? (wallet.balance || 0) + cost // Kredi kartı borcu artar
-            : Math.max(0, (wallet.balance || 0) - cost); // Banka bakiyesi düşer
+        if (!isWalletAccessibleByUser(walletCandidate, user.id, familyId)) {
+          return NextResponse.json({ success: false, error: 'Seçilen cüzdan bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
+        }
 
-          await db.update(walletsAccounts).set({ balance: newBalance, updated_at: now }).where(eq(walletsAccounts.id, data.wallet_id));
-          
-          const familyId = user.family_id || `fam-${user.id}`;
-          await db.insert(transactions).values({
-            id: `tx-srv-${Date.now()}`,
+        const limitCheck = validateWalletSpendLimit(walletCandidate, cost);
+        if (!limitCheck.ok) {
+          return NextResponse.json({ success: false, error: limitCheck.error }, { status: 400 });
+        }
+        authorizedWallet = walletCandidate;
+      }
+
+      let createdTxId: string | null = null;
+      let resolvedCategoryId: string | null = null;
+
+      await db.transaction(async (tx) => {
+        await tx.insert(vehicleMaintenanceRecords).values({
+          id: serviceId,
+          vehicle_id: vehicleId,
+          type: serviceType,
+          km_at_service: km,
+          service_date: serviceDate,
+          next_service_km: nextKm,
+          next_service_date: nextServiceDate,
+          description: serviceDescription,
+          cost,
+          service_provider: serviceProvider,
+          created_at: now,
+          updated_at: now
+        });
+
+        // Araç KM güncelle
+        if (km > veh.current_km) {
+          await tx.update(vehicles).set({ current_km: km, updated_at: now }).where(eq(vehicles.id, vehicleId));
+        }
+
+        // Cüzdandan atomik düş & Ulaşım/Yakıt bütçe kategorisine harcama kaydet
+        if (authorizedWallet && cost > 0) {
+          resolvedCategoryId = getFamilySeedCategoryId('cat-ulasim', familyId);
+          await ensureFamilyCategories(familyId, tx);
+
+          const isCreditCard = authorizedWallet.type === 'credit_card';
+          await tx.update(walletsAccounts).set({
+            balance: isCreditCard
+              ? sql`${walletsAccounts.balance} + ${cost}`
+              : sql`${walletsAccounts.balance} - ${cost}`,
+            updated_at: now
+          }).where(eq(walletsAccounts.id, data.wallet_id));
+
+          createdTxId = `tx-srv-${Date.now()}`;
+          await tx.insert(transactions).values({
+            id: createdTxId,
             wallet_id: data.wallet_id,
+            category_id: resolvedCategoryId,
             user_id: user.id,
             family_id: familyId,
-            merchant: `${data.service_provider || 'Oto Servis'} Bakımı`,
+            merchant: `${serviceProvider} Bakımı`,
             amount: cost,
-            currency: 'TRY',
-            transaction_date: data.service_date || today,
-            notes: `Araç Servis Bakımı: ${data.description}`,
+            currency: authorizedWallet.currency || 'TRY',
+            transaction_date: serviceDate,
+            notes: `Araç Servis Bakımı: ${serviceDescription}`,
             is_verified: 1,
-            is_family_shared: 1,
+            is_family_shared: veh.is_family_shared ?? 1,
             created_at: now,
             updated_at: now,
             sync_status: 'synced',
             device_id: 'web-client'
           });
         }
+      });
+
+      await eventBus.emit(EVENTS.VEHICLE_MAINTENANCE_RECORDED, {
+        recordId: serviceId,
+        vehicle_id: vehicleId,
+        km,
+        cost,
+        description: serviceDescription,
+        userId: user.id,
+        familyId
+      });
+
+      if (createdTxId && resolvedCategoryId) {
+        await eventBus.emit(EVENTS.TRANSACTION_CREATED, {
+          transactionId: createdTxId,
+          wallet_id: data.wallet_id,
+          category_id: resolvedCategoryId,
+          amount: cost,
+          merchant: `${serviceProvider} Bakımı`,
+          user_id: user.id,
+          userId: user.id,
+          family_id: familyId,
+          familyId
+        });
       }
 
       return NextResponse.json({ success: true, message: `🔧 Araç servis bakımı kaydedildi!` });
@@ -429,12 +578,8 @@ export async function POST(req: Request) {
     if (action === 'add_legal') {
       const vehicleId = data.vehicle_id;
       if (!vehicleId) return NextResponse.json({ success: false, error: 'Araç ID belirtilmelidir.' }, { status: 400 });
-      const familyId = user.family_id || `fam-${user.id}`;
       const targetVeh = (await db.select({ id: vehicles.id }).from(vehicles).where(
-        and(
-          eq(vehicles.id, vehicleId),
-          or(eq(vehicles.user_id, user.id), eq(vehicles.family_id, familyId))
-        )
+        getAuthorizedVehicleWhere(vehicleId, user.id, familyId)
       ).limit(1))[0];
       if (!targetVeh) {
         return NextResponse.json({ success: false, error: 'Araç bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
@@ -446,7 +591,7 @@ export async function POST(req: Request) {
         vehicle_id: vehicleId,
         type: data.type,
         due_date: data.due_date,
-        policy_no: data.policy_no || '',
+        policy_no: data.policy_no || data.policy || '',
         cost_estimate: parseFloat(data.cost_estimate) || 0,
         is_completed: 0,
         created_at: now,
@@ -459,23 +604,21 @@ export async function POST(req: Request) {
     // Yasal Hatırlatıcıları Toplu Güncelleme (Muayene, Sigorta, Kasko)
     if (action === 'update_legal_dates' && data.vehicle_id) {
       const vehicleId = data.vehicle_id;
-      const familyId = user.family_id || `fam-${user.id}`;
       const targetVeh = (await db.select({ id: vehicles.id }).from(vehicles).where(
-        and(
-          eq(vehicles.id, vehicleId),
-          or(eq(vehicles.user_id, user.id), eq(vehicles.family_id, familyId))
-        )
+        getAuthorizedVehicleWhere(vehicleId, user.id, familyId)
       ).limit(1))[0];
       if (!targetVeh) {
         return NextResponse.json({ success: false, error: 'Araç bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
       }
 
-      const { muayene_date, sigorta_date, sigorta_policy_no, kasko_date, kasko_policy_no } = data;
+      const { muayene_date, sigorta_date, kasko_date } = data;
+      const sigortaPolicyInput = data.sigorta_policy_no !== undefined ? data.sigorta_policy_no : data.sigorta_policy;
+      const kaskoPolicyInput = data.kasko_policy_no !== undefined ? data.kasko_policy_no : data.kasko_policy;
 
       const itemsToUpdate = [
-        { type: 'muayene', due_date: muayene_date, policy_no: '', cost_estimate: 1820 },
-        { type: 'sigorta', due_date: sigorta_date, policy_no: sigorta_policy_no || '', cost_estimate: 4500 },
-        { type: 'kasko', due_date: kasko_date, policy_no: kasko_policy_no || '', cost_estimate: 12000 }
+        { type: 'muayene', due_date: muayene_date, policy_no: undefined as string | null | undefined, cost_estimate: 1820 },
+        { type: 'sigorta', due_date: sigorta_date, policy_no: sigortaPolicyInput, cost_estimate: 4500 },
+        { type: 'kasko', due_date: kasko_date, policy_no: kaskoPolicyInput, cost_estimate: 12000 }
       ];
 
       for (const item of itemsToUpdate) {
@@ -486,11 +629,15 @@ export async function POST(req: Request) {
           .where(and(eq(vehicleLegalReminders.vehicle_id, vehicleId), eq(vehicleLegalReminders.type, item.type)))
           .limit(1))[0];
 
+        const resolvedPolicyNo = item.policy_no !== undefined
+          ? String(item.policy_no ?? '').trim()
+          : (existing?.policy_no || '');
+
         if (existing) {
           await db.update(vehicleLegalReminders)
             .set({
               due_date: item.due_date,
-              policy_no: item.policy_no !== undefined ? item.policy_no : existing.policy_no,
+              policy_no: resolvedPolicyNo,
               updated_at: now
             })
             .where(eq(vehicleLegalReminders.id, existing.id));
@@ -500,7 +647,7 @@ export async function POST(req: Request) {
             vehicle_id: vehicleId,
             type: item.type,
             due_date: item.due_date,
-            policy_no: item.policy_no,
+            policy_no: resolvedPolicyNo,
             cost_estimate: item.cost_estimate,
             is_completed: 0,
             created_at: now,
@@ -517,16 +664,11 @@ export async function POST(req: Request) {
 
     // Yasal Hatırlatıcıları Otomatik Üret (TÜVTÜRK & MTV)
     if (action === 'auto_generate_legal' && data.vehicle_id) {
-      const familyId = user.family_id || `fam-${user.id}`;
       const veh = (await db.select().from(vehicles).where(
-        and(
-          eq(vehicles.id, data.vehicle_id),
-          or(eq(vehicles.user_id, user.id), eq(vehicles.family_id, familyId))
-        )
+        getAuthorizedVehicleWhere(data.vehicle_id, user.id, familyId)
       ).limit(1))[0];
       if (!veh) return NextResponse.json({ success: false, error: 'Araç bulunamadı veya bu işlem için yetkiniz yok.' }, { status: 403 });
 
-      const { generateAutoLegalReminders } = await import('@/lib/vehicle-legal');
       const generated = generateAutoLegalReminders(veh.id, veh.year || 2022);
       for (const rem of generated) {
         await db.insert(vehicleLegalReminders).values({

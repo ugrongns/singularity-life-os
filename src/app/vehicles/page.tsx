@@ -131,6 +131,7 @@ export default function VehiclesPage() {
           <HomeOperationsCard
             maintenanceRecords={homeData?.maintenanceRecords || []}
             appliances={homeData?.appliances || []}
+            wallets={homeData?.wallets || vehicleData?.wallets || []}
             onOpenAddModal={() => setIsHomeModalOpen(true)}
             onRefresh={() => fetchData()}
             onToast={showToast}

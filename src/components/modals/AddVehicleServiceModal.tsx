@@ -1,6 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Wrench, X, ShieldCheck, DollarSign, Calendar } from 'lucide-react';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 interface Wallet {
   id: string;
@@ -30,9 +31,17 @@ export default function AddVehicleServiceModal({
   const [description, setDescription] = useState('');
   const [cost, setCost] = useState('');
   const [serviceProvider, setServiceProvider] = useState('');
-  const [serviceDate, setServiceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [serviceDate, setServiceDate] = useState(getTodayTurkeyDate());
   const [selectedWalletId, setSelectedWalletId] = useState(wallets[0]?.id || '');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setKm(currentKm > 0 ? String(currentKm) : '');
+      setServiceDate(getTodayTurkeyDate());
+      setSelectedWalletId(prev => (prev && wallets.some(w => w.id === prev) ? prev : (wallets[0]?.id || '')));
+    }
+  }, [isOpen, currentKm, wallets]);
 
   if (!isOpen) return null;
 

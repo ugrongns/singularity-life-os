@@ -8,6 +8,7 @@ import {
 import { eq, or, and, inArray } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { calculateCreditCardSchedule, localYYYYMMDD } from '@/lib/bill-schedule';
+import { getTodayTurkeyDate, diffTurkeyCalendarDays } from '@/lib/date-utils';
 
 interface Notification {
   id: string;
@@ -108,11 +109,19 @@ export async function GET() {
       }
     }
 
-    // 3. Araç yasal hatırlatıcılar (yalnızca kullanıcının/ailenin araçları)
+    const todayStr = getTodayTurkeyDate();
+
+    // 3. Araç yasal hatırlatıcılar (yalnızca kullanıcının/paylaşımlı ailenin aktif araçları)
     const userVehicles = await db.select({ id: vehicles.id }).from(vehicles).where(
-      familyId
-        ? or(eq(vehicles.family_id, familyId), eq(vehicles.user_id, userId))
-        : eq(vehicles.user_id, userId)
+      and(
+        eq(vehicles.is_active, 1),
+        familyId
+          ? or(
+              eq(vehicles.user_id, userId),
+              and(eq(vehicles.family_id, familyId), eq(vehicles.is_family_shared, 1))
+            )
+          : eq(vehicles.user_id, userId)
+      )
     );
     const vehicleIds = userVehicles.map(v => v.id);
     const legalReminders = vehicleIds.length > 0
@@ -125,14 +134,22 @@ export async function GET() {
       : [];
 
     for (const leg of legalReminders) {
-      const legDate = new Date(leg.due_date);
-      const daysLeft = Math.ceil((legDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysLeft <= 30) {
-        const typeLabel = leg.type === 'muayene' ? '🔧 TÜVTÜRK Muayene' : leg.type === 'kasko' ? '🚗 Kasko' : '📋 Trafik Sigortası';
+      const daysLeft = diffTurkeyCalendarDays(leg.due_date, todayStr);
+      if (daysLeft !== null && daysLeft <= 30) {
+        const typeLabel =
+          leg.type === 'muayene'
+            ? '🔧 TÜVTÜRK Muayene'
+            : leg.type === 'kasko'
+              ? '🚗 Kasko'
+              : leg.type === 'mtv_1'
+                ? '🏛️ MTV 1. Taksit'
+                : leg.type === 'mtv_2'
+                  ? '🏛️ MTV 2. Taksit'
+                  : '📋 Trafik Sigortası';
         notifications.push({
           id: `vehicle-${leg.id}`,
           title: typeLabel,
-          subtitle: `${daysLeft} gün kaldı`,
+          subtitle: daysLeft <= 0 ? 'Vadesi doldu!' : `${daysLeft} gün kaldı`,
           module: 'Araç',
           icon: '🚗',
           days_left: daysLeft,
@@ -142,19 +159,15 @@ export async function GET() {
       }
     }
 
-    // 4. Ev Bakım Uyarıları (kullanıcı/aile filtresi)
+    // 4. Ev Bakım Uyarıları (kullanıcı/aile filtresi — DB status yerine dinamik takvim farkı ile)
     const homeMaint = await db.select().from(homeMaintenanceRecords).where(
-      and(
-        eq(homeMaintenanceRecords.status, 'warning'),
-        familyId
-          ? or(eq(homeMaintenanceRecords.family_id, familyId), eq(homeMaintenanceRecords.user_id, userId))
-          : eq(homeMaintenanceRecords.user_id, userId)
-      )
+      familyId
+        ? or(eq(homeMaintenanceRecords.family_id, familyId), eq(homeMaintenanceRecords.user_id, userId))
+        : eq(homeMaintenanceRecords.user_id, userId)
     );
     for (const h of homeMaint) {
-      const dueDate = new Date(h.next_due_date);
-      const daysLeft = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysLeft <= 30) {
+      const daysLeft = diffTurkeyCalendarDays(h.next_due_date, todayStr);
+      if (daysLeft !== null && daysLeft <= 30) {
         notifications.push({
           id: `home-${h.id}`,
           title: h.title,
@@ -162,7 +175,7 @@ export async function GET() {
           module: 'Ev Bakımı',
           icon: '🏠',
           days_left: daysLeft,
-          priority: daysLeft <= 0 ? 'critical' : 'warning',
+          priority: daysLeft <= 7 ? 'critical' : 'warning',
           due_date: h.next_due_date
         });
       }

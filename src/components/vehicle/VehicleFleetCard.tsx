@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import EditVehicleLegalModal from '@/components/modals/EditVehicleLegalModal';
+import { diffTurkeyCalendarDays } from '@/lib/date-utils';
 import { 
   Car, 
   Fuel, 
@@ -161,8 +162,10 @@ export default function VehicleFleetCard({
   const currentKm = vehicle?.current_km || 0;
   const remainingKm = maintenance?.remainingKm !== undefined ? maintenance.remainingKm : 15000;
   const nextServiceKm = maintenance?.nextServiceKm || 15000;
+  const cycleStartKm = maintenance?.cycleStartKm !== undefined ? maintenance.cycleStartKm : Math.max(0, nextServiceKm - 15000);
   const progressPercent = maintenance?.kmProgressPercentage !== undefined ? maintenance.kmProgressPercentage : 0;
-  const isDueSoon = remainingKm <= 1500;
+  const isOverdue = Boolean(maintenance?.isOverdue);
+  const isDueSoon = isOverdue || remainingKm <= 1500;
 
   const handleUpdateKm = async () => {
     if (!kmInput || isNaN(Number(kmInput))) return;
@@ -620,7 +623,7 @@ export default function VehicleFleetCard({
             <span>Periyodik Bakım Döngüsü ({nextServiceKm.toLocaleString('tr-TR')} KM)</span>
           </span>
           <span className="tabular-nums" style={{ color: isDueSoon ? 'var(--rose)' : 'var(--emerald)', flexShrink: 0, fontWeight: 900 }}>
-            {remainingKm.toLocaleString('tr-TR')} KM Kaldı
+            {isOverdue ? 'Bakım Gecikti!' : `${remainingKm.toLocaleString('tr-TR')} KM Kaldı`}
           </span>
         </div>
         
@@ -632,7 +635,7 @@ export default function VehicleFleetCard({
         </div>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)' }}>
-          <span>Önceki Bakım: {(nextServiceKm - 15000).toLocaleString('tr-TR')} KM</span>
+          <span>Önceki Bakım: {cycleStartKm.toLocaleString('tr-TR')} KM</span>
           <span>Hedef: {nextServiceKm.toLocaleString('tr-TR')} KM</span>
         </div>
       </div>
@@ -676,8 +679,9 @@ export default function VehicleFleetCard({
           }}
         >
           {legalReminders.map((rem: any) => {
-            const dueDate = new Date(rem.due_date);
-            const daysLeft = Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+            const daysLeft = typeof rem.days_left === 'number'
+              ? rem.days_left
+              : (diffTurkeyCalendarDays(rem.due_date) ?? 0);
             const status = getLegalStatus(daysLeft);
 
             return (
@@ -762,6 +766,11 @@ export default function VehicleFleetCard({
                 <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   <span style={{ fontWeight: 800 }}>⛽ {fuel.fuel_station || 'İstasyon'}</span>
                   <span style={{ color: 'var(--text-muted)', marginLeft: '6px' }}>({fuel.liters}L @ ₺{fuel.price_per_liter})</span>
+                  {fuel.is_full_tank === 0 && (
+                    <span style={{ marginLeft: '6px', fontSize: '9px', fontWeight: 800, padding: '1px 5px', borderRadius: '4px', background: 'var(--amber-bg)', color: 'var(--amber)' }}>
+                      Parçalı
+                    </span>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   <span className="tabular-nums" style={{ fontWeight: 900, color: 'var(--text-main)' }}>₺{Number(fuel.total_amount).toLocaleString('tr-TR')}</span>

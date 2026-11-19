@@ -1,6 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Fuel, X, CreditCard, Calendar, Navigation } from 'lucide-react';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 interface Wallet {
   id: string;
@@ -28,10 +29,20 @@ export default function AddFuelLogModal({
   const [km, setKm] = useState(currentKm > 0 ? String(currentKm) : '');
   const [liters, setLiters] = useState('');
   const [pricePerLiter, setPricePerLiter] = useState('');
-  const [fuelStation, setFuelStation] = useState('');
-  const [fuelDate, setFuelDate] = useState(new Date().toISOString().split('T')[0]);
+  const [fuelStation, setFuelStation] = useState('Opet');
+  const [fuelDate, setFuelDate] = useState(getTodayTurkeyDate());
   const [selectedWalletId, setSelectedWalletId] = useState(wallets[0]?.id || '');
+  const [isFullTank, setIsFullTank] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setKm(currentKm > 0 ? String(currentKm) : '');
+      setFuelDate(getTodayTurkeyDate());
+      setIsFullTank(true);
+      setSelectedWalletId(prev => (prev && wallets.some(w => w.id === prev) ? prev : (wallets[0]?.id || '')));
+    }
+  }, [isOpen, currentKm, wallets]);
 
   if (!isOpen) return null;
 
@@ -67,7 +78,8 @@ export default function AddFuelLogModal({
           total_amount: totalAmount,
           fuel_station: fuelStation,
           fuel_date: fuelDate,
-          wallet_id: selectedWalletId
+          wallet_id: selectedWalletId,
+          is_full_tank: isFullTank ? 1 : 0
         })
       });
 
@@ -266,6 +278,52 @@ export default function AddFuelLogModal({
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
               {numLiters} L × ₺{numPrice.toFixed(2)}
             </div>
+          </div>
+
+          {/* Dolum Tipi (Tam Depo / Parçalı Dolum) */}
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, display: 'block', marginBottom: '6px' }}>
+              DOLUM TİPİ (TÜKETİM HESABI)
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setIsFullTank(true)}
+                style={{
+                  padding: '9px 10px',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  borderRadius: 'var(--radius-md)',
+                  border: isFullTank ? '1.5px solid var(--emerald)' : '1px solid var(--border)',
+                  background: isFullTank ? 'var(--emerald-bg)' : 'var(--surface-subtle)',
+                  color: isFullTank ? 'var(--emerald)' : 'var(--text-muted)',
+                  cursor: 'pointer'
+                }}
+              >
+                ⛽ Tam Depo
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsFullTank(false)}
+                style={{
+                  padding: '9px 10px',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  borderRadius: 'var(--radius-md)',
+                  border: !isFullTank ? '1.5px solid var(--amber)' : '1px solid var(--border)',
+                  background: !isFullTank ? 'var(--amber-bg)' : 'var(--surface-subtle)',
+                  color: !isFullTank ? 'var(--amber)' : 'var(--text-muted)',
+                  cursor: 'pointer'
+                }}
+              >
+                💧 Parçalı Dolum
+              </button>
+            </div>
+            {!isFullTank && (
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                Parçalı dolumlar, L/100km ortalaması için bir sonraki tam depo kaydına kadar biriktirilir.
+              </div>
+            )}
           </div>
 
           {/* Cüzdan Seçimi */}

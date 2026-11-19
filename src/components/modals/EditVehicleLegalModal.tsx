@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { ShieldCheck, X, Calendar, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import { TurkishPlateBadge } from '@/components/vehicle/VehicleFleetCard';
+import { diffTurkeyCalendarDays } from '@/lib/date-utils';
 
 interface EditVehicleLegalModalProps {
   isOpen: boolean;
@@ -57,9 +58,7 @@ export default function EditVehicleLegalModal({
 
   const calculateDaysLeft = (dateStr: string) => {
     if (!dateStr) return null;
-    const target = new Date(dateStr);
-    if (isNaN(target.getTime())) return null;
-    return Math.ceil((target.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    return diffTurkeyCalendarDays(dateStr);
   };
 
   const renderCountdownChip = (dateStr: string) => {
@@ -113,9 +112,11 @@ export default function EditVehicleLegalModal({
           vehicle_id: vehicle.id,
           muayene_date: muayeneDate || null,
           sigorta_date: sigortaDate || null,
-          sigorta_policy: sigortaPolicy.trim() || null,
+          sigorta_policy: sigortaPolicy.trim(),
+          sigorta_policy_no: sigortaPolicy.trim(),
           kasko_date: kaskoDate || null,
-          kasko_policy: kaskoPolicy.trim() || null
+          kasko_policy: kaskoPolicy.trim(),
+          kasko_policy_no: kaskoPolicy.trim()
         })
       });
 

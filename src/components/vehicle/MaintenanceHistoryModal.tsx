@@ -29,7 +29,7 @@ export default function MaintenanceHistoryModal({ isOpen, vehicle, onClose }: Ma
         })
         .catch(() => setLoading(false));
     }
-  }, [isOpen]);
+  }, [isOpen, vehicle?.id]);
 
   // ESC tuşuyla kapatma
   useEffect(() => {

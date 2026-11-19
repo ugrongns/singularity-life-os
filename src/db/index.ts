@@ -228,6 +228,7 @@ async function _runInit(): Promise<void> {
         price_per_liter DOUBLE PRECISION NOT NULL,
         total_amount DOUBLE PRECISION NOT NULL,
         fuel_date TEXT NOT NULL,
+        is_full_tank INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'synced',
@@ -1067,6 +1068,7 @@ async function _runInit(): Promise<void> {
       ALTER TABLE books ADD COLUMN IF NOT EXISTS target_finish_date TEXT;
       ALTER TABLE home_maintenance_records ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE home_appliances ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE vehicle_fuel_logs ADD COLUMN IF NOT EXISTS is_full_tank INTEGER NOT NULL DEFAULT 1;
       ALTER TABLE digital_vault_items ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE important_dates ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE pet_records ADD COLUMN IF NOT EXISTS family_id TEXT;

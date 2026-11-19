@@ -31,6 +31,7 @@ interface HomeAppliance {
 interface Props {
   maintenanceRecords: HomeMaintenanceRecord[];
   appliances: HomeAppliance[];
+  wallets?: any[];
   onOpenAddModal: () => void;
   onRefresh: () => void;
   onToast?: (msg: string) => void;
@@ -39,27 +40,47 @@ interface Props {
 export default function HomeOperationsCard({
   maintenanceRecords = [],
   appliances = [],
+  wallets = [],
   onOpenAddModal,
   onRefresh,
   onToast
 }: Props) {
   const [activeTab, setActiveTab] = useState<'maintenance' | 'appliances'>('maintenance');
   const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
+  const [confirmingRecordId, setConfirmingRecordId] = useState<string | null>(null);
+  const [resetWalletId, setResetWalletId] = useState<string>('');
+  const [resetCost, setResetCost] = useState<string>('');
+
+  const openResetConfirm = (rec: HomeMaintenanceRecord) => {
+    setConfirmingRecordId(rec.id);
+    setResetCost(rec.cost_estimate && rec.cost_estimate > 0 ? String(rec.cost_estimate) : '');
+    setResetWalletId('');
+  };
 
   const handleResetFilter = async (id: string, intervalMonths: number) => {
     if (loadingActionId) return;
     setLoadingActionId(id);
     try {
+      const numericCost = resetCost !== '' ? Number(resetCost) : 0;
       const res = await fetch('/api/home-operations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reset_filter', record_id: id, months: intervalMonths })
+        body: JSON.stringify({
+          action: 'reset_filter',
+          record_id: id,
+          months: intervalMonths,
+          wallet_id: resetWalletId || undefined,
+          cost: resetWalletId && numericCost > 0 ? numericCost : undefined
+        })
       });
       const json = await res.json();
       if (json.success) {
+        setConfirmingRecordId(null);
         if (onToast) onToast(json.message || '🚰 Bakım yenilendi ve yeni periyot başlatıldı!');
         onRefresh();
         window.dispatchEvent(new CustomEvent('singularity-refresh'));
+      } else if (onToast) {
+        onToast(`❌ ${json.error || 'Bakım yenilenemedi.'}`);
       }
     } catch {
       if (onToast) onToast('❌ Bakım yenileme hatası.');
@@ -265,7 +286,7 @@ export default function HomeOperationsCard({
                     <button
                       type="button"
                       disabled={loadingActionId === rec.id}
-                      onClick={() => handleResetFilter(rec.id, rec.interval_months)}
+                      onClick={() => confirmingRecordId === rec.id ? setConfirmingRecordId(null) : openResetConfirm(rec)}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -285,6 +306,84 @@ export default function HomeOperationsCard({
                       <span>{loadingActionId === rec.id ? 'İşleniyor...' : 'Bakım Yapıldı'}</span>
                     </button>
                   </div>
+
+                  {confirmingRecordId === rec.id && (
+                    <div
+                      style={{
+                        marginTop: '4px',
+                        padding: '10px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}
+                    >
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 96px', gap: '6px' }}>
+                        <select
+                          value={resetWalletId}
+                          onChange={e => setResetWalletId(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '6px 8px',
+                            fontSize: '11px',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-sm)',
+                            background: 'var(--surface-subtle)',
+                            color: 'var(--text-main)'
+                          }}
+                        >
+                          <option value="">Cüzdandan düşme (Sadece yenile)</option>
+                          {wallets.map((w: any) => (
+                            <option key={w.id} value={w.id}>
+                              {w.type === 'credit_card' ? '💳' : '🏦'} {w.name}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="Tutar (₺)"
+                          value={resetCost}
+                          onChange={e => setResetCost(e.target.value)}
+                          disabled={!resetWalletId}
+                          className="tabular-nums"
+                          style={{
+                            width: '100%',
+                            padding: '6px 8px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-sm)',
+                            background: resetWalletId ? 'var(--surface)' : 'var(--surface-subtle)',
+                            color: 'var(--text-main)',
+                            opacity: resetWalletId ? 1 : 0.6
+                          }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingRecordId(null)}
+                          className="btn-subtle"
+                          style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 700, borderRadius: 'var(--radius-sm)' }}
+                        >
+                          Vazgeç
+                        </button>
+                        <button
+                          type="button"
+                          disabled={loadingActionId === rec.id}
+                          onClick={() => handleResetFilter(rec.id, rec.interval_months)}
+                          className="btn-primary"
+                          style={{ padding: '4px 12px', fontSize: '11px', fontWeight: 800, borderRadius: 'var(--radius-sm)', margin: 0, width: 'auto' }}
+                        >
+                          {loadingActionId === rec.id ? 'Kaydediliyor...' : 'Onayla'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })

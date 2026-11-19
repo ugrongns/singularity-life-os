@@ -280,6 +280,7 @@ export const vehicleFuelLogs = pgTable('vehicle_fuel_logs', {
   price_per_liter: doublePrecision('price_per_liter').notNull(),
   total_amount: doublePrecision('total_amount').notNull(),
   fuel_date: text('fuel_date').notNull(),
+  is_full_tank: integer('is_full_tank').notNull().default(1),
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
   sync_status: text('sync_status').notNull().default('synced'),
