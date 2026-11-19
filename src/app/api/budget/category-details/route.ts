@@ -3,6 +3,7 @@ import { db, initDatabase } from '@/db';
 import { categories, transactions, walletsAccounts, familyMembers } from '@/db/schema';
 import { eq, desc, sql, or, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { getTodayTurkeyDate, parseTurkeyCalendarDate } from '@/lib/date-utils';
 
 export async function GET(req: Request) {
   try {
@@ -21,7 +22,8 @@ export async function GET(req: Request) {
     }
 
     const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
-    const currentMonthStr = monthParam || new Date().toISOString().slice(0, 7);
+    const todayTurkeyStr = getTodayTurkeyDate();
+    const currentMonthStr = monthParam || todayTurkeyStr.slice(0, 7);
 
     // Kategori Detayı - Kullanıcının ailesine ait veya sistem/ortak kategori olmalı
     const category = (await db.select().from(categories).where(eq(categories.id, categoryId)))[0];
@@ -100,9 +102,9 @@ export async function GET(req: Request) {
     const remainingBudget = limit > 0 ? Math.round((limit - totalSpent) * 100) / 100 : null;
     const budgetPercentage = limit > 0 ? Math.round((totalSpent / limit) * 100) : 0;
 
-    // Ay sonu projeksiyonu için gün hesaplama
+    // Ay sonu projeksiyonu için gün hesaplama (Europe/Istanbul takvim günü)
     const [yearNum, monthNum] = currentMonthStr.split('-').map(Number);
-    const now = new Date();
+    const now = parseTurkeyCalendarDate(todayTurkeyStr);
     const currentYear = now.getFullYear();
     const currentMonth1Based = now.getMonth() + 1;
     const isCurrentMonth = yearNum === currentYear && monthNum === currentMonth1Based;

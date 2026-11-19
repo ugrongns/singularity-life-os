@@ -5,7 +5,7 @@ import { walletsAccounts, transactions } from '@/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { eventBus, EVENTS } from '@/lib/events';
 import { getAuthUser } from '@/lib/auth';
-import { localYYYYMMDD } from '@/lib/bill-schedule';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 export async function POST(req: Request) {
   try {
@@ -18,19 +18,19 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { from_account_id, to_account_id, amount, note, transaction_date } = body;
 
-    if (!from_account_id || !to_account_id || !amount || Number(amount) <= 0) {
-      return NextResponse.json({ success: false, error: 'Lütfen çıkış hesabı, hedef hesap ve geçerli bir tutar girin.' }, { status: 400 });
+    const numAmount = Number(amount);
+    if (!from_account_id || !to_account_id || !Number.isFinite(numAmount) || numAmount <= 0) {
+      return NextResponse.json({ success: false, error: 'Lütfen çıkış hesabı, hedef hesap ve 0\'dan büyük geçerli bir tutar girin.' }, { status: 400 });
     }
 
     if (from_account_id === to_account_id) {
       return NextResponse.json({ success: false, error: 'Çıkış hesabı ile hedef hesap aynı olamaz.' }, { status: 400 });
     }
 
-    const numAmount = Number(amount);
     const userFamilyId = user.family_id || (user.id ? `fam-${user.id}` : null);
     const nowDate = new Date();
     const now = nowDate.toISOString();
-    const txDate = transaction_date || localYYYYMMDD(nowDate);
+    const txDate = transaction_date || getTodayTurkeyDate(nowDate);
 
     const txId = `tx_trf_out_${crypto.randomUUID()}`;
     const txInId = `tx_trf_in_${crypto.randomUUID()}`;
@@ -47,16 +47,21 @@ export async function POST(req: Request) {
       if (!fromAcc || !toAcc) {
         throw new Error('NOT_FOUND: Hesaplardan biri bulunamadı.');
       }
+      if (fromAcc.is_active === 0 || toAcc.is_active === 0) {
+        throw new Error('LIMIT_EXCEEDED: Arşivlenmiş veya pasif hesaplar arasında transfer yapılamaz.');
+      }
 
       fromAccName = fromAcc.name;
       toAccName = toAcc.name;
       isCardPayment = toAcc.type === 'credit_card';
 
-      // OWASP BOLA Yetki Kontrolü: Transfer yapılacak hesaplar kullanıcıya veya ailesine ait olmalıdır
-      const isFromOwner = fromAcc.user_id === user.id || (userFamilyId && fromAcc.family_id === userFamilyId);
-      const isToOwner = toAcc.user_id === user.id || (userFamilyId && toAcc.family_id === userFamilyId);
+      // OWASP BOLA Yetki Kontrolü: Transfer yapılacak hesaplar kullanıcıya veya ailesinin paylaşımlı hesaplarına ait olmalıdır
+      const isFromSameFamily = fromAcc.family_id ? Boolean(userFamilyId && fromAcc.family_id === userFamilyId) : false;
+      const isToSameFamily = toAcc.family_id ? Boolean(userFamilyId && toAcc.family_id === userFamilyId) : false;
+      const isFromOwner = fromAcc.user_id === user.id || (isFromSameFamily && (fromAcc.is_family_shared === 1 || !fromAcc.user_id));
+      const isToOwner = toAcc.user_id === user.id || (isToSameFamily && (toAcc.is_family_shared === 1 || !toAcc.user_id));
       if (!isFromOwner || !isToOwner) {
-        throw new Error('FORBIDDEN: Transfer yapılacak hesaplar sizin veya ailenizin hesabına ait değil.');
+        throw new Error('FORBIDDEN: Transfer yapılacak hesaplar sizin veya ailenizin paylaşımlı hesabına ait değil.');
       }
 
       // Para Birimi Uyum Kontrolü

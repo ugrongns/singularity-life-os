@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db, initDatabase } from '@/db';
 import { recurringBills, walletsAccounts, categories, transactions } from '@/db/schema';
-import { eq, and, or, desc } from 'drizzle-orm';
+import { eq, and, or, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
-import { calculateBillSchedule, localYYYYMM, localYYYYMMDD } from '@/lib/bill-schedule';
+import { calculateBillSchedule, localYYYYMM } from '@/lib/bill-schedule';
+import { getTodayTurkeyDate, parseTurkeyCalendarDate } from '@/lib/date-utils';
 
 export async function GET(req: Request) {
   try {
@@ -13,7 +14,8 @@ export async function GET(req: Request) {
     if (!user) return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
 
     const { searchParams } = new URL(req.url, 'http://localhost');
-    const today = new Date();
+    const todayTurkeyStr = getTodayTurkeyDate();
+    const today = parseTurkeyCalendarDate(todayTurkeyStr);
     const currentMonthStr = searchParams.get('month') || localYYYYMM(today);
 
     const userId = user.id;
@@ -45,7 +47,11 @@ export async function GET(req: Request) {
         );
     const walletMap = new Map((rawWallets).map((w: any) => [w.id, w.name]));
 
-    const rawCats = await db.select().from(categories);
+    const rawCats = await db.select().from(categories).where(
+      familyId
+        ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
+        : or(sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
+    );
     const categoryMap = new Map((rawCats).map((c: any) => [c.id, { name: c.name, icon: c.icon, color: c.color }]));
 
     let totalMonthly = 0;
@@ -138,14 +144,18 @@ export async function POST(req: Request) {
     // Otomatik ödeme cüzdanı seçilmişse, bu aileye ait olduğunu doğrula
     if (auto_pay_wallet_id) {
       const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, auto_pay_wallet_id)))[0];
-      const walletBelongs = wallet && (!wallet.family_id || (familyId && wallet.family_id === familyId));
+      const walletBelongs = wallet && (
+        wallet.family_id
+          ? Boolean(familyId && wallet.family_id === familyId && (wallet.user_id === user.id || wallet.is_family_shared === 1 || !wallet.user_id))
+          : wallet.user_id === user.id
+      );
       if (!walletBelongs) {
         return NextResponse.json({ success: false, error: 'Seçilen otomatik ödeme hesabına erişim yetkiniz yok.' }, { status: 403 });
       }
     }
 
-    const today = new Date();
-    const todayISO = localYYYYMMDD(today);
+    const todayISO = getTodayTurkeyDate();
+    const today = parseTurkeyCalendarDate(todayISO);
     const currentMonth = localYYYYMM(today);
     const now = new Date().toISOString();
     const newId = `bill-${Date.now()}`;
@@ -210,7 +220,9 @@ export async function PUT(req: Request) {
       return NextResponse.json({ success: false, error: 'Fatura bulunamadı.' }, { status: 404 });
     }
 
-    const belongsToFamily = !existingBill.family_id || (familyId && existingBill.family_id === familyId);
+    const belongsToFamily = existingBill.family_id
+      ? Boolean(familyId && existingBill.family_id === familyId)
+      : existingBill.user_id === user.id;
     const isOwner = existingBill.user_id === user.id;
     const isLeader = belongsToFamily && (user.is_master_account === 1 || user.role === 'admin');
 
@@ -221,14 +233,18 @@ export async function PUT(req: Request) {
     // Otomatik ödeme cüzdanı seçilmişse, bu aileye ait olduğunu doğrula
     if (auto_pay_wallet_id) {
       const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, auto_pay_wallet_id)))[0];
-      const walletBelongs = wallet && (!wallet.family_id || (familyId && wallet.family_id === familyId));
+      const walletBelongs = wallet && (
+        wallet.family_id
+          ? Boolean(familyId && wallet.family_id === familyId && (wallet.user_id === user.id || wallet.is_family_shared === 1 || !wallet.user_id))
+          : wallet.user_id === user.id
+      );
       if (!walletBelongs) {
         return NextResponse.json({ success: false, error: 'Seçilen otomatik ödeme hesabına erişim yetkiniz yok.' }, { status: 403 });
       }
     }
 
-    const today = new Date();
-    const todayISO = localYYYYMMDD(today);
+    const todayISO = getTodayTurkeyDate();
+    const today = parseTurkeyCalendarDate(todayISO);
     const currentMonth = localYYYYMM(today);
     const now = new Date().toISOString();
 
@@ -285,20 +301,29 @@ export async function PATCH(req: Request) {
     if (!bill) return NextResponse.json({ success: false, error: 'Fatura bulunamadı.' }, { status: 404 });
 
     // BOLA Koruması: Faturanın bu aileye ait olduğunu doğrula
-    const belongsToFamily = !bill.family_id || (familyId && bill.family_id === familyId);
+    const belongsToFamily = bill.family_id
+      ? Boolean(familyId && bill.family_id === familyId)
+      : bill.user_id === user.id;
     if (!belongsToFamily) {
       return NextResponse.json({ success: false, error: 'Bu faturaya erişim yetkiniz yok.' }, { status: 403 });
     }
 
-    const today = new Date();
+    const todayISO = getTodayTurkeyDate();
+    const today = parseTurkeyCalendarDate(todayISO);
     const schedule = calculateBillSchedule(bill, today);
     const targetPaidMonth = schedule.next_due_date.slice(0, 7) || localYYYYMM(today);
-    const todayISO = localYYYYMMDD(today);
     const now = new Date().toISOString();
 
     if (action === 'mark_paid') {
+      if (schedule.is_paid_this_month) {
+        return NextResponse.json({ success: false, error: 'Bu dönem faturası zaten ödendi olarak işaretlenmiş.' }, { status: 400 });
+      }
+
       const targetWalletId = wallet_id || bill.auto_pay_wallet_id;
-      const paymentAmount = Number(amount) || bill.amount;
+      const paymentAmount = amount !== undefined && amount !== null && amount !== '' ? Number(amount) : bill.amount;
+      if (create_transaction && targetWalletId && (!Number.isFinite(paymentAmount) || paymentAmount < 0)) {
+        return NextResponse.json({ success: false, error: 'Ödeme tutarı geçerli olmalıdır.' }, { status: 400 });
+      }
 
       // Atomik Veritabanı İşlemi (db.transaction)
       await db.transaction(async (tx) => {
@@ -318,8 +343,10 @@ export async function PATCH(req: Request) {
           }
 
           // BOLA Koruması: Ödeme yapılan cüzdanın bu aileye ait olduğunu doğrula
-          const walletBelongs = !wallet.family_id || (familyId && wallet.family_id === familyId);
-          if (!walletBelongs || (wallet.user_id !== user.id && wallet.is_family_shared !== 1 && user.is_master_account !== 1 && user.role !== 'admin')) {
+          const walletBelongs = wallet.family_id
+            ? Boolean(familyId && wallet.family_id === familyId)
+            : wallet.user_id === user.id;
+          if (!walletBelongs || (wallet.user_id !== user.id && wallet.is_family_shared !== 1 && !(!wallet.user_id && walletBelongs))) {
             throw new Error('FORBIDDEN: Seçilen ödeme hesabına erişim yetkiniz yok.');
           }
 
@@ -391,7 +418,17 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ success: false, error: 'Geçersiz işlem.' }, { status: 400 });
   } catch (error: any) {
     console.error('Recurring bills PATCH error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    const msg = error?.message || 'Fatura ödeme işlemi sırasında hata oluştu.';
+    if (msg.startsWith('NOT_FOUND:')) {
+      return NextResponse.json({ success: false, error: msg.replace('NOT_FOUND: ', '') }, { status: 404 });
+    }
+    if (msg.startsWith('FORBIDDEN:')) {
+      return NextResponse.json({ success: false, error: msg.replace('FORBIDDEN: ', '') }, { status: 403 });
+    }
+    if (msg.startsWith('LIMIT_EXCEEDED:') || msg.startsWith('INSUFFICIENT_FUNDS:')) {
+      return NextResponse.json({ success: false, error: msg.replace(/^[A-Z_]+: /, '') }, { status: 400 });
+    }
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
 
@@ -411,7 +448,9 @@ export async function DELETE(req: Request) {
     const bill = (await db.select().from(recurringBills).where(eq(recurringBills.id, id)))[0];
     if (!bill) return NextResponse.json({ success: false, error: 'Fatura bulunamadı.' }, { status: 404 });
 
-    const belongsToFamily = !bill.family_id || (familyId && bill.family_id === familyId);
+    const belongsToFamily = bill.family_id
+      ? Boolean(familyId && bill.family_id === familyId)
+      : bill.user_id === user.id;
     const isOwner = bill.user_id === user.id;
     const isLeader = belongsToFamily && (user.is_master_account === 1 || user.role === 'admin');
 

@@ -360,14 +360,14 @@ export default function BudgetLimitsCard({ categories, monthlySummary, onUpdate,
           background: 'var(--surface-subtle)',
           border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px', marginBottom: '14px'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontSize: '14px' }}>🎯</span>
               <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--blue)' }}>50 / 30 / 20 Bütçe Dengesi Skoru</span>
             </div>
             <div style={{
               background: scoreData.score >= 80 ? 'var(--emerald)' : scoreData.score >= 60 ? 'var(--blue)' : 'var(--rose)',
-              color: 'white', padding: '3px 10px', borderRadius: 'var(--radius-full)', fontSize: '11px', fontWeight: 900
+              color: 'white', padding: '3px 10px', borderRadius: 'var(--radius-full)', fontSize: '11px', fontWeight: 900, whiteSpace: 'nowrap'
             }}>
               {scoreData.score} / 100 — {scoreData.grade}
             </div>
@@ -416,13 +416,13 @@ export default function BudgetLimitsCard({ categories, monthlySummary, onUpdate,
               transition: 'background 0.2s'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', fontSize: '13px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: '1 1 180px', flexWrap: 'wrap' }}>
                 <span>{cat.icon || '🏷️'}</span>
                 <span style={{ fontWeight: 600 }}>{cat.name}</span>
                 {cat.group_50_30_20 && (
                   <span style={{
-                    fontSize: '9px', fontWeight: 700, padding: '1px 6px', borderRadius: '4px',
+                    fontSize: '9px', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', whiteSpace: 'nowrap',
                     background: cat.group_50_30_20 === 'needs' ? '#E0F2FE' : cat.group_50_30_20 === 'wants' ? '#FEF3C7' : '#DCFCE7',
                     color: cat.group_50_30_20 === 'needs' ? '#0369A1' : cat.group_50_30_20 === 'wants' ? '#B45309' : '#15803D'
                   }}>
@@ -430,7 +430,7 @@ export default function BudgetLimitsCard({ categories, monthlySummary, onUpdate,
                   </span>
                 )}
               </div>
-              <span className="tabular-nums" style={{ color: 'var(--text-muted)' }}>
+              <span className="tabular-nums" style={{ color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap', marginLeft: 'auto' }}>
                 <strong>{formatTRY(cat.spent_this_month)}</strong> / {cat.monthly_budget_limit > 0 ? formatTRY(cat.monthly_budget_limit) : 'Tanımsız (₺0)'}
               </span>
             </div>

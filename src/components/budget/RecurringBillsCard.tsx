@@ -360,7 +360,7 @@ export default function RecurringBillsCard({ accounts, categories = [], onToast,
       </div>
 
       {/* Filtreleme Butonları */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', paddingBottom: '2px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px', paddingBottom: '2px' }}>
         <button
           onClick={() => setFilter('all')}
           style={{

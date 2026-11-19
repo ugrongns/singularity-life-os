@@ -4,8 +4,10 @@ import { transactions, categories } from '@/db/schema';
 import { eq, desc, and, gte, or } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { calculateSpendingHabits, RawTransactionHabit } from '@/lib/financial-habits';
+import { getDaysAgoTurkeyDate, getTodayTurkeyDate, parseTurkeyCalendarDate } from '@/lib/date-utils';
 
 export async function GET(req: Request) {
+  void req;
   try {
     await initDatabase();
     const user = await getAuthUser();
@@ -13,11 +15,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim.' }, { status: 401 });
     }
 
-    const today = new Date();
-    // Son 90 günün başlangıç tarihi (YYYY-MM-DD)
-    const ninetyDaysAgo = new Date(today);
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-    const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().slice(0, 10);
+    const todayTurkeyStr = getTodayTurkeyDate();
+    const today = parseTurkeyCalendarDate(todayTurkeyStr);
+    // Son 90 günün başlangıç tarihi (YYYY-MM-DD, Europe/Istanbul)
+    const ninetyDaysAgoStr = getDaysAgoTurkeyDate(90, todayTurkeyStr);
 
     const familyId = user.family_id || `fam-${user.id}`;
 

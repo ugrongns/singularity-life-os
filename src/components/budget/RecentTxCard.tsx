@@ -2,6 +2,7 @@
 import { useState, useMemo } from 'react';
 import { generateCSVContent, downloadCSV, CSVColumn } from '@/lib/export-csv';
 import { formatDateSafe } from '@/lib/financial-utils';
+import { localYYYYMMDD } from '@/lib/bill-schedule';
 
 interface Transaction {
   id: string;
@@ -81,7 +82,7 @@ export default function RecentTxCard({ transactions, upcomingPayments = [], onUp
       { header: 'Notlar', accessor: t => t.notes || '' }
     ];
     const csv = generateCSVContent(columns, filteredTransactions);
-    const dateStr = new Date().toISOString().split('T')[0];
+    const dateStr = localYYYYMMDD(new Date());
     downloadCSV(`harcamalar_${dateStr}.csv`, csv);
   };
 
@@ -91,10 +92,12 @@ export default function RecentTxCard({ transactions, upcomingPayments = [], onUp
     try {
       const res = await fetch(`/api/transactions?id=${txId}`, { method: 'DELETE' });
       const json = await res.json();
-      if (json.success && onUpdate) {
-        onUpdate(json.message);
+      if (res.ok && json.success) {
+        if (onUpdate) onUpdate(json.message);
+      } else {
+        alert(json.error || 'Silme işlemi başarısız.');
       }
-    } catch (err) {
+    } catch {
       alert('Silme işlemi başarısız.');
     }
   };
@@ -114,7 +117,7 @@ export default function RecentTxCard({ transactions, upcomingPayments = [], onUp
             <div style={{ position: 'relative' }}>
               <input
                 type="text"
-                placeholder="🔍 Harcama veya kişi ara..."
+                placeholder="Harcama veya kişi ara..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 style={{
@@ -201,7 +204,6 @@ export default function RecentTxCard({ transactions, upcomingPayments = [], onUp
                 {filteredTransactions.slice(0, 15).map(tx => {
                   const isInstallment = tx.is_installment === 1;
                   const totalInst = tx.total_installments || 1;
-                  const totalAmount = isInstallment ? tx.amount * totalInst : tx.amount;
 
                   return (
                     <div
@@ -289,20 +291,15 @@ export default function RecentTxCard({ transactions, upcomingPayments = [], onUp
                 })}
               </div>
 
-              {/* 🖥️ B) MASAÜSTÜ GÖRÜNÜM: GENİŞLETİLMİŞ ÇOK SÜTUNLU VERİ TABLOSU (768px üzeri) */}
+              {/* 🖥️ B) MASAÜSTÜ GÖRÜNÜM: KOMPAKT 4 SÜTUNLU VERİ TABLOSU (768px üzeri) */}
               <div className="desktop-only-table" style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left', tableLayout: 'fixed' }}>
                   <thead>
                     <tr style={{ background: 'var(--surface-subtle)', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-                      <th style={{ padding: '10px 12px', fontWeight: 700 }}>Tarih</th>
-                      <th style={{ padding: '10px 12px', fontWeight: 700 }}>Açıklama / İşletme</th>
-                      <th style={{ padding: '10px 12px', fontWeight: 700 }}>Kategori</th>
-                      <th style={{ padding: '10px 12px', fontWeight: 700 }}>Harcayan</th>
-                      <th style={{ padding: '10px 12px', fontWeight: 700 }}>Hesap / Kart</th>
-                      <th style={{ padding: '10px 12px', fontWeight: 700 }}>Taksit</th>
-                      <th style={{ padding: '10px 12px', fontWeight: 700 }}>KDV</th>
-                      <th style={{ padding: '10px 12px', fontWeight: 700, textAlign: 'right' }}>Net Tutar</th>
-                      <th style={{ padding: '10px 12px', fontWeight: 700, textAlign: 'center', width: '40px' }}></th>
+                      <th style={{ padding: '10px', fontWeight: 700, width: '44%' }}>İşlem / Tarih</th>
+                      <th style={{ padding: '10px', fontWeight: 700, width: '28%' }}>Kategori & Hesap</th>
+                      <th style={{ padding: '10px', fontWeight: 700, textAlign: 'right', width: '20%' }}>Net Tutar</th>
+                      <th style={{ padding: '10px 6px', fontWeight: 700, textAlign: 'center', width: '8%' }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -312,60 +309,52 @@ export default function RecentTxCard({ transactions, upcomingPayments = [], onUp
 
                       return (
                         <tr key={tx.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.15s ease' }}>
-                          <td className="tabular-nums" style={{ padding: '10px 12px', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
-                            {formatDate(tx.transaction_date)}
+                          <td style={{ padding: '10px', color: 'var(--text-main)', verticalAlign: 'top' }}>
+                            <div style={{ fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={tx.merchant}>
+                              {tx.merchant}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px', marginTop: '3px', fontSize: '10px', color: 'var(--text-muted)' }}>
+                              <span className="tabular-nums">{formatDate(tx.transaction_date)}</span>
+                              {tx.member_name && (
+                                <span style={{
+                                  fontWeight: 700, padding: '1px 5px', borderRadius: '4px',
+                                  background: tx.is_mine ? 'rgba(59, 130, 246, 0.12)' : 'rgba(236, 72, 153, 0.12)',
+                                  color: tx.is_mine ? '#2563EB' : '#DB2777'
+                                }}>
+                                  {tx.member_avatar || '👤'} {tx.member_name}
+                                </span>
+                              )}
+                              {isInstallment && (
+                                <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#D97706', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                                  💳 {tx.installment_number || 1}/{totalInst}
+                                </span>
+                              )}
+                              {tx.vat_rate ? <span>%{tx.vat_rate} KDV</span> : null}
+                            </div>
+                            {tx.notes && (
+                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={tx.notes}>
+                                {tx.notes}
+                              </div>
+                            )}
                           </td>
-                          <td style={{ padding: '10px 12px', fontWeight: 800, color: 'var(--text-main)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span>{tx.merchant}</span>
-                              {tx.notes && <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 500 }}>({tx.notes})</span>}
+                          <td style={{ padding: '10px', color: 'var(--text-muted)', verticalAlign: 'top' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'var(--surface-subtle)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: '11px', maxWidth: '100%' }}>
+                              <span>{tx.category_icon || '🏷️'}</span>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.category_name || 'Genel'}</span>
+                            </div>
+                            <div style={{ fontSize: '10px', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={tx.wallet_name || 'Banka'}>
+                              {tx.wallet_name || 'Banka'}
                             </div>
                           </td>
-                          <td style={{ padding: '10px 12px', color: 'var(--text-muted)' }}>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'var(--surface-subtle)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: '11px' }}>
-                              <span>{tx.category_icon || '🏷️'}</span>
-                              <span>{tx.category_name || 'Genel'}</span>
-                            </span>
-                          </td>
-                          <td style={{ padding: '10px 12px' }}>
-                            {tx.member_name ? (
-                              <span style={{
-                                fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px',
-                                background: tx.is_mine ? 'rgba(59, 130, 246, 0.12)' : 'rgba(236, 72, 153, 0.12)',
-                                color: tx.is_mine ? '#2563EB' : '#DB2777',
-                                display: 'inline-flex', alignItems: 'center', gap: '4px'
-                              }}>
-                                <span>{tx.member_avatar || '👤'}</span>
-                                <span>{tx.member_name}</span>
-                              </span>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>—</span>
-                            )}
-                          </td>
-                          <td style={{ padding: '10px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                            {tx.wallet_name || 'Banka'}
-                          </td>
-                          <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
-                            {isInstallment ? (
-                              <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#D97706', padding: '2px 6px', borderRadius: '4px', fontWeight: 700, fontSize: '10px' }}>
-                                💳 {tx.installment_number || 1}/{totalInst}
-                              </span>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>Tek Çekim</span>
-                            )}
-                          </td>
-                          <td className="tabular-nums" style={{ padding: '10px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                            {tx.vat_rate ? `%${tx.vat_rate}` : '—'}
-                          </td>
-                          <td className="tabular-nums" style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
+                          <td className="tabular-nums" style={{ padding: '10px', textAlign: 'right', fontWeight: 800, color: 'var(--text-main)', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
                             -{formatTRY(tx.amount)}
                           </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <td style={{ padding: '10px 6px', textAlign: 'center', verticalAlign: 'middle' }}>
                             {tx.can_delete !== false && (
                               <button
                                 onClick={() => handleDeleteTx(tx.id, tx.merchant)}
                                 title="Harcamayı Sil"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', opacity: 0.6 }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', opacity: 0.65, padding: '2px' }}
                               >
                                 🗑️
                               </button>

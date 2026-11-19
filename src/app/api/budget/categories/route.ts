@@ -14,13 +14,18 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { id, name, type, monthly_budget_limit, group_50_30_20, icon, color } = body;
 
-    if (!name) {
+    if (!name || typeof name !== 'string' || !name.trim()) {
       return NextResponse.json({ success: false, error: 'Kategori adı zorunludur.' }, { status: 400 });
     }
 
     const userId = user.id;
     const familyId = user.family_id || `fam-${userId}`;
-    const targetLimit = Number(monthly_budget_limit) || 0;
+    const targetLimit = monthly_budget_limit !== undefined && monthly_budget_limit !== null && monthly_budget_limit !== ''
+      ? Number(monthly_budget_limit)
+      : 0;
+    if (!Number.isFinite(targetLimit) || targetLimit < 0) {
+      return NextResponse.json({ success: false, error: 'Bütçe limiti geçerli ve 0 veya pozitif olmalıdır.' }, { status: 400 });
+    }
 
     // 1. Maksimum Bütçe Tavanı Kontrolü (Aylık Toplam Gelir + Kredi Kartı Limitleri Toplamı)
     // Sadece kullanıcının kendi hane/ailesine ait aktif hesaplar çekilir (İzolasyon)
@@ -39,11 +44,11 @@ export async function POST(req: Request) {
       }
     }
 
-    // Kullanıcının hane kategorileri veya ortak seed kategorileri çekilir
+    // Kullanıcının yalnızca kendi hane kategorileri veya ortak sistem seed kategorileri çekilir (Cross-tenant izolasyon)
     const allCategories = await db.select().from(categories).where(
       familyId
-        ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.is_family_shared, 1))
-        : or(sql`${categories.family_id} IS NULL`, eq(categories.is_family_shared, 1))
+        ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
+        : or(sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
     );
 
     let calculatedIncome = 0;

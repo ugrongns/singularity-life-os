@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
-import { walletsAccounts, transactions } from '@/db/schema';
-import { eq, or, and, sql } from 'drizzle-orm';
+import { walletsAccounts, transactions, familyMembers } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
-import { addMonthsSafe, addMonthsDate, localYYYYMMDD } from '@/lib/bill-schedule';
+import { addMonthsSafe, addMonthsDate, parseLocalYYYYMMDD } from '@/lib/bill-schedule';
+import { getTodayTurkeyDate, parseTurkeyCalendarDate } from '@/lib/date-utils';
 
 export async function POST(req: Request) {
   try {
@@ -20,11 +21,35 @@ export async function POST(req: Request) {
       owner_user_id, is_family_shared
     } = body;
 
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return NextResponse.json({ success: false, error: 'Hesap adı zorunludur.' }, { status: 400 });
+    }
+
     const userId = user.id;
     const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
 
+    // owner_user_id verilmişse aynı aileye ait olduğunu doğrula
+    if (
+      owner_user_id !== undefined &&
+      owner_user_id !== 'joint' &&
+      owner_user_id !== null &&
+      owner_user_id !== '' &&
+      owner_user_id !== userId
+    ) {
+      const targetMember = familyId
+        ? (await db.select().from(familyMembers).where(
+            and(eq(familyMembers.family_id, familyId), eq(familyMembers.user_id, owner_user_id))
+          ))[0]
+        : null;
+      if (!targetMember) {
+        return NextResponse.json({ success: false, error: 'Seçilen hesap sahibi ailenize ait değil.' }, { status: 403 });
+      }
+    }
+
     const now = new Date();
     const nowISO = now.toISOString();
+    const todayTurkeyStr = getTodayTurkeyDate(now);
+    const todayTr = parseTurkeyCalendarDate(todayTurkeyStr);
 
     if (id) {
       // Güncelleme öncesi BOLA yetki kontrolü
@@ -33,7 +58,9 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: 'Hesap bulunamadı.' }, { status: 404 });
       }
 
-      const belongsToFamily = !existingAcc.family_id || (familyId && existingAcc.family_id === familyId);
+      const belongsToFamily = existingAcc.family_id
+        ? Boolean(familyId && existingAcc.family_id === familyId)
+        : existingAcc.user_id === userId;
       if (!belongsToFamily) {
         return NextResponse.json({ success: false, error: 'Bu hesaba erişim yetkiniz yok.' }, { status: 403 });
       }
@@ -87,9 +114,11 @@ export async function POST(req: Request) {
       if (type === 'loan') {
         const origAmt = Number(loan_original_amount) || 0;
         const totalRepay = Number(loan_total_repayment) || origAmt;
-        const countInst = Math.max(1, Number(total_installments) || 1);
+        const countInst = Math.max(1, parseInt(String(total_installments || 1), 10) || 1);
         const monthlyInst = Math.round((totalRepay / countInst) * 100) / 100;
-        const firstDate = first_installment_date || addMonthsSafe(now, 1, 15);
+        const baseMonthly = Math.floor((totalRepay / countInst) * 100) / 100;
+        const remainder = Math.round((totalRepay - (baseMonthly * countInst)) * 100) / 100;
+        const firstDate = first_installment_date || addMonthsSafe(todayTr, 1, 15);
         const dueDayNum = parseInt(firstDate.split('-')[2] || '15', 10);
 
         const newLoanId = `loan-${crypto.randomUUID()}`;
@@ -108,7 +137,9 @@ export async function POST(req: Request) {
           if (!bankAcc) {
             return NextResponse.json({ success: false, error: 'Kredi anaparasının aktarılacağı hesap bulunamadı.' }, { status: 404 });
           }
-          const bankBelongs = !bankAcc.family_id || (familyId && bankAcc.family_id === familyId);
+          const bankBelongs = bankAcc.family_id
+            ? Boolean(familyId && bankAcc.family_id === familyId)
+            : bankAcc.user_id === userId;
           if (!bankBelongs) {
             return NextResponse.json({ success: false, error: 'Seçilen aktarım hesabına yetkiniz yok.' }, { status: 403 });
           }
@@ -153,7 +184,7 @@ export async function POST(req: Request) {
                 merchant: `🏛️ Kredi Çekim Anaparası (${name.trim()})`,
                 amount: origAmt,
                 currency: 'TRY',
-                transaction_date: nowISO.split('T')[0],
+                transaction_date: todayTurkeyStr,
                 notes: `${name.trim()} çekilen nakit anapara girişi [to_wallet:${newLoanId}]`,
                 is_installment: 0,
                 installment_number: 1,
@@ -170,16 +201,17 @@ export async function POST(req: Request) {
             }
           }
 
-          // 2. Gelecek Taksit Planlarının transactions Tablosuna İşlenmesi
-          const instBaseDate = new Date(firstDate);
+          // 2. Gelecek Taksit Planlarının transactions Tablosuna İşlenmesi (kuruş artığı ilk taksitte)
+          const instBaseDate = parseLocalYYYYMMDD(firstDate) || addMonthsDate(todayTr, 1, 15);
           for (let i = 0; i < countInst; i++) {
             const instDateStr = addMonthsSafe(instBaseDate, i);
+            const instAmount = i === 0 ? Math.round((baseMonthly + remainder) * 100) / 100 : baseMonthly;
 
             await tx.insert(transactions).values({
               id: `tx-${newLoanId}-${i + 1}`,
               wallet_id: newLoanId,
               merchant: `🏦 ${name.trim()} (${i + 1}/${countInst}. Taksit)`,
-              amount: monthlyInst,
+              amount: instAmount,
               currency: currency || 'TRY',
               transaction_date: instDateStr,
               notes: `${name.trim()} kredi geri ödeme taksiti`,
@@ -207,7 +239,7 @@ export async function POST(req: Request) {
 
       if (type === 'time_deposit') {
         const principal = Number(balance) || 0;
-        if (principal <= 0) {
+        if (!Number.isFinite(principal) || principal <= 0) {
           return NextResponse.json({ success: false, error: 'Mevduat anaparası sıfır veya negatif olamaz.' }, { status: 400 });
         }
 
@@ -216,7 +248,9 @@ export async function POST(req: Request) {
           if (!bankAcc) {
             return NextResponse.json({ success: false, error: 'Mevduat anaparasının aktarılacağı kaynak hesap bulunamadı.' }, { status: 404 });
           }
-          const bankBelongs = !bankAcc.family_id || (familyId && bankAcc.family_id === familyId);
+          const bankBelongs = bankAcc.family_id
+            ? Boolean(familyId && bankAcc.family_id === familyId)
+            : bankAcc.user_id === userId;
           if (!bankBelongs) {
             return NextResponse.json({ success: false, error: 'Seçilen kaynak hesaba yetkiniz yok.' }, { status: 403 });
           }
@@ -242,7 +276,7 @@ export async function POST(req: Request) {
           if (deposited_account_id && principal > 0) {
             const [lockedBankAcc] = await tx.select().from(walletsAccounts).where(eq(walletsAccounts.id, deposited_account_id)).for('update');
             if (!lockedBankAcc) {
-              throw new Error('Kaynak hesap bulunamadı.');
+              throw new Error('NOT_FOUND: Kaynak hesap bulunamadı.');
             }
 
             const availableBalance = lockedBankAcc.type === 'kmh'
@@ -250,7 +284,7 @@ export async function POST(req: Request) {
               : (Number(lockedBankAcc.balance) || 0);
 
             if (availableBalance < principal) {
-              throw new Error(`Kaynak hesapta yetersiz bakiye! Kullanılabilir: ${availableBalance.toLocaleString('tr-TR')} ${lockedBankAcc.currency}, Talep edilen: ${principal.toLocaleString('tr-TR')} ${currency || 'TRY'}`);
+              throw new Error(`INSUFFICIENT_FUNDS: Kaynak hesapta yetersiz bakiye! Kullanılabilir: ${availableBalance.toLocaleString('tr-TR')} ${lockedBankAcc.currency}, Talep edilen: ${principal.toLocaleString('tr-TR')} ${currency || 'TRY'}`);
             }
 
             await tx.update(walletsAccounts)
@@ -264,7 +298,7 @@ export async function POST(req: Request) {
               merchant: `🏛️ Vadeli Mevduat Açılışı (${name.trim()})`,
               amount: principal,
               currency: currency || 'TRY',
-              transaction_date: nowISO.split('T')[0],
+              transaction_date: todayTurkeyStr,
               notes: `${name.trim()} vadeli hesabı için fon aktarımı [to_wallet:${newId}]`,
               is_installment: 0,
               installment_number: 1,
@@ -339,7 +373,14 @@ export async function POST(req: Request) {
     }
   } catch (error: any) {
     console.error('Account API Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    const msg = error?.message || 'Hesap işlemi sırasında hata oluştu.';
+    if (msg.startsWith('NOT_FOUND:')) {
+      return NextResponse.json({ success: false, error: msg.replace('NOT_FOUND: ', '') }, { status: 404 });
+    }
+    if (msg.startsWith('INSUFFICIENT_FUNDS:')) {
+      return NextResponse.json({ success: false, error: msg.replace('INSUFFICIENT_FUNDS: ', '') }, { status: 400 });
+    }
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
 
@@ -362,7 +403,9 @@ export async function DELETE(req: Request) {
     }
 
     const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
-    const belongsToFamily = !acc.family_id || (familyId && acc.family_id === familyId);
+    const belongsToFamily = acc.family_id
+      ? Boolean(familyId && acc.family_id === familyId)
+      : acc.user_id === user.id;
     if (!belongsToFamily) {
       return NextResponse.json({ success: false, error: 'Bu hesaba erişim yetkiniz yok.' }, { status: 403 });
     }

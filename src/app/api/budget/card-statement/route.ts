@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { walletsAccounts, transactions, categories } from '@/db/schema';
-import { eq, desc, or, and, sql } from 'drizzle-orm';
+import { eq, desc, or, sql } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 import { calculateCreditCardSchedule, isCardNonPurchaseTx } from '@/lib/bill-schedule';
+import { getTodayTurkeyDate, parseTurkeyCalendarDate } from '@/lib/date-utils';
 
 export async function GET(req: Request) {
   try {
@@ -27,7 +28,9 @@ export async function GET(req: Request) {
 
     // BOLA / IDOR Koruması: Hesabın ailenin yetkili sınırları içinde olduğunu doğrula
     const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
-    const belongsToFamily = !cardAccount.family_id || (familyId && cardAccount.family_id === familyId);
+    const belongsToFamily = cardAccount.family_id
+      ? Boolean(familyId && cardAccount.family_id === familyId)
+      : cardAccount.user_id === user.id;
     const isOwner = cardAccount.user_id === user.id;
     const isShared = belongsToFamily && (cardAccount.is_family_shared === 1 || !cardAccount.user_id);
     const isLeader = belongsToFamily && (user.is_master_account === 1 || user.role === 'admin');
@@ -60,7 +63,7 @@ export async function GET(req: Request) {
       };
     });
 
-    const today = new Date();
+    const today = parseTurkeyCalendarDate(getTodayTurkeyDate());
     const ccSchedule = calculateCreditCardSchedule(cardAccount, enrichedCardTx, today);
     const closedStartISO = ccSchedule.closed_cycle_start_date;
     const closedEndISO = ccSchedule.statement_cutoff_date;

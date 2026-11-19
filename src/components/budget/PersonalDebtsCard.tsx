@@ -177,7 +177,7 @@ export default function PersonalDebtsCard({ accounts, onToast, onUpdate, marketR
     if (!confirm(`"${personName}" kaydını silmek istediğinize emin misiniz?`)) return;
     const res = await fetch(`/api/budget/personal-debts?id=${id}`, { method: 'DELETE' });
     const json = await res.json();
-    if (json.success) { onToast(json.message); fetchRecords(); }
+    if (res.ok && json.success) { onToast(json.message); fetchRecords(); } else { onToast('❌ ' + (json.error || 'Silme işlemi başarısız.')); }
   };
 
   const bankAccounts = accounts.filter(a => a.type === 'bank' || a.type === 'cash');
@@ -336,7 +336,7 @@ export default function PersonalDebtsCard({ accounts, onToast, onUpdate, marketR
             <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{txType === 'debt' ? 'Borç Aldığım Kişi *' : 'Borç Verdiğim Kişi *'}</label>
-                <input type="text" required placeholder="Örn: John Doe" value={personName} onChange={e => setPersonName(e.target.value)} style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }} />
+                <input type="text" required placeholder="Örn: Ahmet Yılmaz" value={personName} onChange={e => setPersonName(e.target.value)} style={{ width: '100%', padding: '10px 12px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginTop: '4px' }} />
               </div>
 
               <div>

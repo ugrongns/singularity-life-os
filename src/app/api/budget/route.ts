@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { walletsAccounts, categories, transactions, vehicleLegalReminders, familyMembers, recurringBills, vehicles } from '@/db/schema';
-import { desc, asc, eq, and, sql, or, inArray } from 'drizzle-orm';
+import { desc, eq, and, sql, or, inArray } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
 
 import {
@@ -9,9 +9,9 @@ import {
   calculateCreditCardSchedule,
   getCreditCardStatementDueMonth,
   isCardNonPurchaseTx,
-  localYYYYMM,
-  localYYYYMMDD
+  localYYYYMM
 } from '@/lib/bill-schedule';
+import { diffTurkeyCalendarDays, getTodayTurkeyDate, parseTurkeyCalendarDate } from '@/lib/date-utils';
 import { fetchLiveExchangeRates } from '@/lib/market-data';
 
 export async function GET(req: Request) {
@@ -26,7 +26,8 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url, 'http://localhost');
     const monthParam = searchParams.get('month'); // YYYY-MM
 
-    const today = new Date();
+    const todayTurkeyStr = getTodayTurkeyDate();
+    const today = parseTurkeyCalendarDate(todayTurkeyStr);
     const currentMonthStr = monthParam || localYYYYMM(today);
 
     // Canlı Piyasa & TCMB / Serbest Piyasa Kurları
@@ -90,25 +91,49 @@ export async function GET(req: Request) {
 
     const isTransferOrPaymentTx = (tx: any) => {
       const cat = tx.category_id ? categoryMap.get(tx.category_id) : null;
-      return isCardNonPurchaseTx({
-        categoryType: cat?.type || null,
-        merchant: tx.merchant,
-        notes: tx.notes
-      }) && (
-        tx.merchant?.includes('Kart Ödemesi') ||
-        tx.merchant?.includes('Kart Ödeme Tahsilatı') ||
-        tx.merchant?.includes('Kart Ödeme') ||
-        tx.merchant?.includes('Transfer Çıkışı') ||
-        tx.merchant?.includes('Gelen Transfer') ||
-        tx.merchant?.includes('Transfer:') ||
-        tx.merchant?.toLowerCase().includes('kart borç ödemesi') ||
-        tx.notes?.includes('[from_wallet:') ||
-        tx.notes?.includes('[to_wallet:')
+      const merchantLower = (tx.merchant || '').toLowerCase();
+      const notesLower = (tx.notes || '').toLowerCase();
+      return (
+        isCardNonPurchaseTx({
+          categoryType: cat?.type || null,
+          merchant: tx.merchant,
+          notes: tx.notes
+        }) && (
+          tx.merchant?.includes('Kart Ödemesi') ||
+          tx.merchant?.includes('Kart Ödeme Tahsilatı') ||
+          tx.merchant?.includes('Kart Ödeme') ||
+          tx.merchant?.includes('Transfer Çıkışı') ||
+          tx.merchant?.includes('Gelen Transfer') ||
+          tx.merchant?.includes('Transfer:') ||
+          merchantLower.includes('kart borç ödemesi') ||
+          tx.notes?.includes('[from_wallet:') ||
+          tx.notes?.includes('[to_wallet:')
+        )
       ) || Boolean(
         tx.merchant?.includes('Vadeli Mevduat Açılışı') ||
         tx.merchant?.includes('Vadeli Mevduat Dönüşü (Anapara)') ||
-        tx.notes?.toLowerCase().includes('borç ödemesi') ||
-        tx.notes?.toLowerCase().includes('transfer')
+        tx.merchant?.includes('Kredi Çekim Anaparası') ||
+        tx.merchant?.startsWith('🤝 Şahıs') ||
+        tx.merchant?.startsWith('🤝 Şahsa') ||
+        notesLower.includes('borç ödemesi') ||
+        notesLower.includes('transfer')
+      );
+    };
+
+    const isBudgetIncomeTx = (tx: any) => {
+      const cat = tx.category_id ? categoryMap.get(tx.category_id) : null;
+      if (cat) return cat.type === 'income';
+      const merchantLower = (tx.merchant || '').toLowerCase();
+      const notesLower = (tx.notes || '').toLowerCase();
+      return (
+        merchantLower.includes('kira geliri') ||
+        merchantLower.includes('maaş') ||
+        merchantLower.includes('temettü') ||
+        merchantLower.includes('faiz geliri') ||
+        merchantLower.includes('gelir girişi') ||
+        merchantLower.includes('gelir') ||
+        notesLower.includes('düzeltme geliri') ||
+        notesLower.includes('faiz getirisi')
       );
     };
 
@@ -123,8 +148,6 @@ export async function GET(req: Request) {
           )
           .orderBy(desc(transactions.transaction_date), desc(transactions.created_at))
       : [];
-
-    const allRecentTx = allFamilyTxs.slice(0, 50);
 
     // O(1) erişim için Cüzdan bazlı, Takvim Ayı (YYYY-MM) bazlı ve Tahmini Ekstre Ayı bazlı işlem indeksleri
     const cardTxByWallet = new Map<string, any[]>();
@@ -153,24 +176,23 @@ export async function GET(req: Request) {
     }
 
     // Gelir ve Transfer/Ödeme olan tüm işlemleri harcamalar listesinden çıkar (Sadece gerçek 3. şahıs giderleri görünsün)
-    const recentTx = (allRecentTx)
+    const recentTx = (allFamilyTxs)
       .filter((tx: any) => {
-        const cat = tx.category_id ? categoryMap.get(tx.category_id) : null;
-        const isIncome = (cat && cat.type === 'income') ||
-          tx.merchant?.toLowerCase().includes('kira geliri') ||
-          tx.merchant?.toLowerCase().includes('maaş') ||
-          tx.merchant?.toLowerCase().includes('temettü') ||
-          tx.notes?.toLowerCase().includes('gelir');
-
+        const isIncome = isBudgetIncomeTx(tx) || tx.notes?.toLowerCase().includes('gelir');
         const isTransfer = isTransferOrPaymentTx(tx);
 
         return !isIncome && !isTransfer && (!tx.is_installment || tx.installment_number === 1);
       })
-      .slice(0, 8)
+      .slice(0, 15)
       .map((tx: any) => {
         const fm = tx.member_id ? familyMap.get(tx.member_id) : (tx.user_id ? userToMemberMap.get(tx.user_id) : null);
+        const cat = tx.category_id ? categoryMap.get(tx.category_id) : null;
+        const acc = tx.wallet_id ? accountMap.get(tx.wallet_id) : null;
         return {
           ...tx,
+          category_name: cat?.name || null,
+          category_icon: cat?.icon || null,
+          wallet_name: acc?.name || null,
           member_avatar: fm?.avatar || (tx.user_id === userId ? (user?.avatar_emoji || '👑') : '👤'),
           member_name: fm?.name || (tx.user_id === userId ? (user?.full_name || 'Ben') : null),
           is_mine: Boolean(userId && tx.user_id === userId),
@@ -269,8 +291,7 @@ export async function GET(req: Request) {
         )
       : [];
     for (const leg of legalReminders) {
-      const legDate = new Date(leg.due_date);
-      const diffDays = Math.ceil((legDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const diffDays = diffTurkeyCalendarDays(leg.due_date, todayTurkeyStr) ?? 0;
       const typeLabel = leg.type === 'muayene' ? 'TÜVTÜRK Araç Muayenesi' : leg.type === 'kasko' ? 'Kasko Poliçesi' : 'Trafik Sigortası';
 
       upcomingList.push({
@@ -330,15 +351,12 @@ export async function GET(req: Request) {
     const monthlyTx = txByMonth.get(currentMonthStr) || [];
 
     for (const tx of monthlyTx) {
-      const cat = tx.category_id ? categoryMap.get(tx.category_id) : null;
-      const isIncome = cat ? cat.type === 'income' : (tx.merchant?.toLowerCase().includes('kira geliri') || tx.merchant?.toLowerCase().includes('maaş') || tx.merchant?.toLowerCase().includes('temettü'));
-
       // Transfer ve Kart Borç Ödemeleri (Virman) Harcama veya Gelir Sayılamaz!
       if (isTransferOrPaymentTx(tx)) {
         continue;
       }
 
-      if (isIncome) {
+      if (isBudgetIncomeTx(tx)) {
         totalMonthlyIncome += tx.amount;
       } else {
         totalMonthlyExpense += tx.amount;
@@ -402,10 +420,7 @@ export async function GET(req: Request) {
         const pastMonth = localYYYYMM(pastDate);
         const pastTxs = txByMonth.get(pastMonth) || [];
         const pastIncome = (pastTxs)
-          .filter((t: any) => {
-            const c = t.category_id ? categoryMap.get(t.category_id) : null;
-            return c ? c.type === 'income' : (t.merchant?.toLowerCase().includes('maaş') || t.merchant?.toLowerCase().includes('kira geliri'));
-          })
+          .filter((t: any) => !isTransferOrPaymentTx(t) && isBudgetIncomeTx(t))
           .reduce((s: number, t: any) => s + t.amount, 0);
         if (pastIncome > 0) { incomeSum += pastIncome; incomeMonths++; }
       }
@@ -514,11 +529,11 @@ export async function GET(req: Request) {
 
     const multiCurrencyNetWorth = {
       TRY: netWorthTRY,
-      USD: Math.round(netWorthTRY / USD_RATE),
-      EUR: Math.round(netWorthTRY / EUR_RATE),
-      GBP: Math.round(netWorthTRY / GBP_RATE),
-      GOLD_GRAM: (netWorthTRY / GOLD_GRAM_RATE).toFixed(1),
-      BTC: (netWorthTRY / BTC_RATE).toFixed(2),
+      USD: USD_RATE > 0 ? Math.round(netWorthTRY / USD_RATE) : 0,
+      EUR: EUR_RATE > 0 ? Math.round(netWorthTRY / EUR_RATE) : 0,
+      GBP: GBP_RATE > 0 ? Math.round(netWorthTRY / GBP_RATE) : 0,
+      GOLD_GRAM: GOLD_GRAM_RATE > 0 ? (netWorthTRY / GOLD_GRAM_RATE).toFixed(1) : '0.0',
+      BTC: BTC_RATE > 0 ? (netWorthTRY / BTC_RATE).toFixed(2) : '0.00',
       breakdown: {
         cashAndBanks: totalCashAssetsTRY,
         investmentsAndBES: 0,
@@ -563,14 +578,12 @@ export async function GET(req: Request) {
       let fTotalExpense = 0;
       let fTotalIncome = 0;
       for (const t of (monthTxs)) {
-        const tCat = t.category_id ? categoryMap.get(t.category_id) : null;
-        const tIsIncome = tCat ? tCat.type === 'income' : (t.merchant?.toLowerCase().includes('maaş') || t.merchant?.toLowerCase().includes('kira geliri') || t.merchant?.toLowerCase().includes('temettü'));
         if (isTransferOrPaymentTx(t)) continue;
-        if (tIsIncome) fTotalIncome += t.amount;
+        if (isBudgetIncomeTx(t)) fTotalIncome += t.amount;
         else fTotalExpense += t.amount;
       }
 
-      const isColdStart = accounts.length === 0 && effectiveIncome === 0 && allRecentTx.length === 0;
+      const isColdStart = accounts.length === 0 && effectiveIncome === 0 && allFamilyTxs.length === 0;
       const effectiveBudgetLimit = isColdStart ? 0 : totalBudgetLimitSum;
       const freeBudget = Math.max(0, effectiveBudgetLimit - committedAmount);
       const commitmentPercentage = effectiveBudgetLimit > 0 ? Math.min(100, Math.round((committedAmount / effectiveBudgetLimit) * 100)) : 0;
@@ -588,7 +601,7 @@ export async function GET(req: Request) {
       });
     }
 
-    const isColdStart = accounts.length === 0 && effectiveIncome === 0 && allRecentTx.length === 0;
+    const isColdStart = accounts.length === 0 && effectiveIncome === 0 && allFamilyTxs.length === 0;
 
     return NextResponse.json({
       success: true,

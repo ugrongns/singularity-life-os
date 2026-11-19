@@ -341,7 +341,7 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
 
           {/* Header */}
           <header className="app-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flexShrink: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: '1 1 auto', overflow: 'hidden' }}>
               <button
                 className="mobile-hamburger-btn"
                 onClick={() => setIsMobileDrawerOpen(true)}
@@ -366,16 +366,18 @@ export default function SharedLayout({ children, notifications }: SharedLayoutPr
               <div
                 className="brand-badge"
                 onClick={() => setActiveModal('showcase')}
-                style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}
+                style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: '1 1 auto', overflow: 'hidden' }}
                 title="Singularity Özellik Vitrini"
               >
                 <div className="icon-badge" style={{ width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0 }}>
                   <img src="/icon.svg" alt="Singularity" style={{ width: '22px', height: '22px' }} />
                 </div>
-                <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                  <div className="brand-title header-brand-title" style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-                    <span>Singularity Life OS</span>
-                    <span style={{ fontSize: '10px', background: 'var(--emerald-bg)', color: 'var(--emerald)', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                <div style={{ minWidth: 0, overflow: 'hidden', flex: '1 1 auto' }}>
+                  <div className="brand-title header-brand-title" style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      Singularity<span className="header-brand-sub"> Life OS</span>
+                    </span>
+                    <span className="header-version-badge" style={{ fontSize: '10px', background: 'var(--emerald-bg)', color: 'var(--emerald)', padding: '1px 6px', borderRadius: '4px', fontWeight: 800, flexShrink: 0 }}>
                       v2.1
                     </span>
                   </div>

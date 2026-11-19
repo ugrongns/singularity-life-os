@@ -35,6 +35,7 @@ export default function BudgetPage() {
   const [categoryDetail, setCategoryDetail] = useState<{ catId: string | null; catName?: string }>({ catId: null });
   const [preselectedCatId, setPreselectedCatId] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const showToast = (msg: string) => { setToastMsg(msg); setTimeout(() => setToastMsg(null), 3000); };
 
@@ -56,14 +57,24 @@ export default function BudgetPage() {
 
   const fetchData = async (targetMonth?: string) => {
     const monthToFetch = targetMonth || selectedMonth;
-    const [budRes, notifRes] = await Promise.all([
-      fetch(`/api/budget?month=${monthToFetch}`),
-      fetch('/api/notifications')
-    ]);
-    const [budJ, notifJ] = await Promise.all([budRes.json(), notifRes.json()]);
-    if (budJ.success) setData(budJ.data);
-    if (notifJ.success) setNotifData(notifJ.data);
-    setLoading(false);
+    setFetchError(null);
+    try {
+      const [budRes, notifRes] = await Promise.all([
+        fetch(`/api/budget?month=${monthToFetch}`),
+        fetch('/api/notifications')
+      ]);
+      const [budJ, notifJ] = await Promise.all([budRes.json(), notifRes.json()]);
+      if (!budRes.ok || !budJ.success) {
+        setFetchError(budJ.error || 'Bütçe verileri yüklenemedi.');
+      } else {
+        setData(budJ.data);
+      }
+      if (notifRes.ok && notifJ.success) setNotifData(notifJ.data);
+    } catch {
+      setFetchError('Bütçe servisine bağlanılamadı. Lütfen tekrar deneyin.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -100,20 +111,16 @@ export default function BudgetPage() {
   const formatTRY = (val: number) =>
     new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(val || 0);
 
-  // FX Kuru Dönüştürücü
+  // FX Kuru Dönüştürücü (Canlı piyasa verisi yoksa sabit kur tahmini yapılmaz)
   const getRate = (curr: string) => {
+    if (curr === 'TRY' || !curr) return 1.0;
     const rates = data?.marketRates;
-    if (!rates) {
-      if (curr === 'USD') return 38.5;
-      if (curr === 'EUR') return 41.5;
-      if (curr === 'GBP') return 48.5;
-      if (curr === 'GOLD') return 3200;
-      return 1.0;
-    }
+    if (!rates) return 0;
     if (curr === 'USD') return rates.USD_TRY || 0;
     if (curr === 'EUR') return rates.EUR_TRY || 0;
     if (curr === 'GBP') return rates.GBP_TRY || 0;
     if (curr === 'GOLD') return rates.GOLD_GRAM_TRY || 0;
+    if (curr === 'BTC') return rates.BTC_TRY || 0;
     return 1.0;
   };
 
@@ -186,20 +193,57 @@ export default function BudgetPage() {
         loading={ratesLoading}
       />
 
+      {/* ⚠️ Veri Yükleme Hata Şeridi */}
+      {fetchError && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            padding: '10px 14px',
+            marginBottom: '16px',
+            borderRadius: 'var(--radius-lg)',
+            background: '#FEF2F2',
+            border: '1px solid #FECACA',
+            color: '#B91C1C',
+            fontSize: '12px',
+            fontWeight: 700
+          }}
+        >
+          <span>⚠️ {fetchError}</span>
+          <button
+            type="button"
+            onClick={() => fetchData()}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-full)',
+              border: '1px solid #FCA5A5',
+              background: '#FFFFFF',
+              color: '#B91C1C',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            Yenile
+          </button>
+        </div>
+      )}
+
       {/* 🎛️ Aile / Kişi Görünüm Filtresi Barı */}
       {data?.monthlySummary?.familyMembers && data.monthlySummary.familyMembers.length > 0 && (
         <div style={{
           display: 'flex',
           alignItems: 'center',
+          flexWrap: 'wrap',
           gap: '8px',
           padding: '8px 12px',
           background: 'var(--surface)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-lg)',
-          marginBottom: '16px',
-          overflowX: 'auto',
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none'
+          marginBottom: '16px'
         }}>
           <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
             👥 Görünüm Filtresi:

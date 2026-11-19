@@ -226,27 +226,22 @@ export default function MarketRatesBar({ rates, onRefresh, loading = false }: Ma
         </div>
       </div>
 
-      {/* Finansal Ticker Şeridi (Yatay Kaydırılabilir ve Kartlar) */}
+      {/* Finansal Ticker Kartları (Kırpılmasız Responsive Grid) */}
       <div style={{
-        display: 'flex',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
         gap: '10px',
-        overflowX: 'auto',
-        scrollbarWidth: 'none',
-        msOverflowStyle: 'none',
-        paddingBottom: '4px',
-        WebkitOverflowScrolling: 'touch'
+        paddingBottom: '4px'
       }}>
         {rateItems.map(item => (
           <div
             key={item.symbol}
             style={{
-              flex: '1 0 160px',
-              minWidth: '150px',
-              maxWidth: '220px',
+              minWidth: 0,
               background: 'var(--surface-subtle)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-lg)',
-              padding: '10px 12px',
+              padding: '10px',
               display: 'flex',
               flexDirection: 'column',
               gap: '6px',
@@ -255,20 +250,23 @@ export default function MarketRatesBar({ rates, onRefresh, loading = false }: Ma
             }}
           >
             {/* Kart Başlığı ve Değişim Rozeti */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
               <span style={{
                 fontSize: '11px',
                 color: 'var(--text-muted)',
                 fontWeight: 700,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px'
+                gap: '4px',
+                minWidth: 0
               }}>
-                <span style={{ fontSize: '14px' }}>{item.icon}</span>
-                <span>{item.label}</span>
+                <span style={{ fontSize: '14px', flexShrink: 0 }}>{item.icon}</span>
+                <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>
                 <span style={{ fontSize: '10px', opacity: 0.7 }}>({item.symbol})</span>
               </span>
-              {renderChangeBadge(item.change)}
+              <span style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                {renderChangeBadge(item.change)}
+              </span>
             </div>
 
             {/* Büyük Gösterge Fiyat */}
@@ -290,7 +288,9 @@ export default function MarketRatesBar({ rates, onRefresh, loading = false }: Ma
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: '4px',
+              flexWrap: 'wrap',
+              columnGap: '6px',
+              rowGap: '2px',
               paddingTop: '4px',
               borderTop: '1px solid rgba(0,0,0,0.05)',
               fontSize: '10px'

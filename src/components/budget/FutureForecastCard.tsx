@@ -30,7 +30,7 @@ export default function FutureForecastCard({ forecast, selectedMonth, onSelectMo
 
   return (
     <div className="card" style={{ marginTop: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span>🔮</span>
           <span style={{ fontSize: '16px', fontWeight: 800 }}>6 Aylık Bütçe & Taksit Projeksiyonu</span>

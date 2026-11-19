@@ -4,7 +4,7 @@ import { walletsAccounts, transactions, categories } from '@/db/schema';
 import { eq, and, or, sql } from 'drizzle-orm';
 import { eventBus, EVENTS } from '@/lib/events';
 import { getAuthUser } from '@/lib/auth';
-import { localYYYYMMDD } from '@/lib/bill-schedule';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 export async function POST(req: Request) {
   try {
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Hesap ID belirtilmedi.' }, { status: 400 });
     }
 
-    if (real_balance === undefined || real_balance === null || isNaN(Number(real_balance))) {
+    if (real_balance === undefined || real_balance === null || !Number.isFinite(Number(real_balance))) {
       return NextResponse.json({ success: false, error: 'Geçerli bir gerçek bakiye giriniz.' }, { status: 400 });
     }
 
@@ -33,15 +33,23 @@ export async function POST(req: Request) {
     if (!account) {
       return NextResponse.json({ success: false, error: 'Hesap bulunamadı.' }, { status: 404 });
     }
+    if (account.is_active === 0) {
+      return NextResponse.json({ success: false, error: 'Arşivlenmiş veya pasif hesapta mutabakat yapılamaz.' }, { status: 400 });
+    }
 
-    const belongsToFamily = !account.family_id || (familyId && account.family_id === familyId);
-    const isOwner = account.user_id === user.id || (belongsToFamily && (user.is_master_account === 1 || user.role === 'admin')) || !account.user_id;
+    const belongsToFamily = account.family_id
+      ? Boolean(familyId && account.family_id === familyId)
+      : account.user_id === user.id;
+    const isOwner = account.user_id === user.id || (belongsToFamily && (user.is_master_account === 1 || user.role === 'admin')) || (belongsToFamily && !account.user_id);
     if (!belongsToFamily || !isOwner) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu hesap sizin veya ailenizin hesabına ait değil.' }, { status: 403 });
     }
 
     const currentBalance = Math.round((account.balance || 0) * 100) / 100;
     const isCreditCard = account.type === 'credit_card';
+    if (isCreditCard && targetBalance < 0) {
+      return NextResponse.json({ success: false, error: 'Kredi kartı borcu negatif olamaz.' }, { status: 400 });
+    }
 
     // Kredi kartlarında balance = borçtur.
     // Borç arttıysa gider, borç azaldıysa gelir (ödeme).
@@ -59,7 +67,7 @@ export async function POST(req: Request) {
 
     const now = new Date();
     const nowISO = now.toISOString();
-    const dateStr = localYYYYMMDD(now);
+    const dateStr = getTodayTurkeyDate(now);
     let txCreated = false;
     let createdTxId: string | null = null;
     const absAmount = Math.abs(diff);

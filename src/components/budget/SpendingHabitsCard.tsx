@@ -72,7 +72,7 @@ export default function SpendingHabitsCard() {
   const svgHeight = 140;
   const padLeft = 24;
   const padRight = 16;
-  const padTop = 22;
+  const padTop = 28;
   const padBottom = 24;
   const plotWidth = svgWidth - padLeft - padRight;
   const plotHeight = svgHeight - padTop - padBottom;

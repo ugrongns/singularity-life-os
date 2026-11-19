@@ -4,8 +4,9 @@ import { getAuthUser } from '@/lib/auth';
 import { db, initDatabase } from '@/db';
 import { transactions, walletsAccounts, categories, familyMembers } from '@/db/schema';
 import { eventBus, EVENTS } from '@/lib/events';
-import { eq, or, and, like } from 'drizzle-orm';
+import { eq, or, and, like, sql } from 'drizzle-orm';
 import { addMonthsSafe, parseLocalYYYYMMDD } from '@/lib/bill-schedule';
+import { getTodayTurkeyDate, parseTurkeyCalendarDate } from '@/lib/date-utils';
 
 export async function POST(req: Request) {
   try {
@@ -26,25 +27,42 @@ export async function POST(req: Request) {
       transaction_date
     } = body;
 
-    if (!wallet_id || !amount || Number(amount) <= 0) {
-      return NextResponse.json({ success: false, error: 'Lütfen geçerli bir hesap ve tutar girin.' }, { status: 400 });
+    const numAmount = Number(amount);
+    if (!wallet_id || !Number.isFinite(numAmount) || numAmount <= 0) {
+      return NextResponse.json({ success: false, error: 'Lütfen geçerli bir hesap ve 0\'dan büyük bir tutar girin.' }, { status: 400 });
     }
 
-    const numAmount = Number(amount);
     const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
     const wallet = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, wallet_id)))[0];
     if (!wallet) {
       return NextResponse.json({ success: false, error: 'Seçilen hesap bulunamadı.' }, { status: 404 });
     }
-
-    // OWASP BOLA Sahiplik Kontrolü: Cüzdan kullanıcıya veya kullanıcının ailesine ait olmalıdır
-    const isOwner = wallet.user_id === user.id || (familyId && wallet.family_id === familyId);
-    if (!isOwner) {
-      return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu hesap sizin veya ailenizin hesabına ait değil.' }, { status: 403 });
+    if (wallet.is_active === 0) {
+      return NextResponse.json({ success: false, error: 'Arşivlenmiş veya pasif bir hesapta işlem yapılamaz.' }, { status: 400 });
     }
 
-    // 1. İşlemin Gelir mi Gider mi Olduğunu Belirle
-    const category = category_id ? (await db.select().from(categories).where(eq(categories.id, category_id)))[0] : null;
+    // OWASP BOLA Sahiplik Kontrolü: Cüzdan kullanıcıya ait olmalı veya aynı ailede paylaşımlı/ortak olmalıdır
+    const isSameFamily = wallet.family_id ? Boolean(familyId && wallet.family_id === familyId) : false;
+    const isOwner = wallet.user_id === user.id || (isSameFamily && (wallet.is_family_shared === 1 || !wallet.user_id));
+    if (!isOwner) {
+      return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu hesap sizin veya ailenizin paylaşımlı hesabına ait değil.' }, { status: 403 });
+    }
+
+    // 1. İşlemin Gelir mi Gider mi Olduğunu Belirle (Kategori aile/sistem sınırı kontrollü)
+    let category: any = null;
+    if (category_id) {
+      category = (await db.select().from(categories).where(
+        and(
+          eq(categories.id, category_id),
+          familyId
+            ? or(eq(categories.family_id, familyId), sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
+            : or(sql`${categories.family_id} IS NULL`, eq(categories.family_id, ''))
+        )
+      ))[0] || null;
+      if (!category) {
+        return NextResponse.json({ success: false, error: 'Seçilen kategori bulunamadı veya erişim yetkiniz yok.' }, { status: 403 });
+      }
+    }
     const finalCategoryId = category ? category.id : null;
     const isIncome = (category && category.type === 'income') || body.type === 'income';
 
@@ -91,7 +109,20 @@ export async function POST(req: Request) {
     const createdTxIds: string[] = [];
     const userId = user.id;
 
-    let memberId = body.member_id || null;
+    let memberId: string | null = null;
+    if (body.member_id) {
+      const requestedMember = (await db.select().from(familyMembers).where(
+        and(
+          eq(familyMembers.id, body.member_id),
+          eq(familyMembers.is_active, 1),
+          familyId ? eq(familyMembers.family_id, familyId) : eq(familyMembers.user_id, userId)
+        )
+      ))[0];
+      if (!requestedMember) {
+        return NextResponse.json({ success: false, error: 'Seçilen aile üyesi bulunamadı veya ailenize ait değil.' }, { status: 403 });
+      }
+      memberId = requestedMember.id;
+    }
     if (!memberId && wallet.user_id) {
       const ownerMember = (await db.select().from(familyMembers).where(and(eq(familyMembers.is_active, 1), eq(familyMembers.user_id, wallet.user_id))))[0];
       memberId = ownerMember?.id || null;
@@ -103,7 +134,7 @@ export async function POST(req: Request) {
 
     // Taksit Motoru: Tutar tek seferlik ise 1 satır, taksitli ise gelecek aylara dağıtılan N adet satır
     const parsedBaseDate = transaction_date ? parseLocalYYYYMMDD(transaction_date) : null;
-    const validBaseDate = parsedBaseDate || now;
+    const validBaseDate = parsedBaseDate || parseTurkeyCalendarDate(getTodayTurkeyDate());
 
     // Atomik Veritabanı Yazma İşlemi (db.transaction + FOR UPDATE satır kilitleme)
     await db.transaction(async (tx) => {
@@ -214,7 +245,17 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('Transaction API Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    const msg = error?.message || 'İşlem sırasında hata oluştu.';
+    if (msg.startsWith('NOT_FOUND:')) {
+      return NextResponse.json({ success: false, error: msg.replace('NOT_FOUND: ', '') }, { status: 404 });
+    }
+    if (msg.startsWith('FORBIDDEN:')) {
+      return NextResponse.json({ success: false, error: msg.replace('FORBIDDEN: ', '') }, { status: 403 });
+    }
+    if (msg.startsWith('LIMIT_EXCEEDED:') || msg.startsWith('INSUFFICIENT_FUNDS:')) {
+      return NextResponse.json({ success: false, error: msg.replace(/^[A-Z_]+: /, '') }, { status: 400 });
+    }
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
 
@@ -238,7 +279,7 @@ export async function DELETE(req: Request) {
 
     const userFamilyId = user.family_id || (user.id ? `fam-${user.id}` : null);
     // OWASP BOLA: İşlem kullanıcının ailesine ait mi?
-    const isFamilyMatch = tx.family_id ? tx.family_id === userFamilyId : tx.user_id === user.id;
+    const isFamilyMatch = tx.family_id ? Boolean(userFamilyId && tx.family_id === userFamilyId) : tx.user_id === user.id;
     if (!isFamilyMatch) {
       return NextResponse.json({ success: false, error: 'Yetkisiz erişim: Bu işlem ailenize ait değil.' }, { status: 403 });
     }
@@ -251,6 +292,17 @@ export async function DELETE(req: Request) {
       }, { status: 403 });
     }
 
+    if (
+      tx.merchant?.includes('Kredi Çekim Anaparası') ||
+      tx.merchant?.includes('Vadeli Mevduat Açılışı') ||
+      tx.merchant?.includes('Vadeli Mevduat Dönüşü (Anapara)')
+    ) {
+      return NextResponse.json({
+        success: false,
+        error: 'Kredi çekimi veya vadeli mevduat anapara hareketi doğrudan silinemez; ilgili hesabı düzenleyin veya kapatın.'
+      }, { status: 400 });
+    }
+
     // Taksit grubu mu kontrol et: Eğer taksitli işlemse, yetim taksit ve bakiye sapmasını önlemek için tüm kardeş taksitleri topla
     let txsToDelete = [tx];
     if (tx.is_installment === 1 && tx.parent_transaction_id) {
@@ -260,7 +312,7 @@ export async function DELETE(req: Request) {
       }
     }
 
-    const totalRevertAmount = txsToDelete.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    const totalRevertAmount = Math.round(txsToDelete.reduce((sum, t) => sum + (Number(t.amount) || 0), 0) * 100) / 100;
 
     // İşlemin Gelir mi Gider mi Olduğunu Belirle
     let isIncome = false;
@@ -268,74 +320,135 @@ export async function DELETE(req: Request) {
       const cat = (await db.select().from(categories).where(eq(categories.id, tx.category_id)))[0];
       if (cat?.type === 'income') isIncome = true;
     }
-    if (!isIncome && tx.merchant?.includes('Gelir Girişi')) {
+    if (!isIncome && (tx.merchant?.includes('Gelir Girişi') || tx.merchant?.includes('Vadeli Mevduat Faiz Geliri'))) {
       isIncome = true;
     }
 
-    // Transfer veya Kart Ödemesi ise hedef hesabı tespit et
-    let targetWalletId: string | null = null;
+    // Transfer veya Kart Ödemesi ise yönü ve karşıt hesabı tespit et
     const toMatch = tx.notes?.match(/\[to_wallet:([^\]]+)\]/);
-    if (toMatch && toMatch[1]) {
-      targetWalletId = toMatch[1];
-    }
+    const fromMatch = tx.notes?.match(/\[from_wallet:([^\]]+)\]/);
+    const linkedMatch = tx.notes?.match(/\[linked_tx:([^\]]+)\]/);
+    const targetWalletId = toMatch?.[1] || null;
+    const sourceWalletId = fromMatch?.[1] || null;
+    const linkedTxId = linkedMatch?.[1] || null;
 
     const nowISO = new Date().toISOString();
 
     // Atomik Veritabanı İade & Silme İşlemi (db.transaction)
     await db.transaction(async (dbtx) => {
-      // 1. Kaynak Cüzdan Bakiyesini İade Et
-      if (tx.wallet_id) {
-        const wallet = (await dbtx.select().from(walletsAccounts).where(eq(walletsAccounts.id, tx.wallet_id)).for('update'))[0];
-        if (wallet) {
-          let newBalance = wallet.balance;
-          if (isIncome) {
-            // Gelir siliniyor: Normal banka bakiyesi AZALIR, Kredi kartı borcu ARTAR, KMH borcu derinleşebilir
-            if (wallet.type === 'credit_card') {
-              newBalance = wallet.balance + totalRevertAmount;
-            } else if (wallet.type === 'kmh') {
-              newBalance = wallet.balance - totalRevertAmount; // [K-06 Düzeltmesi]: KMH eksi bakiyeye serbestçe düşebilir, borç sıfırlanmaz
-            } else {
-              newBalance = Math.max(0, wallet.balance - totalRevertAmount);
-            }
+      if (sourceWalletId && tx.wallet_id) {
+        // Gelen Transfer satırı siliniyor: tx.wallet_id parayı almıştı (geri düş), sourceWalletId vermişti (iade et)
+        const receiverWallet = (await dbtx.select().from(walletsAccounts).where(eq(walletsAccounts.id, tx.wallet_id)).for('update'))[0];
+        if (receiverWallet) {
+          let newReceiverBalance: number;
+          if (receiverWallet.type === 'credit_card') {
+            newReceiverBalance = Math.round((receiverWallet.balance + totalRevertAmount) * 100) / 100;
+          } else if (receiverWallet.type === 'kmh') {
+            newReceiverBalance = Math.round((receiverWallet.balance - totalRevertAmount) * 100) / 100;
           } else {
-            // Gider siliniyor: Normal banka bakiyesi ARTAR, Kredi kartı borcu AZALIR
-            newBalance = wallet.type === 'credit_card'
-              ? Math.max(0, wallet.balance - totalRevertAmount)
-              : wallet.balance + totalRevertAmount;
+            newReceiverBalance = Math.max(0, Math.round((receiverWallet.balance - totalRevertAmount) * 100) / 100);
           }
-
           await dbtx.update(walletsAccounts)
-            .set({ balance: newBalance, updated_at: nowISO })
+            .set({ balance: newReceiverBalance, updated_at: nowISO })
             .where(eq(walletsAccounts.id, tx.wallet_id));
         }
-      }
 
-      // 2. Transfer ise Hedef Hesabın Bakiyesini de Geri Al
-      if (targetWalletId) {
-        const targetWallet = (await dbtx.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetWalletId)).for('update'))[0];
-        if (targetWallet) {
-          // Transfer silindiğinde: Hedef hesap para almıştı, şimdi o parayı geri düşüyoruz
-          let newTargetBalance: number;
-          if (targetWallet.type === 'credit_card') {
-            newTargetBalance = targetWallet.balance + totalRevertAmount; // Kart ödemesi iptal -> kart borcu geri artar
-          } else if (targetWallet.type === 'kmh') {
-            newTargetBalance = targetWallet.balance - totalRevertAmount; // [K-06 Düzeltmesi]: KMH eksiye düşebilir
-          } else {
-            newTargetBalance = Math.max(0, targetWallet.balance - totalRevertAmount); // Banka bakiyesi geri düşer
-          }
-
+        const senderWallet = (await dbtx.select().from(walletsAccounts).where(eq(walletsAccounts.id, sourceWalletId)).for('update'))[0];
+        if (senderWallet) {
+          const newSenderBalance = senderWallet.type === 'credit_card'
+            ? Math.max(0, Math.round((senderWallet.balance - totalRevertAmount) * 100) / 100)
+            : Math.round((senderWallet.balance + totalRevertAmount) * 100) / 100;
           await dbtx.update(walletsAccounts)
-            .set({ balance: newTargetBalance, updated_at: nowISO })
-            .where(eq(walletsAccounts.id, targetWalletId));
+            .set({ balance: newSenderBalance, updated_at: nowISO })
+            .where(eq(walletsAccounts.id, sourceWalletId));
         }
 
-        // Çift taraflı transferin hedef hesaptaki karşıt hareketini de temizle
-        await dbtx.delete(transactions).where(
-          and(
-            eq(transactions.wallet_id, targetWalletId),
-            like(transactions.notes, `%[from_wallet:${tx.wallet_id}]%`)
-          )
-        );
+        // Karşıt çıkış transfer kaydını yalnızca ilgili işlem üzerinden temizle
+        if (linkedTxId) {
+          await dbtx.delete(transactions).where(and(eq(transactions.id, linkedTxId), eq(transactions.wallet_id, sourceWalletId)));
+        } else {
+          const legacyOut = (await dbtx.select({ id: transactions.id }).from(transactions).where(
+            and(
+              eq(transactions.wallet_id, sourceWalletId),
+              like(transactions.notes, `%[to_wallet:${tx.wallet_id}]%`),
+              eq(transactions.amount, tx.amount),
+              eq(transactions.transaction_date, tx.transaction_date)
+            )
+          ).limit(1))[0];
+          if (legacyOut) {
+            await dbtx.delete(transactions).where(eq(transactions.id, legacyOut.id));
+          }
+        }
+      } else {
+        // 1. Kaynak Cüzdan Bakiyesini İade Et
+        if (tx.wallet_id) {
+          const wallet = (await dbtx.select().from(walletsAccounts).where(eq(walletsAccounts.id, tx.wallet_id)).for('update'))[0];
+          if (wallet) {
+            let newBalance = wallet.balance;
+            if (isIncome) {
+              // Gelir siliniyor: Normal banka bakiyesi AZALIR, Kredi kartı borcu ARTAR, KMH borcu derinleşebilir
+              if (wallet.type === 'credit_card') {
+                newBalance = Math.round((wallet.balance + totalRevertAmount) * 100) / 100;
+              } else if (wallet.type === 'kmh') {
+                newBalance = Math.round((wallet.balance - totalRevertAmount) * 100) / 100;
+              } else {
+                newBalance = Math.max(0, Math.round((wallet.balance - totalRevertAmount) * 100) / 100);
+              }
+            } else {
+              // Gider veya giden transfer siliniyor: Normal banka bakiyesi ARTAR, Kredi kartı borcu AZALIR
+              newBalance = wallet.type === 'credit_card'
+                ? Math.max(0, Math.round((wallet.balance - totalRevertAmount) * 100) / 100)
+                : Math.round((wallet.balance + totalRevertAmount) * 100) / 100;
+            }
+
+            await dbtx.update(walletsAccounts)
+              .set({ balance: newBalance, updated_at: nowISO })
+              .where(eq(walletsAccounts.id, tx.wallet_id));
+          }
+        }
+
+        // 2. Giden Transfer ise Hedef Hesabın Bakiyesini de Geri Al ve YALNIZCA bu transfere bağlı karşıt kaydı sil
+        if (targetWalletId) {
+          const targetWallet = (await dbtx.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetWalletId)).for('update'))[0];
+          if (targetWallet) {
+            let newTargetBalance: number;
+            if (targetWallet.type === 'credit_card') {
+              newTargetBalance = Math.round((targetWallet.balance + totalRevertAmount) * 100) / 100;
+            } else if (targetWallet.type === 'kmh') {
+              newTargetBalance = Math.round((targetWallet.balance - totalRevertAmount) * 100) / 100;
+            } else {
+              newTargetBalance = Math.max(0, Math.round((targetWallet.balance - totalRevertAmount) * 100) / 100);
+            }
+
+            await dbtx.update(walletsAccounts)
+              .set({ balance: newTargetBalance, updated_at: nowISO })
+              .where(eq(walletsAccounts.id, targetWalletId));
+          }
+
+          // Çift taraflı transferin hedef hesaptaki YALNIZCA bu transfere bağlı karşıt hareketini temizle
+          const linkedIncoming = (await dbtx.select({ id: transactions.id }).from(transactions).where(
+            and(
+              eq(transactions.wallet_id, targetWalletId),
+              like(transactions.notes, `%[linked_tx:${tx.id}]%`)
+            )
+          ).limit(1))[0];
+
+          if (linkedIncoming) {
+            await dbtx.delete(transactions).where(eq(transactions.id, linkedIncoming.id));
+          } else {
+            const legacyIncoming = (await dbtx.select({ id: transactions.id }).from(transactions).where(
+              and(
+                eq(transactions.wallet_id, targetWalletId),
+                like(transactions.notes, `%[from_wallet:${tx.wallet_id}]%`),
+                eq(transactions.amount, tx.amount),
+                eq(transactions.transaction_date, tx.transaction_date)
+              )
+            ).limit(1))[0];
+            if (legacyIncoming) {
+              await dbtx.delete(transactions).where(eq(transactions.id, legacyIncoming.id));
+            }
+          }
+        }
       }
 
       // 3. Taksitli ise tüm kardeş taksitleri sil, değilse sadece bu kaydı sil

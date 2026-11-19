@@ -384,16 +384,13 @@ export default function AccountsCard({ accounts, familyMembers, onUpdate, onOpen
       {/* 🎛️ Revolut Tarzı Segmented Control Sekme Çubuğu */}
       <div style={{
         display: 'flex',
+        flexWrap: 'wrap',
         gap: '4px',
         background: 'var(--surface-subtle)',
         padding: '4px',
         borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--border)',
-        marginBottom: '14px',
-        overflowX: 'auto',
-        scrollbarWidth: 'none',
-        msOverflowStyle: 'none',
-        WebkitOverflowScrolling: 'touch'
+        marginBottom: '14px'
       }}>
         {[
           { key: 'all', label: 'Tümü', icon: '🗂️', count: tabCounts.all },

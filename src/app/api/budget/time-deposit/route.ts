@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db, initDatabase } from '@/db';
 import { walletsAccounts, transactions } from '@/db/schema';
-import { eq, or, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getAuthUser } from '@/lib/auth';
+import { getTodayTurkeyDate } from '@/lib/date-utils';
 
 export async function GET(req: Request) {
   try {
@@ -26,7 +27,9 @@ export async function GET(req: Request) {
 
     // BOLA / IDOR Koruması: Hesabın kullanıcıya veya ailesine ait olduğunu doğrula
     const familyId = user.family_id || (user.id ? `fam-${user.id}` : null);
-    const belongsToFamily = !account.family_id || (familyId && account.family_id === familyId);
+    const belongsToFamily = account.family_id
+      ? Boolean(familyId && account.family_id === familyId)
+      : account.user_id === user.id;
     const isOwner = account.user_id === user.id;
     const isShared = belongsToFamily && (account.is_family_shared === 1 || !account.user_id);
     const isLeader = belongsToFamily && (user.is_master_account === 1 || user.role === 'admin');
@@ -118,7 +121,9 @@ export async function POST(req: Request) {
     }
 
     // BOLA: Vadeli hesabın bu aileye/kullanıcıya ait olduğunu doğrula
-    const depositBelongs = !depositAcc.family_id || (familyId && depositAcc.family_id === familyId);
+    const depositBelongs = depositAcc.family_id
+      ? Boolean(familyId && depositAcc.family_id === familyId)
+      : depositAcc.user_id === user.id;
     if (!depositBelongs || (depositAcc.user_id !== user.id && user.is_master_account !== 1 && user.role !== 'admin')) {
       return NextResponse.json({ success: false, error: 'Bu vadeli hesabı kapatma yetkiniz yok.' }, { status: 403 });
     }
@@ -126,6 +131,9 @@ export async function POST(req: Request) {
     const targetAcc = (await db.select().from(walletsAccounts).where(eq(walletsAccounts.id, targetAccountId)))[0];
     if (!targetAcc) {
       return NextResponse.json({ success: false, error: 'Hedef vadesiz hesap bulunamadı.' }, { status: 404 });
+    }
+    if (targetAcc.is_active === 0) {
+      return NextResponse.json({ success: false, error: 'Arşivlenmiş veya pasif hesaba aktarım yapılamaz.' }, { status: 400 });
     }
 
     if (depositAcc.currency !== targetAcc.currency) {
@@ -136,16 +144,20 @@ export async function POST(req: Request) {
     }
 
     // BOLA: Hedef hesabın aynı aileye/kullanıcıya ait olduğunu doğrula
-    const targetBelongs = !targetAcc.family_id || (familyId && targetAcc.family_id === familyId);
-    if (!targetBelongs || (targetAcc.user_id !== user.id && targetAcc.is_family_shared !== 1 && user.is_master_account !== 1 && user.role !== 'admin')) {
+    const targetBelongs = targetAcc.family_id
+      ? Boolean(familyId && targetAcc.family_id === familyId)
+      : targetAcc.user_id === user.id;
+    if (!targetBelongs || (targetAcc.user_id !== user.id && targetAcc.is_family_shared !== 1 && !(!targetAcc.user_id && targetBelongs))) {
       return NextResponse.json({ success: false, error: 'Hedef hesaba aktarım yetkiniz yok.' }, { status: 403 });
     }
 
     const principal = Number(depositAcc.balance) || 0;
-    const interest = Number(actualInterestEarned) || 0;
+    const interest = actualInterestEarned !== undefined && actualInterestEarned !== null && actualInterestEarned !== ''
+      ? Number(actualInterestEarned)
+      : 0;
 
-    if (interest < 0) {
-      return NextResponse.json({ success: false, error: 'Faiz getirisi negatif olamaz.' }, { status: 400 });
+    if (!Number.isFinite(interest) || interest < 0) {
+      return NextResponse.json({ success: false, error: 'Faiz getirisi geçerli ve 0 veya pozitif olmalıdır.' }, { status: 400 });
     }
 
     // Mantıksız veya hileli faiz girişlerini önleme tavanı (maksimum faiz koruması)
@@ -160,9 +172,10 @@ export async function POST(req: Request) {
       }
     }
 
-    const totalReturn = principal + interest;
+    const totalReturn = Math.round((principal + interest) * 100) / 100;
     const now = new Date();
     const nowISO = now.toISOString();
+    const todayTurkeyStr = getTodayTurkeyDate(now);
 
     await db.transaction(async (tx) => {
       const [lockedDeposit] = await tx.select().from(walletsAccounts).where(eq(walletsAccounts.id, accountId)).for('update');
@@ -178,7 +191,7 @@ export async function POST(req: Request) {
       // 1. Hedef hesabın bakiyesini güncelle
       await tx.update(walletsAccounts)
         .set({
-          balance: (Number(lockedTarget.balance) || 0) + totalReturn,
+          balance: Math.round(((Number(lockedTarget.balance) || 0) + totalReturn) * 100) / 100,
           updated_at: nowISO
         })
         .where(eq(walletsAccounts.id, targetAccountId));
@@ -201,7 +214,7 @@ export async function POST(req: Request) {
         merchant: `🏛️ Vadeli Mevduat Dönüşü (Anapara)`,
         amount: principal,
         currency: depositAcc.currency,
-        transaction_date: nowISO.split('T')[0],
+        transaction_date: todayTurkeyStr,
         notes: `${depositAcc.name} vadeli hesabı kapanış anaparası. ${closeNotes || ''}`,
         is_installment: 0,
         installment_number: 1,
@@ -224,7 +237,7 @@ export async function POST(req: Request) {
           merchant: `💵 Vadeli Mevduat Faiz Geliri`,
           amount: interest,
           currency: depositAcc.currency,
-          transaction_date: nowISO.split('T')[0],
+          transaction_date: todayTurkeyStr,
           notes: `${depositAcc.name} vadeli hesabı net faiz getirisi.`,
           is_installment: 0,
           installment_number: 1,
